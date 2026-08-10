@@ -1,0 +1,36 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
+
+bcm:
+  webhook-worker:
+    enabled: ${BCM_WEBHOOK_WORKER_ENABLED:true}
+    fixed-delay-millis: ${BCM_WEBHOOK_WORKER_FIXED_DELAY_MILLIS:500}
+    max-attempts: ${BCM_WEBHOOK_WORKER_MAX_ATTEMPTS:3}
+    outbox-max-attempts: ${BCM_OUTBOX_MAX_ATTEMPTS:5}
+  outbox-relay:
+    enabled: ${BCM_OUTBOX_RELAY_ENABLED:true}
+    fixed-delay-millis: ${BCM_OUTBOX_RELAY_FIXED_DELAY_MILLIS:500}
+    max-events-per-run: ${BCM_OUTBOX_RELAY_MAX_EVENTS_PER_RUN:100}
+    send-timeout-millis: ${BCM_OUTBOX_RELAY_SEND_TIMEOUT_MILLIS:5000}
+  finality-confirmations:
+    ethereum: ${BCM_FINALITY_ETHEREUM:1}
+    base: ${BCM_FINALITY_BASE:1}
+  transaction-submission:
+    claim-ttl-seconds: ${BCM_TRANSACTION_CLAIM_TTL_SECONDS:120}
+  fireblocks:
+    connect-timeout-millis: ${BCM_VENDOR_CONNECT_TIMEOUT_MILLIS:3000}
+    # 제출 소유권(claim) TTL 산정의 실제 근거다.
+    read-timeout-millis: ${BCM_TRANSACTION_SUBMIT_TIMEOUT_MILLIS:10000}
+    # 환경별 공식 JWKS URL만 외부에서 주입한다. 코드에 sandbox/production 주소를 하드코딩하지 않는다.
+    webhook-jwks-url: ${FIREBLOCKS_JWKS_URL:}
+    webhook-jwks-timeout-millis: ${FIREBLOCKS_JWKS_TIMEOUT_MILLIS:3000}
+    webhook-jwks-refresh-cooldown-millis: ${FIREBLOCKS_JWKS_REFRESH_COOLDOWN_MILLIS:30000}
+
+server:
+  tomcat:
+    # 가상 스레드에서는 threads.max가 무효다. 수신 연결이 무한히 쌓이지 않도록 명시 상한을 둔다.
+    max-connections: ${BCM_HTTP_MAX_CONNECTIONS:100}

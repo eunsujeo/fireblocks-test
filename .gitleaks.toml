@@ -1,0 +1,14 @@
+# gitleaks 설정 — 기본 룰 전체 유지 + 표적 allowlist 만 추가 (전역 [[allowlists]] + targetRules 방식).
+# allowlist 는 "왜 오탐인지"가 파일 안에 설명된 경우에만, 파일 단위로 좁게 등재한다.
+# 설정 변경 시 canary 로 양방향 검증한다 — 오탐 파일은 통과 + 실제 형태의 키(본문 64자 이상)는 검출.
+
+[extend]
+useDefault = true
+
+# 테스트 전용 일회용 RSA 키 픽스처 — 매 실행 KeyPairGenerator 로 새로 생성하며 키 자료를 담지 않는다.
+# PEM 경계 리터럴("-----BEGIN PRIVATE KEY-----")이 private-key 룰에 걸리는 오탐만 허용한다.
+[[allowlists]]
+targetRules = ["private-key"]
+paths = [
+    '''blockchain-manager-infra/client/src/test/kotlin/com/whatto/bcm/infra/client/fireblocks/fixture/TestRsaKeyFixture\.kt''',
+]

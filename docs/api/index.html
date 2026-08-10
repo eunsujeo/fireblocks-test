@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>API Reference</title>
+    <style>
+      :root {
+        --canvas: #0b0e11;
+        --surface: #12161c;
+        --elevated: #1e2329;
+        --hairline: #2b3139;
+        --ink: #eaecef;
+        --strong: #ffffff;
+        --muted: #848e9c;
+        --muted2: #b7bdc6;
+        --accent: #fcd535;
+        --code-bg: #0b0e11;
+        --code-ink: #d8dde4;
+        --link: #fcd535;
+        --m-get: #0ecb81;
+        --m-post: #4a90e2;
+        --m-put: #fcd535;
+        --m-del: #f6465d;
+        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      }
+      :root[data-theme="light"] {
+        --canvas: #ffffff;
+        --surface: #ffffff;
+        --elevated: #f5f6f8;
+        --hairline: #e6e8eb;
+        --ink: #1e2329;
+        --strong: #0b0e11;
+        --muted: #707a8a;
+        --muted2: #474d57;
+        --accent: #f0b90b;
+        --code-bg: #f5f6f8;
+        --code-ink: #1e2329;
+        --link: #a17708;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 14px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      code, pre, .mono { font-family: var(--mono); }
+
+      /* layout */
+      /* 사이드바+본문을 한 블록으로 화면 중앙에 — 본문은 사이드바에 붙는다 */
+      .layout { display: flex; min-height: 100vh; max-width: 1840px; margin: 0 auto; }
+      .sidebar {
+        width: 288px; flex: 0 0 288px;
+        border-right: 1px solid var(--hairline);
+        background: var(--surface);
+        position: sticky; top: 0; height: 100vh; overflow-y: auto;
+        padding: 20px 0 60px;
+      }
+      .content { flex: 1 1 auto; min-width: 0; }
+      /* 본문은 사이드바에 붙인다 — 가운데 정렬이면 넓은 화면에서 사이드바와 본문 사이가 크게 벌어진다 */
+      .content-inner { max-width: 1600px; margin: 0; padding: 40px 48px 120px; }
+
+      /* topbar */
+      .brand { padding: 0 20px 18px; border-bottom: 1px solid var(--hairline); margin-bottom: 14px; }
+      .brand-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+      .brand h1 { font-size: 15px; font-weight: 600; color: var(--strong); margin: 0; letter-spacing: -0.1px; }
+      .brand-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; row-gap: 6px; }
+      .ver { font-family: var(--mono); font-size: 11px; color: var(--muted);
+             border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 6px; }
+      .downloads { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+      .iconbtn {
+        font: inherit; font-size: 11.5px; color: var(--muted2);
+        background: transparent; border: 1px solid var(--hairline); border-radius: 6px;
+        padding: 3px 8px; cursor: pointer; white-space: nowrap;
+      }
+      .iconbtn:hover { color: var(--strong); border-color: var(--muted); }
+
+      /* nav */
+      nav { padding: 0 12px; }
+      .nav-group { margin-top: 18px; }
+      .nav-group > .nav-title {
+        font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase;
+        color: var(--muted); padding: 0 8px 6px;
+      }
+      .nav-link {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 8px; border-radius: 6px; color: var(--muted2);
+        cursor: pointer; font-size: 13px;
+      }
+      .nav-link:hover { background: var(--elevated); color: var(--strong); text-decoration: none; }
+      .nav-link.active { color: var(--strong); background: var(--elevated); font-weight: 600; }
+      .nav-link .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      /* method badge */
+      .m { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+           padding: 2px 6px; border-radius: 4px; text-transform: uppercase; flex: 0 0 auto; }
+      .m-get { color: var(--m-get); background: color-mix(in srgb, var(--m-get) 15%, transparent); }
+      .m-post { color: var(--m-post); background: color-mix(in srgb, var(--m-post) 16%, transparent); }
+      .m-put, .m-patch { color: var(--m-put); background: color-mix(in srgb, var(--m-put) 16%, transparent); }
+      .m-delete { color: var(--m-del); background: color-mix(in srgb, var(--m-del) 15%, transparent); }
+
+      /* headings / intro */
+      .page-title { font-size: 26px; font-weight: 700; color: var(--strong); letter-spacing: -0.4px; margin: 0 0 6px; }
+      .page-sub { color: var(--muted2); margin: 0 0 8px; }
+      .md h2 { font-size: 19px; font-weight: 600; color: var(--strong); margin: 40px 0 12px;
+               padding-top: 14px; border-top: 1px solid var(--hairline); letter-spacing: -0.2px; }
+      .md h3 { font-size: 15px; font-weight: 600; color: var(--strong); margin: 22px 0 8px; }
+      .md p { margin: 10px 0; }
+      .md ul { margin: 10px 0; padding-left: 20px; }
+      .md li { margin: 4px 0; }
+      .md strong { color: var(--strong); font-weight: 600; }
+      .md code, .prop code, td code, .desc code {
+        font-size: 12.5px; background: var(--elevated); color: var(--code-ink);
+        padding: 1px 5px; border-radius: 4px; border: 1px solid var(--hairline);
+        white-space: nowrap;
+      }
+      pre { background: var(--code-bg); border: 1px solid var(--hairline); border-radius: 8px;
+            padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+      .md pre code, pre code { font-size: 12.5px; color: var(--code-ink); background: none; border: none; padding: 0; white-space: pre; }
+
+      /* flow diagram */
+      .md .flow, .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+      .flow-step { background: var(--elevated); border: 1px solid var(--hairline); border-radius: 8px;
+                   padding: 8px 12px; font-size: 12.5px; color: var(--strong); }
+      .flow-arrow { color: var(--muted); font-size: 14px; }
+
+      /* sequence diagram (SVG) */
+      .seq-wrap { overflow-x: auto; margin: 18px 0; }
+      .seq { max-width: 100%; height: auto; font-family: var(--sans); }
+      .seq .life { stroke: var(--hairline); stroke-width: 1; }
+      .seq .pbox { fill: var(--elevated); stroke: var(--hairline); }
+      .seq .pname { fill: var(--strong); font-size: 12px; font-weight: 600; }
+      .seq .msg { stroke: var(--muted2); stroke-width: 1.4; }
+      .seq .mhead { fill: var(--muted2); }
+      .seq .mlabel { fill: var(--muted2); font-size: 11px; }
+
+      /* tables */
+      .table-wrap { overflow-x: auto; margin: 12px 0; }
+      .table-wrap table { margin: 0; }
+      table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+      th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--hairline); vertical-align: top; overflow-wrap: anywhere; }
+      th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; }
+      td { color: var(--ink); }
+      tbody tr:last-child td { border-bottom: none; }
+
+      /* operation */
+      .op { margin-top: 44px; scroll-margin-top: 20px; }
+      .op-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .op-path { font-family: var(--mono); font-size: 15px; color: var(--strong); word-break: break-all; }
+      .op-title { font-size: 17px; font-weight: 600; color: var(--strong); margin: 12px 0 2px; }
+      .op-desc { color: var(--muted2); margin: 6px 0 4px; }
+      .block-label { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+                     color: var(--muted); margin: 22px 0 4px; }
+      .card { background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; margin-top: 6px; }
+      .card table { margin: 0; }
+      .card th, .card td { padding: 9px 14px; }
+      .req { color: var(--m-del); font-size: 11px; font-weight: 600; }
+      .opt { color: var(--muted); font-size: 11px; }
+      .ptype { font-family: var(--mono); font-size: 12.5px; color: var(--m-post); }
+      .enum-vals { margin-top: 4px; }
+      .enum-vals code { margin-right: 4px; }
+      .status { font-family: var(--mono); font-weight: 700; }
+      .status.ok { color: var(--m-get); }
+      .status.err { color: var(--m-del); }
+
+      .group-head { margin-top: 56px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+                    text-transform: uppercase; color: var(--accent); }
+      .tag-desc { color: var(--muted); margin: 2px 0 0; }
+      .schema-block { margin-top: 30px; scroll-margin-top: 20px; }
+      .schema-name { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--strong); }
+      .schema-desc { color: var(--muted2); margin: 4px 0; font-size: 13px; }
+
+      .menu-toggle { display: none; }
+      @media (max-width: 860px) {
+        .sidebar { position: fixed; z-index: 20; transform: translateX(-100%); transition: transform .2s ease; }
+        .sidebar.open { transform: translateX(0); }
+        .content-inner { padding: 24px 20px 100px; }
+        .menu-toggle { display: inline-flex; position: fixed; top: 12px; right: 12px; z-index: 30; }
+      }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+      html { scroll-behavior: smooth; }
+
+      /* schema popup */
+      .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; z-index: 50; overflow-y: auto; }
+      .modal-overlay.open { display: block; }
+      .modal { background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px;
+               max-width: 720px; margin: 64px auto; padding: 20px 24px 24px; position: relative; }
+      .modal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+      .modal-head #modalClose { margin-left: auto; }
+      @media (max-width: 860px) { .modal { margin: 24px 12px; } }
+    </style>
+  </head>
+  <body>
+    <button class="iconbtn menu-toggle" id="menuToggle" aria-label="메뉴">☰</button>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <div class="brand-head">
+            <h1 id="brandTitle">API</h1>
+            <button class="iconbtn" id="themeToggle" aria-label="테마 전환">◐</button>
+          </div>
+          <div class="brand-row">
+            <span class="ver" id="brandVer"></span>
+          </div>
+          <div class="downloads">
+            <a class="iconbtn" href="./openapi.yaml" download>OpenAPI ↓</a>
+            <a class="iconbtn" href="./api.md" download>Markdown ↓</a>
+            <a class="iconbtn" href="./api.html" download>HTML ↓</a>
+          </div>
+        </div>
+        <nav id="nav"></nav>
+      </aside>
+      <main class="content">
+        <div class="content-inner" id="content"></div>
+      </main>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+      <div class="modal">
+        <div class="modal-head">
+          <button class="iconbtn modal-back" id="modalBack" aria-label="뒤로">← 뒤로</button>
+          <button class="iconbtn" id="modalClose" aria-label="닫기">✕</button>
+        </div>
+        <div class="modal-body"></div>
+      </div>
+    </div>
+
+    <script src="./spec.js"></script>
+    <script>
+      (function () {
+        const spec = window.OPENAPI;
+        if (!spec) { document.getElementById("content").textContent = "spec.js 를 불러오지 못했습니다."; return; }
+        const serverUrl = (spec.servers && spec.servers[0] && spec.servers[0].url) || "";
+
+        const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+        const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const inline = (s) => esc(s)
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+        // --- resolve internal $ref ---
+        function resolve(obj) {
+          if (obj && obj.$ref) {
+            const path = obj.$ref.replace(/^#\//, "").split("/");
+            let cur = spec; for (const p of path) cur = cur && cur[p];
+            return cur || {};
+          }
+          return obj || {};
+        }
+        function refName(obj) { return obj && obj.$ref ? obj.$ref.split("/").pop() : null; }
+
+        // --- type label (with schema links) ---
+        function typeLabel(schema) {
+          if (!schema) return "any";
+          if (schema.$ref) { const n = refName(schema); return `<a class="ptype" href="#schema-${n}">${n}</a>`; }
+          if (schema.allOf && schema.allOf.length) return typeLabel(schema.allOf[0]);
+          if (schema.oneOf) return schema.oneOf.map(typeLabel).join(" | ");
+          let t = schema.type;
+          if (Array.isArray(t)) return t.map((x) => (x === "null" ? "null" : x)).join(" | ");
+          if (t === "array") return typeLabel(schema.items) + "[]";
+          if (t === "string" && schema.format === "date-time") return "string (ISO 8601)";
+          return t || (schema.properties ? "object" : "any");
+        }
+
+        // --- property table for an object schema ---
+        function propTable(schema) {
+          schema = schema.$ref ? resolve(schema) : schema;
+          if (schema.allOf) { // shallow merge top-level props + allOf objects
+            const merged = { type: "object", properties: { ...(schema.properties || {}) }, required: [...(schema.required || [])] };
+            schema.allOf.map(resolve).forEach((s) => { Object.assign(merged.properties, s.properties || {}); (s.required || []).forEach((r) => merged.required.push(r)); });
+            schema = merged;
+          }
+          const props = schema.properties;
+          if (!props) return null;
+          const required = new Set(schema.required || []);
+          const card = el("div", "card");
+          const table = el("table");
+          table.innerHTML = "<thead><tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr></thead>";
+          const tb = el("tbody");
+          for (const [key, raw] of Object.entries(props)) {
+            const v = raw || {};
+            let desc = v.description ? inline(v.description) : "";
+            const enumv = (v.enum || (v.$ref && resolve(v).enum));
+            if (enumv) desc += `<div class="enum-vals">${enumv.map((e) => `<code>${esc(e)}</code>`).join("")}</div>`;
+            const tr = el("tr");
+            tr.innerHTML = `<td><code>${esc(key)}</code></td><td>${typeLabel(v)}</td>`
+              + `<td>${required.has(key) ? '<span class="req">필수</span>' : '<span class="opt">-</span>'}</td>`
+              + `<td class="desc">${desc}</td>`;
+            tb.appendChild(tr);
+          }
+          table.appendChild(tb); card.appendChild(table); return card;
+        }
+
+        // --- enum value table ---
+        function enumTable(schema) {
+          const descs = schema["x-enumDescriptions"] || {};
+          const hasDesc = Object.keys(descs).length > 0;
+          const card = el("div", "card"); const t = el("table");
+          t.innerHTML = "<thead><tr><th>값</th>" + (hasDesc ? "<th>설명</th>" : "") + "</tr></thead>";
+          const tb = el("tbody");
+          (schema.enum || []).forEach((v) => {
+            const tr = el("tr");
+            tr.innerHTML = `<td><code>${esc(v)}</code></td>` + (hasDesc ? `<td class="desc">${descs[v] ? inline(descs[v]) : ""}</td>` : "");
+            tb.appendChild(tr);
+          });
+          t.appendChild(tb); card.appendChild(t); return card;
+        }
+
+        // --- sequence diagram (A -> B: label) as SVG ---
+        function renderSeq(codeLines) {
+          const parts = [];
+          const idx = (n) => { let i = parts.indexOf(n); if (i < 0) { parts.push(n); i = parts.length - 1; } return i; };
+          const msgs = [];
+          codeLines.forEach((ln) => {
+            const m = ln.match(/^\s*(.+?)\s*->\s*(.+?)\s*:\s*(.*)$/);
+            if (m) msgs.push({ a: idx(m[1].trim()), b: idx(m[2].trim()), label: m[3].trim() });
+          });
+          if (!parts.length || !msgs.length) return "";
+          const colW = 150, headH = 40, rowH = 48, padX = 20, padTop = 8, padBot = 20;
+          const W = padX * 2 + parts.length * colW, H = padTop + headH + rowH * msgs.length + padBot;
+          const cx = (i) => padX + i * colW + colW / 2;
+          let s = `<div class="seq-wrap"><svg class="seq" viewBox="0 0 ${W} ${H}" width="${W}" role="img" aria-label="이벤트 시퀀스">`;
+          parts.forEach((p, i) => {
+            const x = cx(i);
+            s += `<line class="life" x1="${x}" y1="${padTop + headH}" x2="${x}" y2="${H - padBot}"/>`;
+            s += `<rect class="pbox" x="${x - colW / 2 + 10}" y="${padTop}" width="${colW - 20}" height="${headH - 12}" rx="6"/>`;
+            s += `<text class="pname" x="${x}" y="${padTop + (headH - 12) / 2 + 4}" text-anchor="middle">${esc(p)}</text>`;
+          });
+          msgs.forEach((mm, k) => {
+            const y = padTop + headH + rowH * k + rowH / 2;
+            const x1 = cx(mm.a), x2 = cx(mm.b), dir = x2 >= x1 ? 1 : -1;
+            s += `<text class="mlabel" x="${(x1 + x2) / 2}" y="${y - 8}" text-anchor="middle">${esc(mm.label)}</text>`;
+            s += `<line class="msg" x1="${x1}" y1="${y}" x2="${x2 - dir * 5}" y2="${y}"/>`;
+            s += `<path class="mhead" d="M ${x2} ${y} L ${x2 - dir * 9} ${y - 4} L ${x2 - dir * 9} ${y + 4} Z"/>`;
+          });
+          return s + "</svg></div>";
+        }
+
+        // --- sample JSON from schema (property examples fill in) ---
+        function sample(schema, depth) {
+          depth = depth || 0;
+          if (!schema || depth > 7) return null;
+          if (schema.$ref) schema = resolve(schema);
+          if (schema && Object.prototype.hasOwnProperty.call(schema, "example")) return schema.example;
+          if (schema.allOf) { const o = {}; for (const [k, v] of Object.entries(schema.properties || {})) o[k] = sample(v, depth + 1); schema.allOf.map(resolve).forEach((s) => Object.assign(o, sample(s, depth + 1) || {})); return o; }
+          if (schema.oneOf) return sample(schema.oneOf[0], depth + 1);
+          if (schema.enum) return schema.enum[0];
+          let t = schema.type;
+          if (Array.isArray(t)) t = t.find((x) => x !== "null") || "null";
+          if (t === "object" || schema.properties) { const o = {}; for (const [k, v] of Object.entries(schema.properties || {})) o[k] = sample(v, depth + 1); return o; }
+          if (t === "array") return [sample(schema.items, depth + 1)];
+          if (t === "string") return schema.format === "date-time" ? "2026-07-13T04:05:06.789Z" : "string";
+          if (t === "integer" || t === "number") return 0;
+          if (t === "boolean") return false;
+          return null;
+        }
+        function mediaExample(media) {
+          if (!media) return undefined;
+          return media.example !== undefined ? media.example : sample(media.schema);
+        }
+        function jsonBlock(value) {
+          const pre = el("pre"); const code = el("code");
+          code.textContent = JSON.stringify(value, null, 2);
+          pre.appendChild(code); return pre;
+        }
+
+        // --- 오퍼레이션별 base URL (없으면 전역 servers[0]) ---
+        function opServerUrl(op) {
+          return (op.servers && op.servers[0] && op.servers[0].url) || serverUrl;
+        }
+        // --- curl 예시 (build.py 와 같은 형식) ---
+        function fillPath(path, params) {
+          let p = path;
+          params.map((x) => (x.$ref ? resolve(x) : x)).forEach((pm) => {
+            if (pm.in !== "path") return;
+            const ex = pm.example !== undefined ? pm.example : (pm.schema && pm.schema.example);
+            if (ex !== undefined) p = p.replace("{" + pm.name + "}", ex);
+          });
+          return p;
+        }
+        function curlText(method, op, params, path) {
+          const url = opServerUrl(op) + fillPath(path, params);
+          const M = method.toUpperCase();
+          if (M === "GET") {
+            const qs = params.map((x) => (x.$ref ? resolve(x) : x)).filter((pm) => pm.in === "query")
+              .map((pm) => { const ex = pm.example !== undefined ? pm.example : (pm.schema && pm.schema.example); return ex !== undefined && ex !== "" ? pm.name + "=" + ex : null; })
+              .filter(Boolean);
+            return 'curl "' + url + (qs.length ? "?" + qs.join("&") : "") + '"';
+          }
+          const rb = op.requestBody && resolve(op.requestBody);
+          const rbMedia = rb && rb.content && rb.content["application/json"];
+          const body = rbMedia ? mediaExample(rbMedia) : undefined;
+          if (body !== undefined) {
+            return 'curl -X ' + M + ' "' + url + '" \\\n  -H "Content-Type: application/json" \\\n  -d \'' + JSON.stringify(body, null, 2) + "'";
+          }
+          return 'curl -X ' + M + ' "' + url + '"';
+        }
+
+        // --- mini markdown (subset) ---
+        function markdown(md, headings) {
+          const lines = String(md || "").replace(/\r/g, "").split("\n");
+          let html = "", i = 0;
+          while (i < lines.length) {
+            let line = lines[i];
+            const fence = line.match(/^\s*```(\w*)/);
+            if (fence) { // fenced block
+              const lang = fence[1];
+              i++; let code = [];
+              while (i < lines.length && !/^\s*```/.test(lines[i])) { code.push(lines[i]); i++; }
+              i++;
+              if (lang === "seq") {
+                html += renderSeq(code);
+              } else if (lang === "flow") {
+                const steps = code.map((s) => s.trim()).filter(Boolean);
+                html += '<div class="flow">' + steps.map((s, k) => `<div class="flow-step">${inline(s)}</div>` + (k < steps.length - 1 ? '<span class="flow-arrow">→</span>' : "")).join("") + "</div>";
+              } else {
+                html += `<pre><code>${esc(code.join("\n"))}</code></pre>`;
+              }
+              continue;
+            }
+            const h = line.match(/^(#{2,3})\s+(.*)$/);
+            if (h) {
+              const lvl = h[1].length, text = h[2].trim();
+              if (lvl === 2 && headings) { const id = "sec-" + headings.length; headings.push({ id, text }); html += `<h2 id="${id}">${inline(text)}</h2>`; }
+              else html += `<h${lvl}>${inline(text)}</h${lvl}>`;
+              i++; continue;
+            }
+            if (/^\s*\|/.test(line)) { // table
+              const rows = []; while (i < lines.length && /^\s*\|/.test(lines[i])) { rows.push(lines[i]); i++; }
+              const cells = (r) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+              const head = cells(rows[0]);
+              let t = "<table><thead><tr>" + head.map((c) => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>";
+              for (let r = 2; r < rows.length; r++) t += "<tr>" + cells(rows[r]).map((c) => `<td>${inline(c)}</td>`).join("") + "</tr>";
+              html += '<div class="table-wrap">' + t + "</tbody></table></div>"; continue;
+            }
+            if (/^\s*[-*]\s+/.test(line)) { // list
+              let items = []; while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, "")); i++; }
+              html += "<ul>" + items.map((it) => `<li>${inline(it)}</li>`).join("") + "</ul>"; continue;
+            }
+            if (line.trim() === "") { i++; continue; }
+            let para = []; while (i < lines.length && lines[i].trim() !== "" && !/^\s*(#{2,3}\s|```|\||[-*]\s)/.test(lines[i])) { para.push(lines[i]); i++; }
+            html += `<p>${inline(para.join(" "))}</p>`;
+          }
+          return html;
+        }
+
+        // --- render ---
+        const nav = document.getElementById("nav");
+        const content = document.getElementById("content");
+        document.getElementById("brandTitle").textContent = spec.info.title;
+        document.getElementById("brandVer").textContent = "v" + spec.info.version;
+        document.title = spec.info.title;
+
+        const navSpy = []; // {id, link}
+        function addNav(group, items) {
+          const g = el("div", "nav-group");
+          g.appendChild(el("div", "nav-title", group));
+          items.forEach(({ id, label, method }) => {
+            const a = el("a", "nav-link");
+            a.href = "#" + id;
+            a.innerHTML = (method ? `<span class="m m-${method.toLowerCase()}">${method}</span>` : "") + `<span class="label">${esc(label)}</span>`;
+            g.appendChild(a); navSpy.push({ id, link: a });
+          });
+          nav.appendChild(g);
+        }
+
+        // intro + conventions
+        const title = el("h1", "page-title"); title.textContent = spec.info.title; content.appendChild(title);
+        const descHeadings = [];
+        const md = el("div", "md"); md.innerHTML = markdown(spec.info.description, descHeadings); content.appendChild(md);
+        addNav("개요", descHeadings.map((h) => ({ id: h.id, label: h.text })));
+
+        // operations grouped by tag
+        const tagOrder = (spec.tags || []).map((t) => t.name);
+        const groups = {};
+        for (const [path, item] of Object.entries(spec.paths)) {
+          const common = item.parameters || [];
+          for (const method of ["post", "put", "patch", "delete", "get"]) {
+            const op = item[method]; if (!op) continue;
+            const tag = (op.tags && op.tags[0]) || "기타";
+            (groups[tag] = groups[tag] || []).push({ path, method, op, params: (common.concat(op.parameters || [])) });
+          }
+        }
+        const orderedTags = tagOrder.filter((t) => groups[t]).concat(Object.keys(groups).filter((t) => !tagOrder.includes(t)));
+
+        orderedTags.forEach((tag) => {
+          const tagMeta = (spec.tags || []).find((t) => t.name === tag);
+          const gh = el("div", "group-head"); gh.textContent = tag; content.appendChild(gh);
+          if (tagMeta && tagMeta.description) content.appendChild(el("p", "tag-desc", esc(tagMeta.description)));
+          const navItems = [];
+          groups[tag].forEach(({ path, method, op, params }) => {
+            const id = "op-" + method + "-" + path.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+            navItems.push({ id, label: op.summary || path, method: method.toUpperCase() });
+            const sec = el("section", "op"); sec.id = id;
+            const head = el("div", "op-head");
+            head.innerHTML = `<span class="m m-${method}">${method.toUpperCase()}</span><span class="op-path">${esc(opServerUrl(op) + path)}</span>`;
+            sec.appendChild(head);
+            if (op.summary) sec.appendChild(el("div", "op-title", esc(op.summary)));
+            if (op.description) { const d = el("div", "op-desc md"); d.innerHTML = markdown(op.description); sec.appendChild(d); }
+
+            if (spec.info["x-curl"]) {
+              sec.appendChild(el("div", "block-label", "curl"));
+              const pre = el("pre"); const code = el("code");
+              code.textContent = curlText(method, op, params, path);
+              pre.appendChild(code); sec.appendChild(pre);
+            }
+
+            if (params.length) {
+              sec.appendChild(el("div", "block-label", "파라미터"));
+              const card = el("div", "card"); const t = el("table");
+              t.innerHTML = "<thead><tr><th>이름</th><th>위치</th><th>타입</th><th>필수</th><th>예시</th><th>설명</th></tr></thead>";
+              const tb = el("tbody");
+              params.map((p) => (p.$ref ? resolve(p) : p)).forEach((p) => {
+                const sc = p.schema || {};
+                let exv = p.example !== undefined ? p.example : (sc.example !== undefined ? sc.example : sc.default);
+                const exHtml = exv !== undefined ? `<code>${esc(exv)}</code>` : "";
+                const tr = el("tr");
+                tr.innerHTML = `<td><code>${esc(p.name)}</code></td><td>${esc(p.in)}</td><td>${typeLabel(sc)}</td>`
+                  + `<td>${p.required ? '<span class="req">필수</span>' : '<span class="opt">-</span>'}</td>`
+                  + `<td>${exHtml}</td>`
+                  + `<td class="desc">${p.description ? inline(p.description) : ""}</td>`;
+                tb.appendChild(tr);
+              });
+              t.appendChild(tb); card.appendChild(t); sec.appendChild(card);
+            }
+
+            const rb = op.requestBody && resolve(op.requestBody);
+            const rbMedia = rb && rb.content && rb.content["application/json"];
+            const rbSchema = rbMedia && rbMedia.schema;
+            if (rbSchema) {
+              sec.appendChild(el("div", "block-label", "요청 본문"));
+              sec.appendChild(jsonBlock(mediaExample(rbMedia)));
+              const pt = propTable(rbSchema);
+              if (pt) sec.appendChild(pt);
+            }
+
+            if (op.responses) {
+              sec.appendChild(el("div", "block-label", "응답"));
+              for (const [code, rRaw] of Object.entries(op.responses)) {
+                const r = resolve(rRaw);
+                const ok = /^2/.test(code);
+                const row = el("div"); row.style.margin = "10px 0 2px";
+                row.innerHTML = `<span class="status ${ok ? "ok" : "err"}">${code}</span> <span class="desc">${r.description ? inline(r.description) : ""}</span>`;
+                sec.appendChild(row);
+                const media = r.content && r.content["application/json"];
+                if (media && media.schema) {
+                  sec.appendChild(jsonBlock(mediaExample(media)));
+                  const pt = propTable(media.schema); if (pt) sec.appendChild(pt);
+                }
+              }
+            }
+            content.appendChild(sec);
+          });
+          addNav(tag, navItems);
+        });
+
+        // schemas ("타입")
+        const schemas = (spec.components && spec.components.schemas) || {};
+        const schemaNames = Object.keys(schemas);
+        if (schemaNames.length) {
+          const gh = el("div", "group-head"); gh.textContent = "타입"; content.appendChild(gh);
+          const navItems = [];
+          schemaNames.forEach((name) => {
+            const s = schemas[name];
+            const id = "schema-" + name; navItems.push({ id, label: name });
+            const sec = el("section", "schema-block"); sec.id = id;
+            sec.appendChild(el("div", "schema-name", esc(name)));
+            if (s.description) { const d = el("div", "schema-desc md"); d.innerHTML = markdown(s.description); sec.appendChild(d); }
+            const pt = propTable(s);
+            if (pt) sec.appendChild(pt);
+            else if (s.enum) { sec.appendChild(enumTable(s)); }
+            else { const c = el("div", "card"); c.style.padding = "10px 14px"; c.innerHTML = typeLabel(s); sec.appendChild(c); }
+            content.appendChild(sec);
+          });
+          addNav("타입", navItems);
+        }
+
+        // 부록 (x-appendix) — 타입 뒤에 렌더 (미확정 등)
+        if (spec.info["x-appendix"]) {
+          const apx = el("div", "md"); apx.innerHTML = markdown(spec.info["x-appendix"]); content.appendChild(apx);
+        }
+
+        // scroll spy
+        const byId = {}; navSpy.forEach((n) => (byId[n.id] = n.link));
+        const obs = new IntersectionObserver((entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) {
+              navSpy.forEach((n) => n.link.classList.remove("active"));
+              const link = byId[e.target.id]; if (link) link.classList.add("active");
+            }
+          });
+        }, { rootMargin: "-10% 0px -80% 0px", threshold: 0 });
+        navSpy.forEach((n) => { const t = document.getElementById(n.id); if (t) obs.observe(t); });
+
+        // theme toggle
+        const root = document.documentElement;
+        let saved = null; try { saved = localStorage.getItem("bcm-api-theme"); } catch (e) {}
+        if (saved) root.setAttribute("data-theme", saved);
+        document.getElementById("themeToggle").addEventListener("click", () => {
+          const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          root.setAttribute("data-theme", next);
+          try { localStorage.setItem("bcm-api-theme", next); } catch (e) {}
+        });
+
+        // mobile menu
+        const sidebar = document.getElementById("sidebar");
+        document.getElementById("menuToggle").addEventListener("click", () => sidebar.classList.toggle("open"));
+        nav.addEventListener("click", (e) => { if (e.target.closest(".nav-link")) sidebar.classList.remove("open"); });
+
+        // schema popup — type/enum 링크는 아래로 점프하지 않고 팝업으로 정의를 보여준다
+        const modal = document.getElementById("modal");
+        const modalBody = modal.querySelector(".modal-body");
+        const modalBack = document.getElementById("modalBack");
+        let modalStack = [];   // 방문한 타입 이름 스택 (중첩 탐색)
+        function renderSchema(name) {
+          const s = schemas[name]; if (!s) return;
+          modalBody.innerHTML = "";
+          modalBody.appendChild(el("div", "schema-name", esc(name)));
+          if (s.description) { const d = el("div", "schema-desc md"); d.innerHTML = markdown(s.description); modalBody.appendChild(d); }
+          const pt = propTable(s);
+          if (pt) modalBody.appendChild(pt);
+          else if (s.enum) modalBody.appendChild(enumTable(s));
+          else { const c = el("div", "card"); c.style.padding = "10px 14px"; c.innerHTML = typeLabel(s); modalBody.appendChild(c); }
+          modalBack.style.display = modalStack.length > 1 ? "" : "none";
+          modal.scrollTop = 0;
+        }
+        function openSchemaModal(name) {
+          if (!schemas[name]) return;
+          const wasOpen = modal.classList.contains("open");
+          if (wasOpen) modalStack.push(name); else modalStack = [name];
+          renderSchema(name);
+          modal.classList.add("open");
+          if (!wasOpen) history.pushState({ bcmModal: true }, "");   // 브라우저 뒤로가기로 닫힘
+        }
+        const closeModal = () => { modal.classList.remove("open"); modalStack = []; };
+        const dismiss = () => { if (modal.classList.contains("open")) history.back(); };
+        const goBack = () => {   // 모달 안 "← 뒤로": 중첩이면 이전 타입, 최상위면 닫기
+          if (modalStack.length > 1) { modalStack.pop(); renderSchema(modalStack[modalStack.length - 1]); }
+          else dismiss();
+        };
+        document.addEventListener("click", (e) => {
+          const a = e.target.closest && e.target.closest('a[href^="#schema-"]');
+          if (a && !a.closest(".sidebar")) { e.preventDefault(); openSchemaModal(a.getAttribute("href").slice(8)); }
+        });
+        modalBack.addEventListener("click", goBack);
+        document.getElementById("modalClose").addEventListener("click", dismiss);
+        modal.addEventListener("click", (e) => { if (e.target === modal) dismiss(); });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape") dismiss(); });
+        window.addEventListener("popstate", () => { if (modal.classList.contains("open")) closeModal(); });
+      })();
+    </script>
+  </body>
+</html>

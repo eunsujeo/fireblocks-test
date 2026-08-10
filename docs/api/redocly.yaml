@@ -1,0 +1,10 @@
+# redocly lint 설정 — 이 스펙은 인증을 두지 않으므로 security-defined 규칙을 끈다.
+extends:
+  - recommended
+rules:
+  security-defined: off
+  info-license: off
+  # EventType·PeerType 등 일부 enum 은 문서·링크용으로만 두고 $ref 로 안 쓸 수 있다.
+  no-unused-components: off
+  # TransferPeer 의 if/then 조건부 required — 속성은 부모 스키마에 정의돼 있어 오탐.
+  no-required-schema-properties-undefined: off

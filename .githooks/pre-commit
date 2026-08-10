@@ -1,0 +1,21 @@
+#!/bin/bash
+# pre-commit — 시크릿 스캔 (gitleaks). SETUP.md 3절에서 설치, git config core.hooksPath .githooks 로 활성화.
+# fail-closed: gitleaks 미설치면 커밋을 막고 설치를 안내한다 (우회는 git commit --no-verify — 쓰지 말 것).
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks 가 없어 시크릿 스캔을 못 한다 — brew install gitleaks 후 다시 커밋." >&2
+  exit 1
+fi
+
+if gitleaks protect --staged --no-banner >/dev/null 2>&1; then
+  exit 0
+fi
+
+# gitleaks 8.19+ 는 명령이 git 하위로 개편됨 — 신구 어느 쪽이든 한 번은 실행되게 한다
+if gitleaks git --staged --no-banner --pre-commit >/dev/null 2>&1; then
+  exit 0
+fi
+
+echo "시크릿 의심 항목이 스테이징에 있다 — gitleaks 출력 확인:" >&2
+gitleaks protect --staged --no-banner 2>&1 || gitleaks git --staged --pre-commit 2>&1
+exit 1

@@ -1,0 +1,39 @@
+# 버전 단일 관리 정본 (CLAUDE.md 5절). 선정 근거는 docs/tooling.md 1절 · docs/testing.md 스택 표.
+# 라인 내 최신 패치 추종 — 갱신 시 repo1.maven.org metadata 로 실존 확인 후 반영.
+
+[versions]
+kotlin = "2.3.21"          # Boot 4.1 관리 라인(2.3.x) 최신
+spring-boot = "4.1.0"
+junit = "6.1.2"            # domain(무의존 모듈)용 — Boot 모듈은 BOM 관리 버전 사용
+assertj = "3.27.7"         # domain 등 무의존 모듈용 — Boot 모듈은 starter-test 포함분
+archunit = "1.4.2"
+mockk = "1.14.11"
+springmockk = "5.0.1"      # 4.x 는 Boot 4 비호환 (docs/testing.md)
+testcontainers = "2.0.5"   # 2.0 에서 artifactId 가 testcontainers- 접두로 개명
+jacoco = "0.8.15"          # 사내 표준 — sonarqube 분석용
+openapi-validator = "3.0.0" # 스펙 스키마 자동 대조 — OpenAPI 3.1 지원은 v3(개명 후)부터 (2026-08-05 승인·repo1 실물 확인)
+sentry = "8.51.0"          # 사내 표준 — support 모듈 모니터링 (architecture.md)
+
+[libraries]
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-kafka = { module = "org.springframework.kafka:spring-kafka" }
+sentry-bom = { module = "io.sentry:sentry-bom", version.ref = "sentry" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
+testcontainers-kafka = { module = "org.testcontainers:testcontainers-kafka", version.ref = "testcontainers" }
+testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
+openapi-validator-mockmvc = { module = "com.atlassian.oai:openapi-request-validator-mockmvc", version.ref = "openapi-validator" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version = "14.2.0" }
+sonarqube = { id = "org.sonarqube", version = "7.3.1.8318" }
+git-properties = { id = "com.gorylenko.gradle-git-properties", version = "4.0.1" }

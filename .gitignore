@@ -1,0 +1,9 @@
+.env
+.env.*
+.DS_Store
+build/
+.gradle/
+.idea/
+*.iml
+.kotlin/
+.claude/settings.local.json

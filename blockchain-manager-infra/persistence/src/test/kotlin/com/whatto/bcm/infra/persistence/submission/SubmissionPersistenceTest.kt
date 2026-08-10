@@ -1,0 +1,183 @@
+package com.whatto.bcm.infra.persistence.submission
+
+import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.submission.SubmissionStatus
+import com.whatto.bcm.infra.persistence.submission.fixture.SubmissionRecordFixture.fixture
+import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
+import org.springframework.context.annotation.Import
+import org.springframework.jdbc.core.JdbcTemplate
+
+@DataJdbcTest
+@Import(SubmissionJdbcAdapter::class)
+class SubmissionPersistenceTest : PersistenceTestSupport() {
+    @Autowired
+    lateinit var submissions: SubmissionJdbcAdapter
+
+    @Autowired
+    lateinit var jdbc: JdbcTemplate
+
+    @Test
+    fun `REQUESTED 제출 원장을 저장하고 externalTxId로 모든 canonical 필드를 되찾는다`() {
+        val requested = fixture()
+
+        val saved = submissions.insert(requested)
+
+        assertThat(saved).isEqualTo(requested)
+        assertThat(submissions.findByExternalTransactionId(requested.externalTransactionId)).isEqualTo(requested)
+        val audit = jdbc.queryForMap("SELECT * FROM bcm_sbmt_l WHERE ext_tx_id = ?", requested.externalTransactionId)
+        assertThat(audit["frst_reg_empno"]).isEqualTo("SYSTEM")
+        assertThat(audit["frst_reg_brcd"]).isEqualTo("9999")
+    }
+
+    @Test
+    fun `유효한 claim은 뺏지 못하고 만료 뒤에는 CAS로 새 소유자만 잡는다`() {
+        submissions.insert(fixture())
+
+        val denied =
+            submissions.tryClaim(
+                "wd-260713-0042",
+                "claim-owner-2",
+                "20260807120100",
+                "20260807120020",
+            )
+        val acquired =
+            submissions.tryClaim(
+                "wd-260713-0042",
+                "claim-owner-2",
+                "20260807120130",
+                "20260807120031",
+            )
+
+        assertThat(denied).isNull()
+        assertThat(acquired?.claimId).isEqualTo("claim-owner-2")
+        assertThat(acquired?.claimExpiresAt).isEqualTo("20260807120130")
+    }
+
+    @Test
+    fun `제출 응답은 claim 소유자만 SUBMITTED로 마감할 수 있다`() {
+        submissions.insert(fixture())
+
+        assertThatThrownBy {
+            submissions.markSubmittedByClaim(
+                "wd-260713-0042",
+                "claim-other",
+                "tx-91c",
+                "20260807120010",
+            )
+        }.isInstanceOf(ConflictException::class.java)
+
+        val submitted =
+            submissions.markSubmittedByClaim(
+                "wd-260713-0042",
+                "claim-owner-1",
+                "tx-91c",
+                "20260807120010",
+            )
+        assertThat(submitted.status).isEqualTo(SubmissionStatus.SUBMITTED)
+        assertThat(submitted.claimId).isNull()
+        assertThat(submitted.claimExpiresAt).isNull()
+    }
+
+    @Test
+    fun `같은 externalTxId를 다시 적재하면 도메인 충돌로 변환한다`() {
+        submissions.insert(fixture())
+
+        assertThatThrownBy { submissions.insert(fixture(requestHash = "b".repeat(64))) }
+            .isInstanceOf(ConflictException::class.java)
+    }
+
+    @Test
+    fun `하나의 vendorTxId를 서로 다른 제출에 연결할 수 없다`() {
+        submissions.insert(
+            fixture(
+                externalTransactionId = "wd-1",
+                status = SubmissionStatus.SUBMITTED,
+                vendorTransactionId = "tx-shared",
+                respondedAt = "20260807120100",
+            ),
+        )
+
+        assertThatThrownBy {
+            submissions.insert(
+                fixture(
+                    externalTransactionId = "wd-2",
+                    status = SubmissionStatus.SUBMITTED,
+                    vendorTransactionId = "tx-shared",
+                    respondedAt = "20260807120200",
+                ),
+            )
+        }.isInstanceOf(ConflictException::class.java)
+    }
+
+    @Test
+    fun `vendorTxId가 있는 제출은 역방향으로 되찾는다`() {
+        val submitted =
+            fixture(
+                status = SubmissionStatus.SUBMITTED,
+                vendorTransactionId = "tx-91c",
+                respondedAt = "20260807120100",
+            )
+        submissions.insert(submitted)
+
+        assertThat(submissions.findByVendorTransactionId("tx-91c")).isEqualTo(submitted)
+        assertThat(submissions.findByVendorTransactionId("tx-none")).isNull()
+    }
+
+    @Test
+    fun `REQUESTED 원장은 SUBMITTED로 마감하며 vendorTxId를 이후 바꿀 수 없다`() {
+        submissions.insert(fixture())
+
+        val submitted = submissions.markSubmitted("wd-260713-0042", "tx-91c", "20260807120100")
+
+        assertThat(submitted.status).isEqualTo(SubmissionStatus.SUBMITTED)
+        assertThat(submitted.vendorTransactionId).isEqualTo("tx-91c")
+        assertThat(submitted.respondedAt).isEqualTo("20260807120100")
+        assertThatThrownBy {
+            submissions.markSubmitted("wd-260713-0042", "tx-other", "20260807120200")
+        }.isInstanceOf(ConflictException::class.java)
+        assertThat(submissions.findByExternalTransactionId("wd-260713-0042")?.vendorTransactionId)
+            .isEqualTo("tx-91c")
+    }
+
+    @Test
+    fun `확정 거절은 소유 claim으로 FAILED 마감하고 새 claim CAS로 REQUESTED 재개한다`() {
+        submissions.insert(fixture())
+
+        val failed = submissions.markFailedByClaim("wd-260713-0042", "claim-owner-1", "20260807120100")
+        val retried =
+            submissions.tryClaim(
+                "wd-260713-0042",
+                "claim-owner-2",
+                "20260807120200",
+                "20260807120101",
+            )
+
+        assertThat(failed.status).isEqualTo(SubmissionStatus.FAILED)
+        assertThat(failed.respondedAt).isEqualTo("20260807120100")
+        assertThat(retried?.status).isEqualTo(SubmissionStatus.REQUESTED)
+        assertThat(retried?.claimId).isEqualTo("claim-owner-2")
+        assertThat(retried?.respondedAt).isNull()
+    }
+
+    @Test
+    fun `이미 SUBMITTED인 원장을 FAILED 처리한 척 성공하지 않는다`() {
+        submissions.insert(
+            fixture(
+                status = SubmissionStatus.SUBMITTED,
+                vendorTransactionId = "tx-91c",
+                respondedAt = "20260807120100",
+            ),
+        )
+
+        assertThatThrownBy {
+            submissions.markFailedByClaim("wd-260713-0042", "claim-owner-1", "20260807120200")
+        }.isInstanceOf(ConflictException::class.java)
+        assertThat(submissions.findByExternalTransactionId("wd-260713-0042")?.status)
+            .isEqualTo(SubmissionStatus.SUBMITTED)
+    }
+}
