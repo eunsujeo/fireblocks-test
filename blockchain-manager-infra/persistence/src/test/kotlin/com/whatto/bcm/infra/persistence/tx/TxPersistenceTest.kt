@@ -214,6 +214,63 @@ class TxPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `대사 물리 id 조회는 root active boost replacement를 같은 논리 거래로 접는다`() {
+        txRecords.insert(
+            txRecord(
+                vendorTxId = "tx-reconcile-root",
+                activeVendorTxId = "tx-reconcile-active",
+                externalTxId = "wd-confirmed",
+                confirmationCount = 0,
+            ),
+        )
+        insertSubmission("tx-reconcile-root")
+        jdbc.update(
+            """
+            INSERT INTO bcm_boost_l
+              (orig_tx_id, try_seq, ext_tx_id, bst_stcd, claim_id, claim_exp_dttm,
+               rplc_tx_id, rplc_tx_hash, fee_lvl, gasless_yn, new_tx_id, req_dttm, rsp_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES
+              ('tx-reconcile-root', 1, 'bst-reconcile', 'SUBMITTED', NULL, NULL,
+               'tx-reconcile-root', '0xroot', 'HIGH', 'Y', 'tx-reconcile-active',
+               '20260807110000', '20260807110100', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+        )
+
+        val root = txRecords.findByPhysicalVendorTransactionId("tx-reconcile-root")
+        val active = txRecords.findByPhysicalVendorTransactionId("tx-reconcile-active")
+
+        assertThat(root).isEqualTo(active)
+        assertThat(root?.record?.vendorTxId).isEqualTo("tx-reconcile-root")
+        assertThat(root?.submissionType).isEqualTo(SubmissionTransactionType.WITHDRAWAL)
+    }
+
+    @Test
+    fun `대사 창과 미종결 후보는 경계와 상태를 지켜 시각 순으로 조회한다`() {
+        txRecords.insert(txRecord(vendorTxId = "tx-before", status = TxStatus.FINALIZED))
+        txRecords.insert(txRecord(vendorTxId = "tx-window-final", status = TxStatus.FINALIZED))
+        txRecords.insert(txRecord(vendorTxId = "tx-window-pending", status = TxStatus.CONFIRMED, confirmationCount = 0))
+        txRecords.insert(txRecord(vendorTxId = "tx-after", status = TxStatus.FAILED))
+        jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807114959' WHERE vndr_tx_id = 'tx-before'")
+        jdbc.update(
+            "UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807115100', last_chng_dttm = '20260807115100' " +
+                "WHERE vndr_tx_id = 'tx-window-final'",
+        )
+        jdbc.update(
+            "UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807115200', last_chng_dttm = '20260807114000' " +
+                "WHERE vndr_tx_id = 'tx-window-pending'",
+        )
+        jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807120001' WHERE vndr_tx_id = 'tx-after'")
+
+        val window = txRecords.findDetectedBetween("20260807115000", "20260807120000")
+        val pending = txRecords.findPendingChangedAtOrBefore("20260807115000", 10)
+
+        assertThat(window.map { it.record.vendorTxId })
+            .containsExactly("tx-window-final", "tx-window-pending")
+        assertThat(pending.map { it.record.vendorTxId }).containsExactly("tx-window-pending")
+    }
+
+    @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     fun `상태 판정 조회는 트랜잭션이 끝날 때까지 같은 거래의 다음 판정을 막는다`() {
         txRecords.insert(txRecord(vendorTxId = "tx-lock"))
