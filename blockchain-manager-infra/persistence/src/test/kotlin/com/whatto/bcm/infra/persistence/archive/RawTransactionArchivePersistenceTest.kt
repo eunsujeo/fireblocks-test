@@ -150,6 +150,29 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `제출 거래의 원본 조회 주소는 수취 주소가 아니라 출발 주소를 쓴다`() {
+        createPartitions("202608", 1)
+        insertFinalizedWithdrawal()
+        insertWebhook(
+            notificationId = "completed-withdrawal",
+            vendorTransactionId = "tx-withdrawal",
+            status = "COMPLETED",
+            payloadHash = "a".repeat(64),
+            signature = "signature-withdrawal",
+            receivedAt = "20260807120000",
+            processStatus = "S",
+            processedAt = "20260807120100",
+        )
+
+        archives.archiveCompletedWindow("20260813", "00010101000000", "20260807130000", 10)
+
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_raw_tx_l"))
+            .containsEntry("vndr_tx_id", "tx-withdrawal")
+            .containsEntry("ext_tx_id", "wd-1")
+            .containsEntry("addr", "0xSource")
+    }
+
+    @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     fun `대상 월 파티션이 없으면 원본 적재를 실패시킨다`() {
         insertFinalizedDeposit()
@@ -202,8 +225,41 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
         )
     }
 
+    private fun insertFinalizedWithdrawal() {
+        jdbc.update(
+            """
+            INSERT INTO bcm_tx_l
+              (vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
+               last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
+               frst_dtct_dttm, last_chng_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES
+              ('tx-withdrawal', 'tx-withdrawal', 'wd-1', 'account-1', 'ETHEREUM', 'USDC', '0xHash',
+               'FINALIZED', 3, 'CONFIRMED', 'CONFIRMED', NULL,
+               '20260807100000', '20260807120000',
+               'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_sbmt_l
+              (ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, claim_id, claim_exp_dttm,
+               tx_dvcd, vndr_tx_id, swp_exec_id, snd_acnt_id, rcv_dvcd, rcv_vl,
+               ntwk_cd, tkn_smbl, trsf_amt, call_data, req_dttm, rsp_dttm, last_chck_dttm, chck_cnt,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES
+              ('wd-1', ?, 'v1', 'SUBMITTED', NULL, NULL,
+               'WITHDRAWAL', 'tx-withdrawal', NULL, 'account-1', 'ADDRESS', '0xDestination',
+               'ETHEREUM', 'USDC', 1, NULL, '20260807100000', '20260807100100', NULL, 0,
+               'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            "a".repeat(64),
+        )
+    }
+
     private fun insertWebhook(
         notificationId: String,
+        vendorTransactionId: String = "tx-deposit",
         status: String,
         payloadHash: String,
         signature: String,
@@ -212,17 +268,18 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
         processedAt: String?,
     ): String {
         val payload =
-            """{ "id": "$notificationId", "data": { "id": "tx-deposit", "status": "$status", "sourceAddress": "0xSource", "destinationAddress": "0xDestination" } }"""
+            """{ "id": "$notificationId", "data": { "id": "$vendorTransactionId", "status": "$status", "sourceAddress": "0xSource", "destinationAddress": "0xDestination" } }"""
         jdbc.update(
             """
             INSERT INTO bcm_whk_l
               (noti_id, evnt_typ, vndr_tx_id, payload, payload_hash, sign_vl,
                rcv_dttm, prcs_stcd, rtry_cnt, err_msg, prcs_dttm,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES (?, 'transaction.status.updated', 'tx-deposit', ?, ?, ?, ?, ?, 0, NULL, ?,
+            VALUES (?, 'transaction.status.updated', ?, ?, ?, ?, ?, ?, 0, NULL, ?,
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             notificationId,
+            vendorTransactionId,
             payload,
             payloadHash,
             signature,
