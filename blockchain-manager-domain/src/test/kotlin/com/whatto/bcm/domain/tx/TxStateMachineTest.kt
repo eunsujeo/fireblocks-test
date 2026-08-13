@@ -48,7 +48,7 @@ class TxStateMachineTest {
 
     @Test
     fun `미결 boost가 있으면 미확정 active의 FAILED만 보류한다`() {
-        val pending = MemoryTxRecords(record())
+        val pending = MemoryTxRecords(record(stallAlertedAt = "20260807113000"))
         val finalized = MemoryTxRecords(record(lastPublishedStatus = TxStatus.FINALIZED))
 
         val deferred =
@@ -68,6 +68,8 @@ class TxStateMachineTest {
 
         assertThat(deferred.statusesToPublish).isEmpty()
         assertThat(deferred.record.lastPublishedStatus).isEqualTo(TxStatus.CONFIRMED)
+        assertThat(deferred.record.stallAlertedAt).isNull()
+        assertThat(deferred.record.lastChangedAt).isEqualTo("20260807120000")
         assertThat(reorg.statusesToPublish).containsExactly(TxStatus.FAILED)
     }
 
@@ -75,6 +77,7 @@ class TxStateMachineTest {
         activeVendorTxId: String = "tx-root",
         transactionHash: String? = "0xroot",
         lastPublishedStatus: TxStatus = TxStatus.CONFIRMED,
+        stallAlertedAt: String? = null,
     ) = TxRecord(
         vendorTxId = "tx-root",
         activeVendorTxId = activeVendorTxId,
@@ -85,6 +88,7 @@ class TxStateMachineTest {
         transactionHash = transactionHash,
         lastPublishedStatus = lastPublishedStatus,
         confirmationCount = 0,
+        stallAlertedAt = stallAlertedAt,
         firstDetectedAt = "20260807110000",
         lastChangedAt = "20260807110000",
     )

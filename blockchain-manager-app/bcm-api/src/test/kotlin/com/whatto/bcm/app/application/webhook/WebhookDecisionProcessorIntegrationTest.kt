@@ -611,6 +611,10 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
     @Test
     fun `boost 응답을 회수 중이면 원 거래 FAILED를 보류하고 종결 재관찰에 맡긴다`() {
         insertBoostFixture(status = "REQUESTED", activeVendorTransactionId = VENDOR_TX_ID)
+        jdbc.update(
+            "UPDATE bcm_tx_l SET stall_alrt_dttm = '20260807115945' WHERE vndr_tx_id = ?",
+            VENDOR_TX_ID,
+        )
         inbox.insertIfAbsent(
             notification(
                 "noti-failed-during-boost",
@@ -627,8 +631,10 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         assertThat(processor.processNext())
             .isEqualTo(WebhookDecisionOutcome.Processed("noti-failed-during-boost", 0))
 
-        assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)["last_pub_stcd"])
-            .isEqualTo("CONFIRMED")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID))
+            .containsEntry("last_pub_stcd", "CONFIRMED")
+            .containsEntry("last_chng_dttm", "20260807120000")
+            .containsEntry("stall_alrt_dttm", null)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
     }
 

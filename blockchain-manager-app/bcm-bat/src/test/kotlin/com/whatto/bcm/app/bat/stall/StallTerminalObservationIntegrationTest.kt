@@ -25,6 +25,7 @@ import com.whatto.bcm.infra.persistence.event.OutboxJdbcAdapter
 import com.whatto.bcm.infra.persistence.tx.TxCrudRepository
 import com.whatto.bcm.infra.persistence.tx.TxJdbcAdapter
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -192,6 +193,25 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             .extracting("activeVendorTxId", "lastPublishedStatus", "transactionHash")
             .containsExactly("tx-replacement", TxStatus.FINALIZED, "0xwinner")
         assertThat(jdbc.queryForMap("SELECT * FROM bcm_boost_l")["new_tx_id"]).isEqualTo("tx-replacement")
+    }
+
+    @Test
+    fun `종결 root의 REQUESTED boost가 벤더에도 없으면 무음 보류하지 않는다`() {
+        val root = transactions.insert(rootRecord())
+        insertRequestedBoost()
+        val handler = handler(FamilyVendor(emptyMap()))
+
+        assertThatThrownBy {
+            handler.observe(
+                StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
+                failedReplacementTransaction().copy(transactionId = "tx-root", externalTransactionId = "wd-root"),
+                "20260807120000",
+            )
+        }.isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("bst-1")
+
+        assertThat(transactions.findByVendorTxId("tx-root")?.lastPublishedStatus).isEqualTo(TxStatus.CONFIRMED)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
     }
 
     private fun handler(vendor: VendorTransactionPort) =
