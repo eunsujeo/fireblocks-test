@@ -38,8 +38,10 @@ class NetworkFeeQuotePersistenceTest : PersistenceTestSupport() {
             ),
         )
 
-        assertThat(quotes.findLatestAtOrBefore("ETHEREUM", "USDC", VendorFeeLevel.MEDIUM, "20260813120030"))
-            .isEqualTo(quote(observedAt = "20260813120000", gasPrice = "2.0"))
+        val matched = quotes.findLatestAtOrBefore("ETHEREUM", "USDC", VendorFeeLevel.MEDIUM, "20260813120030")
+        assertThat(matched?.observedAt).isEqualTo("20260813120000")
+        assertThat(matched?.feeLevel).isEqualTo(VendorFeeLevel.MEDIUM)
+        assertThat(matched?.gasPrice).isEqualByComparingTo("2.0")
         assertThat(quotes.findLatestAtOrBefore("ETHEREUM", "USDC", VendorFeeLevel.MEDIUM, "20260813115859"))
             .isNull()
     }
