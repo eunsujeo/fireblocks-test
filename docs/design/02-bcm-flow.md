@@ -405,7 +405,8 @@ sequenceDiagram
 | 최신 벤더 관찰 | 처리 |
 |---|---|
 | 체인 전 단계(`SUBMITTED`·`PENDING_SIGNATURE`·`QUEUED`·`BROADCASTING`) | RBF 하지 않고 지연 경보 — 교체할 온체인 hash가 확정되지 않았다 |
-| `CONFIRMING` + `txHash` 있음 + `numOfConfirmations = 0` + 우리가 제출한 EVM 출금·sweep | 자동 boost 후보 — 운영 정책과 기능 게이트를 통과하면 RBF |
+| `CONFIRMING` + `txHash` 있음 + `numOfConfirmations = 0` + 우리가 제출한 EVM 출금 | 자동 boost 후보 — 운영 정책과 기능 게이트를 통과하면 RBF |
+| 같은 조건의 sweep(`SWEEP_APPROVE`·`SWEEP_BATCH`) | CONTRACT_CALL RBF가 원 calldata를 다시 실행한다는 실측·확답 전까지 경보-only |
 | `CONFIRMING` + confirmation 1 이상 | 이미 채굴된 확정 지연 — boost 하지 않고 경보 |
 | 입금 또는 우리가 제출하지 않은 거래 | boost 권한 없음 — 경보 |
 | 조회 시 이미 종결 | 최신 관찰을 정상 상태 처리 경로로 흘리고 boost 하지 않음 |
@@ -422,7 +423,7 @@ sequenceDiagram
     SW->>MDB: 오래된 SUBMITTED·CONFIRMED 후보 조회
     MDB-->>SW: 대상 목록 — 아직 종결되지 않은 논리 거래
     SW->>FB: 단건 조회 — 최신 status · txHash · confirmations
-    alt 출금·sweep · CONFIRMING · txHash 있음 · 0 confirmation · 정책 허용
+    alt 출금 · CONFIRMING · txHash 있음 · 0 confirmation · 정책 허용
         SW->>MDB: boost intent 선기록 — externalTxId · claim · 교체 대상 hash
         SW->>FB: Create Transaction — replaceTxByHash · 높은 fee
         FB-->>SW: 대체 txId
@@ -433,6 +434,7 @@ sequenceDiagram
 ```
 
 - **RBF 도 제출 원장과 같은 선기록 원칙**을 쓴다. 호출 전에 `bcm_boost_l`에 매니저가 만든 `bst-` + UUID v7 externalTxId·교체 대상 vendor tx/hash·claim을 커밋하고, DB 트랜잭션 밖에서 벤더를 부른다. 응답을 잃으면 externalTxId 조회로 대체 txId를 회수한다. intent 없이 먼저 호출하지 않는다.
+- Fireblocks 공식 문서상 CONTRACT_CALL을 RBF하면 새 거래는 TRANSFER로 만들어진다. 원 calldata가 다시 실행된다는 근거가 없으므로 sweep approve·batch는 sandbox 실측 또는 담당자 확답 전까지 intent를 만들지 않고 경보만 한다.
 - 대체 거래는 고객에게 별도 거래가 아니다. `bcm_boost_l`로 대체 txId를 root 원 txId에 연결하고, 대체 거래 웹훅의 상태를 **root 논리 거래의 전이**로 반영한다. 이벤트·조회 응답의 `txId`와 `externalTxId`는 최초 거래 값을 유지하고 `txHash`는 실제로 채굴된 대체 거래 값을 쓴다.
 - RBF 제출 응답과 채굴은 경합한다. 대체 거래를 접수한 직후 원 거래가 먼저 채굴될 수도 있으므로 **root 계열의 어느 물리 거래든 confirmation이 생기거나 COMPLETED에 도달하면 그 거래가 승자**다. 승자 txId/hash를 active로 되돌려 root를 진행·확정한다. active가 아닌 옛 거래의 단순 지연·drop은 무시하지만 성공 증거까지 무시하지 않는다.
 - 원 거래의 `FAILED / DROPPED_BY_BLOCKCHAIN`이 RBF nonce 교체의 결과이고 성공적으로 접수된 대체 거래가 있으면 고객 실패를 발행하지 않는다. 대체 거래의 진행·종결이 root 결과를 결정한다. 대체 intent가 없으면 기존 FAILED 처리 그대로다.
