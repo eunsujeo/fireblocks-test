@@ -4,7 +4,7 @@ status: To Do
 group: 블록체인 매니저
 ---
 
-블록체인 매니저 DB(`bcm_`)의 테이블 전체 — 계정·주소 매핑, 거래 운영 상태, 수신 인박스, sweep 대상, 주기 작업, boost 이력, finalize 원본, 발행 아웃박스. 자산 매핑·블록체인 카탈로그 두 표는 [자산 매핑](07-asset-master.md) 에서 정의한다.
+블록체인 매니저 DB(`bcm_`)의 테이블 전체 — 계정·주소 매핑, 거래 운영 상태, 수신 인박스, sweep 대상, 주기 작업, boost 이력, 수수료 견적, finalize 원본, 발행 아웃박스. 자산 매핑·블록체인 카탈로그 두 표는 [자산 매핑](07-asset-master.md) 에서 정의한다.
 회계 진실(고객 원장·귀속·잔액·출금 지시 상태)은 여기 없다 — 그것은 DAW-CORE DB(`daw_`)다.
 
 ## 명명 규약
@@ -35,6 +35,7 @@ group: 블록체인 매니저
 | `bcm_swp_item_l` | sweep 실행 항목 | 한 배치 아래 원천 vault N개의 요청·실제 결과 |
 | `bcm_boost_l` | boost intent·이력 | 자동 boost의 선기록·장애 복구·Admin 조회 |
 | `bcm_job_m` | 주기 작업 상태 — heartbeat · 대사 커서 | tx 대사 대조 범위 · 밖에서 읽는 heartbeat |
+| `bcm_fee_qt_l` | 자산별 LOW·MEDIUM·HIGH 네트워크 수수료 견적 시계열 | 제출·boost 요청 시각의 최근 견적 대응 · sweep 가스비 조건 입력 |
 | `bcm_raw_tx_l` | finalize 트랜잭션 원본 | 일 배치 보관 — 장기 보존 |
 | `bcm_blkc_m` | 벤더 블록체인 카탈로그 — 일 1회 동기화 | 네트워크 채택 · 자산 등록 때 고르기 ([자산 매핑](07-asset-master.md)) |
 | `bcm_vndr_ast_m` | 자산 매핑 — (네트워크, 토큰) ↔ 벤더 assetId | 벤더 호출 직전 변환 ([자산 매핑](07-asset-master.md)) |
@@ -55,6 +56,7 @@ entity: bcm_swp_exec_l @3,3 :: sweep 실행 — 최상위 batch tx | swp_exec_id
 entity: bcm_swp_item_l @4,3 :: sweep 실행 항목 | swp_exec_id PK,FK :: 실행 | item_seq PK :: 실행 안 순번 | acnt_id FK :: 원천 고객 계정 | req_amt :: 요청금액 | actl_amt :: 실제 이동금액 | swp_item_stcd :: 항목 상태
 entity: bcm_raw_tx_l @2,4 :: finalize 원본 — 일 배치 장기 보관 | base_dt PK :: 적재 기준일 = 파티션 키 | vndr_tx_id PK :: 벤더 tx id | payload_hash :: 원문 SHA-256 — 무결성
 entity: bcm_job_m @3,4 :: 주기 작업 상태 — heartbeat · 대사 커서 | job_nm PK :: 작업명 | last_scs_dttm :: 마지막 성공 — tx 대사 대조 범위 이어붙임
+entity: bcm_fee_qt_l @4,4 :: 자산별 네트워크 수수료 견적 시계열 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | obs_dttm PK :: 관측 시각 | fee_lvl PK :: LOW/MEDIUM/HIGH
 rel: bcm_acnt_m | bcm_addr_m | 계정당 주소 | one-many
 rel: bcm_acnt_m | bcm_tx_l | 계정 귀속 | one-many
 rel: bcm_acnt_m | bcm_swp_trgt | sweep 대상 | one-many
@@ -67,6 +69,8 @@ rel: bcm_sbmt_l | bcm_tx_l | 제출한 건이 웹훅으로 돌아옴 | one-one |
 rel: bcm_tx_l | bcm_outbox_l | 같은 트랜잭션 발행 예약 | one-many
 rel: bcm_tx_l | bcm_boost_l | root 거래의 boost 시도 | one-many
 rel: bcm_tx_l | bcm_raw_tx_l | 확정 원본 | one-many | dashed
+rel: bcm_vndr_ast_m | bcm_fee_qt_l | 관측 당시 자산 매핑 | one-many | dashed
+rel: bcm_fee_qt_l | bcm_sbmt_l | 제출 시각 직전 견적 대응 | one-many | dashed
 ```
 
 실선 = FK 로 이어지는 관계, 점선 = 값으로 잇는 논리 관계(payload 이동·원본 보관 — DB 제약으로 묶지 않는다, 수명이 다르다). 배지 PK·UK·FK. `bcm_job_m` 은 다른 테이블과 관계가 없는 독립 작업 상태 테이블이다.
@@ -652,6 +656,38 @@ CREATE TABLE bcm_job_m (
 );
 ```
 
+### bcm_fee_qt_l — 수수료 견적 시계열
+
+등록된 `(ntwk_cd, tkn_smbl)`의 Fireblocks assetId로 `GET /v1/estimate_network_fee`를 호출해 LOW·MEDIUM·HIGH를 한 행씩 저장한다. 응답 필드는 자산 유형에 따라 일부만 오므로 nullable이고, 적어도 하나는 있어야 한다. `vndr_ast_id`는 관측 당시 호출 대상을 남기는 이력값이라 자산 매핑을 FK로 묶지 않는다.
+
+```sql
+CREATE TABLE bcm_fee_qt_l (
+  ntwk_cd          VARCHAR(20)    NOT NULL,
+  tkn_smbl         VARCHAR(16)    NOT NULL,
+  obs_dttm         VARCHAR(16)    NOT NULL,   -- 견적 관측 일시, KST yyyyMMddHHmmss
+  fee_lvl          VARCHAR(16)    NOT NULL,   -- LOW / MEDIUM / HIGH
+  vndr_ast_id      VARCHAR(64)    NOT NULL,   -- 관측 당시 Fireblocks assetId
+  fee_per_byte     NUMERIC(36,18) NULL,       -- UTXO 등 자산 유형별 응답
+  gas_price        NUMERIC(36,18) NULL,       -- EVM gas price
+  ntwk_fee         NUMERIC(36,18) NULL,       -- 자산 단위 network fee
+  base_fee         NUMERIC(36,18) NULL,       -- EIP-1559 base fee
+  priority_fee     NUMERIC(36,18) NULL,       -- EIP-1559 priority fee
+  -- 감사 4컬럼
+  frst_reg_empno   VARCHAR(6)     NOT NULL,
+  frst_reg_brcd    VARCHAR(4)     NOT NULL,
+  last_chng_empno  VARCHAR(6)     NOT NULL,
+  last_chng_brcd   VARCHAR(4)     NOT NULL,
+  PRIMARY KEY (ntwk_cd, tkn_smbl, obs_dttm, fee_lvl),
+  CHECK (fee_lvl IN ('LOW', 'MEDIUM', 'HIGH')),
+  CHECK (fee_per_byte IS NOT NULL OR gas_price IS NOT NULL OR ntwk_fee IS NOT NULL OR
+         base_fee IS NOT NULL OR priority_fee IS NOT NULL)
+);
+CREATE INDEX idx_bcm_fee_qt_lookup
+  ON bcm_fee_qt_l (ntwk_cd, tkn_smbl, fee_lvl, obs_dttm DESC);
+```
+
+일반 제출은 Fireblocks 기본값인 MEDIUM, boost는 `bcm_boost_l.fee_lvl`을 사용한다. 각각의 `req_dttm` 이하에서 가장 큰 `obs_dttm` 한 건을 찾고, 선행 관측이 없으면 대응하지 않는다. 이 관계는 조회 시점의 논리 대응이며 제출 행에 FK를 저장하지 않는다. 견적은 네트워크 가격 지표이므로 특정 거래의 예상 gas limit·총비용이나 COMPLETED 뒤의 실비를 대신하지 않는다.
+
 ### bcm_raw_tx_l — finalize 트랜잭션 원본
 
 finalize 된 tx 의 벤더 원문을 일 배치로 장기 보관한다. 원본은 `bcm_whk_l` 에서 그 tx 의 마지막 COMPLETED 알림의 `payload`·`payload_hash`·`sign_vl` 세 값을 **그대로 옮긴다** — 벤더 재조회도, 해시 재계산도 없다.
@@ -694,6 +730,7 @@ CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- �
 ## 확정 이력 (2026-08-13)
 
 - **원본 월별 파티션은 배포 역할이 선생성** — 런타임 애플리케이션에 DDL 권한을 주지 않는다. 누락 시 보관 배치와 같은 실행의 인박스 정리를 함께 실패시키고 성공 heartbeat를 전진시키지 않는다.
+- **수수료 시계열은 자산별 network fee 관측** — 등록된 벤더 assetId의 LOW·MEDIUM·HIGH 응답을 `bcm_fee_qt_l`에 정규화한다. 일반 제출은 MEDIUM, boost는 저장된 fee level로 제출 시각 이하의 최근 관측을 논리 대응하며 특정 거래 시뮬레이션과 실비는 분리한다.
 
 ## 확정 이력 (2026-08-12)
 
