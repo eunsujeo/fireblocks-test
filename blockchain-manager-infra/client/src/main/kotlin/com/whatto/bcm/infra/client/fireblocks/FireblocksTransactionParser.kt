@@ -18,13 +18,15 @@ data class FireblocksTransaction(
     /** 체인에 오르기 전 알림에는 비어 있을 수 있다 (02-bcm-flow 미확정 — 제출 직후 조회의 빈 필드). */
     val destinationAddress: String?,
     val amount: String,
-    val rawStatus: String,
+    internal val rawStatus: String,
     val subStatus: String?,
     val networkStatus: String?,
     val transactionHash: String?,
     val externalTransactionId: String?,
     val confirmationCount: Int,
-)
+) {
+    fun statusObservation() = VendorStatusObservation(rawStatus, subStatus, confirmationCount)
+}
 
 /** Fireblocks 원문 JSON을 워커가 소비할 검증된 관찰값으로 변환한다. */
 @Component
@@ -95,24 +97,12 @@ class FireblocksStatusTranslator(
     fun translate(
         transaction: FireblocksTransaction,
         network: String,
-    ): TxStatus =
-        translate(
-            rawStatus = transaction.rawStatus,
-            subStatus = transaction.subStatus,
-            confirmationCount = transaction.confirmationCount,
-            network = network,
-        )
+    ): TxStatus = translate(transaction.statusObservation(), network)
 
     fun translate(
         transaction: VendorTransaction,
         network: String,
-    ): TxStatus =
-        translate(
-            rawStatus = transaction.rawStatus,
-            subStatus = transaction.subStatus,
-            confirmationCount = transaction.confirmationCount,
-            network = network,
-        )
+    ): TxStatus = translate(transaction.statusObservation(), network)
 
     private fun translate(
         rawStatus: String,

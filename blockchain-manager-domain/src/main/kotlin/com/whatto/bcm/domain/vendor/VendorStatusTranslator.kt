@@ -21,3 +21,9 @@ data class VendorStatusObservation(
     val subStatus: String?,
     val confirmationCount: Int,
 )
+
+/** RBF 계열의 물리 승자 증거 — 벤더 경로마다 같은 판정을 쓰도록 한 곳에 둔다. */
+object PhysicalTransactionEvidence {
+    fun hasSucceeded(observation: VendorStatusObservation): Boolean =
+        observation.confirmationCount > 0 || observation.rawStatus == "COMPLETED"
+}

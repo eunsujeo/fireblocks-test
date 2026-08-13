@@ -19,5 +19,6 @@ class TxStateService(
         rootVendorTransactionId: String,
         observation: TxObservation,
         successEvidence: Boolean,
-    ): TxStateChange = stateMachine.observeRoot(rootVendorTransactionId, observation, successEvidence)
+        deferFailure: Boolean = false,
+    ): TxStateChange = stateMachine.observeRoot(rootVendorTransactionId, observation, successEvidence, deferFailure)
 }

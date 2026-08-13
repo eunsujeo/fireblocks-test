@@ -88,7 +88,7 @@ interface BoostAttemptRepository {
 
     fun findByNewVendorTransactionId(newVendorTransactionId: String): BoostAttempt?
 
-    fun findLatestSubmittedByRoot(rootVendorTransactionId: String): BoostAttempt?
+    fun findLatestViableByRoot(rootVendorTransactionId: String): BoostAttempt?
 
     fun findByRootAndSequence(
         rootVendorTransactionId: String,

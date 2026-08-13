@@ -32,6 +32,7 @@ class TxStateMachine(
         rootVendorTransactionId: String,
         observation: TxObservation,
         successEvidence: Boolean,
+        deferFailure: Boolean = false,
     ): TxStateChange {
         val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
         if (previous == null) {
@@ -41,10 +42,18 @@ class TxStateMachine(
             return persistNew(observation)
         }
         if (previous.activeVendorTxId != observation.vendorTransactionId) {
+            if (previous.lastPublishedStatus == TxStatus.FAILED) return TxStateChange(previous, emptyList())
             if (!successEvidence || previous.hasMinedWinner()) return TxStateChange(previous, emptyList())
             return adoptWinner(previous, observation)
         }
-        return persistActive(previous, observation, successEvidence)
+        if (
+            deferFailure &&
+            observation.status == TxStatus.FAILED &&
+            previous.lastPublishedStatus in BoostPolicy.rootStatuses
+        ) {
+            return TxStateChange(previous, emptyList())
+        }
+        return persistActive(previous, observation)
     }
 
     private fun persistNew(observation: TxObservation): TxStateChange {
@@ -56,11 +65,9 @@ class TxStateMachine(
     private fun persistActive(
         previous: TxRecord,
         observation: TxObservation,
-        successEvidence: Boolean,
     ): TxStateChange {
-        val previousStatus = previous.lastPublishedStatus.takeUnless { successEvidence && it == TxStatus.FAILED }
-        val decision = TransitionTable.decide(previousStatus, observation.status)
-        val candidate = candidate(previous, observation, decision.statusToRecord(previousStatus, observation.status))
+        val decision = TransitionTable.decide(previous.lastPublishedStatus, observation.status)
+        val candidate = candidate(previous, observation, decision.statusToRecord(previous.lastPublishedStatus, observation.status))
         val record =
             repository.update(
                 candidate.copy(
@@ -77,10 +84,13 @@ class TxStateMachine(
         previous: TxRecord,
         observation: TxObservation,
     ): TxStateChange {
-        val previousStatus = previous.lastPublishedStatus.takeUnless { it == TxStatus.FAILED }
-        val decision = TransitionTable.decide(previousStatus, observation.status)
+        val decision = TransitionTable.decide(previous.lastPublishedStatus, observation.status)
         val candidate =
-            candidate(previous.copy(transactionHash = null), observation, decision.statusToRecord(previousStatus, observation.status)).copy(
+            candidate(
+                previous.copy(transactionHash = null),
+                observation,
+                decision.statusToRecord(previous.lastPublishedStatus, observation.status),
+            ).copy(
                 vendorTxId = previous.vendorTxId,
                 activeVendorTxId = observation.vendorTransactionId,
                 externalTxId = previous.externalTxId,

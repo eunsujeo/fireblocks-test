@@ -94,7 +94,9 @@ data class VendorTransaction(
     val lastUpdatedEpochMillis: Long,
     val lifecycleStage: VendorTransactionLifecycleStage = VendorTransactionLifecycleStage.UNKNOWN,
     val networkRecords: List<VendorNetworkRecord> = emptyList(),
-)
+) {
+    fun statusObservation() = VendorStatusObservation(rawStatus, subStatus, confirmationCount)
+}
 
 data class VendorNetworkRecord(
     val type: String,

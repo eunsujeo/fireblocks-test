@@ -10,6 +10,7 @@ import com.whatto.bcm.domain.tx.StallCandidate
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStateMachine
+import com.whatto.bcm.domain.vendor.PhysicalTransactionEvidence
 import com.whatto.bcm.domain.vendor.VendorStatusObservation
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.domain.vendor.VendorTransaction
@@ -67,10 +68,10 @@ class TransactionalStallTerminalObservationHandler(
                         status = status,
                         confirmationCount = transaction.confirmationCount,
                         vendorSubStatus = transaction.subStatus,
-                        vendorNetworkStatus = null,
+                        vendorNetworkStatus = candidate.record.vendorNetworkStatus,
                         observedAt = observedAt,
                     ),
-                    successEvidence = transaction.confirmationCount > 0 || transaction.rawStatus == "COMPLETED",
+                    successEvidence = PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation()),
                 )
             val eventType = candidate.submissionType?.customerEventType() ?: return@run
             val events =

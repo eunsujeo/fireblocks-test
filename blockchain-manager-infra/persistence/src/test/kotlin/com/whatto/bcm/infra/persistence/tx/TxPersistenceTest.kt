@@ -39,6 +39,7 @@ class TxPersistenceTest : PersistenceTestSupport() {
         externalTxId: String? = null,
         transactionHash: String? = null,
         status: TxStatus = TxStatus.CONFIRMED,
+        confirmationCount: Int = 1,
     ) = TxRecord(
         vendorTxId = vendorTxId,
         activeVendorTxId = activeVendorTxId,
@@ -48,7 +49,7 @@ class TxPersistenceTest : PersistenceTestSupport() {
         symbol = "USDC",
         transactionHash = transactionHash,
         lastPublishedStatus = status,
-        confirmationCount = 1,
+        confirmationCount = confirmationCount,
         vendorSubStatus = "PENDING_BLOCKCHAIN_CONFIRMATIONS",
         vendorNetworkStatus = "CONFIRMING",
         firstDetectedAt = "20260805120000",
@@ -126,6 +127,33 @@ class TxPersistenceTest : PersistenceTestSupport() {
 
         assertThat(txRecords.markStallAlertedIfAbsent(staleCandidate, "20260807120000")).isFalse()
         assertThat(txRecords.findByVendorTxId("tx-root")?.stallAlertedAt).isNull()
+    }
+
+    @Test
+    fun `물리 승자 갱신은 읽었던 active가 이미 바뀌면 충돌한다`() {
+        val root =
+            txRecords.insert(
+                txRecord(
+                    vendorTxId = "tx-winner-root",
+                    activeVendorTxId = "tx-candidate-a",
+                    transactionHash = "0xa",
+                    confirmationCount = 0,
+                ),
+            )
+        jdbc.update("UPDATE bcm_tx_l SET actv_tx_id = 'tx-candidate-b' WHERE vndr_tx_id = ?", root.vendorTxId)
+
+        assertThatThrownBy {
+            txRecords.updatePhysicalWinner(
+                root.copy(
+                    activeVendorTxId = "tx-winner",
+                    transactionHash = "0xwinner",
+                    lastPublishedStatus = TxStatus.FINALIZED,
+                    confirmationCount = 1,
+                ),
+                previousActiveVendorTxId = "tx-candidate-a",
+            )
+        }.isInstanceOf(ConflictException::class.java)
+        assertThat(txRecords.findByVendorTxId(root.vendorTxId)?.activeVendorTxId).isEqualTo("tx-candidate-b")
     }
 
     @Test

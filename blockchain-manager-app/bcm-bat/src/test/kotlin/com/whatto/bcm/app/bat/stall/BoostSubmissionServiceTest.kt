@@ -333,7 +333,7 @@ private class RecordingBoosts(
 
     override fun findByNewVendorTransactionId(newVendorTransactionId: String): BoostAttempt? = null
 
-    override fun findLatestSubmittedByRoot(rootVendorTransactionId: String): BoostAttempt? = null
+    override fun findLatestViableByRoot(rootVendorTransactionId: String): BoostAttempt? = null
 
     override fun findByRootAndSequence(
         rootVendorTransactionId: String,

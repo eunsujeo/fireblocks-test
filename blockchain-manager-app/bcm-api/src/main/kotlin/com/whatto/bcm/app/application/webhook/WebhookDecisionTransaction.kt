@@ -22,6 +22,7 @@ import com.whatto.bcm.domain.tx.FinalityPolicyConfigurationException
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.vendor.PhysicalTransactionEvidence
 import com.whatto.bcm.domain.webhook.UnattributedDepositAlert
 import com.whatto.bcm.domain.webhook.UnregisteredVaultTransferAlert
 import com.whatto.bcm.domain.webhook.WebhookFailureResult
@@ -267,15 +268,7 @@ class WebhookDecisionTransaction(
             }
 
         val status = statusTranslator.translate(transaction, submission.network)
-        val submittedBoost = boost ?: boosts.findLatestSubmittedByRoot(rootVendorTransactionId)
-        if (
-            status == TxStatus.FAILED &&
-            submittedBoost?.newVendorTransactionId != null &&
-            submittedBoost.newVendorTransactionId != transaction.vendorTransactionId
-        ) {
-            markProcessed(inboxItem)
-            return WebhookDecisionOutcome.Processed(inboxItem.notificationId, 0)
-        }
+        val viableBoost = boost ?: boosts.findLatestViableByRoot(rootVendorTransactionId)
         val stateChange =
             txStates.observeRoot(
                 rootVendorTransactionId = rootVendorTransactionId,
@@ -293,8 +286,11 @@ class WebhookDecisionTransaction(
                     observedAt = inboxItem.receivedAt,
                 ),
                 successEvidence =
-                    submittedBoost != null &&
-                        (transaction.confirmationCount > 0 || transaction.rawStatus == "COMPLETED"),
+                    viableBoost != null &&
+                        PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation()),
+                deferFailure =
+                    viableBoost != null &&
+                        viableBoost.newVendorTransactionId != transaction.vendorTransactionId,
             )
         val eventType = submission.transactionType.customerEventType()
         if (eventType == null) {
