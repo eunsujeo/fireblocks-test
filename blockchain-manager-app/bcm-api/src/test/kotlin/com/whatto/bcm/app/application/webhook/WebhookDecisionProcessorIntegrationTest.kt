@@ -573,6 +573,66 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
+    fun `원 거래 승자가 FINALIZED 뒤 reorg FAILED면 boost 이력이 있어도 고객 실패를 발행한다`() {
+        insertBoostFixture(status = "SUBMITTED", activeVendorTransactionId = REPLACEMENT_TX_ID)
+        jdbc.update(
+            """
+            UPDATE bcm_tx_l
+            SET actv_tx_id = ?, tx_hash = ?, last_pub_stcd = 'FINALIZED', cnfm_cnt = 1
+            WHERE vndr_tx_id = ?
+            """.trimIndent(),
+            VENDOR_TX_ID,
+            ORIGINAL_TX_HASH,
+            VENDOR_TX_ID,
+        )
+        inbox.insertIfAbsent(
+            notification(
+                "noti-winner-reorg",
+                managedVaultPayload(
+                    notificationId = "noti-winner-reorg",
+                    externalTransactionId = ROOT_EXTERNAL_TX_ID,
+                    status = "FAILED",
+                    vendorTransactionId = VENDOR_TX_ID,
+                    transactionHash = ORIGINAL_TX_HASH,
+                ),
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Processed("noti-winner-reorg", 1))
+
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)["last_pub_stcd"])
+            .isEqualTo("FAILED")
+        val payload = objectMapper.readTree(jdbc.queryForMap("SELECT * FROM bcm_outbox_l").getValue("payload").toString())
+        assertThat(payload.path("status").asString()).isEqualTo("FAILED")
+        assertThat(payload.path("txId").asString()).isEqualTo(VENDOR_TX_ID)
+    }
+
+    @Test
+    fun `boost 응답을 회수 중이면 원 거래 FAILED를 보류하고 종결 재관찰에 맡긴다`() {
+        insertBoostFixture(status = "REQUESTED", activeVendorTransactionId = VENDOR_TX_ID)
+        inbox.insertIfAbsent(
+            notification(
+                "noti-failed-during-boost",
+                managedVaultPayload(
+                    notificationId = "noti-failed-during-boost",
+                    externalTransactionId = ROOT_EXTERNAL_TX_ID,
+                    status = "FAILED",
+                    vendorTransactionId = VENDOR_TX_ID,
+                    transactionHash = ORIGINAL_TX_HASH,
+                ),
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Processed("noti-failed-during-boost", 0))
+
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)["last_pub_stcd"])
+            .isEqualTo("CONFIRMED")
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
+    }
+
+    @Test
     fun `이미 다른 대체 tx로 연결된 boost 웹훅은 즉시 격리한다`() {
         insertBoostFixture(status = "SUBMITTED", activeVendorTransactionId = REPLACEMENT_TX_ID)
         inbox.insertIfAbsent(
