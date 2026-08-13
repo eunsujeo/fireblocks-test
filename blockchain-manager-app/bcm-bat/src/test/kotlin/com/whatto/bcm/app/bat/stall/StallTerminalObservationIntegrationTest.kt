@@ -111,6 +111,24 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
+    fun `제출 원장이 없는 입금 종결 재관찰도 deposit outbox를 함께 적재한다`() {
+        val root = transactions.insert(rootRecord().copy(externalTxId = null))
+        val handler = handler(FamilyVendor(emptyMap()))
+
+        handler.observe(
+            StallCandidate(root, null),
+            completedTransaction().copy(externalTransactionId = null),
+            "20260807120000",
+        )
+
+        assertThat(transactions.findByVendorTxId("tx-root")?.lastPublishedStatus).isEqualTo(TxStatus.FINALIZED)
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_outbox_l"))
+            .containsEntry("vndr_tx_id", "tx-root")
+            .containsEntry("evt_typ_dvcd", "TXCF")
+            .containsEntry("topic", "deposit-events")
+    }
+
+    @Test
     fun `active 대체 거래가 FAILED여도 원 거래 성공을 재조회해 승자로 채택한다`() {
         val root =
             transactions.insert(
