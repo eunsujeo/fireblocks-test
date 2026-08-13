@@ -154,6 +154,31 @@ class StallCheckJobTest {
         assertThat(candidates.alertedRoots).isEmpty()
     }
 
+    @Test
+    fun `최신 관찰이 이미 종결이면 막힘 경보로 소비하지 않는다`() {
+        val candidates = RecordingStallCandidates(listOf(candidate("tx-terminal")))
+        val alerts = mutableListOf<StallAlert>()
+
+        job(
+            candidates,
+            RecordingVendor(
+                mapOf(
+                    "tx-terminal" to
+                        transaction(
+                            "tx-terminal",
+                            stage = VendorTransactionLifecycleStage.TERMINAL,
+                            transactionHash = "0xterminal",
+                        ),
+                ),
+            ),
+            StallAlertPort(alerts::add),
+            RecordingJobs(),
+        ).run()
+
+        assertThat(alerts).isEmpty()
+        assertThat(candidates.alertedRoots).isEmpty()
+    }
+
     private fun job(
         candidates: StallCandidateRepository,
         vendor: VendorTransactionPort,

@@ -454,6 +454,148 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         }
     }
 
+    @Test
+    fun `boost 웹훅이 응답보다 먼저 오면 대체 tx를 root에 접고 최초 식별자로만 발행한다`() {
+        insertBoostFixture(status = "REQUESTED", activeVendorTransactionId = VENDOR_TX_ID)
+        inbox.insertIfAbsent(
+            notification(
+                "noti-boost-first",
+                managedVaultPayload(
+                    notificationId = "noti-boost-first",
+                    externalTransactionId = BOOST_EXTERNAL_TX_ID,
+                    vendorTransactionId = REPLACEMENT_TX_ID,
+                    transactionHash = REPLACEMENT_TX_HASH,
+                ),
+                vendorTransactionId = REPLACEMENT_TX_ID,
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Processed("noti-boost-first", 0))
+
+        val boost = jdbc.queryForMap("SELECT * FROM bcm_boost_l WHERE ext_tx_id = ?", BOOST_EXTERNAL_TX_ID)
+        val root = jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)
+        assertThat(boost["bst_stcd"]).isEqualTo("SUBMITTED")
+        assertThat(boost["new_tx_id"]).isEqualTo(REPLACEMENT_TX_ID)
+        assertThat(root["actv_tx_id"]).isEqualTo(REPLACEMENT_TX_ID)
+        assertThat(root["tx_hash"]).isEqualTo(REPLACEMENT_TX_HASH)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_tx_l", Long::class.java)).isOne()
+        assertThat(inboxRow("noti-boost-first")["prcs_stcd"]).isEqualTo("S")
+        verify(exactly = 0) { unregisteredVaultTransferAlert.alert(any()) }
+    }
+
+    @Test
+    fun `대체 거래가 먼저 완료되면 root txId와 최초 externalTxId에 승자 hash를 실어 발행한다`() {
+        insertBoostFixture(status = "REQUESTED", activeVendorTransactionId = VENDOR_TX_ID)
+        inbox.insertIfAbsent(
+            notification(
+                "noti-boost-finalized",
+                managedVaultPayload(
+                    notificationId = "noti-boost-finalized",
+                    externalTransactionId = BOOST_EXTERNAL_TX_ID,
+                    status = "COMPLETED",
+                    confirmations = 1,
+                    vendorTransactionId = REPLACEMENT_TX_ID,
+                    transactionHash = REPLACEMENT_TX_HASH,
+                ),
+                vendorTransactionId = REPLACEMENT_TX_ID,
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Processed("noti-boost-finalized", 1))
+
+        val root = jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)
+        val outbox = jdbc.queryForMap("SELECT * FROM bcm_outbox_l")
+        val payload = objectMapper.readTree(outbox.getValue("payload").toString())
+        assertThat(root["actv_tx_id"]).isEqualTo(REPLACEMENT_TX_ID)
+        assertThat(root["last_pub_stcd"]).isEqualTo("FINALIZED")
+        assertThat(payload.path("txId").asString()).isEqualTo(VENDOR_TX_ID)
+        assertThat(payload.path("externalTxId").asString()).isEqualTo(ROOT_EXTERNAL_TX_ID)
+        assertThat(payload.path("txHash").asString()).isEqualTo(REPLACEMENT_TX_HASH)
+        assertThat(outbox["vndr_tx_id"]).isEqualTo(VENDOR_TX_ID)
+    }
+
+    @Test
+    fun `대체 거래가 active면 비활성 원 거래의 FAILED를 고객 실패로 발행하지 않는다`() {
+        insertBoostFixture(status = "SUBMITTED", activeVendorTransactionId = REPLACEMENT_TX_ID)
+        inbox.insertIfAbsent(
+            notification(
+                "noti-old-failed",
+                managedVaultPayload(
+                    notificationId = "noti-old-failed",
+                    externalTransactionId = ROOT_EXTERNAL_TX_ID,
+                    status = "FAILED",
+                    vendorTransactionId = VENDOR_TX_ID,
+                    transactionHash = ORIGINAL_TX_HASH,
+                ),
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Processed("noti-old-failed", 0))
+
+        val root = jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)
+        assertThat(root["actv_tx_id"]).isEqualTo(REPLACEMENT_TX_ID)
+        assertThat(root["last_pub_stcd"]).isEqualTo("CONFIRMED")
+        assertThat(root["tx_hash"]).isEqualTo(REPLACEMENT_TX_HASH)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
+    }
+
+    @Test
+    fun `비활성 원 거래가 먼저 채굴되면 원 거래를 승자로 복귀시키고 root를 완료한다`() {
+        insertBoostFixture(status = "SUBMITTED", activeVendorTransactionId = REPLACEMENT_TX_ID)
+        inbox.insertIfAbsent(
+            notification(
+                "noti-old-winner",
+                managedVaultPayload(
+                    notificationId = "noti-old-winner",
+                    externalTransactionId = ROOT_EXTERNAL_TX_ID,
+                    status = "COMPLETED",
+                    confirmations = 1,
+                    vendorTransactionId = VENDOR_TX_ID,
+                    transactionHash = ORIGINAL_TX_HASH,
+                ),
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Processed("noti-old-winner", 1))
+
+        val root = jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)
+        val payload = objectMapper.readTree(jdbc.queryForMap("SELECT * FROM bcm_outbox_l").getValue("payload").toString())
+        assertThat(root["actv_tx_id"]).isEqualTo(VENDOR_TX_ID)
+        assertThat(root["tx_hash"]).isEqualTo(ORIGINAL_TX_HASH)
+        assertThat(root["last_pub_stcd"]).isEqualTo("FINALIZED")
+        assertThat(payload.path("txId").asString()).isEqualTo(VENDOR_TX_ID)
+        assertThat(payload.path("externalTxId").asString()).isEqualTo(ROOT_EXTERNAL_TX_ID)
+        assertThat(payload.path("txHash").asString()).isEqualTo(ORIGINAL_TX_HASH)
+    }
+
+    @Test
+    fun `이미 다른 대체 tx로 연결된 boost 웹훅은 즉시 격리한다`() {
+        insertBoostFixture(status = "SUBMITTED", activeVendorTransactionId = REPLACEMENT_TX_ID)
+        inbox.insertIfAbsent(
+            notification(
+                "noti-boost-conflict",
+                managedVaultPayload(
+                    notificationId = "noti-boost-conflict",
+                    externalTransactionId = BOOST_EXTERNAL_TX_ID,
+                    vendorTransactionId = "tx-unexpected",
+                    transactionHash = "0xunexpected",
+                ),
+                vendorTransactionId = "tx-unexpected",
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Quarantined("noti-boost-conflict", 1))
+
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_boost_l WHERE ext_tx_id = ?", BOOST_EXTERNAL_TX_ID)["new_tx_id"])
+            .isEqualTo(REPLACEMENT_TX_ID)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
+    }
+
     private fun insertAddress() {
         jdbc.update(
             """
@@ -543,6 +685,53 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         )
     }
 
+    private fun insertBoostFixture(
+        status: String,
+        activeVendorTransactionId: String,
+    ) {
+        insertSubmission(
+            ROOT_EXTERNAL_TX_ID,
+            "WITHDRAWAL",
+            status = "SUBMITTED",
+            vendorTransactionId = VENDOR_TX_ID,
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_tx_l
+              (vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
+               last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
+               frst_dtct_dttm, last_chng_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, ?, 'acct-pool', 'ETHEREUM', 'USDC', ?,
+                    'CONFIRMED', 0, NULL, NULL, NULL, '20260807115900', '20260807115900',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            VENDOR_TX_ID,
+            activeVendorTransactionId,
+            ROOT_EXTERNAL_TX_ID,
+            if (activeVendorTransactionId == VENDOR_TX_ID) ORIGINAL_TX_HASH else REPLACEMENT_TX_HASH,
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_boost_l
+              (orig_tx_id, try_seq, ext_tx_id, bst_stcd, claim_id, claim_exp_dttm,
+               rplc_tx_id, rplc_tx_hash, fee_lvl, gasless_yn, new_tx_id, req_dttm, rsp_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, 1, ?, ?, ?, ?, ?, ?, 'HIGH', 'Y', ?, '20260807115930', ?,
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            VENDOR_TX_ID,
+            BOOST_EXTERNAL_TX_ID,
+            status,
+            if (status == "REQUESTED") "claim-1" else null,
+            if (status == "REQUESTED") "20260807120230" else null,
+            VENDOR_TX_ID,
+            ORIGINAL_TX_HASH,
+            if (status == "SUBMITTED") REPLACEMENT_TX_ID else null,
+            if (status == "SUBMITTED") "20260807115931" else null,
+        )
+    }
+
     private fun notification(
         id: String,
         payload: String,
@@ -571,6 +760,8 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         externalTransactionId: String,
         status: String = "CONFIRMING",
         confirmations: Int = 0,
+        vendorTransactionId: String = VENDOR_TX_ID,
+        transactionHash: String? = null,
     ): String =
         objectMapper
             .readTree(realPayload(notificationId))
@@ -581,8 +772,10 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
                         put("id", "71")
                     }
                     put("externalTxId", externalTransactionId)
+                    put("id", vendorTransactionId)
                     put("status", status)
                     put("numOfConfirmations", confirmations)
+                    transactionHash?.let { put("txHash", it) }
                 }
             }.toString()
 
@@ -621,6 +814,7 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         jdbc.update("DELETE FROM bcm_swp_item_l")
         jdbc.update("DELETE FROM bcm_swp_exec_l")
         jdbc.update("DELETE FROM bcm_outbox_l")
+        jdbc.update("DELETE FROM bcm_boost_l")
         jdbc.update("DELETE FROM bcm_tx_l")
         jdbc.update("DELETE FROM bcm_sbmt_l")
         jdbc.update("DELETE FROM bcm_whk_l")
@@ -631,6 +825,11 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
 
     private companion object {
         const val VENDOR_TX_ID = "f3339e5d-428e-4add-8018-631b972f3195"
+        const val REPLACEMENT_TX_ID = "f4449e5d-428e-4add-8018-631b972f3196"
+        const val ROOT_EXTERNAL_TX_ID = "wd-root"
+        const val BOOST_EXTERNAL_TX_ID = "bst-0198c0de-0000-7000-8000-000000000001"
+        const val ORIGINAL_TX_HASH = "0xoriginal"
+        const val REPLACEMENT_TX_HASH = "0xreplacement"
         const val SWEEP_EXECUTION_ID = "01987654-3210-7abc-8def-0123456789ab"
         const val DESTINATION_ADDRESS = "0x628501678d302023ca4555B678581917dF8D7636"
     }
