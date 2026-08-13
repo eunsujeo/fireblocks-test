@@ -23,6 +23,7 @@ import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookNotification
 import com.whatto.bcm.infra.client.fireblocks.FireblocksClient
+import com.whatto.bcm.support.submission.SubmissionRequestHashes
 import io.mockk.every
 import io.mockk.verify
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -234,26 +235,37 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
             travelRuleMessage = null,
         )
 
-    private fun sweepSubmission() =
-        SubmissionRecord(
+    private fun sweepSubmission(): SubmissionRecord {
+        val fingerprint =
+            SubmissionRequestHashes.contractCallV1(
+                SOURCE_ACCOUNT_ID,
+                "0x4444444444444444444444444444444444444444",
+                "ETHEREUM",
+                "USDC",
+                "3",
+                "0x1234",
+            )
+        return SubmissionRecord(
             externalTransactionId = SWEEP_EXTERNAL_ID,
-            requestHash = "a".repeat(64),
-            hashVersion = "v1",
+            requestHash = fingerprint.requestHash,
+            hashVersion = fingerprint.hashVersion,
             status = SubmissionStatus.SUBMITTED,
             claimId = null,
             claimExpiresAt = null,
             transactionType = SubmissionTransactionType.SWEEP_BATCH,
             vendorTransactionId = SWEEP_VENDOR_TX_ID,
             senderAccountId = SOURCE_ACCOUNT_ID,
-            recipientType = SubmissionRecipientType.ACCOUNT,
-            recipientValue = DESTINATION_ACCOUNT_ID,
+            recipientType = SubmissionRecipientType.ADDRESS,
+            recipientValue = "0x4444444444444444444444444444444444444444",
             network = "ETHEREUM",
             symbol = "USDC",
             amount = "3",
             requestedAt = "20260807115900",
             respondedAt = "20260807115901",
             sweepExecutionId = SWEEP_EXECUTION_ID,
+            callData = fingerprint.normalizedCallData,
         )
+    }
 
     private fun enqueueWebhook(
         vendorTransactionId: String,

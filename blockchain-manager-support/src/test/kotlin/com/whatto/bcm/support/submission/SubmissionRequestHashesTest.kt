@@ -39,6 +39,7 @@ class SubmissionRequestHashesTest {
 
         assertThat(fingerprint.hashVersion).isEqualTo("cc-v1")
         assertThat(fingerprint.normalizedAmount).isEqualTo("100")
+        assertThat(fingerprint.normalizedCallData).isEqualTo("0x095ea7b3aa")
         assertThat(fingerprint.requestHash)
             .isEqualTo("8df565f666cbdfc0eb0fa45092c0abdcd664035679450e09a7c144575f13804b")
         assertThat(fingerprint)
@@ -49,6 +50,22 @@ class SubmissionRequestHashesTest {
     fun `contract call calldata가 다르면 같은 external id에 재사용할 수 없는 다른 요청이다`() {
         assertThat(contractCallFingerprint("100", "0xabcdef", "0x095ea7b3aa"))
             .isNotEqualTo(contractCallFingerprint("100", "0xabcdef", "0x095ea7b3bb"))
+    }
+
+    @Test
+    fun `contract call 의미 금액은 NUMERIC 36 18에 반올림 없이 저장할 수 있어야 한다`() {
+        assertThatThrownBy {
+            contractCallFingerprint("0.0000000000000000001", "0xabcdef", "0x095ea7b3aa")
+        }.isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test
+    fun `contract call calldata는 비어 있지 않은 짝수 바이트 hex여야 한다`() {
+        listOf("", "0x", "0x0", "0xzz").forEach { invalidCallData ->
+            assertThatThrownBy {
+                contractCallFingerprint("100", "0xabcdef", invalidCallData)
+            }.isInstanceOf(IllegalArgumentException::class.java)
+        }
     }
 
     private fun fingerprint(

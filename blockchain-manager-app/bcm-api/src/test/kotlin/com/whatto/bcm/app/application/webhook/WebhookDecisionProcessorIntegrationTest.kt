@@ -479,19 +479,21 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
             INSERT INTO bcm_sbmt_l
               (ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, tx_dvcd, vndr_tx_id, swp_exec_id,
                snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
-               req_dttm, rsp_dttm,
+               call_data, req_dttm, rsp_dttm,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES (?, ?, 'v1', ?, ?, ?, ?,
+            VALUES (?, ?, ?, ?, ?, ?, ?,
                     'acct-pool', 'ADDRESS', '0x9fE2', 'ETHEREUM', 'USDC', 100,
-                    '20260807115900', ?,
+                    ?, '20260807115900', ?,
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             externalTransactionId,
             "a".repeat(64),
+            if (transactionType.startsWith("SWEEP_")) "cc-v1" else "v1",
             status,
             transactionType,
             vendorTransactionId,
             sweepExecutionId,
+            if (transactionType.startsWith("SWEEP_")) "0x1234" else null,
             vendorTransactionId?.let { "20260807115901" },
         )
     }

@@ -58,6 +58,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
+import java.util.HexFormat
 
 @SpringBootTest(classes = [SweepLifecycleIntegrationTest.TestApplication::class])
 @Import(
@@ -207,6 +208,8 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
         assertThat(executions.findItems(EXECUTION_ID).map { it.accountId }).containsExactly(ACCOUNT_A, ACCOUNT_B)
         assertThat(executions.findItems(EXECUTION_ID).map { it.sequence }).containsExactly(1, 2)
         assertThat(vendor.requests.filter { it.contractAddress == SWEEP_CONTRACT }).hasSize(1)
+        assertThat(vendor.requests.single { it.contractAddress == SWEEP_CONTRACT }.callData)
+            .isEqualTo(fakeCallData("batch:$EXECUTION_ID:$OWNER_A:20, $OWNER_B:30"))
         assertThat(vendor.requests).allMatch(VendorContractCallRequest::useGasless)
 
         assertThat(executionService.runOnce()).isEqualTo(SweepBatchExecutionResult.NoCandidates)
@@ -231,7 +234,7 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
             assertThat(allowanceService.revoke(authorizationKey(accountId)))
                 .isInstanceOf(SweepAllowancePreparationResult.Pending::class.java)
         }
-        assertThat(vendor.requests.filter { it.callData.endsWith(":0:6") }).hasSize(2)
+        assertThat(vendor.requests.filter { it.callData == fakeCallData("approve:$SWEEP_CONTRACT:0:6") }).hasSize(2)
         erc20.allowances.replaceAll { _, _ -> "0" }
         listOf(ACCOUNT_A, ACCOUNT_B).forEach { accountId ->
             assertThat(allowanceService.revoke(authorizationKey(accountId)))
@@ -504,7 +507,7 @@ private class LifecycleErc20(
         spenderAddress: String,
         amount: String,
         decimals: Int,
-    ): String = "approve:$spenderAddress:$amount:$decimals"
+    ): String = fakeCallData("approve:$spenderAddress:$amount:$decimals")
 }
 
 private object LifecycleBatchContract : SweepBatchContractPort {
@@ -513,8 +516,10 @@ private object LifecycleBatchContract : SweepBatchContractPort {
         executionId: String,
         tokenContractAddress: String,
         items: List<SweepBatchCallItem>,
-    ): String = "batch:$executionId:${items.joinToString { "${it.ownerAddress}:${it.amount}" }}"
+    ): String = fakeCallData("batch:$executionId:${items.joinToString { "${it.ownerAddress}:${it.amount}" }}")
 }
+
+private fun fakeCallData(value: String): String = "0x${HexFormat.of().formatHex(value.encodeToByteArray())}"
 
 private class LifecycleReceipts : SweepBatchReceiptPort {
     var value: SweepBatchReceipt? = null

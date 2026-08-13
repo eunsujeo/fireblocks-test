@@ -1,15 +1,19 @@
 package com.whatto.bcm.infra.persistence.submission
 
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionStatus
+import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.infra.persistence.submission.fixture.SubmissionRecordFixture.fixture
 import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
+import com.whatto.bcm.support.submission.SubmissionRequestHashes
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.context.annotation.Import
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 
 @DataJdbcTest
@@ -32,6 +36,99 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
         val audit = jdbc.queryForMap("SELECT * FROM bcm_sbmt_l WHERE ext_tx_id = ?", requested.externalTransactionId)
         assertThat(audit["frst_reg_empno"]).isEqualTo("SYSTEM")
         assertThat(audit["frst_reg_brcd"]).isEqualTo("9999")
+    }
+
+    @Test
+    fun `cc-v1 contract call은 정규화 calldata를 저장해 원장 필드만으로 요청 hash를 재계산한다`() {
+        val fingerprint =
+            SubmissionRequestHashes.contractCallV1(
+                senderAccountId = "customer-1",
+                contractAddress = "0xABCDEF",
+                network = "ETHEREUM",
+                symbol = "USDC",
+                amount = "100.00",
+                callData = "0x095EA7B3AA",
+            )
+        val requested =
+            fixture(
+                externalTransactionId = "swa-cc-v1",
+                requestHash = fingerprint.requestHash,
+                hashVersion = fingerprint.hashVersion,
+                transactionType = SubmissionTransactionType.SWEEP_APPROVE,
+                senderAccountId = "customer-1",
+                recipientType = SubmissionRecipientType.ADDRESS,
+                recipientValue = "0xABCDEF",
+                amount = fingerprint.normalizedAmount,
+                callData = fingerprint.normalizedCallData,
+            )
+
+        submissions.insert(requested)
+        val restored = submissions.findByExternalTransactionId(requested.externalTransactionId)!!
+        val recalculated =
+            SubmissionRequestHashes.contractCallV1(
+                restored.senderAccountId,
+                restored.recipientValue,
+                restored.network,
+                restored.symbol,
+                restored.amount,
+                restored.callData!!,
+            )
+
+        assertThat(restored.callData).isEqualTo("0x095ea7b3aa")
+        assertThat(recalculated.requestHash).isEqualTo(restored.requestHash)
+    }
+
+    @Test
+    fun `sweep contract call은 calldata가 필수다`() {
+        assertThatThrownBy {
+            submissions.insert(
+                fixture(
+                    externalTransactionId = "swa-missing-calldata",
+                    hashVersion = "cc-v1",
+                    transactionType = SubmissionTransactionType.SWEEP_APPROVE,
+                ),
+            )
+        }.isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `일반 전송에는 contract call calldata를 허용하지 않는다`() {
+        assertThatThrownBy {
+            submissions.insert(
+                fixture(
+                    externalTransactionId = "wd-unexpected-calldata",
+                    callData = "0x095ea7b3aa",
+                ),
+            )
+        }.isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `contract call calldata는 소문자 hex여야 한다`() {
+        assertThatThrownBy {
+            submissions.insert(
+                fixture(
+                    externalTransactionId = "swa-invalid-calldata",
+                    hashVersion = "cc-v1",
+                    transactionType = SubmissionTransactionType.SWEEP_APPROVE,
+                    callData = "0x095EA7B3AA",
+                ),
+            )
+        }.isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `contract call calldata는 비어 있을 수 없다`() {
+        assertThatThrownBy {
+            submissions.insert(
+                fixture(
+                    externalTransactionId = "swa-empty-calldata",
+                    hashVersion = "cc-v1",
+                    transactionType = SubmissionTransactionType.SWEEP_APPROVE,
+                    callData = "",
+                ),
+            )
+        }.isInstanceOf(DataIntegrityViolationException::class.java)
     }
 
     @Test

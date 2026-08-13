@@ -9,6 +9,7 @@ object SubmissionRecordFixture {
     fun fixture(
         externalTransactionId: String = "wd-260713-0042",
         requestHash: String = "a".repeat(64),
+        hashVersion: String = "v1",
         status: SubmissionStatus = SubmissionStatus.REQUESTED,
         claimId: String? = "claim-owner-1",
         claimExpiresAt: String? = "20260807120030",
@@ -22,10 +23,11 @@ object SubmissionRecordFixture {
         amount: String = "1.5",
         requestedAt: String = "20260807120000",
         respondedAt: String? = null,
+        callData: String? = null,
     ) = SubmissionRecord(
         externalTransactionId = externalTransactionId,
         requestHash = requestHash,
-        hashVersion = "v1",
+        hashVersion = hashVersion,
         status = status,
         claimId = claimId,
         claimExpiresAt = claimExpiresAt,
@@ -39,5 +41,6 @@ object SubmissionRecordFixture {
         amount = amount,
         requestedAt = requestedAt,
         respondedAt = respondedAt,
+        callData = callData,
     )
 }

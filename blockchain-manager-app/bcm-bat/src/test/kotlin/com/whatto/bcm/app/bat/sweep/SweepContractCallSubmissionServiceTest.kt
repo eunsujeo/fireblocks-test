@@ -33,6 +33,7 @@ class SweepContractCallSubmissionServiceTest {
 
         assertThat(submissions.required().status).isEqualTo(SubmissionStatus.SUBMITTED)
         assertThat(submissions.required().hashVersion).isEqualTo("cc-v1")
+        assertThat(submissions.required().callData).isEqualTo(CALL_DATA.lowercase())
         assertThat(submissions.required().transactionType).isEqualTo(SubmissionTransactionType.SWEEP_APPROVE)
         assertThat(vendor.submitted.single())
             .isEqualTo(
@@ -86,6 +87,34 @@ class SweepContractCallSubmissionServiceTest {
         assertThatThrownBy { service.submit(command(callData = "0xdeadbeef")) }
             .isInstanceOf(ConflictException::class.java)
         assertThat(vendor.submitted).hasSize(1)
+    }
+
+    @Test
+    fun `저장된 calldata가 요청 hash의 입력과 다르면 벤더를 호출하지 않고 충돌한다`() {
+        val submissions =
+            FakeContractCallSubmissions(
+                requestedRecord(claimExpiresAt = "20260811235900").copy(callData = "0xdeadbeef"),
+            )
+        val vendor = FakeVendorContractCalls()
+        val service = service(submissions, vendor)
+
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOf(ConflictException::class.java)
+        assertThat(vendor.submitted).isEmpty()
+    }
+
+    @Test
+    fun `저장된 hash 판이 다르면 벤더를 호출하지 않고 충돌한다`() {
+        val submissions =
+            FakeContractCallSubmissions(
+                requestedRecord(claimExpiresAt = "20260811235900").copy(hashVersion = "cc-v2"),
+            )
+        val vendor = FakeVendorContractCalls()
+        val service = service(submissions, vendor)
+
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOf(ConflictException::class.java)
+        assertThat(vendor.submitted).isEmpty()
     }
 
     @Test
@@ -192,6 +221,7 @@ class SweepContractCallSubmissionServiceTest {
                 amount = "100",
                 requestedAt = "20260811235800",
                 respondedAt = null,
+                callData = CALL_DATA.lowercase(),
             )
         }
     }

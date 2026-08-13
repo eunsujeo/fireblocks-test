@@ -15,4 +15,10 @@ class SubmissionAmountsTest {
         assertThat(SubmissionAmounts.isValid("1000000000000000000")).isFalse()
         assertThat(SubmissionAmounts.isValid("not-a-number")).isFalse()
     }
+
+    @Test
+    fun `contract call 의미 금액은 allowance 회수를 위한 0을 허용한다`() {
+        assertThat(SubmissionAmounts.isNonNegativeAndFits("0")).isTrue()
+        assertThat(SubmissionAmounts.isNonNegativeAndFits("-0.000000000000000001")).isFalse()
+    }
 }
