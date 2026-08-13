@@ -10,8 +10,12 @@ interface TxRecordRepository {
 
     fun findByVendorTxId(vendorTxId: String): TxRecord?
 
+    fun findByActiveVendorTxId(activeVendorTxId: String): TxRecord?
+
     /** 상태 전이 판정용 행 잠금. 호출자는 반드시 같은 트랜잭션 안에서 판정·갱신까지 끝내야 한다. */
     fun findByVendorTxIdForUpdate(vendorTxId: String): TxRecord?
+
+    fun findByActiveVendorTxIdForUpdate(activeVendorTxId: String): TxRecord?
 
     fun findByExternalTxId(externalTxId: String): TxRecord?
 }

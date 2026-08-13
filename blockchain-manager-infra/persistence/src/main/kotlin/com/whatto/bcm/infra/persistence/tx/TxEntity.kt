@@ -12,8 +12,8 @@ data class TxEntity(
     @Id
     @Column("vndr_tx_id")
     val vndrTxId: String,
-    @Column("orig_tx_id")
-    val origTxId: String?,
+    @Column("actv_tx_id")
+    val actvTxId: String,
     @Column("ext_tx_id")
     val extTxId: String?,
     @Column("acnt_id")
@@ -22,6 +22,8 @@ data class TxEntity(
     val ntwkCd: String,
     @Column("tkn_smbl")
     val tknSmbl: String,
+    @Column("tx_hash")
+    val txHash: String?,
     @Column("last_pub_stcd")
     val lastPubStcd: String,
     @Column("cnfm_cnt")
@@ -48,11 +50,12 @@ data class TxEntity(
     fun toDomain(): TxRecord =
         TxRecord(
             vendorTxId = vndrTxId,
-            originTxId = origTxId,
+            activeVendorTxId = actvTxId,
             externalTxId = extTxId,
             accountId = acntId,
             network = ntwkCd,
             symbol = tknSmbl,
+            transactionHash = txHash,
             lastPublishedStatus = TxStatus.valueOf(lastPubStcd),
             confirmationCount = cnfmCnt,
             vendorSubStatus = vndrSubStcd,
@@ -66,11 +69,12 @@ data class TxEntity(
         fun from(txRecord: TxRecord): TxEntity =
             TxEntity(
                 vndrTxId = txRecord.vendorTxId,
-                origTxId = txRecord.originTxId,
+                actvTxId = txRecord.activeVendorTxId,
                 extTxId = txRecord.externalTxId,
                 acntId = txRecord.accountId,
                 ntwkCd = txRecord.network,
                 tknSmbl = txRecord.symbol,
+                txHash = txRecord.transactionHash,
                 lastPubStcd = txRecord.lastPublishedStatus.name,
                 cnfmCnt = txRecord.confirmationCount,
                 vndrSubStcd = txRecord.vendorSubStatus,

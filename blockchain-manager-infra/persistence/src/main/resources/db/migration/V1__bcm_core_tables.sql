@@ -1,4 +1,4 @@
--- bcm_ 12테이블 — docs/design/03-bcm-db.md + 07-asset-master.md (코어 daw_ 규약: 일시 VARCHAR(16) · 일자 VARCHAR(8)
+-- bcm_ 15테이블 — docs/design/03-bcm-db.md + 07-asset-master.md (코어 daw_ 규약: 일시 VARCHAR(16) · 일자 VARCHAR(8)
 -- · _yn VARCHAR(1) · 벤더 id VARCHAR(64) · 감사 4컬럼). 자동 처리 행의 감사 센티넬: empno='SYSTEM' · brcd='9999'.
 
 -- 계정 매핑 — ref UNIQUE 가 계정 생성 멱등의 최종 방어
@@ -84,12 +84,13 @@ CREATE INDEX idx_bcm_whk_pick ON bcm_whk_l (prcs_stcd, rcv_dttm);     -- 판단 
 
 -- 거래 운영 상태 — 전이 판정·이벤트 발행·막힘 점검의 기준 행
 CREATE TABLE bcm_tx_l (
-  vndr_tx_id      VARCHAR(64)  PRIMARY KEY,
-  orig_tx_id      VARCHAR(64)  NULL,          -- boost 대체 건이면 원 tx — 백엔드에는 원 tx 로 접어 흘린다
+  vndr_tx_id      VARCHAR(64)  PRIMARY KEY,   -- 최초 벤더 tx id = 논리 root 거래 id
+  actv_tx_id      VARCHAR(64)  NOT NULL UNIQUE, -- 현재 RBF head 또는 먼저 채굴된 승자
   ext_tx_id       VARCHAR(128) NULL UNIQUE,   -- 제출 건의 백엔드 요청 키 — 재제출 중복 차단, 입금은 NULL
   acnt_id         VARCHAR(64)  NOT NULL,      -- 귀속 계정 — 이벤트 파티션 키
   ntwk_cd         VARCHAR(20)  NOT NULL,      -- 네트워크 코드
   tkn_smbl        VARCHAR(16)  NOT NULL,
+  tx_hash         VARCHAR(128) NULL,          -- active 물리 거래의 온체인 hash
   last_pub_stcd   VARCHAR(16)  NOT NULL,      -- 마지막으로 발행한 TxStatus
   cnfm_cnt        INT          NOT NULL,      -- 큰 값으로만 갱신 (감소 금지)
   vndr_sub_stcd   VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 subStatus 원어 — 운영 조사용, 이벤트 미탑재
@@ -102,6 +103,8 @@ CREATE TABLE bcm_tx_l (
   last_chng_empno VARCHAR(6)  NOT NULL,
   last_chng_brcd  VARCHAR(4)  NOT NULL
 );
+CREATE INDEX idx_bcm_tx_stall ON bcm_tx_l (last_pub_stcd, last_chng_dttm)
+  WHERE stall_alrt_dttm IS NULL AND last_pub_stcd IN ('SUBMITTED', 'CONFIRMED');
 
 -- 제출 원장 — externalTxId 멱등 판정과 벤더 호출 전 요청 영속화의 기준 행
 CREATE TABLE bcm_sbmt_l (
@@ -111,8 +114,9 @@ CREATE TABLE bcm_sbmt_l (
   sbmt_stcd      VARCHAR(16)  NOT NULL,       -- REQUESTED / SUBMITTED / FAILED
   claim_id       VARCHAR(36)  NULL,
   claim_exp_dttm VARCHAR(16)  NULL,
-  tx_dvcd        VARCHAR(16)  NOT NULL,       -- WITHDRAWAL / INTERNAL / SWEEP
+  tx_dvcd        VARCHAR(16)  NOT NULL,       -- WITHDRAWAL / INTERNAL / SWEEP_APPROVE / SWEEP_BATCH
   vndr_tx_id     VARCHAR(64)  NULL,
+  swp_exec_id    VARCHAR(36)  NULL,           -- SWEEP_BATCH일 때 실행 원장 연결
   snd_acnt_id    VARCHAR(64)  NOT NULL,
   rcv_dvcd       VARCHAR(16)  NOT NULL,       -- ADDRESS / ACCOUNT / WHITELISTED
   rcv_vl         VARCHAR(128) NOT NULL,
@@ -121,13 +125,15 @@ CREATE TABLE bcm_sbmt_l (
   trsf_amt       NUMERIC(36,18) NOT NULL,
   req_dttm       VARCHAR(16)  NOT NULL,
   rsp_dttm       VARCHAR(16)  NULL,
+  last_chck_dttm VARCHAR(16)  NULL,           -- 미결 제출 점검의 마지막 벤더 조회 시각
+  chck_cnt       INT          NOT NULL DEFAULT 0, -- 미결 조회 횟수 — 백오프·경보 기준
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
   last_chng_empno VARCHAR(6)  NOT NULL,
   last_chng_brcd  VARCHAR(4)  NOT NULL
 );
 CREATE UNIQUE INDEX ux_bcm_sbmt_vndr_tx ON bcm_sbmt_l (vndr_tx_id) WHERE vndr_tx_id IS NOT NULL;
-CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, req_dttm);
+CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, last_chck_dttm, req_dttm);
 
 -- 발행 outbox — 상태 갱신과 같은 트랜잭션으로 적재(P), relay 가 evnt_id 순으로 발송(S)
 CREATE TABLE bcm_outbox_l (
@@ -153,21 +159,94 @@ CREATE TABLE bcm_outbox_l (
 );
 CREATE INDEX idx_bcm_outbox_send ON bcm_outbox_l (evnt_stcd, evnt_id); -- 미발행(P) 오래된 순 = 시간정렬 UUID v7
 
--- sweep 대상 — (계정, 자산)당 한 행, 전액 sweep 이라 중복 마킹이 합쳐진다
+-- sweep 대상 — (계정, 자산)당 한 행, batch 실행 항목이 claim한다
 CREATE TABLE bcm_swp_trgt (
   acnt_id       VARCHAR(64)  NOT NULL,
   ntwk_cd       VARCHAR(20)  NOT NULL,       -- 네트워크 코드
   tkn_smbl      VARCHAR(16)  NOT NULL,
   reg_dttm      VARCHAR(16)  NOT NULL,
-  swp_tx_id     VARCHAR(64)  NULL,            -- NULL=미제출(배치 대상) · 값 있으면 진행 중
+  actv_swp_exec_id VARCHAR(36) NULL,           -- 현재 claim한 sweep 실행
+  actv_item_seq INT          NULL,             -- 실행 안의 항목 순번
   try_cnt       INT          NOT NULL,
   last_try_dttm VARCHAR(16)  NULL,
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
   last_chng_empno VARCHAR(6)  NOT NULL,
   last_chng_brcd  VARCHAR(4)  NOT NULL,
-  PRIMARY KEY (acnt_id, ntwk_cd, tkn_smbl)
+  PRIMARY KEY (acnt_id, ntwk_cd, tkn_smbl),
+  CHECK ((actv_swp_exec_id IS NULL) = (actv_item_seq IS NULL))
 );
+
+-- 고객 vault별·sweep 컨트랙트별 allowance 관찰 상태
+CREATE TABLE bcm_swp_auth_m (
+  acnt_id         VARCHAR(64)    NOT NULL,
+  ntwk_cd         VARCHAR(20)    NOT NULL,
+  tkn_smbl        VARCHAR(16)    NOT NULL,
+  swp_ctrt_addr   VARCHAR(128)   NOT NULL,
+  alwnc_cap       NUMERIC(36,18) NOT NULL,
+  obs_alwnc       NUMERIC(36,18) NOT NULL,
+  auth_stcd       VARCHAR(16)    NOT NULL,
+  aprv_ext_tx_id  VARCHAR(128)   NULL,
+  aprv_vndr_tx_id VARCHAR(64)    NULL,
+  last_chck_dttm  VARCHAR(16)    NOT NULL,
+  frst_reg_empno  VARCHAR(6)     NOT NULL,
+  frst_reg_brcd   VARCHAR(4)     NOT NULL,
+  last_chng_empno VARCHAR(6)     NOT NULL,
+  last_chng_brcd  VARCHAR(4)     NOT NULL,
+  PRIMARY KEY (acnt_id, ntwk_cd, tkn_smbl, swp_ctrt_addr)
+);
+
+-- sweep 최상위 batch 실행
+CREATE TABLE bcm_swp_exec_l (
+  swp_exec_id      VARCHAR(36)    PRIMARY KEY,
+  ext_tx_id        VARCHAR(128)   NOT NULL UNIQUE,
+  req_hash         CHAR(64)       NOT NULL,
+  ntwk_cd          VARCHAR(20)    NOT NULL,
+  tkn_smbl         VARCHAR(16)    NOT NULL,
+  opr_acnt_id      VARCHAR(64)    NOT NULL,
+  swp_ctrt_addr    VARCHAR(128)   NOT NULL,
+  swp_exec_stcd    VARCHAR(16)    NOT NULL,
+  item_cnt         INT            NOT NULL,
+  req_tot_amt      NUMERIC(36,18) NOT NULL,
+  actl_tot_amt     NUMERIC(36,18) NULL,
+  gasless_yn       CHAR(1)        NOT NULL,
+  vndr_tx_id       VARCHAR(64)    NULL UNIQUE,
+  tx_hash          VARCHAR(128)   NULL,
+  req_dttm         VARCHAR(16)    NOT NULL,
+  fnsh_dttm        VARCHAR(16)    NULL,
+  frst_reg_empno   VARCHAR(6)     NOT NULL,
+  frst_reg_brcd    VARCHAR(4)     NOT NULL,
+  last_chng_empno  VARCHAR(6)     NOT NULL,
+  last_chng_brcd   VARCHAR(4)     NOT NULL
+);
+CREATE UNIQUE INDEX uk_bcm_swp_exec_operator_pending
+  ON bcm_swp_exec_l (opr_acnt_id)
+  WHERE swp_exec_stcd IN ('READY', 'SUBMITTING');
+
+-- 최상위 batch 실행 아래 원천 vault 이동 N건
+CREATE TABLE bcm_swp_item_l (
+  swp_exec_id      VARCHAR(36)    NOT NULL,
+  item_seq         INT            NOT NULL,
+  acnt_id          VARCHAR(64)    NOT NULL,
+  src_addr         VARCHAR(128)   NOT NULL,
+  req_amt          NUMERIC(36,18) NOT NULL,
+  actl_amt         NUMERIC(36,18) NULL,
+  swp_item_stcd    VARCHAR(16)    NOT NULL,
+  fail_cd          VARCHAR(64)    NULL,
+  log_idx          INT            NULL,
+  frst_reg_empno   VARCHAR(6)     NOT NULL,
+  frst_reg_brcd    VARCHAR(4)     NOT NULL,
+  last_chng_empno  VARCHAR(6)     NOT NULL,
+  last_chng_brcd   VARCHAR(4)     NOT NULL,
+  PRIMARY KEY (swp_exec_id, item_seq),
+  UNIQUE (swp_exec_id, acnt_id),
+  FOREIGN KEY (swp_exec_id) REFERENCES bcm_swp_exec_l (swp_exec_id)
+);
+
+ALTER TABLE bcm_swp_trgt
+  ADD CONSTRAINT fk_bcm_swp_trgt_item
+  FOREIGN KEY (actv_swp_exec_id, actv_item_seq)
+  REFERENCES bcm_swp_item_l (swp_exec_id, item_seq);
 
 -- boost 이력 — Admin 조회용
 CREATE TABLE bcm_boost_l (

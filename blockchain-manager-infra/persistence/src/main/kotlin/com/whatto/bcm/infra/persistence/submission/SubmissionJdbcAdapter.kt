@@ -1,6 +1,8 @@
 package com.whatto.bcm.infra.persistence.submission
 
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.submission.PendingSubmissionCheck
+import com.whatto.bcm.domain.submission.PendingSubmissionRecoveryRepository
 import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
@@ -16,21 +18,22 @@ import java.math.BigDecimal
 @Repository
 class SubmissionJdbcAdapter(
     private val jdbc: NamedParameterJdbcTemplate,
-) : SubmissionRecordRepository {
+) : SubmissionRecordRepository,
+    PendingSubmissionRecoveryRepository {
     override fun insert(record: SubmissionRecord): SubmissionRecord {
         try {
             jdbc.update(
                 """
                 INSERT INTO bcm_sbmt_l
                   (ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, claim_id, claim_exp_dttm,
-                   tx_dvcd, vndr_tx_id,
+                   tx_dvcd, vndr_tx_id, swp_exec_id,
                    snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
                    req_dttm, rsp_dttm,
                    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
                 VALUES
                   (:externalTransactionId, :requestHash, :hashVersion, :status, :claimId, :claimExpiresAt,
                    :transactionType,
-                   :vendorTransactionId, :senderAccountId, :recipientType, :recipientValue,
+                   :vendorTransactionId, :sweepExecutionId, :senderAccountId, :recipientType, :recipientValue,
                    :network, :symbol, :amount, :requestedAt, :respondedAt,
                    :employeeNo, :branchCode, :employeeNo, :branchCode)
                 """.trimIndent(),
@@ -72,6 +75,65 @@ class SubmissionJdbcAdapter(
                 mapOf("externalTransactionId" to externalTransactionId),
                 ROW_MAPPER,
             ).firstOrNull()
+
+    override fun reserveRequestedForRecovery(
+        now: String,
+        requestedBefore: String,
+        checkedBefore: String,
+        limit: Int,
+    ): List<PendingSubmissionCheck> {
+        require(limit > 0) { "recovery limit must be positive" }
+        return jdbc.query(
+            """
+            WITH candidates AS (
+              SELECT ext_tx_id
+              FROM bcm_sbmt_l
+              WHERE sbmt_stcd = 'REQUESTED'
+                AND req_dttm <= :requestedBefore
+                AND (claim_id IS NULL OR claim_exp_dttm IS NULL OR claim_exp_dttm <= :now)
+                AND (last_chck_dttm IS NULL OR last_chck_dttm <= :checkedBefore)
+              ORDER BY COALESCE(last_chck_dttm, req_dttm), req_dttm, ext_tx_id
+              LIMIT :limit
+              FOR UPDATE SKIP LOCKED
+            ), reserved AS (
+              UPDATE bcm_sbmt_l AS submission
+              SET last_chck_dttm = :now,
+                  chck_cnt = submission.chck_cnt + 1,
+                  last_chng_empno = :employeeNo,
+                  last_chng_brcd = :branchCode
+              FROM candidates
+              WHERE submission.ext_tx_id = candidates.ext_tx_id
+              RETURNING submission.ext_tx_id, submission.req_dttm,
+                        submission.last_chck_dttm, submission.chck_cnt
+            )
+            SELECT ext_tx_id, last_chck_dttm, chck_cnt
+            FROM reserved
+            ORDER BY req_dttm, ext_tx_id
+            """.trimIndent(),
+            mapOf(
+                "now" to now,
+                "requestedBefore" to requestedBefore,
+                "checkedBefore" to checkedBefore,
+                "limit" to limit,
+                "employeeNo" to SystemAudit.EMPNO,
+                "branchCode" to SystemAudit.BRCD,
+            ),
+        ) { rs, _ ->
+            PendingSubmissionCheck(
+                externalTransactionId = rs.getString("ext_tx_id"),
+                checkedAt = rs.getString("last_chck_dttm"),
+                checkCount = rs.getInt("chck_cnt"),
+            )
+        }
+    }
+
+    override fun markRecoveredSubmitted(
+        externalTransactionId: String,
+        vendorTransactionId: String,
+        respondedAt: String,
+    ) {
+        markSubmitted(externalTransactionId, vendorTransactionId, respondedAt)
+    }
 
     override fun markSubmitted(
         externalTransactionId: String,
@@ -174,6 +236,7 @@ class SubmissionJdbcAdapter(
             "claimExpiresAt" to record.claimExpiresAt,
             "transactionType" to record.transactionType.name,
             "vendorTransactionId" to record.vendorTransactionId,
+            "sweepExecutionId" to record.sweepExecutionId,
             "senderAccountId" to record.senderAccountId,
             "recipientType" to record.recipientType.name,
             "recipientValue" to record.recipientValue,
@@ -210,6 +273,7 @@ class SubmissionJdbcAdapter(
                     claimExpiresAt = rs.getString("claim_exp_dttm"),
                     transactionType = SubmissionTransactionType.valueOf(rs.getString("tx_dvcd")),
                     vendorTransactionId = rs.getString("vndr_tx_id"),
+                    sweepExecutionId = rs.getString("swp_exec_id"),
                     senderAccountId = rs.getString("snd_acnt_id"),
                     recipientType = SubmissionRecipientType.valueOf(rs.getString("rcv_dvcd")),
                     recipientValue = rs.getString("rcv_vl"),
@@ -224,7 +288,7 @@ class SubmissionJdbcAdapter(
         val SELECT_COLUMNS =
             """
             SELECT ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, claim_id, claim_exp_dttm,
-                   tx_dvcd, vndr_tx_id,
+                   tx_dvcd, vndr_tx_id, swp_exec_id,
                    snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
                    req_dttm, rsp_dttm
             FROM bcm_sbmt_l

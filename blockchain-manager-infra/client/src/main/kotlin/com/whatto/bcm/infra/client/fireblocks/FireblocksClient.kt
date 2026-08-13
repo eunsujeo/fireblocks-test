@@ -7,10 +7,15 @@ import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.domain.vendor.VendorBalance
 import com.whatto.bcm.domain.vendor.VendorBlockchain
 import com.whatto.bcm.domain.vendor.VendorBlockchainOnchain
+import com.whatto.bcm.domain.vendor.VendorContractCall
+import com.whatto.bcm.domain.vendor.VendorContractCallPort
+import com.whatto.bcm.domain.vendor.VendorContractCallRequest
 import com.whatto.bcm.domain.vendor.VendorDepositAddress
+import com.whatto.bcm.domain.vendor.VendorNetworkRecord
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.vendor.VendorTransactionDestination
+import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
 import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionPeer
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
@@ -44,7 +49,8 @@ class FireblocksClient(
     restClientFactory: FireblocksRestClientFactory,
 ) : WalletVendorPort,
     VendorAssetCatalogPort,
-    VendorTransactionPort {
+    VendorTransactionPort,
+    VendorContractCallPort {
     private val restClient = restClientFactory.create(restClientBuilder, properties)
     private val objectMapper = ObjectMapper()
 
@@ -190,6 +196,46 @@ class FireblocksClient(
             }
         }
 
+    override fun submitContractCall(request: VendorContractCallRequest): VendorTransactionSubmission =
+        try {
+            val response =
+                exchange(
+                    operation = "submitContractCall",
+                    method = HttpMethod.POST,
+                    path = TRANSACTIONS_PATH,
+                    body = contractCallBody(request),
+                    idempotencyKey = null,
+                    responseType = CreateTransactionResponse::class.java,
+                )
+            VendorTransactionSubmission.Accepted(
+                transactionId = requireNotNull(response.id) { "submitContractCall 응답 결손: id" },
+            )
+        } catch (exception: VendorApiException) {
+            when {
+                exception.httpStatus == HttpStatus.BAD_REQUEST.value() ->
+                    VendorTransactionSubmission.BadRequestNeedsLookup(exception)
+
+                isDefinitiveTransactionRejection(exception.httpStatus) ->
+                    throw RelayRejectedException("contract call rejected", exception)
+
+                else -> throw exception
+            }
+        }
+
+    override fun contractCallByExternalTransactionId(externalTransactionId: String): VendorContractCall? =
+        transactionResponseOrNull(
+            operation = "contractCallByExternalTransactionId",
+            path = encodedPath("$TRANSACTIONS_PATH/external_tx_id/{id}", externalTransactionId),
+        )?.let { response ->
+            VendorContractCall(
+                transactionId = requireNotNull(response.id) { "contract call 응답 결손: id" },
+                externalTransactionId = response.externalTxId?.takeIf(String::isNotBlank),
+                sourceVaultId = response.source?.id?.takeIf(String::isNotBlank),
+                contractAddress = response.destinationAddress?.takeIf(String::isNotBlank),
+                callData = response.extraParameters?.contractCallData?.takeIf(String::isNotBlank),
+            )
+        }
+
     override fun transaction(transactionId: String): VendorTransaction? =
         transactionOrNull(
             operation = "transaction",
@@ -238,17 +284,20 @@ class FireblocksClient(
     private fun transactionOrNull(
         operation: String,
         path: String,
-    ): VendorTransaction? =
+    ): VendorTransaction? = transactionResponseOrNull(operation, path)?.let(::toDomain)
+
+    private fun transactionResponseOrNull(
+        operation: String,
+        path: String,
+    ): TransactionResponse? =
         try {
-            toDomain(
-                exchange(
-                    operation = operation,
-                    method = HttpMethod.GET,
-                    path = path,
-                    body = null,
-                    idempotencyKey = null,
-                    responseType = TransactionResponse::class.java,
-                ),
+            exchange(
+                operation = operation,
+                method = HttpMethod.GET,
+                path = path,
+                body = null,
+                idempotencyKey = null,
+                responseType = TransactionResponse::class.java,
             )
         } catch (exception: VendorApiException) {
             if (exception.httpStatus == HttpStatus.NOT_FOUND.value()) null else throw exception
@@ -266,7 +315,27 @@ class FireblocksClient(
         ).apply {
             request.note?.let { put("note", it) }
             request.travelRuleMessage?.let { put("travelRuleMessage", it) }
+            request.replaceTransactionHash?.let { put("replaceTxByHash", it) }
         }
+
+    private fun contractCallBody(request: VendorContractCallRequest): Map<String, Any> =
+        linkedMapOf(
+            "operation" to "CONTRACT_CALL",
+            "externalTxId" to request.externalTransactionId,
+            "assetId" to
+                checkNotNull(properties.contractCallGasAssetIds[request.network]) {
+                    "Fireblocks CONTRACT_CALL gas assetId is not configured: network=${request.network}"
+                },
+            "source" to mapOf("type" to "VAULT_ACCOUNT", "id" to request.sourceVaultId),
+            "destination" to
+                mapOf(
+                    "type" to "ONE_TIME_ADDRESS",
+                    "oneTimeAddress" to mapOf("address" to request.contractAddress),
+                ),
+            "amount" to "0",
+            "useGasless" to request.useGasless,
+            "extraParameters" to mapOf("contractCallData" to request.callData),
+        )
 
     private fun transactionDestination(destination: VendorTransactionDestination): Map<String, Any> =
         when (destination) {
@@ -362,7 +431,32 @@ class FireblocksClient(
             createdAtEpochMillis = requireNotNull(response.createdAt) { "transaction 응답 결손: createdAt" },
             lastUpdatedEpochMillis =
                 requireNotNull(response.lastUpdated) { "transaction 응답 결손: lastUpdated" },
+            lifecycleStage = lifecycleStage(response.status),
+            networkRecords = response.networkRecords.orEmpty().map(::toDomain),
         )
+
+    private fun toDomain(response: TransactionNetworkRecordResponse): VendorNetworkRecord =
+        VendorNetworkRecord(
+            type = requireNotNull(response.type) { "network record 응답 결손: type" },
+            source = toDomain(requireNotNull(response.source) { "network record 응답 결손: source" }),
+            destination =
+                toDomain(requireNotNull(response.destination) { "network record 응답 결손: destination" }),
+            destinationAddress = response.destinationAddress?.takeIf(String::isNotBlank),
+            transactionHash = response.txHash?.takeIf(String::isNotBlank),
+            vendorAssetId = requireNotNull(response.assetId) { "network record 응답 결손: assetId" },
+            netAmount = requireNotNull(response.netAmount) { "network record 응답 결손: netAmount" },
+            dropped = requireNotNull(response.isDropped) { "network record 응답 결손: isDropped" },
+        )
+
+    private fun lifecycleStage(status: String?): VendorTransactionLifecycleStage =
+        when (status) {
+            "SUBMITTED", "PENDING_SIGNATURE", "QUEUED", "BROADCASTING" ->
+                VendorTransactionLifecycleStage.PRE_CHAIN
+
+            "CONFIRMING" -> VendorTransactionLifecycleStage.CONFIRMING
+            "COMPLETED", "FAILED", "REJECTED", "BLOCKED" -> VendorTransactionLifecycleStage.TERMINAL
+            else -> VendorTransactionLifecycleStage.UNKNOWN
+        }
 
     private fun toDomain(response: TransactionPeerResponse): VendorTransactionPeer =
         VendorTransactionPeer(

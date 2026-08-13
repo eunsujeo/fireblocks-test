@@ -25,6 +25,8 @@ data class FireblocksProperties(
     val readTimeoutMillis: Long = 10_000,
     /** 웹훅 RS512 검증 공개키 카탈로그. 환경별 공식 URL을 외부 설정으로만 주입한다. */
     val webhookJwksUrl: String = "",
+    /** CONTRACT_CALL은 체인 native assetId가 필요하다. 벤더 식별자는 이 경계의 환경 설정에만 둔다. */
+    val contractCallGasAssetIds: Map<String, String> = emptyMap(),
     /** JWKS connect/read 및 요청 대기 상한. 외부 통신 장애가 수신부를 잠그지 않게 짧게 둔다. */
     val webhookJwksTimeoutMillis: Long = 3_000,
     /** 낯선 kid 연속 입력이 JWKS 외부 호출을 증폭시키지 않게 하는 비동기 갱신 최소 간격. */
@@ -36,6 +38,7 @@ data class FireblocksProperties(
         require(maxBackoffMillis >= 0) { "maxBackoffMillis must not be negative" }
         require(connectTimeoutMillis > 0) { "connectTimeoutMillis must be positive" }
         require(readTimeoutMillis > 0) { "readTimeoutMillis must be positive" }
+        require(contractCallGasAssetIds.values.all(String::isNotBlank)) { "contractCallGasAssetIds must not be blank" }
         maximumSubmissionFlowMillis
     }
 

@@ -19,6 +19,7 @@ data class SubmissionRecord(
     val amount: String,
     val requestedAt: String,
     val respondedAt: String?,
+    val sweepExecutionId: String? = null,
 )
 
 enum class SubmissionStatus {
@@ -30,7 +31,8 @@ enum class SubmissionStatus {
 enum class SubmissionTransactionType {
     WITHDRAWAL,
     INTERNAL,
-    SWEEP,
+    SWEEP_APPROVE,
+    SWEEP_BATCH,
 
     ;
 
@@ -38,7 +40,7 @@ enum class SubmissionTransactionType {
         when (this) {
             WITHDRAWAL -> EventType.WITHDRAWAL
             INTERNAL -> EventType.INTERNAL
-            SWEEP -> null
+            SWEEP_APPROVE, SWEEP_BATCH -> null
         }
 }
 

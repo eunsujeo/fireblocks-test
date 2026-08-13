@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.client.config
 
+import com.whatto.bcm.infra.client.evm.EvmRpcProperties
 import com.whatto.bcm.infra.client.fireblocks.FireblocksJwtSigner
 import com.whatto.bcm.infra.client.fireblocks.FireblocksProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -12,7 +13,7 @@ import java.time.Clock
  * Clock 빈은 app 조립부(ClockConfig) 소유 — 여기서는 주입만 받는다.
  */
 @Configuration
-@EnableConfigurationProperties(FireblocksProperties::class)
+@EnableConfigurationProperties(FireblocksProperties::class, EvmRpcProperties::class)
 class ClientConfig {
     @Bean
     fun fireblocksJwtSigner(

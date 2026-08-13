@@ -91,6 +91,24 @@ internal data class TransactionResponse(
     val createdAt: Long? = null,
     val lastUpdated: Long? = null,
     val numOfConfirmations: Int? = null,
+    val operation: String? = null,
+    val extraParameters: TransactionExtraParametersResponse? = null,
+    val networkRecords: List<TransactionNetworkRecordResponse>? = null,
+)
+
+internal data class TransactionNetworkRecordResponse(
+    val type: String? = null,
+    val source: TransactionPeerResponse? = null,
+    val destination: TransactionPeerResponse? = null,
+    val destinationAddress: String? = null,
+    val txHash: String? = null,
+    val assetId: String? = null,
+    val netAmount: String? = null,
+    val isDropped: Boolean? = null,
+)
+
+internal data class TransactionExtraParametersResponse(
+    val contractCallData: String? = null,
 )
 
 internal data class TransactionPeerResponse(

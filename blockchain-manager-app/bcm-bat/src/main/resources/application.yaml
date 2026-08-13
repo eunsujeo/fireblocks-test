@@ -2,3 +2,25 @@ spring:
   threads:
     virtual:
       enabled: true
+
+bcm:
+  stall-check:
+    enabled: false
+    fixed-delay-millis: 300000
+  submission-recovery:
+    enabled: false
+    fixed-delay-millis: 300000
+  sweep:
+    enabled: false
+    fixed-delay-millis: 60000
+    reconciliation-batch-size: 50
+    security:
+      normal-approval-enabled: false
+      emergency-revocation-enabled: false
+      batch-submission-enabled: false
+      tap-approval-policy-verified: false
+      tap-revocation-policy-verified: false
+      tap-batch-policy-verified: false
+      callback-verified: false
+      universal-gasless-verified: false
+      sweep-contract-verified: false

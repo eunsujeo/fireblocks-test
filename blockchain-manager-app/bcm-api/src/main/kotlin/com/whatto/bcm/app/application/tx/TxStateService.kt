@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.application.tx
 
+import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.tx.TransitionTable
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
@@ -12,6 +13,7 @@ data class TxObservation(
     val accountId: String,
     val network: String,
     val symbol: String,
+    val transactionHash: String?,
     val status: TxStatus,
     val confirmationCount: Int,
     val vendorSubStatus: String?,
@@ -48,6 +50,7 @@ class TxStateService(
                 accountId = observation.accountId,
                 network = observation.network,
                 symbol = observation.symbol,
+                transactionHash = mergedTransactionHash(previous, observation),
                 lastPublishedStatus = statusToRecord,
                 confirmationCount = observation.confirmationCount,
                 vendorSubStatus = observation.vendorSubStatus,
@@ -60,11 +63,34 @@ class TxStateService(
         } else {
             repository.update(
                 candidate.copy(
-                    originTxId = previous.originTxId,
+                    activeVendorTxId = previous.activeVendorTxId,
                     externalTxId = previous.externalTxId ?: candidate.externalTxId,
-                    stallAlertedAt = previous.stallAlertedAt,
+                    stallAlertedAt = previous.stallAlertedAt.takeUnless { madeProgress(previous, candidate) },
                 ),
             )
         }
+    }
+
+    private fun madeProgress(
+        previous: TxRecord,
+        candidate: TxRecord,
+    ): Boolean =
+        candidate.lastPublishedStatus != previous.lastPublishedStatus ||
+            candidate.confirmationCount > previous.confirmationCount ||
+            (
+                previous.transactionHash == null &&
+                    candidate.transactionHash != null
+            )
+
+    private fun mergedTransactionHash(
+        previous: TxRecord?,
+        observation: TxObservation,
+    ): String? {
+        val recorded = previous?.transactionHash
+        val observed = observation.transactionHash
+        if (recorded != null && observed != null && recorded != observed) {
+            throw ConflictException("transactionHash", observation.vendorTransactionId)
+        }
+        return recorded ?: observed
     }
 }

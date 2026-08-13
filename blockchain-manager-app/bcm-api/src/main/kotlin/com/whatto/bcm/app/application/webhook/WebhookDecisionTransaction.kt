@@ -13,6 +13,12 @@ import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventType
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
+import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.sweep.SweepExecutionRepository
+import com.whatto.bcm.domain.sweep.SweepTarget
+import com.whatto.bcm.domain.sweep.SweepTargetKey
+import com.whatto.bcm.domain.sweep.SweepTargetRepository
+import com.whatto.bcm.domain.tx.FinalityPolicyConfigurationException
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.webhook.UnattributedDepositAlert
@@ -80,6 +86,8 @@ class WebhookDecisionTransaction(
     private val txStates: TxStateService,
     private val outboxEvents: OutboxEventService,
     private val submissions: SubmissionRecordRepository,
+    private val sweepExecutions: SweepExecutionRepository,
+    private val sweepTargets: SweepTargetRepository,
     private val parser: FireblocksTransactionParser,
     private val statusTranslator: FireblocksStatusTranslator,
     private val eventIdGenerator: EventIdGenerator,
@@ -103,6 +111,9 @@ class WebhookDecisionTransaction(
             process(inboxItem)
         } catch (exception: WebhookPayloadException) {
             failed(inboxItem, exception.safeReason)
+        } catch (exception: FinalityPolicyConfigurationException) {
+            // payload poison이 아니라 운영 설정 오류다. inbox를 P로 남겨 설정 복구 후 다시 처리한다.
+            throw exception
         } catch (exception: ConflictException) {
             throw WebhookDecisionConflictException(inboxItem.notificationId, exception)
         } catch (exception: RuntimeException) {
@@ -134,6 +145,15 @@ class WebhookDecisionTransaction(
                 ?: return unattributed(inboxItem, transaction, mapping.network, mapping.symbol)
         val sourceAddress = transaction.sourceAddress ?: throw WebhookPayloadException("missing data.sourceAddress")
         val status = statusTranslator.translate(transaction, mapping.network)
+        val sweepTargetKey =
+            SweepTargetKey(
+                accountId = depositAddress.accountId,
+                network = depositAddress.network,
+                symbol = depositAddress.symbol,
+            )
+        if (status == TxStatus.FINALIZED) {
+            sweepTargets.findByKeyForUpdate(sweepTargetKey)
+        }
         val stateChange =
             txStates.observe(
                 TxObservation(
@@ -142,6 +162,7 @@ class WebhookDecisionTransaction(
                     accountId = depositAddress.accountId,
                     network = depositAddress.network,
                     symbol = depositAddress.symbol,
+                    transactionHash = transaction.transactionHash,
                     status = status,
                     confirmationCount = transaction.confirmationCount,
                     vendorSubStatus = transaction.subStatus,
@@ -160,6 +181,20 @@ class WebhookDecisionTransaction(
                     eventType = EventType.DEPOSIT,
                 )
             }
+        if (TxStatus.FINALIZED in stateChange.statusesToPublish) {
+            sweepTargets.insertIfAbsent(
+                SweepTarget(
+                    accountId = sweepTargetKey.accountId,
+                    network = sweepTargetKey.network,
+                    symbol = sweepTargetKey.symbol,
+                    registeredAt = inboxItem.receivedAt,
+                    activeSweepExecutionId = null,
+                    activeItemSequence = null,
+                    attemptCount = 0,
+                    lastAttemptedAt = null,
+                ),
+            )
+        }
         outboxEvents.enqueue(events)
         markProcessed(inboxItem)
         return WebhookDecisionOutcome.Processed(inboxItem.notificationId, events.size)
@@ -207,6 +242,7 @@ class WebhookDecisionTransaction(
                     accountId = submission.senderAccountId,
                     network = submission.network,
                     symbol = submission.symbol,
+                    transactionHash = transaction.transactionHash,
                     status = status,
                     confirmationCount = transaction.confirmationCount,
                     vendorSubStatus = transaction.subStatus,
@@ -216,6 +252,16 @@ class WebhookDecisionTransaction(
             )
         val eventType = submission.transactionType.customerEventType()
         if (eventType == null) {
+            if (
+                submission.transactionType == SubmissionTransactionType.SWEEP_BATCH &&
+                (status.isTerminal() || inboxItem.eventType == NETWORK_RECORDS_COMPLETED_EVENT)
+            ) {
+                sweepExecutions.markReconciling(
+                    checkNotNull(submission.sweepExecutionId) { "SWEEP_BATCH submission has no sweep execution id" },
+                    transaction.vendorTransactionId,
+                    transaction.transactionHash,
+                )
+            }
             markProcessed(inboxItem)
             return WebhookDecisionOutcome.Ignored(inboxItem.notificationId)
         }
@@ -249,7 +295,7 @@ class WebhookDecisionTransaction(
                 eventId = eventId,
                 type = eventType,
                 txId = txRecord.vendorTxId,
-                txHash = transaction.transactionHash,
+                txHash = txRecord.transactionHash,
                 externalTxId = txRecord.externalTxId,
                 accountId = txRecord.accountId,
                 network = txRecord.network,
@@ -331,14 +377,18 @@ class WebhookDecisionTransaction(
         inboxRepository.markProcessed(inboxItem.notificationId, CoreDateTimes.now(clock))
     }
 
+    private fun TxStatus.isTerminal(): Boolean = this == TxStatus.FINALIZED || this == TxStatus.REJECTED || this == TxStatus.FAILED
+
     private companion object {
         const val UNEXPECTED_FAILURE_REASON = "decision processing failed"
         const val IMMEDIATE_QUARANTINE = 1
+        const val NETWORK_RECORDS_COMPLETED_EVENT = "transaction.network_records.processing_completed"
         val SUPPORTED_EVENT_TYPES =
             setOf(
                 "transaction.created",
                 "transaction.status.updated",
                 "transaction.approval_status.updated",
+                NETWORK_RECORDS_COMPLETED_EVENT,
             )
     }
 }

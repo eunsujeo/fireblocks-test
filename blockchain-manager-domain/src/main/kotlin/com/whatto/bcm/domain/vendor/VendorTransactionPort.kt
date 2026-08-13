@@ -21,6 +21,8 @@ data class VendorTransactionRequest(
     val note: String?,
     val travelRuleMessage: Map<String, Any?>?,
     val useGasless: Boolean,
+    /** RBF 대체 제출이면 교체 대상의 온체인 transaction hash */
+    val replaceTransactionHash: String? = null,
 )
 
 sealed interface VendorTransactionDestination {
@@ -85,7 +87,27 @@ data class VendorTransaction(
     val confirmationCount: Int,
     val createdAtEpochMillis: Long,
     val lastUpdatedEpochMillis: Long,
+    val lifecycleStage: VendorTransactionLifecycleStage = VendorTransactionLifecycleStage.UNKNOWN,
+    val networkRecords: List<VendorNetworkRecord> = emptyList(),
 )
+
+data class VendorNetworkRecord(
+    val type: String,
+    val source: VendorTransactionPeer,
+    val destination: VendorTransactionPeer,
+    val destinationAddress: String?,
+    val transactionHash: String?,
+    val vendorAssetId: String,
+    val netAmount: String,
+    val dropped: Boolean,
+)
+
+enum class VendorTransactionLifecycleStage {
+    PRE_CHAIN,
+    CONFIRMING,
+    TERMINAL,
+    UNKNOWN,
+}
 
 data class VendorTransactionPeer(
     val type: String,
