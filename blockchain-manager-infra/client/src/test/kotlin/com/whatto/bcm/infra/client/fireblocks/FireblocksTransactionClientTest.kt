@@ -478,6 +478,37 @@ class FireblocksTransactionClientTest {
         server.verify()
     }
 
+    @Test
+    fun `거래 대사 목록은 source와 sort를 지정하지 않고 워크스페이스 전체를 조회한다`() {
+        val (client, server) = fixture()
+        val otherSource = responseJson.replace("\"id\":\"71\"", "\"id\":\"72\"")
+        server
+            .expect(
+                requestTo(
+                    "https://sandbox-api.fireblocks.test/v1/transactions" +
+                        "?after=1786068000000&before=1786154400000&limit=500",
+                ),
+            ).andRespond(
+                withSuccess("[$responseJson,$otherSource]", MediaType.APPLICATION_JSON)
+                    .header("next-page", "cursor-2"),
+            )
+
+        val page =
+            client.transactions(
+                VendorTransactionPageRequest(
+                    sourceVaultId = null,
+                    afterEpochMillis = 1786068000000,
+                    beforeEpochMillis = 1786154400000,
+                    order = null,
+                    limit = 500,
+                ),
+            )
+
+        assertThat(page.data.map { it.source.id }).containsExactly("71", "72")
+        assertThat(page.next).isEqualTo("cursor-2")
+        server.verify()
+    }
+
     private fun fixture(): Pair<FireblocksClient, MockRestServiceServer> {
         val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
