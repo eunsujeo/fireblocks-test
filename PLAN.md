@@ -11,7 +11,7 @@
 - [x] Phase 3 — 웹훅 수신 (2026-08-06)
 - [x] Phase 4 — 판단 워커 + outbox + relay (입금 E2E) (2026-08-07)
 - [x] Phase 5 — 출금·내부이체 (출금 E2E) (2026-08-10)
-- [ ] Phase 6 — sweep (건별)
+- [ ] Phase 6 — sweep (approve + transferFrom 배치로 재개)
 - [ ] Phase 7 — 막힘 점검 · 자동 boost
 - [ ] Phase 8 — 배치 3종 — tx 대사 · 원본 보관 · 수수료 시계열
 - [ ] Phase 9 — 운영 보강
@@ -32,6 +32,8 @@
 | `bcm_whk_l` | Phase 1 | Phase 3 (적재) · Phase 4 (집기) |
 | `bcm_tx_l` · `bcm_outbox_l` | Phase 1 | Phase 4 |
 | `bcm_swp_trgt` | Phase 1 | Phase 6 |
+| `bcm_swp_auth_m` | **Phase 6 배치 전환** | Phase 6 (allowance 관찰·approve·긴급 회수) |
+| `bcm_swp_exec_l` · `bcm_swp_item_l` | **Phase 6 배치 전환** | Phase 6 (최상위 실행 1:N 항목·대사) |
 | `bcm_boost_l` | Phase 1 | Phase 7 |
 | `bcm_job_m` | Phase 1 | Phase 7 (막힘 점검 주기) · Phase 8 (대사 커서·heartbeat) |
 | `bcm_raw_tx_l` | Phase 1 | Phase 8 (일 배치 보관) |
@@ -213,31 +215,114 @@ fbhook PoC 에서 검증된 경로를 이식한다 (`~/Workspace/fbhook` 참고)
 - [x] **T5.1 벤더 거래 포트·어댑터** — 제출, `externalTxId` 회수 조회, txId 단건, 커서 목록. 모든 400은 회수 조회 후 실재 여부로 판정하고, 409·422 확정 거절과 그 밖의 4xx·5xx/타임아웃을 복구 규칙에 맞게 변환 (2026-08-07 완료)
 - [x] **T5.2 제출 API·멱등 상태 머신** — 원장 선커밋 → 벤더 호출 → SUBMITTED/FAILED 갱신, 같은 요청 202·다른 요청 409·REQUESTED 회수. `POST /transactions` 스펙 대조 (2026-08-07 완료)
 - [x] **T5.3 거래 조회 API** — externalTxId·txId 단건과 계정별 커서 목록. 첫 요청 after 필수·cursor 요청 조건 무시·마지막 nextCursor 보존 계약 테스트 (2026-08-07 완료)
-- [x] **T5.4 vault 발신 웹훅 분류** — 제출 원장의 WITHDRAWAL/INTERNAL/SWEEP 기준 라우팅, 선도착 웹훅의 vendor txId 회수, 미등록 vault 발신 무발행 알림 (2026-08-07 완료)
+- [x] **T5.4 vault 발신 웹훅 분류** — 제출 원장의 WITHDRAWAL/INTERNAL/sweep 계열 기준 라우팅, 선도착 웹훅의 vendor txId 회수, 미등록 vault 발신 무발행 알림 (2026-08-07 완료; sweep 계열은 T6.7에서 APPROVE/BATCH로 교체)
 - [x] **T5.5 출금·내부이체 E2E + converge** — 제출→SUBMITTED→CONFIRMED→FINALIZED 토픽 소비, 재제출 무중복, internal 1건·sweep 오분류 방지, OpenAPI 스키마 대조 후 design-sync·code-reviewer. claim CAS·503/Retry-After·만료 회수·제출 흐름 timeout, 400 조회 판정, FAILED 웹훅 회수, 자체 커서·주소 nullable을 반영했다. 2026-08-07 code-reviewer는 "커밋 가능·Critical 없음", design-sync는 최신 waas-wiki 기준 "구현 정합" 판정. 2026-08-10 waas-wiki 02·03 사본 byte-동일 동기화 완료
 
-## Phase 6 — sweep (건별)
+## Phase 6 — sweep (approve + transferFrom 배치)
 
-**확정: 배치 컨트랙트 아님 · 목적지 = 옴니버스 vault** (#11 해결). 받는주소 → 옴니버스 vault 개별 이체. (설계 문서 06 은 배치안 기록으로 유지 — 구현은 건별)
+**2026-08-12 설계 변경 확정: 고객 vault별 제한 allowance + 운영 계정의 `batchSweep` 한 건. 목적지는 옴니버스 vault다.**
+TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통제하고, 최상위 거래 아래 `SweepExecution 1:N SweepItem`을 둔다.
+건별 일반 전송 구현은 폐기했으며 아래 T6.0~T6.6은 변경 전 구현 이력이다. 활성 경로는 T6.7부터다.
 
 - 트리거 판정은 **02 현행 기준(주기 + 최소 금액, 운영 설정값)으로 한정** — 06 의 비율·가스비 정책은 원화 환산 입력(미결)과 수수료 시계열(Phase 8 산출물)을 요구해 지금은 순서가 역전된다. 후속 확장으로 분리
-- `bcm_swp_trgt` 대상 추출 → Fireblocks 일반 전송 제출 → 상태는 웹훅으로 합류
-- **sweep 제출도 `bcm_sbmt_l` 에 `tx_dvcd = SWEEP` 으로 남기고 `externalTxId` 를 붙인다** (`swp-` 접두 + UUID v7 — 매니저가 만드는 키). 아래 오분류 방지의 근거가 이 행이다 (02 분류 표)
-- sweep 은 `internal-events` 에 싣지 않는다 (매니저 내부 — openapi.yaml 이벤트 절). 정합은 대사가 확인
-- sweep 거래도 막힘 점검·boost 를 동일하게 탄다 (02) — Phase 7 에서 합류
+- `bcm_swp_trgt` 대상 추출 → allowance 재확인/approve → 실행·항목 선기록 → 운영 계정 batch CONTRACT_CALL → 항목별 대사
+- approve와 batch 제출은 `bcm_sbmt_l`에 각각 `SWEEP_APPROVE`·`SWEEP_BATCH`로 남기고 `externalTxId`를 붙인다.
+- sweep은 고객 이벤트 토픽에 싣지 않는다. 항목 정합은 network records + receipt `SweepLeg`로 확인한다.
+- sweep 거래도 막힘 점검 대상이지만 Universal Gasless + RBF 조합은 별도 기능 게이트 기본 비활성이다.
 
-**완료 기준**: 트리거 판정 단위 테스트 · 제출 멱등(같은 대상 중복 제출 방지) 테스트 · **오분류 방지** — sweep 거래의 웹훅이 어느 고객 토픽(deposit·withdrawal·internal)에도 발행되지 않음 (받는주소 발신 이체를 워커가 고객 거래로 오인하면 유령 이벤트 → 대사 불일치).
+**완료 기준**: allowance·approve(0)·실행 1:N·canonical hash·batch 제출 멱등·부분 성공 대사·출시 게이트 fail-closed 테스트.
+**오분류 방지** — approve·batch 최상위 웹훅은 어느 고객 토픽에도 발행하지 않는다.
+
+### 변경 전 건별 구현 이력 (2026-08-10~12, 현재 실행 경로에서는 폐기)
+
+- [x] **T6.0 범위 고정** — Phase 6은 고객 vault별 Fireblocks 일반 전송이며 목적지는 옴니버스 vault다.
+  M은 한 주기의 처리 상한일 뿐 온체인 묶음이 아니고, 98의 배치 컨트랙트 모델은 구현하지 않는다.
+  완료: 06의 채택안과 PLAN 범위가 일치하고 후속 task가 리뷰 가능한 세로줄로 분해됨. 근거: 02 sweep 절 · 06 "실행 방식 — 건별 일반 전송"
+- [x] **T6.1 sweep 대상 작업 큐** (2026-08-10) — `bcm_swp_trgt` 도메인 모델·Repository 포트·JDBC 어댑터를 구현한다.
+  확정 입금의 멱등 마킹, 미제출 대상 조회, 제출 tx 기록, 종결 후 재조회 가능 전환, 잔액 미달 행 삭제를 원자 연산으로 제공한다.
+  완료: 복합키 멱등·조회 순서/상한·상태 변경·삭제 persistence 통합 테스트 그린. 근거: 03 `bcm_swp_trgt` · 입금 시나리오
+- [x] **T6.2 FINALIZED 대상 마킹** (2026-08-10) — 입금이 처음 FINALIZED로 전이되는 판단 트랜잭션에서 (계정, 네트워크, 심볼)을 마킹한다.
+  완료: 중복 FINALIZED와 같은 자산의 복수 입금에도 대상 행은 하나이고, outbox·tx 갱신과 같은 트랜잭션임을 통합 테스트로 검증. 근거: 02 sweep · 06 Finalized 조건
+- [x] **T6.3 트리거 조회·스케줄러** (2026-08-11) — 운영 설정의 주기·자산별 최소 금액·한 주기 M을 적용하고 현재 이용가능잔액이 큰 순서로 대상을 고른다.
+  오래된 미제출 대상부터 `scanLimit`까지만 잔액을 조회한 뒤 M개를 고른다. 최소 미달은 제거하고 진행 중 행은 제외하며, 최소 금액 미설정 자산은 보류한다.
+  스케줄러는 기본 비활성이고 옴니버스 SYSTEM 계정 설정이 없거나 잘못되면 벤더 잔액 호출 전에 실패한다.
+  완료: 최소 경계값·M 정렬·진행 중 제외·잘못된 목적지 fail-closed 단위 테스트 그린. 근거: 02 sweep · 06 트리거/M개 선정
+- [x] **T6.4 건별 일반 전송 제출** (2026-08-12) — 대상마다 `swp-` + UUID v7 externalTxId와 canonical hash를 만들고 `bcm_sbmt_l`에 `SWEEP`으로 선기록한 뒤
+  claim·만료 회수·400 후 조회 등 Phase 5 제출 안전 경계를 그대로 적용해 옴니버스 vault로 gasless 일반 전송한다.
+  대상 행 잠금과 열린 SWEEP 원장 재사용으로 동시 실행을 직렬화하고, 실제 호출 직전에 시도 횟수를 별도 커밋한다.
+  완료: 같은 대상 동시 실행 무중복·만료 claim 회수 시 원 externalTxId/내용 재사용·400 후 조회/실패 전이·1 대상=1 벤더 거래 단위 테스트 그린. 근거: 02 멱등/claim/sweep 분류 · 03 `bcm_sbmt_l`
+- [x] **T6.5 sweep 종결 합류** (2026-08-12) — SWEEP 웹훅 종결 시 대상의 `swp_tx_id`를 비워 다음 주기에 잔액을 재확인하게 하고 고객 토픽은 발행하지 않는다.
+  진행 중 `SUBMITTED`·`CONFIRMED`는 유지하고, 종결 `FINALIZED`·`REJECTED`·`FAILED`만 같은 벤더 거래가 연결된 대상을 해제한다.
+  완료: 성공·탈락 종결 뒤 재조회 가능, 비종결 상태 유지, deposit·withdrawal·internal 무발행 통합 테스트 그린. 근거: 02 웹훅 라우팅 · 03 sweep 시나리오
+- [x] **T6.6 E2E + converge** (2026-08-12) — 실제 PostgreSQL/Flyway와 가짜 벤더로 FINALIZED 마킹→잔액 판정→건별 제출→종결→미달 정리 세로줄을 검증했다.
+  선행 종결 웹훅과 제출 마감은 target→tx 잠금 순서를 통일하고, 잔액 HTTP는 DB 트랜잭션 밖에서 호출한 뒤 target 잠금+신규 FINALIZED tx 집합 재검사로 삭제 경쟁을 막는다.
+  유효 claim·미종결 제출은 다음 선정을 보류하고 만료 원장은 최초 금액으로 회수하며, 대상별 실패는 경보 후 다음 건을 계속 처리한다. finality 설정 오류는 payload poison 격리 대신 P 상태 재시도로 남긴다.
+  완료: `./gradlew check ktlintCheck` 314건 그린, OpenAPI 생성물 신선, code-reviewer 신규 Critical 0·design-sync Phase 6 설계 정합 판정. 근거: PLAN 공통 완료 규칙
+
+### batch 재구현 task (2026-08-12 분해)
+
+- [x] **T6.7 1:N 원장·allowance 기반** — V1에 `bcm_swp_auth_m`·`bcm_swp_exec_l`·`bcm_swp_item_l`과 target item FK,
+  제출 원장 `SWEEP_APPROVE`·`SWEEP_BATCH` 분류를 반영한다. 실행·항목·target claim을 한 트랜잭션으로 선기록하고
+  기존 건별 제출/종결 경로를 제거한다. 완료: PostgreSQL 왕복·중복 claim 전체 롤백·sweep 고객 이벤트 무발행 테스트 그린.
+  근거: 02 sweep 흐름 · 03 sweep 4테이블 · 06 allowance/실행 · 98 채택 결론
+- [x] **T6.8 allowance 준비·긴급 회수** (2026-08-12) — 고객 vault·컨트랙트별 온체인 allowance를 재조회하고 부족할 때만 제한 cap을
+  `SWEEP_APPROVE` 원장 선기록 후 CONTRACT_CALL로 제출한다. 0이 아닌 cap 변경은 active item 없음 → `approve(0)` 확정·0 재관찰 →
+  새 cap 승인 순서로 직렬화한다. TAP·Callback·Universal Gasless 출시 게이트는 기본 비활성으로 둔다.
+  완료: EVM JSON-RPC `allowance`·`decimals` 조회와 `approve` ABI 인코딩, Fireblocks gasless CONTRACT_CALL, `cc-v1` canonical hash와
+  제출 claim/400 조회 회수, 정상 승인·긴급 회수의 독립 게이트를 구현했다. 제출 직후 ACTIVE 금지, cap 변경 0 선행, active item 차단,
+  `REVOKING`→온체인 0→`REVOKED`, 같은 externalTxId 멱등을 테스트하고 `./gradlew check ktlintCheck` 전체 그린으로 확인했다.
+- [x] **T6.9 batch 실행 준비·제출** (2026-08-12) — 같은 network·symbol의 ACTIVE allowance 후보를 M개 이내로 묶고 정렬된 canonical hash,
+  calldata, `SweepExecution 1:N SweepItem`을 만든다. 운영 계정 호출을 직렬화하고 `SWEEP_BATCH` 원장과 execution id를 연결해
+  gasless CONTRACT_CALL을 멱등 제출한다. 완료: 운영 ABI `batchSweep(bytes16,address,(address,uint256)[])`와 `batch-v1` canonical을 확정하고,
+  UUID v7·주소순·토큰 최소 단위 calldata, allowance 행 잠금 재검증, 실행·항목·target claim 원자 생성, 운영 계정별 READY/SUBMITTING
+  부분 UNIQUE 직렬화, 프로세스 중단 및 relay 거절 뒤 같은 execution/external id 복구를 구현했다. 출시 게이트는 기본 비활성이며
+  `./gradlew check ktlintCheck` 전체 그린으로 확인했다. 근거: 03 실행 1:N·canonical · 06 운영 ABI/권한 경계
+- [x] **T6.10 항목별 결과 대사** (2026-08-12) — 최상위 batch 종결과 network records 처리 완료는 실행을
+  `RECONCILING`으로만 바꾼다. 벤더 거래·원천 vault별 network records와 receipt `SweepLeg`를 요청 N개에 fail-closed로 대조해
+  실제 금액·실패 코드·로그 위치와 `COMPLETED/PARTIAL`을 기록한다. 성공은 잔액과 신규 확정 입금을 재확인해 target을 정리하고,
+  실패·잔존은 claim을 해제해 다음 회차로 되돌린다. 누락·중복·불일치는 실행과 claim을 보존하고 경보하며, 최상위 실패는 항목을
+  `RETRY`로 돌린다. 완료: EVM receipt 디코딩·Fireblocks network records 매핑·웹훅/배치/DB 통합 테스트 및
+  `./gradlew check ktlintCheck` 전체 그린. 근거: 02 batch 대사 · 03 실행 1:N · 06 운영 ABI · 93~95 실측
+- [ ] **T6.11 E2E + 출시 게이트 + converge** — approve 준비→온체인 재확인→batch 선기록/제출→부분 성공 대사,
+  중복 실행·Callback 불일치·전체 `approve(0)` 회수·고객 토픽 무발행을 검증한다. 실측 전 기능 게이트가 fail-closed임을 고정하고
+  최신 설계 사본 동기화 뒤 design-sync·code-reviewer를 통과해야 Phase 6을 다시 완료한다.
 
 ## Phase 7 — 막힘 점검 · 자동 boost
 
 막힌 tx 는 웹훅이 오지 않는다 — 주기 작업이 DB 에서 찾아서 처리한다 (02 "막힘 점검 · 자동 boost").
 
-- 주기 작업(예: 5분, `bcm_job_m` heartbeat): 오래 미확정 건 조회 (벤더 호출 없음)
+- [x] **T7.0 공개 문서 기준 착수 게이트 조사** (2026-08-12) — Fireblocks가 문서화한 자동 boost는
+  Gas Station의 auto-fueling 거래에 한정된다. 일반 EVM 발신은 `transaction.alert.stuck`으로 개입 필요를 알리고,
+  Create Transaction의 `replaceTxByHash`로 RBF를 수행하라고 안내한다. 따라서 일반 gasless relay가 자동으로
+  처리해 준다고 가정하지 않고 매니저 boost 트리거를 유지한다. 단, 벤더의 비공개 운영 보장은 담당자 확답 전까지 #3에 남긴다.
+- [x] **T7.1 RBF 벤더 호출 경계** (2026-08-12) — 벤더 중립 요청 모델에 교체 대상 온체인 hash를 선택값으로 추가하고,
+  Fireblocks 어댑터에서만 `replaceTxByHash`로 변환한다. 일반 제출에는 필드가 나가지 않고 RBF 제출에는 정확히 실리는 테스트 그린.
+- [x] **T7.2 주기 작업 상태·미결 제출 회수** (2026-08-12) — `bcm_job_m` heartbeat를 공통 저장하고, 오래된
+  `REQUESTED` 중 유효 claim·최근 점검을 제외해 원자 예약한다. externalTxId 조회에서 거래가 확인된 건만 `SUBMITTED`로
+  회수하며 미발견·오류는 체크 시각·횟수만 갱신하고 절대 백그라운드 재제출하지 않는다. 재점검 간격은 벤더 단건 조회 최장
+  시간보다 길게 검증한다. 완료: PostgreSQL 예약·heartbeat 통합 테스트, 미발견 무제출·부분 실패 단위 테스트, 전체 check 그린.
+- [x] **T7.3 root 거래·최신 관찰 모델** (2026-08-12) — waas-wiki 02·03에서 실제 Fireblocks 기준으로 정합을 확정하고 사본을
+  byte-동일 동기화했다. `bcm_tx_l`은 최초 vendor tx를 논리 root로 유지하고 `actv_tx_id`·`tx_hash`로 현재 물리 거래를
+  추적한다. 웹훅 hash는 null→최초 값으로만 채우고 빈 관찰로 지우거나 다른 값으로 바꾸지 않는다. active id UNIQUE와
+  막힘 후보 partial index를 V1에 반영하고 PostgreSQL·실물 웹훅 통합 테스트로 DB와 이벤트 hash 동일성을 검증했다.
+- [x] **T7.4 막힘 조회·최신 관찰·경보** (2026-08-12) — 오래된 `SUBMITTED`·`CONFIRMED` root 후보의 active tx를
+  벤더 단건 조회하고, `CONFIRMING`·hash 있음·0 confirmation·우리 EVM 출금/sweep만 boost 가능으로 분류한다. 체인 전·입금·
+  채굴 뒤 확정 지연·식별자/hash 불일치는 boost 없이 경보하며, 자동 boost 기능 게이트는 기본 비활성이라 가능 건도 경보 전용이다.
+  후보 snapshot의 active id·마지막 변경 시각을 CAS해 경보 중복·오래된 관찰 반영을 막고 `bcm_job_m` heartbeat를 남긴다.
+  정상 상태 진행 시 `stall_alrt_dttm`을 비워 새 막힘을 다시 감지한다. 종결 최신 관찰의 정상 경로 재흘림은 T7.6 세로줄에서 닫는다.
+- [ ] **T7.5 RBF 제출·이력·txId 접기** — 시도 직전 벤더 최신 상태를 재확인하고 Admin 임계·최대 시도 안에서 대체 거래를 제출,
+  `bcm_boost_l` intent와 root `bcm_tx_l.actv_tx_id` 변경을 원자 기록한다. 대체 거래의 새 externalTxId는 boost 원장에만 두고
+  고객 이벤트의 txId/externalTxId는 root 값을 유지한다.
+- [ ] **T7.6 E2E + converge** — 대체 웹훅이 원 거래 상태로 반영되고 DAW-CORE에는 원 txId/externalTxId만 발행되는 세로줄,
+  막힘 점검에서 발견한 종결 최신 관찰의 정상 상태 처리 경로, 동시 실행·이미 교체됨·최대 시도 경보를 PostgreSQL 통합 테스트로
+  검증한 뒤 design-sync·code-reviewer를 통과한다.
+
+- 주기 작업(예: 5분, `bcm_job_m` heartbeat): DB에서 오래 미확정 후보를 고르고 조치 직전 벤더 단건 조회
 - **미결 제출 점검 합류** (Phase 5 에서 이월) — `bcm_sbmt_l` 의 오래된 `REQUESTED` 를 훑어 벤더 `external_tx_id` 조회로 마감한다. 재시도가 오지 않은 건을 회수하는 경로다
-- **미채굴(SUBMITTED)** → 자동 boost — RBF 수수료 올린 대체 거래, Admin 정책(대기 임계·최대 시도) 안에서. `bcm_boost_l` 이력
+- **벤더 `CONFIRMING` + txHash + 0 confirmation** → 자동 boost 후보 — Admin 정책·기능 게이트 안에서 RBF
 - **대체 거래(새 txId)를 원 txId 로 접어 발행** — 백엔드는 boost 를 모른다 (Phase 1 의 tx 식별 설계가 여기서 회수된다)
-- **확정 지연(CONFIRMED 멈춤)** → 경보만. boost 불가(우리 tx 아님·이미 블록에 있음)도 경보
-- ★ 착수 전 벤더 확인: relay 의 stuck 자동 처리 여부 — 자동이면 boost 트리거를 뺀다 (02 미확정)
+- **체인 전 지연 또는 confirmation 1 이상 확정 지연** → 경보만. 입금·미제출 거래도 boost하지 않는다
+- relay 자동 처리는 공개 문서상 보장되지 않아 boost 트리거를 유지한다. 비공개 운영 보장은 담당자 확답 전까지 #3에 남긴다.
 
 **완료 기준**: 접기 테스트 — 대체 txId 의 웹훅이 원 txId 의 거래로 반영되고, DAW-CORE 에는 원 txId 기준 이벤트만 나감. 최대 시도 초과 시 경보 전환. boost 이력이 bcm_boost_l 에 남음.
 
@@ -266,7 +351,7 @@ fbhook PoC 에서 검증된 경로를 이식한다 (`~/Workspace/fbhook` 참고)
 |---|---|---|
 | 1 | **ChainEvent 에 이벤트 id 없음** — openapi.yaml 은 "txId 또는 externalTxId 유일 기준", 02-bcm-flow 는 컨슈머 dedup 키 = `evnt_id`(outbox UUID v7) | ✅ 해결 (2026-08-04) — `eventId` 필수 필드 추가, dedup 문구 정정, v0.0.3 재생성 |
 | 2 | **poison 웹훅 격리 방식** | ✅ 해결 (2026-08-07) — `bcm_whk_l.prcs_stcd` P/S/F + `rtry_cnt` + `err_msg`. V1과 수신 초기값(P·0)을 반영, 워커는 Phase 4에서 구현 |
-| 3 | **relay 의 stuck 자동 처리 여부** — 자동이면 막힘 점검의 boost 트리거를 뺀다 | Phase 7 착수 전 — 벤더 확인 대기 (02 미확정) |
+| 3 | **relay 의 stuck 자동 처리 여부** — 자동이면 막힘 점검의 boost 트리거를 뺀다 | 🟡 공개 문서 기준 임시 해결 (2026-08-12) — 자동 boost는 Gas Station auto-fueling에만 명시되고, 일반 EVM은 stuck 알림+RBF API를 안내한다. 일반 gasless relay 자동 처리를 보장하지 않는 것으로 보고 트리거를 유지하되 담당자 확답 전까지 미해결 유지 |
 | 4 | **귀속 불명 해소 절차** — 매핑 갱신 트리거·해소 후 이벤트 재흘림 | DAW-CORE 정합 후 확정 (02 미확정) — Phase 4 는 통지까지만 |
 | 5 | **ChainEvent 에 금액·발신 주소 필드 없음** | ✅ 해결 (2026-08-07) — 스펙 v0.4.0에 문자열 `amount` 필수, nullable `from` 추가. 입금은 from을 항상 채운다 |
 | 6 | **submitTransaction 멱등 재요청 응답 미정의** | ✅ 해결 (2026-08-07) — 스펙 v0.4.0 이 "같은 키+같은 내용 202 / 다른 내용 409" 를 확정하고, **v0.5.0 이 "같은 내용"의 범위**(자금 이동 7값 · `note`·`travelRule` 제외 · amount 는 금액 비교)와 무응답 시 재시도 안전·`external/{externalTxId}` 확인 경로를 문서화. 저장은 `bcm_sbmt_l` 제출 원장(03 신설), 복구 규칙은 02 출금 절 |
@@ -275,7 +360,7 @@ fbhook PoC 에서 검증된 경로를 이식한다 (`~/Workspace/fbhook` 참고)
 | 8 | **가상 스레드 채택 여부** | ✅ 해결 (2026-08-06) — **가상 스레드 채택 · `StructuredTaskScope` 불채택**(preview, `--enable-preview` 금지). 조건 2가지 — 수신 동시성 명시 상한 · relay/워커는 병렬화 대상 아님. 규칙은 [.claude/rules/virtual-thread.md](.claude/rules/virtual-thread.md) 로 이동, CLAUDE.md 3절 기록 |
 | 9 | **사내 Spring Boot BOM 채택 여부** — 기존 프로젝트는 Boot 4.0 기반, 4.0 은 OSS 지원 2026-12 종료 | ✅ 해결 (2026-08-05) — **Boot 4.1 유지·BOM 불채택** (사용자 결정). 사내 BOM 이 4.1.x 를 내면 재합류 검토 |
 | 10 | **원문 바이트 보존 방식** | ✅ 해결 (2026-08-06) — **`bcm_whk_l.payload` JSONB → TEXT** + `payload_hash CHAR(64)`(수신 `byte[]` 의 SHA-256) + `sign_vl TEXT`(서명 헤더 원문). `bcm_raw_tx_l` 은 세 값을 복사만 하고 재계산하지 않는다. 03·99 개정 + 사본 동기화 완료. JSONB 유지 + `payload_raw` 병기 안은 원본이 둘이 돼 기각 |
-| 11 | **sweep 목적지** — 02 "→ 옴니버스" vs 구 결정 "→ 출금 풀" vs 06 "미확정" | ✅ 해결 (2026-08-05) — **옴니버스 vault** (사용자 결정, 06 의 "옴니버스 계층 유지" 안). CLAUDE.md 3절·Phase 6 반영 완료. **waas-wiki 06 미확정 절 개정은 설계 쪽 후속** |
+| 11 | **sweep 목적지 과거 불일치** | ✅ 해결 (2026-08-05) — **옴니버스 vault**. CLAUDE.md 3절·Phase 6·waas-wiki 06 반영 및 사본 동기화 완료 (2026-08-10) |
 | 12 | **서비스 간 인증** — 01 미확정, openapi.yaml 에 securitySchemes 없음 | ✅ 해결 (2026-08-05) — **인증 없음** (사용자 결정 — 내부망 경계 신뢰). openapi.yaml 에 무인증 명시는 차기 스펙 개정(#7a)에 포함 |
 | 13 | **경보 채널 구체 수단** — 01 미확정 (막힘·귀속 불명은 별도 알림 채널). Phase 4·7 은 **포트(인터페이스) 추상화**로 진행 — 구체 수단(어느 메신저/알림 시스템)은 뒤에 바인딩 | Phase 9 전 확정 |
 | 17 | **tx 갱신의 DB 레벨 방어 3종** | ✅ 해결 (2026-08-07) — `SELECT FOR UPDATE`, 컨펌 수·갱신 시각 `GREATEST`, 최초 탐지·감사 갱신 제외, PK/UNIQUE `ConflictException` 변환. 신규 tx 동시 경합은 트랜잭션 롤백 후 이긴 행을 잠가 재판정하며 PostgreSQL 동시 테스트로 고정 |
@@ -301,6 +386,7 @@ fbhook PoC 에서 검증된 경로를 이식한다 (`~/Workspace/fbhook` 참고)
 | 35 | **제출 직후 조회·알림의 빈 필드** — 벤더 문서상 `sourceAddress`·`destinationAddress` 는 체인 등장 전 비어 있을 수 있다. 우리 PoC 는 입금 `CONFIRMING` 부터라 그 구간 미관측. **스펙은 nullable 로 열었다**(v0.6.0 — `Transfer.from`/`to`, `ChainEvent.to`). 근거: 열지 않으면 제출 응답을 못 받았을 때 쓰는 `transactionByExternalTxId` 가 바로 그 시점에 깨진다. ★ **`amountInfo.amount` 가 제출 직후에도 항상 있는지는 미확인** — 없으면 현재 파서가 필수로 읽어 그 알림이 격리된다 | Phase 5 E2E 실측 — 결과에 따라 파서·스펙 조정 |
 | 36 | **내부이체(delta)의 대납 적용 여부** — 출금·sweep 은 대납 근거가 설계에 있으나(02 출금 시퀀스 · 06 수수료 표) INTERNAL 은 없다. **확인 전까지 켜지 않는다**(근거 없는 설정을 넣지 않는다 — 안 켜도 된다고 확인한 것은 아니다). 대납 없이 가면 출발 vault 에 native 가 있어야 하고, 없으면 `INSUFFICIENT_FUNDS_FOR_FEE` 로 실패한다 | Phase 5 내부이체 E2E 전 — 벤더·운영 확인 |
 | 37 | **출금 요청 본문 크기 상한** — `note`와 구조가 아직 불투명한 `travelRule`에 스키마 상한이 없어 큰 JSON이 벤더 호출·claim 점유를 늘릴 수 있다. 구현이 임의로 필드 상한을 만들면 OpenAPI보다 좁아지므로, 전체 HTTP 본문 상한과 필드별 상한·초과 응답(400/413)을 스펙에서 먼저 확정해야 한다 | 실트래픽 연동 전 — waas-wiki/OpenAPI 결정 |
+| 38 | **막힘 상태·RBF hash 보관 불일치** | ✅ 해결 (2026-08-12) — DB 상태는 후보 선별만 하고 조치 직전 벤더 단건 조회로 `CONFIRMING`·txHash·0 confirmation을 확인한다. `bcm_tx_l`은 root 한 행에 active tx id/hash를 보관하고, stuck 웹훅은 선택적 가속 신호일 뿐 correctness 기준으로 삼지 않는다. waas-wiki 02·03·99와 사본 동기화 완료 |
 | 14 | **03 스키마 미확정 3건** — 약어 · 감사 센티넬 · subStatus 보관 | ✅ 해결 (2026-08-05, 사용자 위임으로 프로젝트 자체 확정) — ① 약어는 03 표기 그대로(`bcm`·`vndr`·`vlt`·`noti`·`swp`) = 프로젝트 약어집. DAW-CORE 약어집 등장 시 대조·조정 ② 센티넬 `empno='SYSTEM'` · `brcd='9999'` — 코드에선 단일 상수로 관리 ③ **subStatus·networkStatus 를 `bcm_tx_l` 에 보관**(사용자 결정 — 이벤트 미탑재는 유지). **반영 필요: waas-wiki 03 개정(컬럼 추가·미확정 절 정리) + 사본 동기화 — Phase 1 착수의 첫 선행 작업 (미실행)** |
 
 ## 범위 밖 (이 저장소가 아님) · 시점 미배정
