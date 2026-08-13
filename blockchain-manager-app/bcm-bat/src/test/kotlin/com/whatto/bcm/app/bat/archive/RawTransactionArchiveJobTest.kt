@@ -82,7 +82,7 @@ class RawTransactionArchiveJobTest {
 
 private data class ArchiveRequest(
     val baseDate: String,
-    val receivedAfter: String,
+    val receivedAtOrAfter: String,
     val receivedAtOrBefore: String,
     val limit: Int,
 )
@@ -96,11 +96,11 @@ private class RecordingArchives(
 
     override fun archiveCompletedWindow(
         baseDate: String,
-        receivedAfter: String,
+        receivedAtOrAfter: String,
         receivedAtOrBefore: String,
         limit: Int,
     ): RawTransactionArchiveBatch {
-        archiveRequests += ArchiveRequest(baseDate, receivedAfter, receivedAtOrBefore, limit)
+        archiveRequests += ArchiveRequest(baseDate, receivedAtOrAfter, receivedAtOrBefore, limit)
         archiveFailure?.let { throw it }
         return batches.removeFirst()
     }
