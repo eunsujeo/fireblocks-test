@@ -7,6 +7,9 @@ bcm:
   stall-check:
     enabled: false
     fixed-delay-millis: 300000
+    automatic-boost-enabled-networks: []
+    maximum-boost-attempts: 3
+    boost-claim-ttl-seconds: 180
   submission-recovery:
     enabled: false
     fixed-delay-millis: 300000

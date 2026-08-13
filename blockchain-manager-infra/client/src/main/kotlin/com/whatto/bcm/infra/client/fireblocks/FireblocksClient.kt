@@ -316,6 +316,7 @@ class FireblocksClient(
             request.note?.let { put("note", it) }
             request.travelRuleMessage?.let { put("travelRuleMessage", it) }
             request.replaceTransactionHash?.let { put("replaceTxByHash", it) }
+            request.feeLevel?.let { put("feeLevel", it.name) }
         }
 
     private fun contractCallBody(request: VendorContractCallRequest): Map<String, Any> =

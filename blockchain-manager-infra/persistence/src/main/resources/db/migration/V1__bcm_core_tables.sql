@@ -251,18 +251,29 @@ ALTER TABLE bcm_swp_trgt
   FOREIGN KEY (actv_swp_exec_id, actv_item_seq)
   REFERENCES bcm_swp_item_l (swp_exec_id, item_seq);
 
--- boost 이력 — Admin 조회용
+-- boost 이력 — 호출 전 intent와 결과를 함께 보존
 CREATE TABLE bcm_boost_l (
-  orig_tx_id     VARCHAR(64) NOT NULL,
-  try_seq        INT         NOT NULL,
-  new_tx_id      VARCHAR(64) NOT NULL,
-  boost_dttm     VARCHAR(16) NOT NULL,
+  orig_tx_id      VARCHAR(64)  NOT NULL,
+  try_seq         INT          NOT NULL,
+  ext_tx_id       VARCHAR(128) NOT NULL UNIQUE,
+  bst_stcd        VARCHAR(16)  NOT NULL,
+  claim_id        VARCHAR(36)  NULL,
+  claim_exp_dttm  VARCHAR(16)  NULL,
+  rplc_tx_id      VARCHAR(64)  NOT NULL,
+  rplc_tx_hash    VARCHAR(128) NOT NULL,
+  fee_lvl         VARCHAR(16)  NOT NULL,
+  gasless_yn      VARCHAR(1)   NOT NULL,
+  new_tx_id       VARCHAR(64)  NULL UNIQUE,
+  req_dttm        VARCHAR(16)  NOT NULL,
+  rsp_dttm        VARCHAR(16)  NULL,
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
   last_chng_empno VARCHAR(6)  NOT NULL,
   last_chng_brcd  VARCHAR(4)  NOT NULL,
-  PRIMARY KEY (orig_tx_id, try_seq)
+  PRIMARY KEY (orig_tx_id, try_seq),
+  FOREIGN KEY (orig_tx_id) REFERENCES bcm_tx_l(vndr_tx_id)
 );
+CREATE INDEX idx_bcm_boost_open ON bcm_boost_l (bst_stcd, req_dttm);
 
 -- 주기 작업 상태 — heartbeat · tx 대사 커서
 CREATE TABLE bcm_job_m (

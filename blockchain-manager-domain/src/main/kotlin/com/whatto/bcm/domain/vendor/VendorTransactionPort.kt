@@ -23,7 +23,12 @@ data class VendorTransactionRequest(
     val useGasless: Boolean,
     /** RBF 대체 제출이면 교체 대상의 온체인 transaction hash */
     val replaceTransactionHash: String? = null,
+    val feeLevel: VendorFeeLevel? = null,
 )
+
+enum class VendorFeeLevel {
+    HIGH,
+}
 
 sealed interface VendorTransactionDestination {
     data class Address(
