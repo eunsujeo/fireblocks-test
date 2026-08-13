@@ -11,7 +11,7 @@
 - [x] Phase 3 — 웹훅 수신 (2026-08-06)
 - [x] Phase 4 — 판단 워커 + outbox + relay (입금 E2E) (2026-08-07)
 - [x] Phase 5 — 출금·내부이체 (출금 E2E) (2026-08-10)
-- [ ] Phase 6 — sweep (approve + transferFrom 배치로 재개)
+- [x] Phase 6 — sweep (approve + transferFrom 배치로 재개) (2026-08-13)
 - [ ] Phase 7 — 막힘 점검 · 자동 boost
 - [ ] Phase 8 — 배치 3종 — tx 대사 · 원본 보관 · 수수료 시계열
 - [ ] Phase 9 — 운영 보강
@@ -283,7 +283,7 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
   실패·잔존은 claim을 해제해 다음 회차로 되돌린다. 누락·중복·불일치는 실행과 claim을 보존하고 경보하며, 최상위 실패는 항목을
   `RETRY`로 돌린다. 완료: EVM receipt 디코딩·Fireblocks network records 매핑·웹훅/배치/DB 통합 테스트 및
   `./gradlew check ktlintCheck` 전체 그린. 근거: 02 batch 대사 · 03 실행 1:N · 06 운영 ABI · 93~95 실측
-- [ ] **T6.11 E2E + 출시 게이트 + converge** — approve 준비→온체인 재확인→batch 선기록/제출→부분 성공 대사,
+- [x] **T6.11 E2E + 출시 게이트 + converge** (2026-08-13) — approve 준비→온체인 재확인→batch 선기록/제출→부분 성공 대사,
   중복 실행·Callback 불일치·전체 `approve(0)` 회수·고객 토픽 무발행을 검증한다. 실측 전 기능 게이트가 fail-closed임을 고정하고
   최신 설계 사본 동기화 뒤 design-sync·code-reviewer를 통과해야 Phase 6을 다시 완료한다.
   2026-08-13 PostgreSQL/Flyway E2E로 고객 vault 2개의 approve 선기록→온체인 cap 재관측→batch 1:N 선기록·단일 제출→
@@ -291,8 +291,9 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
   sweep outbox 0건, gasless 요청, Callback 미검증 시 approve·batch·긴급 회수 전 경로 차단과 배포 기본 게이트 9종 false도 고정했다.
   2026-08-13 converge에서 실행 경보 운영 빈과 저장된 tx hash 대사 회귀를 보강했다. 이어 `bcm_sbmt_l.call_data`에 정규화된
   calldata를 저장하고 타입별 존재·소문자 짝수바이트 hex 제약과 cc-v1 금액 정밀도 경계를 고정해 #39를 해소했다.
-  `./gradlew check ktlintCheck` 391건 그린, code-reviewer Critical 0·커밋 가능 판정이다. waas-wiki 03은 `fe92927`로 개정했으며,
-  **사용자가 최신 03·06 사본을 동기화한 뒤 design-sync 재검토가 남았다.**
+  `./gradlew check ktlintCheck` 391건 그린, code-reviewer Critical 0·커밋 가능 판정이다. waas-wiki 03은 `fe92927`로 개정했고
+  최신 03·06을 포함한 설계 사본 전부가 정본과 byte-동일하다. design-sync도 Critical 0·Phase 6 완료 가능으로 판정했으며
+  OpenAPI 생성물 재생성 후 diff 없음까지 확인했다.
 
 ## Phase 7 — 막힘 점검 · 자동 boost
 
@@ -319,7 +320,8 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
   정상 상태 진행 시 `stall_alrt_dttm`을 비워 새 막힘을 다시 감지한다. 종결 최신 관찰의 정상 경로 재흘림은 T7.6 세로줄에서 닫는다.
 - [ ] **T7.5 RBF 제출·이력·txId 접기** — 시도 직전 벤더 최신 상태를 재확인하고 Admin 임계·최대 시도 안에서 대체 거래를 제출,
   `bcm_boost_l` intent와 root `bcm_tx_l.actv_tx_id` 변경을 원자 기록한다. 대체 거래의 새 externalTxId는 boost 원장에만 두고
-  고객 이벤트의 txId/externalTxId는 root 값을 유지한다.
+  고객 이벤트의 txId/externalTxId는 root 값을 유지한다. 착수 시 V1의 축약된 `bcm_boost_l`을 최신 03 정의(ext_tx_id UNIQUE,
+  상태·claim·교체 tx/hash·fee/gasless·요청/응답 시각·FK/index)에 맞춘다.
 - [ ] **T7.6 E2E + converge** — 대체 웹훅이 원 거래 상태로 반영되고 DAW-CORE에는 원 txId/externalTxId만 발행되는 세로줄,
   막힘 점검에서 발견한 종결 최신 관찰의 정상 상태 처리 경로, 동시 실행·이미 교체됨·최대 시도 경보를 PostgreSQL 통합 테스트로
   검증한 뒤 design-sync·code-reviewer를 통과한다.
@@ -394,7 +396,7 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
 | 36 | **내부이체(delta)의 대납 적용 여부** — 출금·sweep 은 대납 근거가 설계에 있으나(02 출금 시퀀스 · 06 수수료 표) INTERNAL 은 없다. **확인 전까지 켜지 않는다**(근거 없는 설정을 넣지 않는다 — 안 켜도 된다고 확인한 것은 아니다). 대납 없이 가면 출발 vault 에 native 가 있어야 하고, 없으면 `INSUFFICIENT_FUNDS_FOR_FEE` 로 실패한다 | Phase 5 내부이체 E2E 전 — 벤더·운영 확인 |
 | 37 | **출금 요청 본문 크기 상한** — `note`와 구조가 아직 불투명한 `travelRule`에 스키마 상한이 없어 큰 JSON이 벤더 호출·claim 점유를 늘릴 수 있다. 구현이 임의로 필드 상한을 만들면 OpenAPI보다 좁아지므로, 전체 HTTP 본문 상한과 필드별 상한·초과 응답(400/413)을 스펙에서 먼저 확정해야 한다 | 실트래픽 연동 전 — waas-wiki/OpenAPI 결정 |
 | 38 | **막힘 상태·RBF hash 보관 불일치** | ✅ 해결 (2026-08-12) — DB 상태는 후보 선별만 하고 조치 직전 벤더 단건 조회로 `CONFIRMING`·txHash·0 confirmation을 확인한다. `bcm_tx_l`은 root 한 행에 active tx id/hash를 보관하고, stuck 웹훅은 선택적 가속 신호일 뿐 correctness 기준으로 삼지 않는다. waas-wiki 02·03·99와 사본 동기화 완료 |
-| 39 | **sweep CONTRACT_CALL canonical `cc-v1` 재계산 불가** | ✅ 해결 (2026-08-13) — `bcm_sbmt_l.call_data TEXT`에 정규화된 calldata를 저장하고 SWEEP_APPROVE/SWEEP_BATCH 존재·소문자 짝수바이트 hex를 DB와 코드에서 강제한다. 원장 왕복 후 cc-v1 hash 재계산 테스트로 고정. waas-wiki 03 `fe92927`; read-only 사본 동기화 후 converge 재검토 필요 |
+| 39 | **sweep CONTRACT_CALL canonical `cc-v1` 재계산 불가** | ✅ 해결 (2026-08-13) — `bcm_sbmt_l.call_data TEXT`에 정규화된 calldata를 저장하고 SWEEP_APPROVE/SWEEP_BATCH 존재·소문자 짝수바이트 hex를 DB와 코드에서 강제한다. 원장 왕복 후 cc-v1 hash 재계산 테스트로 고정. waas-wiki 03 `fe92927`, 사본 byte-동일·design-sync 통과 |
 | 14 | **03 스키마 미확정 3건** — 약어 · 감사 센티넬 · subStatus 보관 | ✅ 해결 (2026-08-05, 사용자 위임으로 프로젝트 자체 확정) — ① 약어는 03 표기 그대로(`bcm`·`vndr`·`vlt`·`noti`·`swp`) = 프로젝트 약어집. DAW-CORE 약어집 등장 시 대조·조정 ② 센티넬 `empno='SYSTEM'` · `brcd='9999'` — 코드에선 단일 상수로 관리 ③ **subStatus·networkStatus 를 `bcm_tx_l` 에 보관**(사용자 결정 — 이벤트 미탑재는 유지). **반영 필요: waas-wiki 03 개정(컬럼 추가·미확정 절 정리) + 사본 동기화 — Phase 1 착수의 첫 선행 작업 (미실행)** |
 
 ## 범위 밖 (이 저장소가 아님) · 시점 미배정

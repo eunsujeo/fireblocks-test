@@ -328,7 +328,7 @@ CREATE INDEX idx_bcm_tx_stall ON bcm_tx_l (last_pub_stcd, last_chng_dttm)
 CREATE TABLE bcm_sbmt_l (
   ext_tx_id     VARCHAR(128) PRIMARY KEY,   -- 우리 요청 키 = 멱등 키. 승인된 출금 지시 1건과 1:1
   req_hash      CHAR(64)     NOT NULL,      -- 요청 내용의 SHA-256 (소문자 hex) — 아래 canonical 규칙
-  hash_vrsn     VARCHAR(8)   NOT NULL,      -- canonical 규칙 판 (v1) — 판이 다르면 아래 필드로 재계산해 비교
+  hash_vrsn     VARCHAR(8)   NOT NULL,      -- canonical 규칙 판 (v1 · cc-v1) — 판이 다르면 아래 필드로 재계산해 비교
   sbmt_stcd     VARCHAR(16)  NOT NULL,      -- 제출 상태 REQUESTED · SUBMITTED · FAILED
   claim_id      VARCHAR(36)  NULL,          -- 진행 중 소유권 토큰(UUID) — 이 값을 쥔 호출자만 벤더에 제출한다
   claim_exp_dttm VARCHAR(16) NULL,          -- 소유권 만료 일시 — 지나면 다른 호출자가 뺏는다 (죽은 소유자 방치 방지)
@@ -341,6 +341,7 @@ CREATE TABLE bcm_sbmt_l (
   ntwk_cd       VARCHAR(20)  NOT NULL,      -- 네트워크 코드
   tkn_smbl      VARCHAR(16)  NOT NULL,      -- 토큰 심볼
   trsf_amt      NUMERIC(36,18) NOT NULL,    -- 정규화한 금액
+  call_data     TEXT         NULL,          -- cc-v1 CONTRACT_CALL calldata 소문자 hex. 일반 전송은 NULL
   req_dttm      VARCHAR(16)  NOT NULL,      -- 접수 일시 — 미결 제출 점검의 기준
   rsp_dttm      VARCHAR(16)  NULL,          -- 벤더 응답 일시
   last_chck_dttm VARCHAR(16) NULL,           -- 미결 점검이 마지막으로 벤더 조회한 일시
@@ -349,7 +350,9 @@ CREATE TABLE bcm_sbmt_l (
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
   last_chng_empno VARCHAR(6)  NOT NULL,
-  last_chng_brcd  VARCHAR(4)  NOT NULL
+  last_chng_brcd  VARCHAR(4)  NOT NULL,
+  CHECK ((tx_dvcd IN ('SWEEP_APPROVE', 'SWEEP_BATCH')) = (call_data IS NOT NULL)),
+  CHECK (call_data IS NULL OR call_data ~ '^0x([0-9a-f][0-9a-f])+$')
 );
 CREATE UNIQUE INDEX ux_bcm_sbmt_vndr_tx ON bcm_sbmt_l (vndr_tx_id) WHERE vndr_tx_id IS NOT NULL;
 CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, last_chck_dttm, req_dttm); -- 미결 점검 후보
@@ -360,6 +363,7 @@ CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, last_chck_dttm, req_dtt
 | `ext_tx_id` | PK 가 멱등의 물리 근거다. 제출 요청이 오면 **벤더를 부르기 전에** 이 행을 먼저 넣는다 — 충돌하면 이미 받은 키다 |
 | `req_hash` | "같은 내용인가"의 판정값. 아래 canonical 규칙으로 만든 문자열의 SHA-256. **요청 원문은 저장하지 않는다** — `travelRule` 이 트래블룰 게이트가 만든 암호화 산출물(IVMS101 계열 개인정보)이라, 원문을 남기면 매니저가 그 보관 주체가 된다. 매니저는 운반만 한다([흐름](02-bcm-flow.md)) |
 | `hash_vrsn` | canonical 규칙을 나중에 바꿔도 옛 행을 되살릴 수 있게 판을 함께 적는다. 판이 다르면 해시를 믿지 않고 아래 개별 컬럼으로 그 판의 규칙을 다시 적용해 비교한다 |
+| `call_data` | `cc-v1` 재계산에 쓰는 CONTRACT_CALL 입력. `SWEEP_APPROVE`·`SWEEP_BATCH`에 필수이며 canonical과 같은 소문자 `0x` hex로 저장한다. 일반 출금·내부이체에는 NULL이다. calldata에는 주소·금액이 ABI 인코딩돼 있으므로 원문 payload·시크릿은 저장하지 않는다 |
 | `tx_dvcd` | **웹훅 분류의 유일한 기준.** `SWEEP_APPROVE`는 고객 vault의 allowance 설정, `SWEEP_BATCH`는 운영 계정의 최상위 batch 호출이다. 둘 다 고객 토픽으로 발행하지 않는다 |
 | `swp_exec_id` | `SWEEP_BATCH`에 필수이고 그 밖에는 NULL이다. 최상위 벤더 tx를 실행 1건과 연결하고, 원천 이동은 `bcm_swp_item_l`에서 펼친다 |
 | `vndr_tx_id` | 벤더 응답으로 채우는 게 정상이지만, 응답을 못 받고 웹훅이 먼저 와도 그때 채운다. 부분 UNIQUE 인덱스가 벤더 tx 와 1:1 을 보장한다 |
@@ -408,6 +412,24 @@ CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, last_chck_dttm, req_dtt
 - **`amount` 만 정규화한다** — 십진수로 파싱한 뒤 뒤따르는 0 을 떼고 지수 없는 평문으로 쓴다(`1.50` → `1.5`). 같은 금액을 다른 문자열로 적은 재시도를 거절하면 정당한 재시도를 막는 셈이 된다.
 - **나머지는 원문 그대로 비교한다 — 대소문자를 바꾸지 않는다.** 주소는 체인마다 대소문자가 의미를 갖는다(EVM 체크섬은 무시해도 되지만 base58 계열은 대소문자가 다르면 다른 주소다). 소문자로 눕히면 서로 다른 주소가 같아질 수 있어, 안전한 쪽은 원문 비교다. `network`·`symbol` 도 마찬가지 — 등록되지 않은 표기는 [자산 매핑](07-asset-master.md)이 이미 400 으로 거른다.
 - **`note` 와 `travelRule` 은 넣지 않는다.** `note` 는 벤더 거래 메모라 자금 이동을 바꾸지 않는다. `travelRule` 은 게이트가 다시 만들면 같은 출금 지시라도 암호문이 달라질 수 있어, 넣으면 정당한 재시도가 거절된다.
+
+##### CONTRACT_CALL canonical `cc-v1`
+
+Sweep approve와 최상위 batch 호출은 일반 전송 7값 대신 아래 7줄을 LF로 이어 SHA-256 한다. 마지막 LF는 붙이지 않는다.
+
+```
+1  CONTRACT_CALL       (고정 문자열)
+2  snd_acnt_id
+3  rcv_vl 소문자       (호출 대상 컨트랙트 주소)
+4  ntwk_cd
+5  tkn_smbl
+6  정규화한 trsf_amt
+7  call_data 소문자
+```
+
+- `hash_vrsn='cc-v1'`이다. `call_data`까지 원장에 보존하므로 위 개별 컬럼만으로 옛 행의 canonical hash를 다시 계산할 수 있다.
+- `SWEEP_APPROVE`의 `call_data`는 token contract의 `approve(sweep contract, amount)`, `SWEEP_BATCH`는 sweep contract의 `batchSweep` 호출이다. 호출 대상은 `rcv_vl`, 사람 단위 의미 금액은 `trsf_amt`에 별도로 보존한다.
+- calldata와 EVM 컨트랙트 주소는 hex 표기의 대소문자만 다른 재시도를 같은 요청으로 보도록 소문자로 정규화한다. `ntwk_cd`·`tkn_smbl`·`snd_acnt_id`는 일반 canonical과 같이 원문을 유지한다.
 
 ### bcm_outbox_l — 발행 아웃박스
 

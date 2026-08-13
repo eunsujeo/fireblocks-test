@@ -4,7 +4,7 @@
 
 ## 현재 위치
 
-- **Phase 6 T6.11 구현·code-reviewer까지 완료했다. 최신 설계 사본 동기화와 design-sync 재검토만 남았다.**
+- **Phase 6 T6.11과 converge를 완료했다. 다음 작업은 Phase 7 T7.5다.**
 - 고객 vault별 제한 allowance와 운영 계정 `batchSweep`을 구현했다. approve·batch는 `SWEEP_APPROVE`·`SWEEP_BATCH`
   제출 원장으로 분리하고 `SweepExecution 1:N SweepItem`으로 항목별 대사한다.
 - allowance는 온체인이 정본이다. cap 변경은 active item 없음 → approve(0) → 온체인 0 → 새 cap 순서이며,
@@ -19,14 +19,15 @@
 - cc-v1 금액은 NUMERIC(36,18)에 무손실 저장 가능한 non-negative만 허용해 approve(0)는 유지한다.
 - 테스트 커밋 `9fc2b9f`, 구현 커밋 `5fe345b`; `./gradlew check ktlintCheck` 전체 391건 그린이다.
 - Claude Code code-reviewer 최종 재검토는 Critical 0·커밋 가능 판정이다.
-- waas-wiki 03 개정 `fe92927`은 origin/main에 포함됐다. 현재 waas-wiki 작업 트리는 clean이다.
-- 기존 Phase 7 T7.0~T7.4 구현은 보존돼 있다. Phase 6 converge 전 T7.5 RBF 제출은 뒤로 둔다.
+- waas-wiki 03 개정 `fe92927`은 origin/main에 포함됐고 최신 03·06을 포함한 설계 사본 전부가 byte-동일하다.
+- Claude Code design-sync는 Critical 0·Phase 6 완료 가능으로 판정했다. OpenAPI 생성물 재생성 후 diff도 없다.
+- 기존 Phase 7 T7.0~T7.4 구현은 보존돼 있다.
 
 ## 다음 작업
 
-- 저장소 규칙상 사용자가 waas-wiki 최신 03·06을 `docs/design/` 사본으로 복사한다. 현재 두 파일 모두 byte 차이가 있다.
-- 사본 동기화 뒤 Claude Code design-sync를 재실행하고 통과하면 T6.11·Phase 6 체크박스를 완료한다.
-- 그 다음 PLAN 순서대로 Phase 7 T7.5부터 진행한다.
+- PLAN 순서대로 Phase 7 T7.5 RBF 제출·이력·txId 접기를 테스트 우선으로 진행한다.
+- T7.5 착수 시 V1의 축약된 `bcm_boost_l`을 최신 03 정의에 맞춘다. Phase 6 design-sync의 유일한 Improvement다.
+- T7.6에서 대체 웹훅 접기 E2E와 converge를 수행한다.
 
 ## 주의·외부 조건
 
