@@ -14,6 +14,7 @@ import com.whatto.bcm.domain.vendor.VendorContractCall
 import com.whatto.bcm.domain.vendor.VendorContractCallPort
 import com.whatto.bcm.domain.vendor.VendorContractCallRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
+import com.whatto.bcm.support.submission.SubmissionRequestFingerprint
 import com.whatto.bcm.support.submission.SubmissionRequestHashes
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.stereotype.Service
@@ -69,7 +70,7 @@ class SweepContractCallSubmissionService(
                 command.callData,
             )
         val claim = newClaim()
-        val requested = requestedRecord(command, fingerprint.requestHash, fingerprint.hashVersion, fingerprint.normalizedAmount, claim)
+        val requested = requestedRecord(command, fingerprint, claim)
         val attempt =
             try {
                 SubmissionAttempt(transactionRunner.run { submissions.insert(requested) }, isNew = true)
@@ -80,7 +81,7 @@ class SweepContractCallSubmissionService(
                 )
             }
         val current = attempt.record
-        ensureSameRequest(current, command, fingerprint.requestHash)
+        ensureSameRequest(current, command, fingerprint)
         if (attempt.isNew) return submitToVendor(command, claim.id)
         return when (current.status) {
             SubmissionStatus.SUBMITTED -> submitted(current)
@@ -204,15 +205,17 @@ class SweepContractCallSubmissionService(
     private fun ensureSameRequest(
         current: SubmissionRecord,
         command: SweepContractCallCommand,
-        requestHash: String,
+        fingerprint: SubmissionRequestFingerprint,
     ) {
-        if (current.requestHash != requestHash ||
+        if (current.requestHash != fingerprint.requestHash ||
+            current.hashVersion != fingerprint.hashVersion ||
             current.transactionType != command.transactionType ||
             current.senderAccountId != command.senderAccountId ||
             current.recipientType != SubmissionRecipientType.ADDRESS ||
             !current.recipientValue.equals(command.contractAddress, ignoreCase = true) ||
             current.network != command.network ||
             current.symbol != command.symbol ||
+            current.callData != fingerprint.normalizedCallData ||
             current.sweepExecutionId != command.sweepExecutionId
         ) {
             throw ConflictException("submission", command.externalTransactionId)
@@ -221,14 +224,12 @@ class SweepContractCallSubmissionService(
 
     private fun requestedRecord(
         command: SweepContractCallCommand,
-        requestHash: String,
-        hashVersion: String,
-        normalizedAmount: String,
+        fingerprint: SubmissionRequestFingerprint,
         claim: SubmissionClaim,
     ) = SubmissionRecord(
         externalTransactionId = command.externalTransactionId,
-        requestHash = requestHash,
-        hashVersion = hashVersion,
+        requestHash = fingerprint.requestHash,
+        hashVersion = fingerprint.hashVersion,
         status = SubmissionStatus.REQUESTED,
         claimId = claim.id,
         claimExpiresAt = claim.expiresAt,
@@ -239,10 +240,11 @@ class SweepContractCallSubmissionService(
         recipientValue = command.contractAddress,
         network = command.network,
         symbol = command.symbol,
-        amount = normalizedAmount,
+        amount = fingerprint.normalizedAmount,
         requestedAt = CoreDateTimes.now(clock),
         respondedAt = null,
         sweepExecutionId = command.sweepExecutionId,
+        callData = fingerprint.normalizedCallData,
     )
 
     private fun newClaim(): SubmissionClaim {

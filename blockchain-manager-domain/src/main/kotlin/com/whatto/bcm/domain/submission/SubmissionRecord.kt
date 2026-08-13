@@ -20,6 +20,7 @@ data class SubmissionRecord(
     val requestedAt: String,
     val respondedAt: String?,
     val sweepExecutionId: String? = null,
+    val callData: String? = null,
 )
 
 enum class SubmissionStatus {

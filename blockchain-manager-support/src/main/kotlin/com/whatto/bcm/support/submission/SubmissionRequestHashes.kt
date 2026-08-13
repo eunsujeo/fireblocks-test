@@ -8,6 +8,7 @@ data class SubmissionRequestFingerprint(
     val requestHash: String,
     val hashVersion: String,
     val normalizedAmount: String,
+    val normalizedCallData: String? = null,
 )
 
 object SubmissionRequestHashes {
@@ -54,7 +55,14 @@ object SubmissionRequestHashes {
         amount: String,
         callData: String,
     ): SubmissionRequestFingerprint {
+        require(SubmissionAmounts.isNonNegativeAndFits(amount)) {
+            "contract call amount must be non-negative and fit NUMERIC(36,18) without rounding"
+        }
         val normalizedAmount = BigDecimal(amount).stripTrailingZeros().toPlainString()
+        val normalizedCallData = callData.lowercase()
+        require(normalizedCallData.matches(CALL_DATA_PATTERN)) {
+            "contract call data must be non-empty even-byte 0x hex"
+        }
         val canonical =
             listOf(
                 "CONTRACT_CALL",
@@ -63,12 +71,13 @@ object SubmissionRequestHashes {
                 network,
                 symbol,
                 normalizedAmount,
-                callData.lowercase(),
+                normalizedCallData,
             ).joinToString("\n")
         return SubmissionRequestFingerprint(
             requestHash = sha256(canonical),
             hashVersion = "cc-v1",
             normalizedAmount = normalizedAmount,
+            normalizedCallData = normalizedCallData,
         )
     }
 
@@ -77,4 +86,6 @@ object SubmissionRequestHashes {
             .getInstance("SHA-256")
             .digest(canonical.toByteArray(StandardCharsets.UTF_8))
             .joinToString("") { byte -> "%02x".format(byte) }
+
+    private val CALL_DATA_PATTERN = Regex("^0x(?:[0-9a-f]{2})+$")
 }

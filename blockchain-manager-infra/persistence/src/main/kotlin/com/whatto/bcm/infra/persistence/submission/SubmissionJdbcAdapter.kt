@@ -28,13 +28,13 @@ class SubmissionJdbcAdapter(
                   (ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, claim_id, claim_exp_dttm,
                    tx_dvcd, vndr_tx_id, swp_exec_id,
                    snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
-                   req_dttm, rsp_dttm,
+                   call_data, req_dttm, rsp_dttm,
                    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
                 VALUES
                   (:externalTransactionId, :requestHash, :hashVersion, :status, :claimId, :claimExpiresAt,
                    :transactionType,
                    :vendorTransactionId, :sweepExecutionId, :senderAccountId, :recipientType, :recipientValue,
-                   :network, :symbol, :amount, :requestedAt, :respondedAt,
+                   :network, :symbol, :amount, :callData, :requestedAt, :respondedAt,
                    :employeeNo, :branchCode, :employeeNo, :branchCode)
                 """.trimIndent(),
                 parameters(record),
@@ -243,6 +243,7 @@ class SubmissionJdbcAdapter(
             "network" to record.network,
             "symbol" to record.symbol,
             "amount" to BigDecimal(record.amount),
+            "callData" to record.callData,
             "requestedAt" to record.requestedAt,
             "respondedAt" to record.respondedAt,
             "employeeNo" to SystemAudit.EMPNO,
@@ -282,6 +283,7 @@ class SubmissionJdbcAdapter(
                     amount = rs.getBigDecimal("trsf_amt").stripTrailingZeros().toPlainString(),
                     requestedAt = rs.getString("req_dttm"),
                     respondedAt = rs.getString("rsp_dttm"),
+                    callData = rs.getString("call_data"),
                 )
             }
 
@@ -290,7 +292,7 @@ class SubmissionJdbcAdapter(
             SELECT ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, claim_id, claim_exp_dttm,
                    tx_dvcd, vndr_tx_id, swp_exec_id,
                    snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
-                   req_dttm, rsp_dttm
+                   call_data, req_dttm, rsp_dttm
             FROM bcm_sbmt_l
             """.trimIndent()
     }

@@ -123,6 +123,7 @@ CREATE TABLE bcm_sbmt_l (
   ntwk_cd        VARCHAR(20)  NOT NULL,
   tkn_smbl       VARCHAR(16)  NOT NULL,
   trsf_amt       NUMERIC(36,18) NOT NULL,
+  call_data      TEXT         NULL,           -- cc-v1 CONTRACT_CALL calldata 소문자 hex
   req_dttm       VARCHAR(16)  NOT NULL,
   rsp_dttm       VARCHAR(16)  NULL,
   last_chck_dttm VARCHAR(16)  NULL,           -- 미결 제출 점검의 마지막 벤더 조회 시각
@@ -130,7 +131,9 @@ CREATE TABLE bcm_sbmt_l (
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
   last_chng_empno VARCHAR(6)  NOT NULL,
-  last_chng_brcd  VARCHAR(4)  NOT NULL
+  last_chng_brcd  VARCHAR(4)  NOT NULL,
+  CHECK ((tx_dvcd IN ('SWEEP_APPROVE', 'SWEEP_BATCH')) = (call_data IS NOT NULL)),
+  CHECK (call_data IS NULL OR call_data ~ '^0x([0-9a-f][0-9a-f])+$')
 );
 CREATE UNIQUE INDEX ux_bcm_sbmt_vndr_tx ON bcm_sbmt_l (vndr_tx_id) WHERE vndr_tx_id IS NOT NULL;
 CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, last_chck_dttm, req_dttm);
