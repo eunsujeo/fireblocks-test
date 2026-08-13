@@ -16,7 +16,7 @@ status: To Do
 | [블록체인 매니저 — DB](03-bcm-db.md) | ERD · 테이블 · 입금 시나리오 |
 | [컴플라이언스 게이트 — 흐름](04-compliance-flow.md) | 출금 확인·입금 판별·VASP 온보딩·주기 배치 + verdict |
 | [컴플라이언스 게이트 — DB](05-compliance-db.md) | ERD · 테이블 4개(레지스트리·확인·사전 검증·outbox) · 필드 |
-| [sweep 설계 — 정책 적용](06-sweep.md) | 입금 모으기·핫콜드 밴드S — 트리거·배치 실행 방식·Fireblocks 대응 (정책 일부 수신 — 진행 중) |
+| [sweep 설계 — 정책 적용](06-sweep.md) | 입금 모으기·핫콜드 밴드S — 트리거·건별 실행·비채택 배치 대안·Fireblocks 대응 (정책 일부 수신 — 진행 중) |
 | [벤더 자산 매핑](07-asset-master.md) | 우리 (네트워크, 토큰) ↔ 벤더 assetId · 등록 관문 · Admin API |
 
 ## 구성 요소 — 한 장
@@ -217,7 +217,7 @@ sequenceDiagram
     BE->>CP: POST /compliance/travel-rule/deposit-checks (Create Deposit Check) — 사전 검증 대조
     CP-->>BE: 대조 결과 (senderVerified)
     BE->>BE: 가용 전이 또는 입금대기·동결
-    Note over BM: 입금 확정 = sweep 대상 마킹 · 제출은 매니저 내부 주기 배치 (블록체인 매니저 — 흐름)
+    Note over BM: 입금 확정 = sweep 대상 마킹 · 주기 작업이 allowance 준비 후 approve + transferFrom 배치 제출 (블록체인 매니저 — 흐름)
 ```
 
 ## 미확정

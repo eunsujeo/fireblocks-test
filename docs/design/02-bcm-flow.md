@@ -214,7 +214,7 @@ sequenceDiagram
 
 ## sweep — 매니저 내부
 
-입금이 확정되면 매니저가 내부에서 고객 vault 의 자산을 옴니버스 vault 로 옮긴다 — 확정은 sweep 대상 마킹까지, 제출은 주기 배치가 대상을 모아서 한다(주기·최소 금액은 운영 설정값). 백엔드는 sweep 을 호출하지 않고 큐 이벤트도 받지 않는다. 고객 원장은 불변이다.
+입금이 확정되면 매니저가 내부에서 고객 vault 의 자산을 옴니버스 vault 로 옮긴다. 실행 방식은 `approve + transferFrom`이다. 확정 관찰은 sweep 대상만 마킹하고, 주기 작업이 allowance 준비와 `batchSweep` 제출을 수행한다. 백엔드는 sweep 을 호출하지 않고 큐 이벤트도 받지 않는다. 고객 원장은 불변이다.
 
 | vault | 역할 |
 |---|---|
@@ -230,22 +230,42 @@ sequenceDiagram
     participant MDB as 매니저 DB
     end
     participant FB as Fireblocks
+    participant CB as Co-signer Callback
     participant RL as 지정 relay
+    participant TKN as 토큰 컨트랙트
+    participant SWC as Sweep 컨트랙트
+    participant OMN as 옴니버스
 
     Note over BM: 입금 확정(COMPLETED)을 잡으면 그 고객 vault 를 sweep 대상으로 마킹
     BM->>MDB: sweep 대상 마킹
-    Note over BM,MDB: 이하 주기 배치 — 대상을 모아 잔액 조회 후 제출 (주기·최소 금액은 운영 설정값)
-    BM->>FB: vault 잔액 조회 — sweep 금액 = 조회 시점 전액
-    BM->>FB: 거래 제출 — 고객 vault → 옴니버스 · gasless
-    FB->>RL: gas 부담 위임 — relay 가 지불 · 월말 인보이스 정산
-    FB-->>BM: 제출 접수 (txId)
-    FB->>BM: 웹훅 — sweep 거래 상태 변경
-    BM->>MDB: 체크포인트 갱신 — internal-events 에 싣지 않는다
+    Note over BM,MDB: 이하 주기 작업 — 같은 네트워크·토큰의 대상을 M개까지 선정
+    BM->>FB: vault 잔액 조회
+    BM->>TKN: allowance(vault, sweepContract) 조회
+    alt allowance 부족
+      BM->>FB: 고객 vault의 approve(cap) 제출 · gasless
+      FB->>CB: token · spender · cap 서명 검증
+      CB-->>FB: 일치 시 승인
+      FB->>RL: gas 부담 위임
+      FB->>TKN: approve(sweepContract, cap)
+      BM->>TKN: allowance 재조회
+    end
+    BM->>MDB: SweepExecution 1 + SweepItem N 선기록
+    BM->>FB: 운영 계정의 batchSweep(executionId, items) 제출 · gasless
+    FB->>CB: contract · selector · 실행 의도 서명 검증
+    CB-->>FB: 일치 시 승인
+    FB->>RL: gas 부담 위임
+    FB->>SWC: batchSweep 실행
+    loop 항목 N개
+      SWC->>TKN: transferFrom(고객 vault, 옴니버스, 금액)
+      TKN->>OMN: 토큰 이동
+    end
+    FB-->>BM: 상태 웹훅 + network records 처리 완료
+    BM->>MDB: receipt 이벤트와 대조해 항목별 성공·실패 갱신
 ```
 
-sweep 제출도 [제출 원장](03-bcm-db.md)에 `tx_dvcd = SWEEP` 으로 행을 남기고 `externalTxId` 를 붙인다(`swp-` 접두 + UUID v7 — 매니저가 만드는 키다). 그래야 sweep 웹훅이 돌아왔을 때 고객 토픽으로 잘못 나가지 않는다.
+approve와 batchSweep 제출은 모두 [제출 원장](03-bcm-db.md)에 각각 `tx_dvcd = SWEEP_APPROVE`·`SWEEP_BATCH`로 선기록하고 `externalTxId`를 붙인다. batch 제출 원장은 `SweepExecution` 하나를 가리키고, 그 아래 N개 `SweepItem`이 원천 vault 이동을 나타낸다. 그래야 최상위 웹훅 한 건을 고객 거래로 잘못 발행하지 않고 항목별 결과로 펼칠 수 있다.
 
-sweep 거래도 막힘 점검·boost 를 동일하게 탄다. 정합은 대사가 확인한다.
+최상위 batch 거래의 `COMPLETED`만으로 N개 항목을 모두 성공 처리하지 않는다. `transaction.network_records.processing_completed` 뒤 network records와 receipt의 항목별 이벤트를 요청 목록과 대조한다. 성공 항목은 잔액을 재확인해 대상에서 정리하고, 실패하거나 잔액이 남은 항목은 다음 회차 대상으로 되돌린다. sweep 거래도 막힘 점검 대상이지만 Universal Gasless + RBF는 별도 기능 게이트를 따른다.
 
 ## 출금
 
@@ -297,7 +317,7 @@ sweep 거래도 막힘 점검·boost 를 동일하게 탄다. 정합은 대사�
 
 - 근거는 벤더 문서다 — Fireblocks 는 `externalTxId` 를 **영구 보관**하고(멱등 키 24시간과 다르다), 같은 값의 추가 요청을 **처리하지 않고 `400`** 을 준다. 그리고 오류·무응답 시 `GET /v1/transactions/external_tx_id/{externalTxId}` 로 생성 여부를 확인하라고 명시한다. 이 설계는 그 권장 절차를 그대로 따른 것이고, **벤더의 영구 차단이 우리 원장 뒤의 마지막 방어선**이다.
 - ★ **벤더 오류 코드 번호로 중복을 가르지 않는다.** "이 코드면 중복"이라는 식별자는 확답받은 근거가 없다. 근거 없는 상수 하나가 틀리면 **실제로 나간 거래가 `FAILED` 로 굳고 호출 쪽에는 확정 거절이 나간다** — 그 뒤에 웹훅이 같은 거래를 되살리므로, 백엔드는 실패로 응답받은 출금의 성공 이벤트를 나중에 받게 된다. 그래서 `400` 은 전부 조회로 확인한다. 조회 한 번이 추가될 뿐이고, 판정 근거가 추측이 아니라 벤더에 실재하는 거래가 된다. 코드 번호 확답을 받더라도 이 절차를 지름길로 바꾸지 않는다 — 조회가 더 강한 근거다.
-- `REQUESTED` 로 남은 채 재시도가 오지 않는 건은 **미결 제출 점검**이 회수한다 — 오래된 `REQUESTED` 를 주기로 훑어 벤더 조회로 마감한다. 막힘 점검과 같은 주기 작업에 얹는다.
+- `REQUESTED` 로 남은 채 재시도가 오지 않는 건은 **미결 제출 점검**이 회수한다 — 오래된 `REQUESTED` 를 주기로 훑어 벤더 조회로 마감한다. 막힘 점검과 같은 주기 작업에 얹되, **이 점검 자체는 거래를 다시 제출하지 않는다.** 유효한 소유권이 있으면 건너뛰고, 소유권이 없거나 만료된 행만 `externalTxId` 로 조회한다. 거래가 있으면 `SUBMITTED` 로 회수하고, 없거나 조회가 실패하면 `REQUESTED` 로 둔 채 마지막 확인 시각·횟수만 갱신해 백오프·경보에 쓴다. 일반 출금의 전체 원문(`travelRule` 포함)을 저장하지 않으므로 백그라운드가 요청을 온전히 재구성할 수도 없고, **"없다"를 본 직후 원 API 요청이 제출할 수도 있어** 점검기가 재제출하면 중복 위험이 생긴다. 조회 결과가 없을 때 실제 재제출할 수 있는 쪽은 전체 요청 문맥과 새 소유권을 가진 원 제출 경로(API 재시도·sweep 실행기)뿐이다.
 - 웹훅이 벤더 응답보다 먼저 올 수 있다. 그때는 웹훅이 원장의 빈 `vndr_tx_id` 를 채워 같은 결과에 도달한다.
 - **`FAILED` 로 적어 둔 건에 웹훅이 오면 되살린다** — 우리가 거절로 읽었지만 벤더는 거래를 만든 경우다. 웹훅이 더 나중이고 더 정확한 사실이라 `SUBMITTED` 로 회수한다. 허용 경로와 예외는 [DB](03-bcm-db.md) 의 `sbmt_stcd` 전이 표에 있다.
 
@@ -378,7 +398,17 @@ sequenceDiagram
 
 ## 막힘 점검 · 자동 boost
 
-막힌 tx 는 변화가 없어 웹훅이 오지 않는다 — 주기 작업(예: 5분)이 DB 에서 오래 미확정인 건을 조회한다(벤더 호출 없음). 막힘은 둘 — **미채굴(`SUBMITTED`)** 은 boost(RBF·수수료 올린 재전송), **확정 지연(`CONFIRMED`)** 은 경보만.
+막힌 tx 는 상태 변화가 없어 일반 상태 웹훅이 더 오지 않을 수 있다. 주기 작업(예: 5분)이 DB 에서 오래 미확정인 건을 후보로 고른 뒤, **조치 직전에 벤더 단건 조회로 최신 상태·tx hash·confirmation 수를 다시 확인**한다. DB 조회는 후보 선별이고 벤더 재조회가 RBF 가능 여부의 최종 판정이다.
+
+공통 상태만으로 boost 가능 여부를 가르지 않는다. Fireblocks RBF 는 `replaceTxByHash`가 필수이고, 공식 stuck 알림도 EVM 거래가 `CONFIRMING`인 때 `txHash`와 함께 온다. 이 값은 매니저 공통 상태로는 `CONFIRMED`에 해당한다. 따라서:
+
+| 최신 벤더 관찰 | 처리 |
+|---|---|
+| 체인 전 단계(`SUBMITTED`·`PENDING_SIGNATURE`·`QUEUED`·`BROADCASTING`) | RBF 하지 않고 지연 경보 — 교체할 온체인 hash가 확정되지 않았다 |
+| `CONFIRMING` + `txHash` 있음 + `numOfConfirmations = 0` + 우리가 제출한 EVM 출금·sweep | 자동 boost 후보 — 운영 정책과 기능 게이트를 통과하면 RBF |
+| `CONFIRMING` + confirmation 1 이상 | 이미 채굴된 확정 지연 — boost 하지 않고 경보 |
+| 입금 또는 우리가 제출하지 않은 거래 | boost 권한 없음 — 경보 |
+| 조회 시 이미 종결 | 최신 관찰을 정상 상태 처리 경로로 흘리고 boost 하지 않음 |
 
 ```mermaid
 sequenceDiagram
@@ -387,18 +417,28 @@ sequenceDiagram
     participant MDB as 매니저 DB
     participant AL as 별도 경보 채널
 
-    SW->>MDB: 오래된 미확정 조회 — 미채굴(SUBMITTED)이 오래 · 또는 CONFIRMED 가 체인별 대기 임계 초과
-    MDB-->>SW: 대상 목록 — 이미 경보한 tx 는 건너뜀
-    alt 출금·sweep 이 미채굴로 막힘
-        SW->>SW: 자동 boost — fee 올린 대체 거래(RBF) · gas 는 relay 부담 (미채굴이라 대체 가능)
-        SW-->>AL: 경보는 boost 로 못 살릴 때만
-    else 그 외 — 입금 · 채굴된 CONFIRMED 지연
-        SW-->>AL: 막힘 경보 — boost 불가(우리 tx 아님 또는 이미 블록에 있음)
+    participant FB as Fireblocks
+
+    SW->>MDB: 오래된 SUBMITTED·CONFIRMED 후보 조회
+    MDB-->>SW: 대상 목록 — 아직 종결되지 않은 논리 거래
+    SW->>FB: 단건 조회 — 최신 status · txHash · confirmations
+    alt 출금·sweep · CONFIRMING · txHash 있음 · 0 confirmation · 정책 허용
+        SW->>MDB: boost intent 선기록 — externalTxId · claim · 교체 대상 hash
+        SW->>FB: Create Transaction — replaceTxByHash · 높은 fee
+        FB-->>SW: 대체 txId
+        SW->>MDB: intent 마감 — 대체 txId 기록
+    else 그 외
+        SW-->>AL: 막힘 경보 — 체인 전 지연 · 채굴 후 확정 지연 · 권한 없음 · 최대 시도
     end
 ```
 
-- boost 는 Admin 정책(대기 임계 · 최대 시도) 안에서 매니저가 자동 실행한다. 대체 거래(새 txId)는 원 txId 로 접어 발행한다 — 백엔드는 boost 를 모른다. 이력은 매니저 DB 에 남는다.
-- relay 가 gas 를 못 대거나 최대 시도까지 안 풀리면 경보한다 — 사람이 relay 복구·수동 처리. cancel 은 이때의 최후수단이다.
+- **RBF 도 제출 원장과 같은 선기록 원칙**을 쓴다. 호출 전에 `bcm_boost_l`에 매니저가 만든 `bst-` + UUID v7 externalTxId·교체 대상 vendor tx/hash·claim을 커밋하고, DB 트랜잭션 밖에서 벤더를 부른다. 응답을 잃으면 externalTxId 조회로 대체 txId를 회수한다. intent 없이 먼저 호출하지 않는다.
+- 대체 거래는 고객에게 별도 거래가 아니다. `bcm_boost_l`로 대체 txId를 root 원 txId에 연결하고, 대체 거래 웹훅의 상태를 **root 논리 거래의 전이**로 반영한다. 이벤트·조회 응답의 `txId`와 `externalTxId`는 최초 거래 값을 유지하고 `txHash`는 실제로 채굴된 대체 거래 값을 쓴다.
+- RBF 제출 응답과 채굴은 경합한다. 대체 거래를 접수한 직후 원 거래가 먼저 채굴될 수도 있으므로 **root 계열의 어느 물리 거래든 confirmation이 생기거나 COMPLETED에 도달하면 그 거래가 승자**다. 승자 txId/hash를 active로 되돌려 root를 진행·확정한다. active가 아닌 옛 거래의 단순 지연·drop은 무시하지만 성공 증거까지 무시하지 않는다.
+- 원 거래의 `FAILED / DROPPED_BY_BLOCKCHAIN`이 RBF nonce 교체의 결과이고 성공적으로 접수된 대체 거래가 있으면 고객 실패를 발행하지 않는다. 대체 거래의 진행·종결이 root 결과를 결정한다. 대체 intent가 없으면 기존 FAILED 처리 그대로다.
+- `transaction.alert.stuck`은 후보 발견을 앞당기는 **보조 신호**로만 쓸 수 있다. 유실될 수 있는 웹훅 하나에 correctness를 맡기지 않으며, 주기 DB 점검과 boost 직전 단건 재조회가 기준이다.
+- 자동 boost는 Admin 정책(대기 임계·최대 시도)과 기능 게이트 안에서만 실행한다. **Universal Gasless 거래에 `replaceTxByHash`를 함께 쓰는 조합은 공식 근거가 확인되지 않아 기본 비활성**이다. sandbox 실측 또는 담당자 확답 뒤 네트워크별로 켠다. 꺼진 동안은 경보만 한다.
+- relay가 gas를 못 대거나 최대 시도까지 안 풀리면 경보한다 — 사람이 relay 복구·수동 처리한다. cancel은 이때의 최후수단이다.
 
 ## 수수료 관측 · 잔액 · 이력 · 대사
 
@@ -427,7 +467,7 @@ finalize 된 트랜잭션 원본을 일 배치로 매니저 DB(`bcm_raw_tx_l`)�
 ## 미확정
 
 - **rate limit 실제 한도 — 확인됨 (2026-07 회신).** 목록 `GET /v1/transactions` 1,000/분 · 단건 `GET /v1/transactions/{txId}` 1,500/분 — 독립 카운터·워크스페이스 공유·결정론적 분당 카운터(이상 트래픽 감지 없음, 최고 tier). tx 대사는 주기당 목록 조회 수 회라 여유가 크다. 상세·폴링 설계는 [감지 폴링 대체 설계](../../블록체인매니저/설계/99-polling-detection.md).
-- **relay 의 stuck 자동 처리 여부** — 자동이면 막힘 점검의 boost 트리거를 뺀다 — 벤더 확인 후 확정.
+- **Universal Gasless + RBF 조합** — gasless로 제출된 토큰 거래를 `replaceTxByHash`로 대체할 때 `useGasless`를 함께 쓸 수 있는지, relay가 대체 수수료도 부담하는지 — 확인 전 자동 boost 기능 게이트는 기본 비활성.
 - **7702 authorization 서명의 관문 통과 여부** — 이 서명이 TAP·Callback 경로를 지나는지 — 벤더 확인 후 확정.
 - **귀속 불명 입금의 해소 절차** — 매핑 갱신을 누가 트리거하고 해소 후 이벤트를 다시 흘리는지 — DAW-CORE와 정합 후 확정.
 - **gasless 경로의 수수료 실패** — 벤더 규칙상 토큰 전송 수수료는 같은 vault 의 base asset 에서 나간다(subStatus `INSUFFICIENT_FUNDS_FOR_FEE`). relay 가 gas 를 부담하는 이 설계에서 이 실패가 발생할 수 있는지 — 벤더 확인 후 확정.

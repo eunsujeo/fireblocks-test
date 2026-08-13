@@ -122,17 +122,36 @@ upd: bcm_outbox_l | 4 | 발송=S
 step: 정상 복귀 | 적체가 다 비워졌다 — 대가는 처리 지연뿐, 놓친 건 없다
 ```
 
-**트랜잭션 이벤트는 5종**, 그중 **3종을 구독**한다:
+**트랜잭션 이벤트는 5종**, 초기 범위에서는 **3종을 구독**한다:
 
 | 이벤트 | 무엇을 알리나 | 구독 |
 |---|---|---|
 | `transaction.created` | tx 가 처음 생김 — 신규 감지(입금 등장)의 시작 | O |
 | `transaction.status.updated` | 상태 전이(예: CONFIRMING → COMPLETED) — 확정·무효 이벤트 발행의 주 신호 | O |
 | `transaction.approval_status.updated` | 승인 상태 변화 — 정책·승인 흐름 진행(주로 출금) | O |
-| `transaction.alert.stuck` | 막혀서 수동 개입이 필요한 tx 경보 (콘솔에 Beta phase 로 표기) | X — 자체 막힘 점검(주기 작업이 DB 에서 오래 미확정인 걸 조회)이 대체 |
-| `transaction.network_records.processing_completed` | 한 거래가 **여러 온체인 거래로 쪼개질 때**(컨트랙트 호출 등) 그 중간 거래들의 처리 완료를 알린다. 단순 전송이면 대상이 없어 뜨지 않는다 | X — 지금은 단순 스테이블코인 입출금이라 미구독. **컨트랙트 호출을 도입하면 그때 구독 검토** |
+| `transaction.alert.stuck` | EVM vault+base asset에서 `CONFIRMING`으로 막힌 head-of-queue와 `txHash`·권장 `BOOST_TRANSACTION`을 알림 | 초기 X — 주기 DB 점검이 correctness 기준. 운영에서 안정성을 확인하면 후보 발견을 앞당기는 보조 신호로 추가하되 이 이벤트 유실만으로 막힘을 놓치지 않게 한다 |
+| `transaction.network_records.processing_completed` | 한 거래가 **여러 원천 이동을 포함할 때** network records 처리가 끝났음을 알린다 | **O — approve + transferFrom 배치 sweep의 항목별 대사 트리거. 일반 고객 이벤트로는 발행하지 않는다** |
 
 부하 검증 항목은 p99 응답(1초 이내 목표) · 오류율(circuit breaker 감안 ~0) · 적체 소화 속도.
+
+### 배치 sweep 결과 판정 — 최상위 1건을 항목 N건으로 펼친다
+
+`SWEEP_BATCH`의 Fireblocks 거래와 온체인 tx hash는 하나지만 자산 이동은 N건이다. `transaction.status.updated=COMPLETED`는 컨트랙트 호출이 체인에서 완료됐다는 뜻일 뿐 모든 `transferFrom` 성공을 뜻하지 않는다.
+
+판정 순서는 다음과 같다.
+
+1. 제출 전에 `bcm_swp_exec_l` 1건과 `bcm_swp_item_l` N건을 고정하고 그 목록으로 calldata를 만든다.
+2. 최상위 상태가 `COMPLETED`가 되면 실행을 `RECONCILING`으로 바꾼다.
+3. `transaction.network_records.processing_completed`를 받으면 보낸 vault 관점의 records를 원천 vault·토큰·금액으로 정규화하고 관점 중복을 제거한다.
+4. 같은 tx receipt의 `SweepLeg(executionId, itemSeq, source, requestedAmount, actualAmount, success, failureCode)` 이벤트를 읽는다.
+5. 요청 N건, 성공 network records, `SweepLeg` N건을 대조해 항목별 `SUCCEEDED/FAILED`와 실제 금액을 확정한다.
+6. 성공 항목은 원천 잔액을 재조회해 비었으면 대상 행을 지운다. 실패하거나 잔액이 남으면 대상 claim을 풀고 `RETRY`로 둔다.
+
+부분 실패 PoC에서는 되돌려진 이동이 network records에 나타나지 않았다. 따라서 **record가 없다는 사실만으로 실패 사유를 만들지 않는다.** 요청 항목과 컨트랙트 이벤트가 항목 집합의 정본이고, network records는 성공 이동 금액과 Fireblocks vault 귀속을 확인하는 근거다. 이벤트가 없거나 세 집합이 맞지 않으면 자동 추측하지 않고 실행을 대사 예외로 격리한다.
+
+웹훅 중복·순서 뒤바뀜은 기존 인박스 멱등을 그대로 쓴다. `network_records.processing_completed`가 최상위 `COMPLETED`보다 먼저 와도 원본을 적재해 두고 두 조건이 모두 충족된 뒤 한 번만 대사한다. receipt 조회 실패는 백오프로 재시도하며, 항목 상태를 성공으로 선반영하지 않는다.
+
+막힘 점검은 이 미구독 때문에 벤더 상태를 추측하지 않는다. DB의 오래된 `SUBMITTED`·`CONFIRMED`는 후보일 뿐이고, boost 직전에 단건 조회로 `CONFIRMING`·`txHash` 있음·0 confirmation을 확인한다. `transaction.alert.stuck`을 나중에 구독해도 같은 재검증을 생략하지 않는다. 상세는 [흐름의 막힘 점검](02-bcm-flow.md#막힘-점검--자동-boost).
 
 ## 이중처리는 어떻게 막나 — outbox·멱등·크래시 세이프
 

@@ -107,9 +107,18 @@ Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다
 **Q.** 확정으로 볼 컨펌 수는 어떻게 정해지나?
 **A.** DCCP(확정 정책)가 정한다. 기본은 대부분 체인 1(이더·Base 포함)·ETC 372·컨트랙트 호출 3 권장. 한도는 EVM 최소 1·이더 최대 100·신규 EVM L2 최대 30. 커스텀 임계는 정책 템플릿을 Support 에 제출해 승인 후 반영된다. ([About the DCCP](https://support.fireblocks.io/hc/en-us/articles/360013034359-About-the-Deposit-Control-and-Confirmation-Policy))
 
+**Q.** 일반 EVM 거래를 API로 boost할 수 있나?
+**A.** 가능하다. Create Transaction에 원 거래의 온체인 hash를 `replaceTxByHash`로 넣으면 같은 nonce의 더 높은 수수료 거래를 만든다. 새 거래는 원 거래가 CONTRACT_CALL이어도 TRANSFER로 생성된다. ([Boost Transactions](https://developers.fireblocks.com/reference/boost-transactions))
+
+**Q.** Fireblocks가 일반 발신 거래를 자동 boost해 주나?
+**A.** 공식 문서에서 자동 boost가 명시된 것은 Gas Station의 auto-fueling 거래다. 일반 EVM 발신은 Console Boost 또는 API RBF 절차와 `transaction.alert.stuck`의 권장 조치 `BOOST_TRANSACTION`이 문서화돼 있어, 일반 거래의 자동 처리를 보장한다고 보지 않는다. ([Gas Station Autoboost](https://support.fireblocks.io/hc/en-us/articles/14406592622748-Gas-Station-Autoboost) · [Transaction events](https://developers.fireblocks.com/reference/webhooks-structures-eventtypes-transaction))
+
+**Q.** stuck 이벤트는 무엇을 주나?
+**A.** EVM에서 vault+base asset의 거래가 `CONFIRMING`으로 막히면 `transaction.alert.stuck`이 발생할 수 있고, 가장 오래 막힌 Fireblocks tx id와 tx hash, 경과 블록·시간, 권장 `BOOST_TRANSACTION`을 준다. 알림은 개입 워크플로를 만드는 신호이고 자동 해결 완료 통지가 아니다. ([Transaction events](https://developers.fireblocks.com/reference/webhooks-structures-eventtypes-transaction))
+
 ## PoC 실측으로 확정한 사실 (2026-08)
 
-문서·답변이 아니라 **실물 웹훅으로 직접 관찰**한 것 — 상세는 [수신 PoC 결과보고](../설계/97-webhook-poc-result.md).
+문서·답변이 아니라 **실물로 직접 관찰**한 것 — 상세는 [수신 PoC 결과보고](../설계/97-webhook-poc-result.md)와 [approve 배치 sweep PoC 결과보고](../설계/95-approve-pull-poc-result.md).
 
 **Q.** 재시도 간격은 실제로 얼마인가?
 **A.** 분 단위 배증이다 — 첫 재시도 +21~60초, 이후 1분 → 1분 → 3분 → 6분 → … 으로 벌어지고, 도착이 분 tick(:00)에 정렬된다. 공식 문서의 "지수 백오프 10회·~8시간" 원리는 맞지만 세부 간격 수치(10·30·120초…로 알려진 것)와는 다르다. (2026-08-03, 알림 2건×2회 실측)
@@ -122,6 +131,14 @@ Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다
 
 **Q.** payload 를 JSON/JSONB 컬럼에 저장하면?
 **A.** 키 재정렬·공백 정규화로 **와이어 바이트가 소실**된다 — DB 에서 꺼낸 값으로는 detached JWS 재검증이 불가했다(실측 401). 원문 해시·서명 재검증은 수신 시점 바이트로 해야 한다.
+
+**Q.** 배치 컨트랙트가 `transferFrom` 으로 여러 vault 의 잔액을 한 거래에 모을 때, vault 별 거래 기록과 웹훅이 어떻게 오나? (2026-08-10 이더리움 Sepolia · KBKRW · 이동 2건)
+**A.** 우리 vault 가 배치를 `CONTRACT_CALL` 로 제출한 경우로 확인했다. 그 거래의 `networkRecords` 에 **원천 vault 가 귀속되고 `netAmount` 도 나온다.** `transaction.network_records.processing_completed` 도 온다. 단 최상위 거래는 제출 1건뿐이고(원천 vault·옴니버스 각각의 최상위 거래는 생기지 않는다), 레코드마다 우리 vault 는 한쪽에만 채워진다 — 같은 이동이 받는 vault 관점과 보내는 vault 관점으로 두 번 들어오고, 토큰이 움직이지 않은 호출 관계까지 더해 이동 한 건당 레코드 3개가 된다.
+
+시사점 — 배치 sweep 의 감지·대사는 성립하지만 **network records 를 펼쳐 보낸 vault 기준 행만 골라 쓰는 처리가 필수**다. 서명만 넘겨 외부가 제출하는 모델에서도 같은지는 재보지 않았다.
+
+**Q.** ERC-20 `approve` 는 어떤 operation 으로 제출하나? 스키마 enum 의 `APPROVE` 를 쓰면 되나?
+**A.** **`APPROVE` 로는 제출할 수 없다** — `400 {"message":"Cannot perform transaction","code":1401}`(두 가지 body 형태 모두). `CONTRACT_CALL` 에 approve calldata 를 실어 보내면 통하고(200 → COMPLETED, 온체인 allowance 반영), **조회하면 그 거래의 `operation` 이 `APPROVE`** 로 나온다. 즉 `APPROVE` 는 제출용이 아니라 벤더가 calldata 를 보고 붙이는 분류 라벨이다. TAP 의 `APPROVE` transactionType·`applyForApprove` 도 이 분류 위에 있을 것으로 보이나 정책 적용은 미실측.
 
 ## 웹훅 이벤트 — network records (참고)
 
@@ -164,14 +181,25 @@ Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다
 **Q.** WRITE 계열(`POST /transactions` 등)의 분당 한도는?
 **A.** 미확인. 위 1,000/1,500 은 거래 조회 두 엔드포인트 한정이라, 출금·sweep·boost 제출량의 근거가 아직 없다 — 후속 문의 대상.
 
+**Q.** Universal Gasless로 제출된 EVM 토큰 거래에 `replaceTxByHash`와 `useGasless=true`를 함께 넣어 RBF할 수 있고, 관리형 relay가 대체 거래의 gas도 부담하나?
+**A.** 미확인. 공개 RBF 예시는 gasless 조합을 다루지 않고 Gas Station Autoboost는 별도 기능이다. sandbox 실측 또는 담당자 확답 전에는 자동 boost 기능 게이트를 기본 비활성으로 두고 경보만 한다.
+
+**Q.** RBF Create Transaction에 최초 전송의 `travelRuleMessage`를 다시 실어야 하나, 아니면 `replaceTxByHash`가 원 거래의 컴플라이언스 맥락을 승계하나?
+**A.** 미확인. 매니저는 개인정보 보관 경계를 지키기 위해 `travelRuleMessage` 원문을 제출 원장에 저장하지 않는다. 재전달이 필수라면 현재의 무인 자동 boost는 성립하지 않으므로 함께 확인한다.
+
 **Q.** 자산별 확정 임계 값은 얼마로 하나?
 **A.** 논의 후 확정 예정(테스트넷 3, 메인넷은 협의 값). Base 의 컨펌 단위와 블록 간격 상수 유효성도 함께 확인한다.
 
-**Q.** vault 가 스스로 제출하지 않은 제3자 거래(사전 서명 authorization·위임 코드 경유)로 잔액이 출금될 때, vault 별 거래 기록과 웹훅(v2)이 생성되나? 생성된다면 어떤 형태인가(개별 tx vs 제출 거래의 networkRecords)?
-**A.** 미확인 — **최우선**. 배치 sweep 의 방식(3009·7702)과 무관한 공통 성립 조건이다. 기록·웹훅이 안 나오면 sweep 감지·대사가 불가라 배치 전체가 닫힌다.
+**Q.** vault 가 스스로 제출하지 않은 제3자 거래(사전 서명 authorization·사전 allowance·위임 코드 경유)로 잔액이 출금될 때, vault 별 거래 기록과 웹훅(v2)이 생성되나? 생성된다면 어떤 형태인가(개별 tx vs 제출 거래의 networkRecords)?
+**A.** **실측으로 답 나옴 (2026-08-10)** — 위 "PoC 실측으로 확정한 사실" 절 참조. 우리 vault 가 제출한 배치라면 `networkRecords` 에 원천 vault·금액이 귀속되고 `network_records.processing_completed` 도 온다. 남은 것은 한 배치의 이동을 수십 건으로 올렸을 때의 레코드 개수·이벤트 지연이다.
 
 **Q.** Universal Gasless 로 upgrade 된 vault 의 위임 지갑 코드가, 지정 운영자(감사된 배치 sweep 컨트랙트)의 일괄 인출을 허용하는 구성이 가능한가? 안 되면 로드맵에 있거나, 우리가 지정한 감사된 코드로의 위임을 허용하는 경로가 있나?
-**A.** 미확인. 7702 배치 노선의 성립 조건 — 안 되면 3009 미지원 자산은 개별 전송(per-vault)으로 남는다.
+**A.** 미확인. 7702 배치 노선의 성립 조건 — 안 되면 그 노선 자체가 닫힌다. 현재 결정은 자산 구분 없이 건별 전송이다.
 
 **Q.** TYPED_MESSAGE(EIP-712) 서명에 TAP 으로 내용 기반 제약(특정 컨트랙트·도메인·수신 주소 한정 등)을 걸 수 있나? 분당 서명 처리량과 권장 상한은?
-**A.** 미확인. 3009 배치 노선의 성립 조건 — 이 서명은 곧 자금 이동 권한이라 정책 통제가 보안의 핵심이고, 처리량이 배치 크기(M)·주기 설계의 상한이 된다.
+**A.** 미확인. 3009 배치 노선의 성립 조건 — 이 서명은 곧 자금 이동 권한이라 정책 통제가 보안의 핵심이고, 처리량이 배치 크기(M)·주기 설계의 상한이 된다. 배치 재검토 시에 판단할 항목이다.
+
+**Q.** ERC-20 `approve` 를 API 로 낼 때 별도 `APPROVE` operation 과 approve calldata 를 넣은 `CONTRACT_CALL` 중 어느 경로를 써야 하나? TAP 이 승인 대상·토큰·**승인 금액(allowance) 상한**을 어디까지 강제하고, 제3자 `transferFrom` 은 vault 별 거래 레코드·웹훅에 어떤 형태로 잡히나?
+**A.** 제출 경로와 기록 형태는 **실측 완료 (2026-08-10)** — 위 실측 절 참조. `APPROVE` 로는 제출 불가(400·1401), `CONTRACT_CALL` 로 내면 통하고 기록은 `operation=APPROVE`. 스키마 enum 에 이름이 있는 것과 제출 경로로 쓸 수 있는 것이 다르다.
+
+**남은 미확인은 정책 쪽** — `APPROVE` transactionType·`applyForApprove` 로 승인 대상·토큰을 넘어 **승인 금액 상한**까지 강제할 수 있는가([정책](https://developers.fireblocks.com/reference/configure-transaction-authorization-policy)), Console 의 Approve Amount Cap 이 API 제출에도 적용되는가([Amount Cap](https://developers.fireblocks.com/docs/interact-with-smart-contracts)), CONTRACT_CALL approve 에 Universal Gasless 를 적용할 수 있고 relay 처리량은 얼마인가. 정책 상한이 없어도 유한 allowance 는 calldata 로 지정할 수 있지만 독립적인 오승인 방어선이 약해진다.

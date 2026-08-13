@@ -29,11 +29,15 @@
 |---|---|
 | [01-infra.md](docs/design/01-infra.md) | 구성 요소 배치 · 보안 경계 · 큐 4토픽 |
 | [02-bcm-flow.md](docs/design/02-bcm-flow.md) | **이벤트 계약** — 허용 전이 표 · evnt_id dedup · relay 순차 발송 · 감지 합성 발행 · boost txId 접기 |
-| [03-bcm-db.md](docs/design/03-bcm-db.md) | **bcm_ 코어 9테이블 스키마** — 컬럼명·타입 그대로 구현 |
-| [06-sweep.md](docs/design/06-sweep.md) | sweep 정책 (트리거·밴드S) — 단, 실행 방식은 아래 3절의 "건별" 결정이 우선 |
+| [03-bcm-db.md](docs/design/03-bcm-db.md) | **bcm_ 코어 스키마** — 컬럼명·타입 그대로 구현 |
+| [06-sweep.md](docs/design/06-sweep.md) | sweep 정책 (트리거·밴드S) · approve + transferFrom 배치 실행 계약 |
 | [07-asset-master.md](docs/design/07-asset-master.md) | **블록체인 카탈로그 + 벤더 자산 매핑 2테이블** · 등록 검증 · Admin API · 벤더 경계 변환 |
+| [93-batch-partial-fail-sample.md](docs/design/93-batch-partial-fail-sample.md) | batch sweep 부분 실패 실측 payload · 항목 결과 판정 근거 |
+| [94-batch-payload-sample.md](docs/design/94-batch-payload-sample.md) | batch sweep network records 실측 payload · 원천 vault 귀속 근거 |
+| [95-approve-pull-poc-result.md](docs/design/95-approve-pull-poc-result.md) | approve + transferFrom PoC 결과 · 제출 operation · 부분 성공 관찰 |
 | [96-payload-sample.md](docs/design/96-payload-sample.md) | 웹훅 payload 실물 — 필드명·타입의 근거 |
 | [97-webhook-poc-result.md](docs/design/97-webhook-poc-result.md) | 실측된 벤더 동작 — 재시도 간격 · resend_failed 의미 |
+| [98-batch-sweep.md](docs/design/98-batch-sweep.md) | **채택 근거** — approve + transferFrom 메커니즘 · 수탁 위험 · 출시 게이트 |
 | [99-detection-detail.md](docs/design/99-detection-detail.md) | 감지 경로 상세 — 인박스 → 워커 → outbox → relay |
 | [90-fireblocks-qna.md](docs/design/90-fireblocks-qna.md) | 벤더 확답 모음 — rate limit · 확정 임계 · 쿼리 패턴 |
 
@@ -47,7 +51,8 @@
 - **수신 인박스(`bcm_whk_l`) 는 테이블** — 큐로 대체하지 않는다. `noti_id` PK dedup · 원문 감사 · SKIP LOCKED.
 - **dedup 키 = `evnt_id`** — txId 로 dedup 금지 (감지·확정이 같은 키가 되어 확정이 버려진다).
 - **이벤트 순서는 매니저가 보장** — 앞 단계 미발행이면 감지 이벤트를 합성 발행. DAW-CORE 는 항상 감지→확정 순서만 받는다.
-- **sweep 은 건별(per-tx) · 목적지는 옴니버스 vault** — 받는주소 → 옴니버스 vault 를 Fireblocks 일반 전송으로 개별 이체 (목적지 확정 2026-08-05 — 06 의 "옴니버스 계층 유지" 안). 배치 컨트랙트(EIP-3009 등)는 채택하지 않았다 (98 문서는 참고 자료일 뿐).
+- **sweep 은 `approve + transferFrom` 배치 · 목적지는 옴니버스 vault** (2026-08-12 확정) — 고객 vault별·sweep 컨트랙트별 제한 allowance와 `SweepExecution 1:N SweepItem`으로 관리한다. approve·batch 호출은 TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트의 3중 통제를 통과한다. 최상위 거래 종결만으로 항목을 성공 처리하지 않고 network records + `SweepLeg` 이벤트로 대사한다. EIP-3009·2612·7702 직접 pull과 건별 일반 전송은 구현안에서 제외한다.
+- **batch sweep은 출시 게이트 기본 비활성** — approve와 batch CONTRACT_CALL의 Universal Gasless, TAP 세부 매칭, Callback fail-closed, gas/처리량, 컨트랙트 감사와 전체 `approve(0)` 회수 훈련을 실측·검증한 네트워크만 활성화한다.
 - **tx 대사는 종결 건만** — 벤더 원어 기준 COMPLETED · FAILED · 출금 REJECTED · BLOCKED (진행 중은 웹훅 몫).
 - **DB 는 코어(daw_) 규약** — 일시 `VARCHAR(16)` (값 포맷 `yyyyMMddHHmmss` 14자 — 2026-08-05 확정, 변환은 support 유틸 단일 관리) · 일자 `VARCHAR(8)` · 불리언 `_yn VARCHAR(1)` · 금액 `NUMERIC` · 감사 4컬럼(`frst_reg_empno` 계열, 센티넬 `SYSTEM`/`9999`) · payload `JSONB`. 벤더 id 는 `VARCHAR(64)`.
 - **일시의 시간대 = KST(`Asia/Seoul`)** (2026-08-06 확정 — 03) — `Clock` 빈은 `Clock.system(ZoneId.of("Asia/Seoul"))`, `bcm-api`·`bcm-bat` 두 곳뿐이다. `base_dt` 일 경계도 KST. 벤더 epoch ms 는 저장 직전 한 곳에서 변환. DAW-CORE 회신이 오면 대조한다.

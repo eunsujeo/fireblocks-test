@@ -5,7 +5,6 @@ ref: 참고
 ---
 
 [수신 PoC](97-webhook-poc-result.md)에서 실제로 받은 Fireblocks 웹훅 v2 알림 원문이다. 같은 입금 tx 의 **감지·확정 두 건**이고, 필드 이름을 확정한 근거다.
-testnet(`ETH_TEST5`) 로 KBKRW 테스트 토큰 100 을 외부 지갑에서 vault 로 보낸 건이다.
 
 ## 감지 — `transaction.created`
 

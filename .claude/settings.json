@@ -10,7 +10,6 @@
     ],
     "deny": [
       "Edit(docs/design/**)",
-      "Write(docs/design/**)",
       "Read(.env*)",
       "Read(**/.env*)",
       "Read(**/*.pem)",
