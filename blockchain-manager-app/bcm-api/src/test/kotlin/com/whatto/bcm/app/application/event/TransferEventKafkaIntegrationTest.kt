@@ -192,18 +192,21 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `SWEEP 웹훅은 어떤 고객 토픽에도 발행되지 않는다`() {
+    fun `SWEEP_BATCH 종결 웹훅은 항목 대사 전 대상을 유지하고 고객 토픽에 발행하지 않는다`() {
         submissionRecords.insert(sweepSubmission())
+        insertSweepExecutionAndTarget()
 
         kafkaConsumer("sweep").use { consumer ->
             subscribeForNewRecords(consumer, listOf(DEPOSIT_TOPIC, WITHDRAWAL_TOPIC, INTERNAL_TOPIC))
 
-            enqueueWebhook(SWEEP_VENDOR_TX_ID, SWEEP_EXTERNAL_ID, "CONFIRMING", 0, "04")
+            enqueueWebhook(SWEEP_VENDOR_TX_ID, SWEEP_EXTERNAL_ID, "COMPLETED", 1, "04")
             webhookProcessor.processNext()
             relayProcessor.relayNext()
 
             assertThat(consumer.poll(Duration.ofSeconds(1))).isEmpty()
             assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
+            assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_trgt")["actv_swp_exec_id"]).isEqualTo(SWEEP_EXECUTION_ID)
+            assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_exec_l")["swp_exec_stcd"]).isEqualTo("RECONCILING")
         }
     }
 
@@ -239,7 +242,7 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
             status = SubmissionStatus.SUBMITTED,
             claimId = null,
             claimExpiresAt = null,
-            transactionType = SubmissionTransactionType.SWEEP,
+            transactionType = SubmissionTransactionType.SWEEP_BATCH,
             vendorTransactionId = SWEEP_VENDOR_TX_ID,
             senderAccountId = SOURCE_ACCOUNT_ID,
             recipientType = SubmissionRecipientType.ACCOUNT,
@@ -249,6 +252,7 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
             amount = "3",
             requestedAt = "20260807115900",
             respondedAt = "20260807115901",
+            sweepExecutionId = SWEEP_EXECUTION_ID,
         )
 
     private fun enqueueWebhook(
@@ -363,6 +367,47 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
         )
     }
 
+    private fun insertSweepExecutionAndTarget() {
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_exec_l
+              (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
+               swp_exec_stcd, item_cnt, req_tot_amt, actl_tot_amt, gasless_yn, vndr_tx_id, tx_hash,
+               req_dttm, fnsh_dttm, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, ?, 'ETHEREUM', 'USDC', ?, '0xSweeper',
+                    'SUBMITTED', 1, 3, NULL, 'Y', ?, NULL,
+                    '20260807115900', NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            SWEEP_EXECUTION_ID,
+            SWEEP_EXTERNAL_ID,
+            "a".repeat(64),
+            SOURCE_ACCOUNT_ID,
+            SWEEP_VENDOR_TX_ID,
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_item_l
+              (swp_exec_id, item_seq, acnt_id, src_addr, req_amt, actl_amt, swp_item_stcd, fail_cd, log_idx,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, 1, ?, '0xSource', 3, NULL, 'READY', NULL, NULL,
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            SWEEP_EXECUTION_ID,
+            SOURCE_ACCOUNT_ID,
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_trgt
+              (acnt_id, ntwk_cd, tkn_smbl, reg_dttm, actv_swp_exec_id, actv_item_seq, try_cnt, last_try_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, 'ETHEREUM', 'USDC', '20260807115900', ?, 1, 1, '20260807115900',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            SOURCE_ACCOUNT_ID,
+            SWEEP_EXECUTION_ID,
+        )
+    }
+
     private fun account(
         accountId: String,
         ref: String,
@@ -379,6 +424,9 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
         jdbc.queryForMap("SELECT * FROM bcm_sbmt_l WHERE ext_tx_id = ?", externalTransactionId)
 
     private fun clearTables() {
+        jdbc.update("DELETE FROM bcm_swp_trgt")
+        jdbc.update("DELETE FROM bcm_swp_item_l")
+        jdbc.update("DELETE FROM bcm_swp_exec_l")
         jdbc.update("DELETE FROM bcm_outbox_l")
         jdbc.update("DELETE FROM bcm_tx_l")
         jdbc.update("DELETE FROM bcm_sbmt_l")
@@ -398,6 +446,7 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
         const val WITHDRAWAL_EXTERNAL_ID = "wd-e2e-1"
         const val INTERNAL_EXTERNAL_ID = "internal-e2e-1"
         const val SWEEP_EXTERNAL_ID = "swp-e2e-1"
+        const val SWEEP_EXECUTION_ID = "01987654-3210-7abc-8def-0123456789ab"
         const val WITHDRAWAL_VENDOR_TX_ID = "f3339e5d-428e-4add-8018-631b972f3101"
         const val INTERNAL_VENDOR_TX_ID = "f3339e5d-428e-4add-8018-631b972f3102"
         const val SWEEP_VENDOR_TX_ID = "f3339e5d-428e-4add-8018-631b972f3103"

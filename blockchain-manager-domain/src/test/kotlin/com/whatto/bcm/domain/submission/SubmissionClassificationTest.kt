@@ -16,6 +16,7 @@ class SubmissionClassificationTest {
     fun `제출 거래 계열이 고객 이벤트와 sweep 무발행을 결정한다`() {
         assertThat(SubmissionTransactionType.WITHDRAWAL.customerEventType()).isEqualTo(EventType.WITHDRAWAL)
         assertThat(SubmissionTransactionType.INTERNAL.customerEventType()).isEqualTo(EventType.INTERNAL)
-        assertThat(SubmissionTransactionType.SWEEP.customerEventType()).isNull()
+        assertThat(SubmissionTransactionType.SWEEP_APPROVE.customerEventType()).isNull()
+        assertThat(SubmissionTransactionType.SWEEP_BATCH.customerEventType()).isNull()
     }
 }

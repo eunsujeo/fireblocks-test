@@ -201,6 +201,7 @@ class DepositEventKafkaIntegrationTest : IntegrationTestSupport() {
             }.toString()
 
     private fun clearTables() {
+        jdbc.update("DELETE FROM bcm_swp_trgt")
         jdbc.update("DELETE FROM bcm_outbox_l")
         jdbc.update("DELETE FROM bcm_tx_l")
         jdbc.update("DELETE FROM bcm_whk_l")

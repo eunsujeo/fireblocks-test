@@ -2,7 +2,9 @@ package com.whatto.bcm.infra.client.fireblocks
 
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.VendorApiException
+import com.whatto.bcm.domain.vendor.VendorContractCallRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionDestination
+import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
 import com.whatto.bcm.domain.vendor.VendorTransactionOrder
 import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
@@ -62,10 +64,79 @@ class FireblocksTransactionClientTest {
             .andExpect(jsonPath("$.note").value("approved withdrawal"))
             .andExpect(jsonPath("$.travelRuleMessage.encrypted").value("cipher-text"))
             .andExpect(jsonPath("$.useGasless").value(true))
+            .andExpect(jsonPath("$.replaceTxByHash").doesNotExist())
             .andRespond(withSuccess("""{"id":"tx-91c","status":"SUBMITTED"}""", MediaType.APPLICATION_JSON))
 
         assertThat(client.submitTransaction(request()))
             .isEqualTo(VendorTransactionSubmission.Accepted("tx-91c"))
+        server.verify()
+    }
+
+    @Test
+    fun `RBF 거래 제출 — 교체할 온체인 해시를 replaceTxByHash로 변환한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("https://sandbox-api.fireblocks.test/v1/transactions"))
+            .andExpect(jsonPath("$.replaceTxByHash").value("0xstuck"))
+            .andExpect(jsonPath("$.useGasless").value(true))
+            .andRespond(withSuccess("""{"id":"tx-replacement"}""", MediaType.APPLICATION_JSON))
+
+        val result = client.submitTransaction(request().copy(replaceTransactionHash = "0xstuck"))
+
+        assertThat(result).isEqualTo(VendorTransactionSubmission.Accepted("tx-replacement"))
+        server.verify()
+    }
+
+    @Test
+    fun `approve는 가스 자산 CONTRACT_CALL과 calldata로 제출한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("https://sandbox-api.fireblocks.test/v1/transactions"))
+            .andExpect(jsonPath("$.operation").value("CONTRACT_CALL"))
+            .andExpect(jsonPath("$.externalTxId").value("swa-1"))
+            .andExpect(jsonPath("$.assetId").value("ETH"))
+            .andExpect(jsonPath("$.source.id").value("71"))
+            .andExpect(jsonPath("$.destination.oneTimeAddress.address").value("0xtoken"))
+            .andExpect(jsonPath("$.amount").value("0"))
+            .andExpect(jsonPath("$.useGasless").value(true))
+            .andExpect(jsonPath("$.extraParameters.contractCallData").value("0x095ea7b3data"))
+            .andRespond(withSuccess("""{"id":"tx-approve"}""", MediaType.APPLICATION_JSON))
+
+        val result =
+            client.submitContractCall(
+                VendorContractCallRequest("swa-1", "ETHEREUM", "71", "0xtoken", "0x095ea7b3data", true),
+            )
+
+        assertThat(result).isEqualTo(VendorTransactionSubmission.Accepted("tx-approve"))
+        server.verify()
+    }
+
+    @Test
+    fun `approve 회수 조회는 원문 calldata와 계약 주소를 보존한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("https://sandbox-api.fireblocks.test/v1/transactions/external_tx_id/swa-1"))
+            .andRespond(
+                withSuccess(
+                    """
+                    {
+                      "id":"tx-approve","externalTxId":"swa-1",
+                      "source":{"type":"VAULT_ACCOUNT","id":"71"},
+                      "destination":{"type":"ONE_TIME_ADDRESS"},
+                      "destinationAddress":"0xtoken",
+                      "extraParameters":{"contractCallData":"0x095ea7b3data"}
+                    }
+                    """.trimIndent(),
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val recovered = client.contractCallByExternalTransactionId("swa-1")
+
+        assertThat(recovered?.transactionId).isEqualTo("tx-approve")
+        assertThat(recovered?.sourceVaultId).isEqualTo("71")
+        assertThat(recovered?.contractAddress).isEqualTo("0xtoken")
+        assertThat(recovered?.callData).isEqualTo("0x095ea7b3data")
         server.verify()
     }
 
@@ -235,7 +306,62 @@ class FireblocksTransactionClientTest {
         assertThat(transaction?.source?.type).isEqualTo("VAULT_ACCOUNT")
         assertThat(transaction?.destinationAddress).isEqualTo("0x9fE2")
         assertThat(transaction?.confirmationCount).isEqualTo(12)
+        assertThat(transaction?.lifecycleStage).isEqualTo(VendorTransactionLifecycleStage.TERMINAL)
         assertThat(transaction?.createdAtEpochMillis).isEqualTo(1786068306789)
+        server.verify()
+    }
+
+    @Test
+    fun `거래 단건 조회 — CONFIRMING을 막힘 판정용 lifecycle 단계로 변환한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("https://sandbox-api.fireblocks.test/v1/transactions/tx-91c"))
+            .andRespond(
+                withSuccess(
+                    responseJson
+                        .replace("\"status\":\"COMPLETED\"", "\"status\":\"CONFIRMING\"")
+                        .replace("\"numOfConfirmations\":12", "\"numOfConfirmations\":0"),
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val transaction = client.transaction("tx-91c")
+
+        assertThat(transaction?.lifecycleStage).isEqualTo(VendorTransactionLifecycleStage.CONFIRMING)
+        assertThat(transaction?.transactionHash).isEqualTo("0xabc")
+        assertThat(transaction?.confirmationCount).isZero()
+        server.verify()
+    }
+
+    @Test
+    fun `거래 단건 조회는 batch 대사용 network records를 보존한다`() {
+        val (client, server) = fixture()
+        val withNetworkRecords =
+            responseJson.dropLast(1) +
+                """
+                ,
+                "networkRecords":[{
+                  "type":"CONTRACT_CALL",
+                  "source":{"type":"VAULT_ACCOUNT","id":"82"},
+                  "destination":{"type":"ONE_TIME_ADDRESS"},
+                  "destinationAddress":"0xOmnibus",
+                  "txHash":"0xabc",
+                  "assetId":"asset-uuid",
+                  "netAmount":"2.50",
+                  "isDropped":false
+                }]}
+                """.trimIndent()
+        server
+            .expect(requestTo("https://sandbox-api.fireblocks.test/v1/transactions/tx-91c"))
+            .andRespond(withSuccess(withNetworkRecords, MediaType.APPLICATION_JSON))
+
+        val record = client.transaction("tx-91c")?.networkRecords?.single()
+
+        assertThat(record?.source?.id).isEqualTo("82")
+        assertThat(record?.destinationAddress).isEqualTo("0xOmnibus")
+        assertThat(record?.transactionHash).isEqualTo("0xabc")
+        assertThat(record?.netAmount).isEqualTo("2.50")
+        assertThat(record?.dropped).isFalse()
         server.verify()
     }
 
@@ -358,6 +484,7 @@ class FireblocksTransactionClientTest {
                 maxAttempts = 1,
                 retryBackoffMillis = 1,
                 maxBackoffMillis = 1,
+                contractCallGasAssetIds = mapOf("ETHEREUM" to "ETH"),
             )
         val client =
             FireblocksClient(

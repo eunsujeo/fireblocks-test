@@ -1,6 +1,7 @@
 package com.whatto.bcm.infra.persistence.tx
 
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
@@ -34,14 +35,18 @@ class TxPersistenceTest : PersistenceTestSupport() {
 
     private fun txRecord(
         vendorTxId: String = "tx-91c",
+        activeVendorTxId: String = vendorTxId,
         externalTxId: String? = null,
+        transactionHash: String? = null,
         status: TxStatus = TxStatus.CONFIRMED,
     ) = TxRecord(
         vendorTxId = vendorTxId,
+        activeVendorTxId = activeVendorTxId,
         externalTxId = externalTxId,
         accountId = "acct_01",
         network = "ETHEREUM",
         symbol = "USDC",
+        transactionHash = transactionHash,
         lastPublishedStatus = status,
         confirmationCount = 1,
         vendorSubStatus = "PENDING_BLOCKCHAIN_CONFIRMATIONS",
@@ -54,6 +59,73 @@ class TxPersistenceTest : PersistenceTestSupport() {
     fun `거래 왕복 — 벤더 원어 보관 컬럼(subStatus·networkStatus)까지 그대로 되찾는다`() {
         val saved = txRecords.insert(txRecord())
         assertThat(txRecords.findByVendorTxId("tx-91c")).isEqualTo(saved)
+        assertThat(txRecords.findByActiveVendorTxId("tx-91c")).isEqualTo(saved)
+        assertThat(saved.activeVendorTxId).isEqualTo(saved.vendorTxId)
+    }
+
+    @Test
+    fun `온체인 hash는 최초 값만 저장하고 빈 관찰로 지우거나 다른 값으로 바꾸지 않는다`() {
+        val saved = txRecords.insert(txRecord())
+
+        val withHash = txRecords.update(saved.copy(transactionHash = "0xabc"))
+        val afterEmptyObservation = txRecords.update(withHash.copy(transactionHash = null))
+
+        assertThat(withHash.transactionHash).isEqualTo("0xabc")
+        assertThat(afterEmptyObservation.transactionHash).isEqualTo("0xabc")
+        assertThatThrownBy { txRecords.update(withHash.copy(transactionHash = "0xdifferent")) }
+            .isInstanceOf(ConflictException::class.java)
+        assertThat(txRecords.findByVendorTxId(saved.vendorTxId)?.transactionHash).isEqualTo("0xabc")
+    }
+
+    @Test
+    fun `서로 다른 root 거래는 같은 active vendor tx id를 공유할 수 없다`() {
+        txRecords.insert(txRecord(vendorTxId = "tx-root-1", activeVendorTxId = "tx-active"))
+
+        assertThatThrownBy {
+            txRecords.insert(txRecord(vendorTxId = "tx-root-2", activeVendorTxId = "tx-active"))
+        }.isInstanceOf(ConflictException::class.java)
+    }
+
+    @Test
+    fun `막힘 후보는 오래된 미종결 무경보 root만 시각 순으로 조회한다`() {
+        txRecords.insert(txRecord(vendorTxId = "tx-submitted", status = TxStatus.SUBMITTED))
+        txRecords.insert(txRecord(vendorTxId = "tx-confirmed", status = TxStatus.CONFIRMED))
+        txRecords.insert(txRecord(vendorTxId = "tx-recent", status = TxStatus.CONFIRMED))
+        txRecords.insert(txRecord(vendorTxId = "tx-finalized", status = TxStatus.FINALIZED))
+        txRecords.insert(txRecord(vendorTxId = "tx-alerted", status = TxStatus.CONFIRMED))
+        insertSubmission("tx-confirmed")
+        jdbc.update("UPDATE bcm_tx_l SET last_chng_dttm = '20260807110000' WHERE vndr_tx_id = 'tx-submitted'")
+        jdbc.update("UPDATE bcm_tx_l SET last_chng_dttm = '20260807111000' WHERE vndr_tx_id = 'tx-confirmed'")
+        jdbc.update("UPDATE bcm_tx_l SET last_chng_dttm = '20260807115900' WHERE vndr_tx_id = 'tx-recent'")
+        jdbc.update("UPDATE bcm_tx_l SET last_chng_dttm = '20260807100000' WHERE vndr_tx_id = 'tx-finalized'")
+        jdbc.update(
+            "UPDATE bcm_tx_l SET last_chng_dttm = '20260807102000', stall_alrt_dttm = '20260807103000' " +
+                "WHERE vndr_tx_id = 'tx-alerted'",
+        )
+
+        val candidates = txRecords.findStallCandidates("20260807115000", 10)
+
+        assertThat(candidates.map { it.record.vendorTxId }).containsExactly("tx-submitted", "tx-confirmed")
+        assertThat(candidates.map { it.submissionType })
+            .containsExactly(null, SubmissionTransactionType.WITHDRAWAL)
+    }
+
+    @Test
+    fun `막힘 경보 시각은 같은 root에서 한 번만 기록한다`() {
+        val candidate = txRecords.insert(txRecord(vendorTxId = "tx-stall"))
+
+        assertThat(txRecords.markStallAlertedIfAbsent(candidate, "20260807120000")).isTrue()
+        assertThat(txRecords.markStallAlertedIfAbsent(candidate, "20260807120100")).isFalse()
+        assertThat(txRecords.findByVendorTxId("tx-stall")?.stallAlertedAt).isEqualTo("20260807120000")
+    }
+
+    @Test
+    fun `후보 조회 뒤 active 거래가 바뀌면 옛 관찰로 경보 표시하지 않는다`() {
+        val staleCandidate = txRecords.insert(txRecord(vendorTxId = "tx-root"))
+        jdbc.update("UPDATE bcm_tx_l SET actv_tx_id = 'tx-replacement' WHERE vndr_tx_id = 'tx-root'")
+
+        assertThat(txRecords.markStallAlertedIfAbsent(staleCandidate, "20260807120000")).isFalse()
+        assertThat(txRecords.findByVendorTxId("tx-root")?.stallAlertedAt).isNull()
     }
 
     @Test
@@ -158,5 +230,24 @@ class TxPersistenceTest : PersistenceTestSupport() {
             executor.shutdownNow()
             jdbc.update("DELETE FROM bcm_tx_l WHERE vndr_tx_id = 'tx-lock'")
         }
+    }
+
+    private fun insertSubmission(vendorTransactionId: String) {
+        jdbc.update(
+            """
+            INSERT INTO bcm_sbmt_l
+              (ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, claim_id, claim_exp_dttm,
+               tx_dvcd, vndr_tx_id, snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl,
+               trsf_amt, req_dttm, rsp_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES
+              ('wd-confirmed', ?, 'v1', 'SUBMITTED', NULL, NULL,
+               'WITHDRAWAL', ?, 'account-1', 'ADDRESS', '0xTo', 'ETHEREUM', 'USDC',
+               1, '20260807100000', '20260807100001',
+               'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            "a".repeat(64),
+            vendorTransactionId,
+        )
     }
 }

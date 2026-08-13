@@ -59,6 +59,81 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `미결 점검은 오래된 REQUESTED 중 유효 claim과 최근 점검을 제외해 한 번 예약한다`() {
+        submissions.insert(
+            fixture(
+                externalTransactionId = "wd-unclaimed",
+                claimId = null,
+                claimExpiresAt = null,
+                requestedAt = "20260807100000",
+            ),
+        )
+        submissions.insert(
+            fixture(
+                externalTransactionId = "wd-expired",
+                claimExpiresAt = "20260807110000",
+                requestedAt = "20260807101000",
+            ),
+        )
+        submissions.insert(
+            fixture(
+                externalTransactionId = "wd-owned",
+                claimExpiresAt = "20260807130000",
+                requestedAt = "20260807102000",
+            ),
+        )
+        submissions.insert(
+            fixture(
+                externalTransactionId = "wd-recent-request",
+                claimId = null,
+                claimExpiresAt = null,
+                requestedAt = "20260807115900",
+            ),
+        )
+        submissions.insert(
+            fixture(
+                externalTransactionId = "wd-recent-check",
+                claimId = null,
+                claimExpiresAt = null,
+                requestedAt = "20260807090000",
+            ),
+        )
+        jdbc.update(
+            "UPDATE bcm_sbmt_l SET last_chck_dttm = '20260807115100', chck_cnt = 3 WHERE ext_tx_id = 'wd-recent-check'",
+        )
+
+        val reserved =
+            submissions.reserveRequestedForRecovery(
+                now = "20260807120000",
+                requestedBefore = "20260807115500",
+                checkedBefore = "20260807115000",
+                limit = 10,
+            )
+
+        assertThat(reserved.map { it.externalTransactionId }).containsExactly("wd-unclaimed", "wd-expired")
+        assertThat(reserved).allSatisfy {
+            assertThat(it.checkedAt).isEqualTo("20260807120000")
+            assertThat(it.checkCount).isEqualTo(1)
+        }
+        assertThat(
+            submissions.reserveRequestedForRecovery(
+                now = "20260807120001",
+                requestedBefore = "20260807115500",
+                checkedBefore = "20260807115000",
+                limit = 10,
+            ),
+        ).isEmpty()
+        assertThat(jdbc.queryForObject("SELECT chck_cnt FROM bcm_sbmt_l WHERE ext_tx_id = 'wd-owned'", Int::class.java))
+            .isZero()
+        assertThat(
+            jdbc.queryForObject(
+                "SELECT chck_cnt FROM bcm_sbmt_l WHERE ext_tx_id = 'wd-recent-check'",
+                Int::class.java,
+            ),
+        ).isEqualTo(3)
+    }
+
+    @Test
     fun `제출 응답은 claim 소유자만 SUBMITTED로 마감할 수 있다`() {
         submissions.insert(fixture())
 

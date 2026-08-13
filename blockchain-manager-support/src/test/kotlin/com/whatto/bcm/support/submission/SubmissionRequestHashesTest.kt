@@ -33,6 +33,24 @@ class SubmissionRequestHashesTest {
             .isInstanceOf(NumberFormatException::class.java)
     }
 
+    @Test
+    fun `contract call canonical은 주소와 calldata 대소문자 및 금액 표기를 정규화한다`() {
+        val fingerprint = contractCallFingerprint("100.00", "0xAbCdEf", "0x095EA7B3Aa")
+
+        assertThat(fingerprint.hashVersion).isEqualTo("cc-v1")
+        assertThat(fingerprint.normalizedAmount).isEqualTo("100")
+        assertThat(fingerprint.requestHash)
+            .isEqualTo("8df565f666cbdfc0eb0fa45092c0abdcd664035679450e09a7c144575f13804b")
+        assertThat(fingerprint)
+            .isEqualTo(contractCallFingerprint("100", "0xabcdef", "0x095ea7b3aa"))
+    }
+
+    @Test
+    fun `contract call calldata가 다르면 같은 external id에 재사용할 수 없는 다른 요청이다`() {
+        assertThat(contractCallFingerprint("100", "0xabcdef", "0x095ea7b3aa"))
+            .isNotEqualTo(contractCallFingerprint("100", "0xabcdef", "0x095ea7b3bb"))
+    }
+
     private fun fingerprint(
         network: String = "ETHEREUM",
         amount: String = "1.5",
@@ -44,5 +62,18 @@ class SubmissionRequestHashesTest {
         network = network,
         symbol = "USDC",
         amount = amount,
+    )
+
+    private fun contractCallFingerprint(
+        amount: String,
+        contractAddress: String,
+        callData: String,
+    ) = SubmissionRequestHashes.contractCallV1(
+        senderAccountId = "acct_pool_02",
+        contractAddress = contractAddress,
+        network = "ETHEREUM",
+        symbol = "USDC",
+        amount = amount,
+        callData = callData,
     )
 }
