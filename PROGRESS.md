@@ -4,7 +4,7 @@
 
 ## 현재 위치
 
-- **Phase 8 T8.1 종결 거래 대사까지 완료했다. 다음 작업은 T8.2 확정 원본 보관이다.**
+- **Phase 8 T8.2 확정 원본 보관까지 완료했다. 다음 작업은 T8.3 수수료 견적 시계열이다.**
 - `tx-reconciliation`은 기본 비활성 10분 주기다. workspace `GET /v1/transactions`를 source/order 없이
   최대 500건씩 페이징하고, `bcm_job_m.last_scs_dttm` 경계를 1ms 겹쳐 createdAt 창을 이어 붙인다.
 - 벤더 원어 COMPLETED·FAILED·vault 발신 REJECTED/BLOCKED만 root 거래와 비교해 일치·vendor-only·
@@ -13,15 +13,18 @@
   상태기계+outbox 트랜잭션을 재사용해 입금을 복구하고, SWEEP_BATCH는 실행 원장을 RECONCILING으로 옮긴다.
 - RBF 계열은 성공 증거를 우선하고 active가 아닌 지연 실패를 제외한다. 반복 벤더 cursor나 처리 예외가 나면
   성공 heartbeat를 전진시키지 않는다.
-- `./gradlew check ktlintCheck --rerun-tasks` 전체 440건 그린. 설계 사본은 waas-wiki와 byte 동일하다.
-  Phase converge용 Claude agent 실행은 세션 한도(20:30 KST 재설정)로 결과가 없었으며 Phase 8 종료 때 재실행한다.
+- `raw-transaction-archive`는 기본 비활성 일 배치다. 활성화할 때 양의 `retentionDays` 운영 설정이 필수다.
+  성공 커서 경계를 포함해 마지막 COMPLETED 원문·수신 해시·서명을 그대로 월 파티션에 이관한다.
+- 월별 파티션은 배포 역할이 `db/operations/create_bcm_raw_tx_partitions.sql`로 대상 월 전에 선생성한다.
+  런타임은 DML만 수행하며 파티션 누락·정리 실패 시 적재·인박스 삭제·성공 heartbeat가 모두 롤백된다.
+- 처리 완료(S) 인박스만 운영 보존일 뒤 정리한다. P/F와 아직 보관되지 않은 FINALIZED COMPLETED 원문은 보존한다.
+- `./gradlew check ktlintCheck --rerun-tasks` 전체 449건 그린. 02·03 설계 사본은 waas-wiki `3b033ca`와 byte 동일하다.
+  Phase converge용 Claude agent는 Phase 8 종료 때 재실행한다.
 
 ## 다음 작업
 
-- T8.2 착수 전에 PLAN #19 `bcm_raw_tx_l` 일자 파티션 생성 주체를 확정한다. 현 V1은 부모만 있어 파티션 없이는
-  INSERT가 실패한다. 배포 시 선생성 또는 보관 배치의 안전한 생성 중 하나를 설계 정본에 먼저 반영해야 한다.
-- 확정 원본 보관은 마지막 COMPLETED 웹훅의 payload와 수신 시 계산한 payload_hash를 그대로 옮기고,
-  이관 성공 뒤에만 처리된 `bcm_whk_l` 보존 기간 정리를 수행하는 PostgreSQL 테스트부터 작성한다.
+- T8.3 수수료 견적 시계열은 02에 동작만 있고 저장 테이블·견적 벤더 API·제출 시각 대응 키가 아직 없다.
+  구현 전에 waas-wiki 02·03에서 저장 모델과 수집/대응 계약을 확정하고 사본을 동기화한다.
 
 ## 리뷰 후속·외부 조건
 
