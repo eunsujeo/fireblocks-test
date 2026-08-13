@@ -4,6 +4,8 @@ import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.vendor.VendorContractCallRequest
 import com.whatto.bcm.domain.vendor.VendorFeeLevel
+import com.whatto.bcm.domain.vendor.VendorNetworkFee
+import com.whatto.bcm.domain.vendor.VendorNetworkFeeEstimate
 import com.whatto.bcm.domain.vendor.VendorTransactionDestination
 import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
 import com.whatto.bcm.domain.vendor.VendorTransactionOrder
@@ -43,6 +45,50 @@ class FireblocksTransactionClientTest {
             .isInstanceOf(IllegalArgumentException::class.java)
         assertThatThrownBy { FireblocksProperties(readTimeoutMillis = 0) }
             .isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test
+    fun `네트워크 수수료 견적은 assetId로 조회하고 세 fee level의 선택 필드를 보존한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("https://sandbox-api.fireblocks.test/v1/estimate_network_fee?assetId=USDC_ERC20"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-API-Key", "api-key-1"))
+            .andExpect(headerDoesNotExist("Idempotency-Key"))
+            .andRespond(
+                withSuccess(
+                    """
+                    {
+                      "low":{"gasPrice":"1.1","baseFee":"1.0","priorityFee":"0.1"},
+                      "medium":{"gasPrice":"2.2","networkFee":"0.0000462"},
+                      "high":{"feePerByte":"3","gasPrice":"4.4","priorityFee":"0.4"}
+                    }
+                    """.trimIndent(),
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val estimate = client.estimateNetworkFee("USDC_ERC20")
+
+        assertThat(estimate)
+            .isEqualTo(
+                VendorNetworkFeeEstimate(
+                    low =
+                        VendorNetworkFee(
+                            gasPrice = "1.1".toBigDecimal(),
+                            baseFee = "1.0".toBigDecimal(),
+                            priorityFee = "0.1".toBigDecimal(),
+                        ),
+                    medium = VendorNetworkFee(gasPrice = "2.2".toBigDecimal(), networkFee = "0.0000462".toBigDecimal()),
+                    high =
+                        VendorNetworkFee(
+                            feePerByte = "3".toBigDecimal(),
+                            gasPrice = "4.4".toBigDecimal(),
+                            priorityFee = "0.4".toBigDecimal(),
+                        ),
+                ),
+            )
+        server.verify()
     }
 
     @Test
