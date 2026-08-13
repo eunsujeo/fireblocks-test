@@ -51,7 +51,14 @@ class TxStateMachine(
             observation.status == TxStatus.FAILED &&
             previous.lastPublishedStatus in BoostPolicy.rootStatuses
         ) {
-            return TxStateChange(previous, emptyList())
+            val deferred =
+                repository.update(
+                    previous.copy(
+                        stallAlertedAt = null,
+                        lastChangedAt = maxOf(previous.lastChangedAt, observation.observedAt),
+                    ),
+                )
+            return TxStateChange(deferred, emptyList())
         }
         return persistActive(previous, observation)
     }

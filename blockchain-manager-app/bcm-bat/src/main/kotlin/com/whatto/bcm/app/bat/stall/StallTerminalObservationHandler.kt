@@ -77,7 +77,11 @@ class TransactionalStallTerminalObservationHandler(
                         }
                         recovered.transactionId
                     }
-                    ?: return null
+                    ?: error(
+                        "pending boost recovery not found: " +
+                            "rootVendorTransactionId=${candidate.record.vendorTxId} " +
+                            "externalTransactionId=${attempt.externalTransactionId}",
+                    )
             }
         val familyIds =
             buildSet {
