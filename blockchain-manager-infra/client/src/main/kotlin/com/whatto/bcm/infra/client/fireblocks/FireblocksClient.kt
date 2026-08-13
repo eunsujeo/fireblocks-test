@@ -11,6 +11,9 @@ import com.whatto.bcm.domain.vendor.VendorContractCall
 import com.whatto.bcm.domain.vendor.VendorContractCallPort
 import com.whatto.bcm.domain.vendor.VendorContractCallRequest
 import com.whatto.bcm.domain.vendor.VendorDepositAddress
+import com.whatto.bcm.domain.vendor.VendorNetworkFee
+import com.whatto.bcm.domain.vendor.VendorNetworkFeeEstimate
+import com.whatto.bcm.domain.vendor.VendorNetworkFeePort
 import com.whatto.bcm.domain.vendor.VendorNetworkRecord
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorTransaction
@@ -50,7 +53,8 @@ class FireblocksClient(
 ) : WalletVendorPort,
     VendorAssetCatalogPort,
     VendorTransactionPort,
-    VendorContractCallPort {
+    VendorContractCallPort,
+    VendorNetworkFeePort {
     private val restClient = restClientFactory.create(restClientBuilder, properties)
     private val objectMapper = ObjectMapper()
 
@@ -283,6 +287,30 @@ class FireblocksClient(
         )
     }
 
+    override fun estimateNetworkFee(vendorAssetId: String): VendorNetworkFeeEstimate {
+        val path =
+            UriComponentsBuilder
+                .fromPath(NETWORK_FEE_PATH)
+                .queryParam("assetId", vendorAssetId)
+                .build()
+                .encode()
+                .toUriString()
+        val response =
+            exchange(
+                operation = "estimateNetworkFee",
+                method = HttpMethod.GET,
+                path = path,
+                body = null,
+                idempotencyKey = null,
+                responseType = EstimatedNetworkFeeResponse::class.java,
+            )
+        return VendorNetworkFeeEstimate(
+            low = toDomain(requireNotNull(response.low) { "network fee 응답 결손: low" }),
+            medium = toDomain(requireNotNull(response.medium) { "network fee 응답 결손: medium" }),
+            high = toDomain(requireNotNull(response.high) { "network fee 응답 결손: high" }),
+        )
+    }
+
     private fun transactionOrNull(
         operation: String,
         path: String,
@@ -453,6 +481,15 @@ class FireblocksClient(
             dropped = requireNotNull(response.isDropped) { "network record 응답 결손: isDropped" },
         )
 
+    private fun toDomain(response: NetworkFeeResponse): VendorNetworkFee =
+        VendorNetworkFee(
+            feePerByte = response.feePerByte?.toBigDecimal(),
+            gasPrice = response.gasPrice?.toBigDecimal(),
+            networkFee = response.networkFee?.toBigDecimal(),
+            baseFee = response.baseFee?.toBigDecimal(),
+            priorityFee = response.priorityFee?.toBigDecimal(),
+        )
+
     private fun lifecycleStage(status: String?): VendorTransactionLifecycleStage =
         when (status) {
             "SUBMITTED", "PENDING_SIGNATURE", "QUEUED", "BROADCASTING" ->
@@ -549,6 +586,7 @@ class FireblocksClient(
         private const val BLOCKCHAIN_PAGE_SIZE = 500
         private const val ASSET_PAGE_SIZE = 1000
         private const val TRANSACTIONS_PATH = "/v1/transactions"
+        private const val NETWORK_FEE_PATH = "/v1/estimate_network_fee"
         private const val NEXT_PAGE_HEADER = "next-page"
         private val DEFINITIVE_TRANSACTION_REJECTION_STATUSES = setOf(409, 422)
     }

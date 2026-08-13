@@ -27,6 +27,8 @@ data class VendorTransactionRequest(
 )
 
 enum class VendorFeeLevel {
+    LOW,
+    MEDIUM,
     HIGH,
 }
 

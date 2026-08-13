@@ -1,4 +1,4 @@
--- bcm_ 15테이블 — docs/design/03-bcm-db.md + 07-asset-master.md (코어 daw_ 규약: 일시 VARCHAR(16) · 일자 VARCHAR(8)
+-- bcm_ 16테이블 — docs/design/03-bcm-db.md + 07-asset-master.md (코어 daw_ 규약: 일시 VARCHAR(16) · 일자 VARCHAR(8)
 -- · _yn VARCHAR(1) · 벤더 id VARCHAR(64) · 감사 4컬럼). 자동 처리 행의 감사 센티넬: empno='SYSTEM' · brcd='9999'.
 
 -- 계정 매핑 — ref UNIQUE 가 계정 생성 멱등의 최종 방어
@@ -285,6 +285,30 @@ CREATE TABLE bcm_job_m (
   last_chng_empno VARCHAR(6)  NOT NULL,
   last_chng_brcd  VARCHAR(4)  NOT NULL
 );
+
+-- 자산별 LOW/MEDIUM/HIGH 네트워크 수수료 견적 시계열
+CREATE TABLE bcm_fee_qt_l (
+  ntwk_cd          VARCHAR(20)    NOT NULL,
+  tkn_smbl         VARCHAR(16)    NOT NULL,
+  obs_dttm         VARCHAR(16)    NOT NULL,
+  fee_lvl          VARCHAR(16)    NOT NULL,
+  vndr_ast_id      VARCHAR(64)    NOT NULL,
+  fee_per_byte     NUMERIC(36,18) NULL,
+  gas_price        NUMERIC(36,18) NULL,
+  ntwk_fee         NUMERIC(36,18) NULL,
+  base_fee         NUMERIC(36,18) NULL,
+  priority_fee     NUMERIC(36,18) NULL,
+  frst_reg_empno   VARCHAR(6)     NOT NULL,
+  frst_reg_brcd    VARCHAR(4)     NOT NULL,
+  last_chng_empno  VARCHAR(6)     NOT NULL,
+  last_chng_brcd   VARCHAR(4)     NOT NULL,
+  PRIMARY KEY (ntwk_cd, tkn_smbl, obs_dttm, fee_lvl),
+  CHECK (fee_lvl IN ('LOW', 'MEDIUM', 'HIGH')),
+  CHECK (fee_per_byte IS NOT NULL OR gas_price IS NOT NULL OR ntwk_fee IS NOT NULL OR
+         base_fee IS NOT NULL OR priority_fee IS NOT NULL)
+);
+CREATE INDEX idx_bcm_fee_qt_lookup
+  ON bcm_fee_qt_l (ntwk_cd, tkn_smbl, fee_lvl, obs_dttm DESC);
 
 -- finalize 트랜잭션 원본 — 장기 보관 (월 단위 파티션, 대상 월 전에 배포 역할이 선생성)
 CREATE TABLE bcm_raw_tx_l (

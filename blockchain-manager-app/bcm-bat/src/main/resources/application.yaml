@@ -23,6 +23,9 @@ bcm:
     enabled: false
     fixed-delay-millis: 86400000
     batch-size: 500
+  network-fee-quote-collection:
+    enabled: false
+    fixed-delay-millis: 300000
   sweep:
     enabled: false
     fixed-delay-millis: 60000

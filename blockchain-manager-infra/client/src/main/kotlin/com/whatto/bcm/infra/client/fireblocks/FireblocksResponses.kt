@@ -119,3 +119,17 @@ internal data class TransactionPeerResponse(
 internal data class TransactionAmountInfoResponse(
     val amount: String? = null,
 )
+
+internal data class EstimatedNetworkFeeResponse(
+    val low: NetworkFeeResponse? = null,
+    val medium: NetworkFeeResponse? = null,
+    val high: NetworkFeeResponse? = null,
+)
+
+internal data class NetworkFeeResponse(
+    val feePerByte: String? = null,
+    val gasPrice: String? = null,
+    val networkFee: String? = null,
+    val baseFee: String? = null,
+    val priorityFee: String? = null,
+)
