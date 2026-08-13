@@ -2,7 +2,6 @@ package com.whatto.bcm.app.bat.archive
 
 import com.whatto.bcm.app.bat.support.IntegrationTestSupport
 import com.whatto.bcm.domain.TransactionRunner
-import com.whatto.bcm.domain.archive.RawTransactionArchiveBatch
 import com.whatto.bcm.domain.archive.RawTransactionArchiveRepository
 import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.infra.persistence.archive.RawTransactionArchiveJdbcAdapter
@@ -92,7 +91,9 @@ class RawTransactionArchiveIntegrationTest : IntegrationTestSupport() {
     private fun createPartition() {
         val sql =
             ClassPathResource("db/operations/create_bcm_raw_tx_partitions.sql")
-                .inputStream.bufferedReader().use { it.readText() }
+                .inputStream
+                .bufferedReader()
+                .use { it.readText() }
                 .replace(":'start_month'", "'202608'")
                 .replace(":'month_count'", "'1'")
         jdbc.execute(sql)

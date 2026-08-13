@@ -202,7 +202,9 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
     ) {
         val sql =
             ClassPathResource("db/operations/create_bcm_raw_tx_partitions.sql")
-                .inputStream.bufferedReader().use { it.readText() }
+                .inputStream
+                .bufferedReader()
+                .use { it.readText() }
                 .replace(":'start_month'", "'$startMonth'")
                 .replace(":'month_count'", "'$monthCount'")
         jdbc.execute(sql)
