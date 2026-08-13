@@ -108,7 +108,7 @@ class SweepBatchReconciliationService(
         val items = executions.findItems(execution.executionId)
         val reconciled = reconcileLegs(execution, items, receipt.legs)
         val itemAccounts = items.associateWith { item -> requiredAccount(item.accountId) }
-        validateNetworkRecords(execution, transaction, mapping, items, itemAccounts, reconciled)
+        validateNetworkRecords(execution, transaction, transactionHash, mapping, items, itemAccounts, reconciled)
         finish(execution, items, itemAccounts, reconciled, mapping)
         return ReconciliationResult.COMPLETED
     }
@@ -170,6 +170,7 @@ class SweepBatchReconciliationService(
     private fun validateNetworkRecords(
         execution: SweepExecution,
         transaction: VendorTransaction,
+        transactionHash: String,
         mapping: VendorAssetMapping,
         items: List<SweepItem>,
         itemAccounts: Map<SweepItem, Account>,
@@ -186,7 +187,7 @@ class SweepBatchReconciliationService(
             }
         check(relevant.none(VendorNetworkRecord::dropped)) { "dropped sweep network record" }
         relevant.forEach { record ->
-            check(record.transactionHash?.equals(transaction.transactionHash, ignoreCase = true) == true) {
+            check(record.transactionHash?.equals(transactionHash, ignoreCase = true) == true) {
                 "sweep network record transaction hash mismatch"
             }
         }
