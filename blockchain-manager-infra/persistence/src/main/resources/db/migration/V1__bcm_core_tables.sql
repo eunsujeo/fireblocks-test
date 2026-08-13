@@ -286,7 +286,7 @@ CREATE TABLE bcm_job_m (
   last_chng_brcd  VARCHAR(4)  NOT NULL
 );
 
--- finalize 트랜잭션 원본 — 장기 보관 (월 단위 파티션, 파티션 생성은 보관 배치/운영 몫)
+-- finalize 트랜잭션 원본 — 장기 보관 (월 단위 파티션, 대상 월 전에 배포 역할이 선생성)
 CREATE TABLE bcm_raw_tx_l (
   base_dt        VARCHAR(8)   NOT NULL,       -- 적재 기준일 = 파티션 키
   vndr_tx_id     VARCHAR(64)  NOT NULL,
@@ -308,3 +308,4 @@ CREATE TABLE bcm_raw_tx_l (
 ) PARTITION BY RANGE (base_dt);
 CREATE INDEX idx_bcm_raw_tx_hash ON bcm_raw_tx_l (tx_hash);
 CREATE INDEX idx_bcm_raw_tx_addr ON bcm_raw_tx_l (addr, base_dt);
+CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm);

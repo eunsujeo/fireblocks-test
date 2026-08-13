@@ -19,6 +19,10 @@ bcm:
     initial-lookback-seconds: 600
     pending-stale-seconds: 600
     pending-batch-size: 500
+  raw-transaction-archive:
+    enabled: false
+    fixed-delay-millis: 86400000
+    batch-size: 500
   sweep:
     enabled: false
     fixed-delay-millis: 60000
