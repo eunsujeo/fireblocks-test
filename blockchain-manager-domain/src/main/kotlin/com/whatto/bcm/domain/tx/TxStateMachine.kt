@@ -44,7 +44,7 @@ class TxStateMachine(
             if (!successEvidence || previous.hasMinedWinner()) return TxStateChange(previous, emptyList())
             return adoptWinner(previous, observation)
         }
-        return persistActive(previous, observation)
+        return persistActive(previous, observation, successEvidence)
     }
 
     private fun persistNew(observation: TxObservation): TxStateChange {
@@ -56,9 +56,11 @@ class TxStateMachine(
     private fun persistActive(
         previous: TxRecord,
         observation: TxObservation,
+        successEvidence: Boolean,
     ): TxStateChange {
-        val decision = TransitionTable.decide(previous.lastPublishedStatus, observation.status)
-        val candidate = candidate(previous, observation, decision.statusToRecord(previous.lastPublishedStatus, observation.status))
+        val previousStatus = previous.lastPublishedStatus.takeUnless { successEvidence && it == TxStatus.FAILED }
+        val decision = TransitionTable.decide(previousStatus, observation.status)
+        val candidate = candidate(previous, observation, decision.statusToRecord(previousStatus, observation.status))
         val record =
             repository.update(
                 candidate.copy(

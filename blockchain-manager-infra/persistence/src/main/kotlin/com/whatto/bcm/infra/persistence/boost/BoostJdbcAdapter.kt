@@ -267,6 +267,20 @@ class BoostJdbcAdapter(
                 ROW_MAPPER,
             ).firstOrNull()
 
+    override fun findLatestSubmittedByRoot(rootVendorTransactionId: String): BoostAttempt? =
+        jdbc
+            .query(
+                """
+                $SELECT_COLUMNS
+                WHERE boost.orig_tx_id = :rootVendorTransactionId
+                  AND boost.bst_stcd = 'SUBMITTED'
+                ORDER BY boost.try_seq DESC
+                LIMIT 1
+                """.trimIndent(),
+                mapOf("rootVendorTransactionId" to rootVendorTransactionId),
+                ROW_MAPPER,
+            ).firstOrNull()
+
     override fun findByRootAndSequence(
         rootVendorTransactionId: String,
         trySequence: Int,

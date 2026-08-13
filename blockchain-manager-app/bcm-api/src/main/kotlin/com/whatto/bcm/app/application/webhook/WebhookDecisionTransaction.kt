@@ -235,7 +235,7 @@ class WebhookDecisionTransaction(
                 }
                 boosts
                     .markSubmittedByObservation(
-                        checkNotNull(externalTransactionId) { "boost webhook has no external transaction id" },
+                        boost.externalTransactionId,
                         transaction.vendorTransactionId,
                         inboxItem.receivedAt,
                     ).rootVendorTransactionId
@@ -267,6 +267,15 @@ class WebhookDecisionTransaction(
             }
 
         val status = statusTranslator.translate(transaction, submission.network)
+        val submittedBoost = boost ?: boosts.findLatestSubmittedByRoot(rootVendorTransactionId)
+        if (
+            status == TxStatus.FAILED &&
+            submittedBoost?.newVendorTransactionId != null &&
+            submittedBoost.newVendorTransactionId != transaction.vendorTransactionId
+        ) {
+            markProcessed(inboxItem)
+            return WebhookDecisionOutcome.Processed(inboxItem.notificationId, 0)
+        }
         val stateChange =
             txStates.observeRoot(
                 rootVendorTransactionId = rootVendorTransactionId,
@@ -283,7 +292,9 @@ class WebhookDecisionTransaction(
                     vendorNetworkStatus = transaction.networkStatus,
                     observedAt = inboxItem.receivedAt,
                 ),
-                successEvidence = transaction.confirmationCount > 0 || transaction.rawStatus == "COMPLETED",
+                successEvidence =
+                    submittedBoost != null &&
+                        (transaction.confirmationCount > 0 || transaction.rawStatus == "COMPLETED"),
             )
         val eventType = submission.transactionType.customerEventType()
         if (eventType == null) {

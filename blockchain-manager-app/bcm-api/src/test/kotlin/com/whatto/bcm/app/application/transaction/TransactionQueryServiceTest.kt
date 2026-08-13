@@ -7,6 +7,7 @@ import com.whatto.bcm.app.application.transaction.fixture.VendorTransactionFixtu
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
+import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
@@ -41,6 +42,9 @@ class TransactionQueryServiceTest {
     @MockK
     lateinit var transactions: TxRecordRepository
 
+    @MockK
+    lateinit var boosts: BoostAttemptRepository
+
     private val unmappedAlerts = mutableListOf<UnmappedVendorAssetAlert>()
     private val unmappedAssetAlerts = UnmappedVendorAssetAlertPort { unmappedAlerts += it }
 
@@ -57,11 +61,15 @@ class TransactionQueryServiceTest {
                 FireblocksStatusTranslator(FinalityPolicy { 3 }),
                 unmappedAssetAlerts,
                 transactions,
+                boosts,
             )
         every { mappings.findByVendorAssetId("asset-uuid") } returns MAPPING
         every { transactions.findByVendorTxId(any()) } returns null
         every { transactions.findByActiveVendorTxId(any()) } returns null
         every { transactions.findByExternalTxId(any()) } returns null
+        every { boosts.findByNewVendorTransactionId(any()) } returns null
+        every { boosts.findByExternalTransactionId(any()) } returns null
+        every { boosts.findLatestSubmittedByRoot(any()) } returns null
     }
 
     @Test
@@ -107,6 +115,27 @@ class TransactionQueryServiceTest {
         assertThat(result.externalTransactionId).isEqualTo("wd-root")
         verify(exactly = 1) { vendor.transaction("tx-replacement") }
         verify(exactly = 0) { vendor.transactionByExternalTransactionId(any()) }
+    }
+
+    @Test
+    fun `거래 목록은 비활성 원 거래를 제외하고 active 대체 거래를 root 식별자로 접는다`() {
+        every { accounts.requiredAccount(ACCOUNT_ID) } returns AccountFixture.fixture(ACCOUNT_ID, vendorVaultId = "71")
+        every { transactions.findByVendorTxId("tx-root") } returns rootRecord()
+        every { transactions.findByActiveVendorTxId("tx-replacement") } returns rootRecord()
+        every { vendor.transactions(any()) } returns
+            VendorPage(
+                listOf(
+                    fixture(transactionId = "tx-root", externalTransactionId = "wd-root"),
+                    fixture(transactionId = "tx-replacement", externalTransactionId = "bst-replacement"),
+                ),
+                null,
+            )
+
+        val result = service.transactions(ACCOUNT_ID, TransactionPageQuery(after = AFTER))
+
+        assertThat(result.data).hasSize(1)
+        assertThat(result.data.single().transactionId).isEqualTo("tx-root")
+        assertThat(result.data.single().externalTransactionId).isEqualTo("wd-root")
     }
 
     @Test

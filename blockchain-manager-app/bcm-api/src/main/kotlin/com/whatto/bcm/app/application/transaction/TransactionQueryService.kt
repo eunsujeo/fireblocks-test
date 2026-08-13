@@ -6,6 +6,9 @@ import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.AssetNotSupportedException
 import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
+import com.whatto.bcm.domain.tx.BoostAttemptRepository
+import com.whatto.bcm.domain.tx.TxRecord
+import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.UnmappedVendorAssetAlert
 import com.whatto.bcm.domain.vendor.UnmappedVendorAssetAlertPort
@@ -29,14 +32,27 @@ class TransactionQueryService(
     private val mappings: VendorAssetMappingQueryService,
     private val statusTranslator: VendorStatusTranslator,
     private val unmappedAssetAlertPort: UnmappedVendorAssetAlertPort,
+    private val transactions: TxRecordRepository,
+    private val boosts: BoostAttemptRepository,
 ) {
-    fun transaction(transactionId: String): TransactionView =
-        vendor.transaction(transactionId)?.let(::toView)
+    fun transaction(transactionId: String): TransactionView {
+        val family = familyByVendorTransactionId(transactionId)
+        val lookupId = family?.activeVendorTxId ?: transactionId
+        return vendor.transaction(lookupId)?.let { toView(it, family) }
             ?: throw ResourceNotFoundException("transaction", transactionId)
+    }
 
-    fun transactionByExternalTransactionId(externalTransactionId: String): TransactionView =
-        vendor.transactionByExternalTransactionId(externalTransactionId)?.let(::toView)
+    fun transactionByExternalTransactionId(externalTransactionId: String): TransactionView {
+        val family = familyByExternalTransactionId(externalTransactionId)
+        val result =
+            if (family == null) {
+                vendor.transactionByExternalTransactionId(externalTransactionId)
+            } else {
+                vendor.transaction(family.activeVendorTxId)
+            }
+        return result?.let { toView(it, family) }
             ?: throw ResourceNotFoundException("transaction", externalTransactionId)
+    }
 
     fun transactions(
         accountId: String,
@@ -81,6 +97,11 @@ class TransactionQueryService(
             scanned += eligible
             eligible.lastOrNull()?.let { lastScanned = it }
             eligible.forEach { transaction ->
+                val family = familyByVendorTransactionId(transaction.transactionId)
+                if (family != null && family.activeVendorTxId != transaction.transactionId) {
+                    excludedTransactionIds += transaction.transactionId
+                    return@forEach
+                }
                 val mapping =
                     if (mappingCache.containsKey(transaction.vendorAssetId)) {
                         mappingCache[transaction.vendorAssetId]
@@ -93,7 +114,7 @@ class TransactionQueryService(
                     excludedTransactionIds += transaction.transactionId
                     unmapped.getOrPut(transaction.vendorAssetId) { mutableListOf() } += transaction
                 } else {
-                    val view = toView(transaction, mapping)
+                    val view = toView(transaction, mapping, family)
                     if (conditions.status == null || view.status == conditions.status) {
                         visible += PositionedTransactionView(transaction, view)
                     } else {
@@ -287,21 +308,25 @@ class TransactionQueryService(
         )
     }
 
-    private fun toView(transaction: VendorTransaction): TransactionView {
+    private fun toView(
+        transaction: VendorTransaction,
+        family: TxRecord? = familyByVendorTransactionId(transaction.transactionId),
+    ): TransactionView {
         val mapping =
             mappings.findByVendorAssetId(transaction.vendorAssetId)
                 ?: throw AssetNotSupportedException("unknown", transaction.vendorAssetId)
-        return toView(transaction, mapping)
+        return toView(transaction, mapping, family)
     }
 
     private fun toView(
         transaction: VendorTransaction,
         mapping: VendorAssetMapping,
+        family: TxRecord? = null,
     ): TransactionView =
         TransactionView(
-            transactionId = transaction.transactionId,
+            transactionId = family?.vendorTxId ?: transaction.transactionId,
             transactionHash = transaction.transactionHash,
-            externalTransactionId = transaction.externalTransactionId,
+            externalTransactionId = family?.externalTxId ?: transaction.externalTransactionId,
             network = mapping.network,
             symbol = mapping.symbol,
             amount = transaction.amount,
@@ -320,6 +345,19 @@ class TransactionQueryService(
             createdAt = Instant.ofEpochMilli(transaction.createdAtEpochMillis).toString(),
             lastUpdated = Instant.ofEpochMilli(transaction.lastUpdatedEpochMillis).toString(),
         )
+
+    private fun familyByVendorTransactionId(vendorTransactionId: String): TxRecord? =
+        transactions.findByVendorTxId(vendorTransactionId)
+            ?: transactions.findByActiveVendorTxId(vendorTransactionId)
+            ?: boosts
+                .findByNewVendorTransactionId(vendorTransactionId)
+                ?.let { transactions.findByVendorTxId(it.rootVendorTransactionId) }
+
+    private fun familyByExternalTransactionId(externalTransactionId: String): TxRecord? =
+        transactions.findByExternalTxId(externalTransactionId)
+            ?: boosts
+                .findByExternalTransactionId(externalTransactionId)
+                ?.let { transactions.findByVendorTxId(it.rootVendorTransactionId) }
 
     private fun parseDateTime(
         value: String,
