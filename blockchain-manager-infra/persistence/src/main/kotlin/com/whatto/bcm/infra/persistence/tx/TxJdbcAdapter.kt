@@ -103,6 +103,34 @@ class TxJdbcAdapter(
         return requireNotNull(findByVendorTxId(txRecord.vendorTxId))
     }
 
+    override fun updatePhysicalWinner(
+        txRecord: TxRecord,
+        previousActiveVendorTxId: String,
+    ): TxRecord {
+        val updated =
+            jdbc.update(
+                """
+                UPDATE bcm_tx_l
+                   SET actv_tx_id = :activeVendorTxId,
+                       tx_hash = :transactionHash,
+                       last_pub_stcd = :lastPublishedStatus,
+                       cnfm_cnt = :confirmationCount,
+                       vndr_sub_stcd = :vendorSubStatus,
+                       vndr_ntwk_stcd = :vendorNetworkStatus,
+                       stall_alrt_dttm = NULL,
+                       last_chng_dttm = GREATEST(last_chng_dttm, :lastChangedAt),
+                       last_chng_empno = :employeeNo,
+                       last_chng_brcd = :branchCode
+                 WHERE vndr_tx_id = :vendorTxId
+                   AND actv_tx_id = :previousActiveVendorTxId
+                   AND cnfm_cnt = 0
+                """.trimIndent(),
+                txRecord.parameters() + ("previousActiveVendorTxId" to previousActiveVendorTxId),
+            )
+        if (updated != 1) throw ConflictException("transactionWinner", txRecord.vendorTxId)
+        return requireNotNull(findByVendorTxId(txRecord.vendorTxId))
+    }
+
     override fun findByVendorTxId(vendorTxId: String): TxRecord? = crud.findByIdOrNull(vendorTxId)?.toDomain()
 
     override fun findByActiveVendorTxId(activeVendorTxId: String): TxRecord? = crud.findByActvTxId(activeVendorTxId)?.toDomain()

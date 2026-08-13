@@ -18,7 +18,7 @@ data class FireblocksTransaction(
     /** 체인에 오르기 전 알림에는 비어 있을 수 있다 (02-bcm-flow 미확정 — 제출 직후 조회의 빈 필드). */
     val destinationAddress: String?,
     val amount: String,
-    internal val rawStatus: String,
+    val rawStatus: String,
     val subStatus: String?,
     val networkStatus: String?,
     val transactionHash: String?,

@@ -29,6 +29,7 @@ class StallCheckJob(
     private val candidates: StallCandidateRepository,
     private val vendor: VendorTransactionPort,
     private val alerts: StallAlertPort,
+    private val terminalObservations: StallTerminalObservationHandler,
     private val boostSubmitter: BoostSubmitter,
     private val jobs: JobStateRepository,
     private val clock: Clock,
@@ -71,6 +72,10 @@ class StallCheckJob(
         val boostResult =
             when (decision) {
                 is StallDecision.Alert -> BoostSubmissionResult.Alert(decision.reason)
+                StallDecision.ObserveTerminal -> {
+                    terminalObservations.observe(candidate, checkNotNull(latest), observedAt)
+                    return
+                }
                 is StallDecision.BoostEligible -> {
                     if (candidate.record.network in properties.automaticBoostEnabledNetworks) {
                         boostSubmitter.submit(candidate, decision.transactionHash)

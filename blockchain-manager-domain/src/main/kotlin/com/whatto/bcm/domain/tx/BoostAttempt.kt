@@ -70,6 +70,13 @@ interface BoostAttemptRepository {
         respondedAt: String,
     ): BoostAttempt
 
+    /** boost 응답보다 서명 검증된 웹훅이 먼저 온 경우 new tx와 root active를 함께 확정한다. */
+    fun markSubmittedByObservation(
+        externalTransactionId: String,
+        newVendorTransactionId: String,
+        respondedAt: String,
+    ): BoostAttempt
+
     fun markFailedByClaim(
         rootVendorTransactionId: String,
         trySequence: Int,
@@ -78,6 +85,8 @@ interface BoostAttemptRepository {
     ): BoostAttempt
 
     fun findByExternalTransactionId(externalTransactionId: String): BoostAttempt?
+
+    fun findByNewVendorTransactionId(newVendorTransactionId: String): BoostAttempt?
 
     fun findByRootAndSequence(
         rootVendorTransactionId: String,

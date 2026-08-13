@@ -18,6 +18,8 @@ sealed interface StallDecision {
     data class Alert(
         val reason: StallAlertReason,
     ) : StallDecision
+
+    data object ObserveTerminal : StallDecision
 }
 
 enum class StallAlertReason {
@@ -29,7 +31,6 @@ enum class StallAlertReason {
     TRANSACTION_HASH_MISSING,
     TRANSACTION_HASH_MISMATCH,
     ACTIVE_TRANSACTION_MISMATCH,
-    TERMINAL_OBSERVED,
     UNKNOWN_VENDOR_STAGE,
     VENDOR_TRANSACTION_NOT_FOUND,
     AUTOMATIC_BOOST_DISABLED,
@@ -51,7 +52,7 @@ object StallDecisionPolicy {
                 StallDecision.Alert(StallAlertReason.PRE_CHAIN_DELAY)
 
             VendorTransactionLifecycleStage.TERMINAL ->
-                StallDecision.Alert(StallAlertReason.TERMINAL_OBSERVED)
+                StallDecision.ObserveTerminal
 
             VendorTransactionLifecycleStage.UNKNOWN ->
                 StallDecision.Alert(StallAlertReason.UNKNOWN_VENDOR_STAGE)

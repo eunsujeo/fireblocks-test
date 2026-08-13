@@ -75,14 +75,14 @@ class StallDecisionPolicyTest {
     }
 
     @Test
-    fun `종결 관찰과 알 수 없는 단계는 별도 복구 대상으로 분류한다`() {
+    fun `종결 관찰은 정상 상태 처리하고 알 수 없는 단계만 복구 대상으로 분류한다`() {
         assertThat(
             StallDecisionPolicy.decide(
                 record(),
                 SubmissionTransactionType.WITHDRAWAL,
                 observation(stage = VendorTransactionLifecycleStage.TERMINAL),
             ),
-        ).isEqualTo(StallDecision.Alert(StallAlertReason.TERMINAL_OBSERVED))
+        ).isEqualTo(StallDecision.ObserveTerminal)
         assertThat(
             StallDecisionPolicy.decide(
                 record(),

@@ -8,6 +8,12 @@ interface TxRecordRepository {
     /** 상태 전이 반영 — confirmationCount·lastChangedAt 감소와 최초 기록 덮어쓰기를 DB 갱신문이 방어한다 */
     fun update(txRecord: TxRecord): TxRecord
 
+    /** active가 아닌 같은 RBF 계열의 성공 증거를 먼저 채굴된 승자로 채택한다. */
+    fun updatePhysicalWinner(
+        txRecord: TxRecord,
+        previousActiveVendorTxId: String,
+    ): TxRecord
+
     fun findByVendorTxId(vendorTxId: String): TxRecord?
 
     fun findByActiveVendorTxId(activeVendorTxId: String): TxRecord?

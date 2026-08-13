@@ -3,7 +3,6 @@ package com.whatto.bcm.app.application.webhook
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
-import com.whatto.bcm.app.application.tx.TxObservation
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEvent
@@ -18,7 +17,9 @@ import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.sweep.SweepTarget
 import com.whatto.bcm.domain.sweep.SweepTargetKey
 import com.whatto.bcm.domain.sweep.SweepTargetRepository
+import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.FinalityPolicyConfigurationException
+import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.webhook.UnattributedDepositAlert
@@ -86,6 +87,7 @@ class WebhookDecisionTransaction(
     private val txStates: TxStateService,
     private val outboxEvents: OutboxEventService,
     private val submissions: SubmissionRecordRepository,
+    private val boosts: BoostAttemptRepository,
     private val sweepExecutions: SweepExecutionRepository,
     private val sweepTargets: SweepTargetRepository,
     private val parser: FireblocksTransactionParser,
@@ -205,37 +207,69 @@ class WebhookDecisionTransaction(
         transaction: FireblocksTransaction,
     ): WebhookDecisionOutcome {
         val externalTransactionId = transaction.externalTransactionId
-        val submission = externalTransactionId?.let(submissions::findByExternalTransactionId)
+        val directSubmission = externalTransactionId?.let(submissions::findByExternalTransactionId)
+        val boost =
+            if (directSubmission == null) {
+                externalTransactionId?.let(boosts::findByExternalTransactionId)
+                    ?: boosts.findByNewVendorTransactionId(transaction.vendorTransactionId)
+            } else {
+                null
+            }
+        val submission =
+            directSubmission
+                ?: boost?.let { boostsAttempt ->
+                    submissions.findByVendorTransactionId(boostsAttempt.rootVendorTransactionId)
+                }
         if (submission == null) {
             return unregisteredVaultTransfer(inboxItem, transaction)
         }
-        when (val registeredVendorTransactionId = submission.vendorTransactionId) {
-            null -> {
-                submissions.markSubmitted(
-                    externalTransactionId,
-                    transaction.vendorTransactionId,
-                    inboxItem.receivedAt,
-                )
-            }
+        val rootVendorTransactionId =
+            if (boost != null) {
+                val registeredReplacement = boost.newVendorTransactionId
+                if (registeredReplacement != null && registeredReplacement != transaction.vendorTransactionId) {
+                    return quarantineNow(
+                        inboxItem,
+                        "boost vendor transaction id conflict: recorded=$registeredReplacement " +
+                            "observed=${transaction.vendorTransactionId}",
+                    )
+                }
+                boosts
+                    .markSubmittedByObservation(
+                        checkNotNull(externalTransactionId) { "boost webhook has no external transaction id" },
+                        transaction.vendorTransactionId,
+                        inboxItem.receivedAt,
+                    ).rootVendorTransactionId
+            } else {
+                when (val registeredVendorTransactionId = submission.vendorTransactionId) {
+                    null -> {
+                        submissions.markSubmitted(
+                            checkNotNull(externalTransactionId),
+                            transaction.vendorTransactionId,
+                            inboxItem.receivedAt,
+                        )
+                    }
 
-            transaction.vendorTransactionId -> {
-                Unit
-            }
+                    transaction.vendorTransactionId -> {
+                        Unit
+                    }
 
-            else -> {
-                // 한 요청 키에 거래가 둘 붙었다 — 재시도로 풀릴 성질이 아니라 사람이 봐야 한다.
-                // 03 sbmt_stcd 전이 표: "다른 vndr_tx_id 가 오면 충돌로 보고 격리한다" (즉시 격리)
-                return quarantineNow(
-                    inboxItem,
-                    "vendor transaction id conflict: recorded=$registeredVendorTransactionId " +
-                        "observed=${transaction.vendorTransactionId}",
-                )
+                    else -> {
+                        // 한 요청 키에 거래가 둘 붙었다 — 재시도로 풀릴 성질이 아니라 사람이 봐야 한다.
+                        // 03 sbmt_stcd 전이 표: "다른 vndr_tx_id 가 오면 충돌로 보고 격리한다" (즉시 격리)
+                        return quarantineNow(
+                            inboxItem,
+                            "vendor transaction id conflict: recorded=$registeredVendorTransactionId " +
+                                "observed=${transaction.vendorTransactionId}",
+                        )
+                    }
+                }
+                transaction.vendorTransactionId
             }
-        }
 
         val status = statusTranslator.translate(transaction, submission.network)
         val stateChange =
-            txStates.observe(
+            txStates.observeRoot(
+                rootVendorTransactionId = rootVendorTransactionId,
                 TxObservation(
                     vendorTransactionId = transaction.vendorTransactionId,
                     externalTransactionId = submission.externalTransactionId,
@@ -249,6 +283,7 @@ class WebhookDecisionTransaction(
                     vendorNetworkStatus = transaction.networkStatus,
                     observedAt = inboxItem.receivedAt,
                 ),
+                successEvidence = transaction.confirmationCount > 0 || transaction.rawStatus == "COMPLETED",
             )
         val eventType = submission.transactionType.customerEventType()
         if (eventType == null) {

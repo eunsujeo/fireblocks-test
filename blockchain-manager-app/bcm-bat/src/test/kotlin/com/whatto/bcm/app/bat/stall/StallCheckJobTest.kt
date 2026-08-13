@@ -158,6 +158,7 @@ class StallCheckJobTest {
     fun `최신 관찰이 이미 종결이면 막힘 경보로 소비하지 않는다`() {
         val candidates = RecordingStallCandidates(listOf(candidate("tx-terminal")))
         val alerts = mutableListOf<StallAlert>()
+        val observed = mutableListOf<String>()
 
         job(
             candidates,
@@ -173,10 +174,15 @@ class StallCheckJobTest {
             ),
             StallAlertPort(alerts::add),
             RecordingJobs(),
+            terminalObservations =
+                StallTerminalObservationHandler { candidate, _, _ ->
+                    observed += candidate.record.vendorTxId
+                },
         ).run()
 
         assertThat(alerts).isEmpty()
         assertThat(candidates.alertedRoots).isEmpty()
+        assertThat(observed).containsExactly("tx-terminal")
     }
 
     private fun job(
@@ -186,10 +192,13 @@ class StallCheckJobTest {
         jobs: JobStateRepository,
         boostSubmitter: BoostSubmitter = BoostSubmitter { _, _ -> error("automatic boost is disabled in this fixture") },
         properties: StallCheckProperties = StallCheckProperties(enabled = true, staleAfterSeconds = 300, batchSize = 100),
+        terminalObservations: StallTerminalObservationHandler =
+            StallTerminalObservationHandler { _, _, _ -> error("terminal observation is not expected in this fixture") },
     ) = StallCheckJob(
         candidates,
         vendor,
         alerts,
+        terminalObservations,
         boostSubmitter,
         jobs,
         Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),

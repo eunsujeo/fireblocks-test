@@ -112,6 +112,7 @@ class BoostJdbcAdapter(
         respondedAt: String,
     ): BoostAttempt {
         val current = required(rootVendorTransactionId, trySequence)
+        current.submittedWith(newVendorTransactionId)?.let { return it }
         val updated =
             try {
                 jdbc.update(
@@ -139,8 +140,63 @@ class BoostJdbcAdapter(
             } catch (exception: DuplicateKeyException) {
                 throw ConflictException("boostVendorTransaction", newVendorTransactionId, exception)
             }
-        if (updated != 1) throw ConflictException("boost", "$rootVendorTransactionId:$trySequence")
+        if (updated != 1) {
+            required(rootVendorTransactionId, trySequence).submittedWith(newVendorTransactionId)?.let { return it }
+            throw ConflictException("boost", "$rootVendorTransactionId:$trySequence")
+        }
+        switchRoot(current, newVendorTransactionId, respondedAt)
+        return required(rootVendorTransactionId, trySequence)
+    }
 
+    override fun markSubmittedByObservation(
+        externalTransactionId: String,
+        newVendorTransactionId: String,
+        respondedAt: String,
+    ): BoostAttempt {
+        val current =
+            findByExternalTransactionId(externalTransactionId)
+                ?: throw ConflictException("boost", externalTransactionId)
+        current.submittedWith(newVendorTransactionId)?.let { return it }
+        val updated =
+            try {
+                jdbc.update(
+                    """
+                    UPDATE bcm_boost_l
+                    SET bst_stcd = 'SUBMITTED',
+                        claim_id = NULL,
+                        claim_exp_dttm = NULL,
+                        new_tx_id = :newVendorTransactionId,
+                        rsp_dttm = :respondedAt,
+                        last_chng_empno = :employeeNo,
+                        last_chng_brcd = :branchCode
+                    WHERE ext_tx_id = :externalTransactionId
+                      AND bst_stcd = 'REQUESTED'
+                      AND new_tx_id IS NULL
+                    """.trimIndent(),
+                    mapOf(
+                        "externalTransactionId" to externalTransactionId,
+                        "newVendorTransactionId" to newVendorTransactionId,
+                        "respondedAt" to respondedAt,
+                        "employeeNo" to SystemAudit.EMPNO,
+                        "branchCode" to SystemAudit.BRCD,
+                    ),
+                )
+            } catch (exception: DuplicateKeyException) {
+                throw ConflictException("boostVendorTransaction", newVendorTransactionId, exception)
+            }
+        if (updated != 1) {
+            findByExternalTransactionId(externalTransactionId)?.submittedWith(newVendorTransactionId)?.let { return it }
+            throw ConflictException("boost", externalTransactionId)
+        }
+        switchRoot(current, newVendorTransactionId, respondedAt)
+        return checkNotNull(findByExternalTransactionId(externalTransactionId))
+    }
+
+    private fun switchRoot(
+        current: BoostAttempt,
+        newVendorTransactionId: String,
+        respondedAt: String,
+    ) {
         jdbc.update(
             """
             UPDATE bcm_tx_l
@@ -156,7 +212,7 @@ class BoostJdbcAdapter(
               AND last_pub_stcd IN (:boostableRootStatuses)
             """.trimIndent(),
             mapOf(
-                "rootVendorTransactionId" to rootVendorTransactionId,
+                "rootVendorTransactionId" to current.rootVendorTransactionId,
                 "replacementVendorTransactionId" to current.replacementVendorTransactionId,
                 "newVendorTransactionId" to newVendorTransactionId,
                 "respondedAt" to respondedAt,
@@ -165,7 +221,6 @@ class BoostJdbcAdapter(
                 "branchCode" to SystemAudit.BRCD,
             ),
         )
-        return required(rootVendorTransactionId, trySequence)
     }
 
     override fun markFailedByClaim(
@@ -201,6 +256,14 @@ class BoostJdbcAdapter(
             .query(
                 "$SELECT_COLUMNS WHERE boost.ext_tx_id = :externalTransactionId",
                 mapOf("externalTransactionId" to externalTransactionId),
+                ROW_MAPPER,
+            ).firstOrNull()
+
+    override fun findByNewVendorTransactionId(newVendorTransactionId: String): BoostAttempt? =
+        jdbc
+            .query(
+                "$SELECT_COLUMNS WHERE boost.new_tx_id = :newVendorTransactionId",
+                mapOf("newVendorTransactionId" to newVendorTransactionId),
                 ROW_MAPPER,
             ).firstOrNull()
 
@@ -273,6 +336,14 @@ class BoostJdbcAdapter(
         "employeeNo" to SystemAudit.EMPNO,
         "branchCode" to SystemAudit.BRCD,
     )
+
+    private fun BoostAttempt.submittedWith(newVendorTransactionId: String): BoostAttempt? {
+        if (status != BoostStatus.SUBMITTED) return null
+        if (this.newVendorTransactionId != newVendorTransactionId) {
+            throw ConflictException("boostVendorTransaction", newVendorTransactionId)
+        }
+        return this
+    }
 
     private data class LockedRoot(
         val activeVendorTransactionId: String,

@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.application.tx
 
+import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
@@ -61,6 +62,11 @@ private class RecordingTxRecords(
     override fun insert(txRecord: TxRecord): TxRecord = txRecord.also { record = it }
 
     override fun update(txRecord: TxRecord): TxRecord = txRecord.also { record = it }
+
+    override fun updatePhysicalWinner(
+        txRecord: TxRecord,
+        previousActiveVendorTxId: String,
+    ): TxRecord = txRecord.also { record = it }
 
     override fun findByVendorTxId(vendorTxId: String): TxRecord? = record
 

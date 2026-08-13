@@ -313,6 +313,12 @@ private class RecordingBoosts(
         )
     }
 
+    override fun markSubmittedByObservation(
+        externalTransactionId: String,
+        newVendorTransactionId: String,
+        respondedAt: String,
+    ): BoostAttempt = error("not used")
+
     override fun markFailedByClaim(
         rootVendorTransactionId: String,
         trySequence: Int,
@@ -324,6 +330,8 @@ private class RecordingBoosts(
     }
 
     override fun findByExternalTransactionId(externalTransactionId: String): BoostAttempt? = null
+
+    override fun findByNewVendorTransactionId(newVendorTransactionId: String): BoostAttempt? = null
 
     override fun findByRootAndSequence(
         rootVendorTransactionId: String,
