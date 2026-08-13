@@ -262,8 +262,10 @@ class FireblocksClient(
         val body = checkNotNull(response.body) { "transactions 응답 본문 없음" }
         val transactions = body.map(::toDomain)
         val outOfScope =
-            transactions.firstOrNull {
-                it.source.type != "VAULT_ACCOUNT" || it.source.id != request.sourceVaultId
+            request.sourceVaultId?.let { sourceVaultId ->
+                transactions.firstOrNull {
+                    it.source.type != "VAULT_ACCOUNT" || it.source.id != sourceVaultId
+                }
             }
         if (outOfScope != null) {
             throw VendorApiException(
@@ -364,10 +366,12 @@ class FireblocksClient(
                 request.afterEpochMillis?.let { queryParam("after", it) }
                 request.beforeEpochMillis?.let { queryParam("before", it) }
                 request.vendorStatus?.let { queryParam("status", it) }
-                queryParam("sort", request.order.name)
+                request.order?.let { queryParam("sort", it.name) }
                 queryParam("limit", request.limit)
-                queryParam("sourceType", "VAULT_ACCOUNT")
-                queryParam("sourceId", request.sourceVaultId)
+                request.sourceVaultId?.let {
+                    queryParam("sourceType", "VAULT_ACCOUNT")
+                    queryParam("sourceId", it)
+                }
             }.build()
             .encode()
             .toUriString()

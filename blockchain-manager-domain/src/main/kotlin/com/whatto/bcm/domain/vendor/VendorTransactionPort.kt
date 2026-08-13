@@ -59,11 +59,11 @@ sealed interface VendorTransactionSubmission {
 }
 
 data class VendorTransactionPageRequest(
-    val sourceVaultId: String,
+    val sourceVaultId: String?,
     val afterEpochMillis: Long? = null,
     val beforeEpochMillis: Long? = null,
     val vendorStatus: String? = null,
-    val order: VendorTransactionOrder = VendorTransactionOrder.DESC,
+    val order: VendorTransactionOrder? = VendorTransactionOrder.DESC,
     val limit: Int = 200,
     val cursor: String? = null,
 ) {
