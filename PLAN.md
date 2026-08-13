@@ -318,10 +318,11 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
   채굴 뒤 확정 지연·식별자/hash 불일치는 boost 없이 경보하며, 자동 boost 기능 게이트는 기본 비활성이라 가능 건도 경보 전용이다.
   후보 snapshot의 active id·마지막 변경 시각을 CAS해 경보 중복·오래된 관찰 반영을 막고 `bcm_job_m` heartbeat를 남긴다.
   정상 상태 진행 시 `stall_alrt_dttm`을 비워 새 막힘을 다시 감지한다. 종결 최신 관찰의 정상 경로 재흘림은 T7.6 세로줄에서 닫는다.
-- [ ] **T7.5 RBF 제출·이력·txId 접기** — 시도 직전 벤더 최신 상태를 재확인하고 Admin 임계·최대 시도 안에서 대체 거래를 제출,
-  `bcm_boost_l` intent와 root `bcm_tx_l.actv_tx_id` 변경을 원자 기록한다. 대체 거래의 새 externalTxId는 boost 원장에만 두고
-  고객 이벤트의 txId/externalTxId는 root 값을 유지한다. 착수 시 V1의 축약된 `bcm_boost_l`을 최신 03 정의(ext_tx_id UNIQUE,
-  상태·claim·교체 tx/hash·fee/gasless·요청/응답 시각·FK/index)에 맞춘다.
+- [x] **T7.5 RBF 제출·이력·txId 접기** (2026-08-13) — 시도 직전 벤더를 재조회하고 `bst-` UUID v7 intent·claim을
+  선커밋한 뒤 HIGH fee·gasless·`replaceTxByHash`로 출금 RBF를 제출한다. 만료 claim은 externalTxId 조회부터 회수하고,
+  최대 시도·claim 원자 획득·root active 조건부 전환을 PostgreSQL 테스트로 고정했다. 물리 승자 경합에서도 벤더에 실존하는
+  `new_tx_id`는 set-once로 남긴다. V1 `bcm_boost_l`은 최신 03 정의와 맞춰졌다. Fireblocks 공식 문서상 CONTRACT_CALL
+  RBF도 새 거래는 TRANSFER로 생성되므로 sweep은 원 호출 재실행 근거가 확인될 때까지 intent 생성 전 경보-only로 두었다.
 - [ ] **T7.6 E2E + converge** — 대체 웹훅이 원 거래 상태로 반영되고 DAW-CORE에는 원 txId/externalTxId만 발행되는 세로줄,
   막힘 점검에서 발견한 종결 최신 관찰의 정상 상태 처리 경로, 동시 실행·이미 교체됨·최대 시도 경보를 PostgreSQL 통합 테스트로
   검증한 뒤 design-sync·code-reviewer를 통과한다.
