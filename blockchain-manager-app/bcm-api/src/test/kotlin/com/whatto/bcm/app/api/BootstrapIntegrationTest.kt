@@ -65,7 +65,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `V1 마이그레이션이 bcm_ 15테이블을 전부 만든다 — 03-bcm-db와 07-asset-master 그대로`() {
+    fun `V1 마이그레이션이 bcm_ 16테이블을 전부 만든다 — 03-bcm-db와 07-asset-master 그대로`() {
         val tables =
             jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'bcm_%'",
@@ -86,6 +86,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             "bcm_swp_item_l",
             "bcm_boost_l",
             "bcm_job_m",
+            "bcm_fee_qt_l",
             "bcm_raw_tx_l",
         )
     }
