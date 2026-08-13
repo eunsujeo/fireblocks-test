@@ -34,15 +34,17 @@ class TransactionReconciliationJobTest {
         val match = record("tx-match", TxStatus.FINALIZED, "20260807115100")
         val managerOnly = record("tx-manager-only", TxStatus.FAILED, "20260807115200")
         val statusMismatch = record("tx-status", TxStatus.CONFIRMED, "20260807115300")
+        val terminalMismatch = record("tx-terminal-mismatch", TxStatus.FINALIZED, "20260807115400")
         val stuck = record("tx-stuck", TxStatus.CONFIRMED, "20260806120000")
         val repository =
             RecordingReconciliationRepository(
-                detected = listOf(reconciliation(match), reconciliation(managerOnly)),
+                detected = listOf(reconciliation(match), reconciliation(managerOnly), reconciliation(terminalMismatch)),
                 pending = listOf(reconciliation(stuck)),
                 byPhysical =
                     mapOf(
                         "tx-match" to reconciliation(match),
                         "tx-status" to reconciliation(statusMismatch),
+                        "tx-terminal-mismatch" to reconciliation(terminalMismatch),
                         "tx-stuck" to reconciliation(stuck),
                     ),
             )
@@ -60,7 +62,14 @@ class TransactionReconciliationJobTest {
                                 ),
                                 "cursor-2",
                             ),
-                        "cursor-2" to VendorPage(listOf(transaction("tx-status", "COMPLETED")), null),
+                        "cursor-2" to
+                            VendorPage(
+                                listOf(
+                                    transaction("tx-status", "COMPLETED"),
+                                    transaction("tx-terminal-mismatch", "FAILED"),
+                                ),
+                                null,
+                            ),
                     ),
                 singles = mapOf("tx-stuck" to transaction("tx-stuck", "COMPLETED")),
             )
@@ -93,7 +102,13 @@ class TransactionReconciliationJobTest {
         assertThat(recovered).containsExactly("tx-status", "tx-stuck")
         assertThat(reports.single().result.matchedCount).isEqualTo(1)
         assertThat(reports.single().result.mismatches.map { it.rootVendorTransactionId })
-            .containsExactly("tx-manager-only", "tx-status", "tx-stuck", "tx-vendor-only")
+            .containsExactly(
+                "tx-manager-only",
+                "tx-status",
+                "tx-stuck",
+                "tx-terminal-mismatch",
+                "tx-vendor-only",
+            )
         assertThat(reports.single().recoveredCount).isEqualTo(2)
         assertThat(jobs.started).containsExactly(JOB_NAME to NOW)
         assertThat(jobs.succeeded).containsExactly(JOB_NAME to NOW)
