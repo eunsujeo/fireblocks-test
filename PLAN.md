@@ -286,6 +286,11 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
 - [ ] **T6.11 E2E + 출시 게이트 + converge** — approve 준비→온체인 재확인→batch 선기록/제출→부분 성공 대사,
   중복 실행·Callback 불일치·전체 `approve(0)` 회수·고객 토픽 무발행을 검증한다. 실측 전 기능 게이트가 fail-closed임을 고정하고
   최신 설계 사본 동기화 뒤 design-sync·code-reviewer를 통과해야 Phase 6을 다시 완료한다.
+  2026-08-13 PostgreSQL/Flyway E2E로 고객 vault 2개의 approve 선기록→온체인 cap 재관측→batch 1:N 선기록·단일 제출→
+  1건 성공·1건 실패 대사→두 vault 전부 `approve(0)`·온체인 0 재관측을 검증했다. 같은 claim의 중복 batch 무제출,
+  sweep outbox 0건, gasless 요청, Callback 미검증 시 approve·batch·긴급 회수 전 경로 차단과 배포 기본 게이트 9종 false도 고정했다.
+  `./gradlew check ktlintCheck` 379건 그린이고 02·03·06·93~95·98 설계 사본은 waas-wiki `6801113`과 byte-동일하다.
+  **남은 완료 조건은 Claude Code 전용 design-sync·code-reviewer converge다.**
 
 ## Phase 7 — 막힘 점검 · 자동 boost
 
