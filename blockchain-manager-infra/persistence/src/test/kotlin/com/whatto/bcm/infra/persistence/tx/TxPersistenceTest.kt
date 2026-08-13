@@ -248,10 +248,12 @@ class TxPersistenceTest : PersistenceTestSupport() {
     @Test
     fun `대사 창과 미종결 후보는 경계와 상태를 지켜 시각 순으로 조회한다`() {
         txRecords.insert(txRecord(vendorTxId = "tx-before", status = TxStatus.FINALIZED))
+        txRecords.insert(txRecord(vendorTxId = "tx-boundary", status = TxStatus.FINALIZED))
         txRecords.insert(txRecord(vendorTxId = "tx-window-final", status = TxStatus.FINALIZED))
         txRecords.insert(txRecord(vendorTxId = "tx-window-pending", status = TxStatus.CONFIRMED, confirmationCount = 0))
         txRecords.insert(txRecord(vendorTxId = "tx-after", status = TxStatus.FAILED))
         jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807114959' WHERE vndr_tx_id = 'tx-before'")
+        jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807115000' WHERE vndr_tx_id = 'tx-boundary'")
         jdbc.update(
             "UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807115100', last_chng_dttm = '20260807115100' " +
                 "WHERE vndr_tx_id = 'tx-window-final'",
@@ -266,7 +268,7 @@ class TxPersistenceTest : PersistenceTestSupport() {
         val pending = txRecords.findPendingChangedAtOrBefore("20260807115000", 10)
 
         assertThat(window.map { it.record.vendorTxId })
-            .containsExactly("tx-window-final", "tx-window-pending")
+            .containsExactly("tx-boundary", "tx-window-final", "tx-window-pending")
         assertThat(pending.map { it.record.vendorTxId }).containsExactly("tx-window-pending")
     }
 

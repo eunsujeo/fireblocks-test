@@ -216,7 +216,7 @@ private class RecordingReconciliationRepository(
         byPhysical[vendorTransactionId]
 
     override fun findDetectedBetween(
-        detectedAfter: String,
+        detectedAtOrAfter: String,
         detectedAtOrBefore: String,
     ): List<TxReconciliationRecord> = detected
 

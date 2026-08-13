@@ -8,6 +8,7 @@ import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.OutboxEventRepository
 import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.StallCandidate
 import com.whatto.bcm.domain.tx.TxRecord
@@ -29,6 +30,7 @@ import com.whatto.bcm.infra.persistence.boost.BoostJdbcAdapter
 import com.whatto.bcm.infra.persistence.config.SpringTransactionRunner
 import com.whatto.bcm.infra.persistence.event.OutboxJdbcAdapter
 import com.whatto.bcm.infra.persistence.job.JobStateJdbcAdapter
+import com.whatto.bcm.infra.persistence.sweep.SweepExecutionJdbcAdapter
 import com.whatto.bcm.infra.persistence.tx.TxCrudRepository
 import com.whatto.bcm.infra.persistence.tx.TxJdbcAdapter
 import org.assertj.core.api.Assertions.assertThat
@@ -53,6 +55,7 @@ import java.time.ZoneId
     BoostJdbcAdapter::class,
     OutboxJdbcAdapter::class,
     JobStateJdbcAdapter::class,
+    SweepExecutionJdbcAdapter::class,
     SpringTransactionRunner::class,
 )
 class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
@@ -80,6 +83,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     lateinit var jobs: JobStateRepository
 
     @Autowired
+    lateinit var sweepExecutions: SweepExecutionRepository
+
+    @Autowired
     lateinit var jdbc: JdbcTemplate
 
     @BeforeEach
@@ -95,6 +101,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     private fun clearTables() {
         jdbc.update("DELETE FROM bcm_outbox_l")
         jdbc.update("DELETE FROM bcm_boost_l")
+        jdbc.update("DELETE FROM bcm_swp_exec_l")
         jdbc.update("DELETE FROM bcm_tx_l")
         jdbc.update("DELETE FROM bcm_job_m")
     }
@@ -108,6 +115,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 statusTranslator = FireblocksStatusTranslator { 1 },
                 transactionRunner = transactionRunner,
                 outbox = outbox,
+                sweepExecutions = sweepExecutions,
                 boosts = boosts,
                 vendor = FamilyVendor(emptyMap()),
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
@@ -146,6 +154,25 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             .containsEntry("vndr_tx_id", "tx-root")
             .containsEntry("evt_typ_dvcd", "TXCF")
             .containsEntry("topic", "deposit-events")
+    }
+
+    @Test
+    fun `SWEEP_BATCH 종결 재관찰은 실행을 항목 대사 대기로 옮기고 고객 outbox를 만들지 않는다`() {
+        val root = transactions.insert(rootRecord().copy(externalTxId = "swb-1"))
+        insertSweepExecution()
+        val handler = handler(FamilyVendor(emptyMap()))
+
+        handler.observe(
+            StallCandidate(root, SubmissionTransactionType.SWEEP_BATCH, "sweep-exec-1"),
+            completedTransaction().copy(externalTransactionId = "swb-1"),
+            "20260807120000",
+        )
+
+        assertThat(transactions.findByVendorTxId("tx-root")?.lastPublishedStatus).isEqualTo(TxStatus.FINALIZED)
+        assertThat(sweepExecutions.findById("sweep-exec-1"))
+            .extracting("status", "vendorTransactionId", "transactionHash")
+            .containsExactly(com.whatto.bcm.domain.sweep.SweepExecutionStatus.RECONCILING, "tx-root", "0xwinner")
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
     }
 
     @Test
@@ -194,6 +221,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 statusTranslator = FireblocksStatusTranslator { 1 },
                 transactionRunner = transactionRunner,
                 outbox = outbox,
+                sweepExecutions = sweepExecutions,
                 boosts = boosts,
                 vendor = FamilyVendor(mapOf("tx-root" to completedTransaction())),
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
@@ -288,12 +316,29 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             statusTranslator = FireblocksStatusTranslator { 1 },
             transactionRunner = transactionRunner,
             outbox = outbox,
+            sweepExecutions = sweepExecutions,
             boosts = boosts,
             vendor = vendor,
             eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
             clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
             outboxMaxAttempts = 5,
         )
+
+    private fun insertSweepExecution() {
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_exec_l
+              (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
+               swp_exec_stcd, item_cnt, req_tot_amt, actl_tot_amt, gasless_yn, vndr_tx_id, tx_hash,
+               req_dttm, fnsh_dttm, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES
+              ('sweep-exec-1', 'swb-1', ?, 'ETHEREUM', 'USDC', 'operator-1', '0xSweeper',
+               'SUBMITTED', 1, 1, NULL, 'Y', 'tx-root', NULL,
+               '20260807110000', NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            "a".repeat(64),
+        )
+    }
 
     private fun insertSubmittedBoost() {
         jdbc.update(
