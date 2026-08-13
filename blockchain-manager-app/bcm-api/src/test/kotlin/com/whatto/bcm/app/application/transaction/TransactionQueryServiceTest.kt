@@ -8,6 +8,8 @@ import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.tx.FinalityPolicy
+import com.whatto.bcm.domain.tx.TxRecord
+import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.UnmappedVendorAssetAlert
 import com.whatto.bcm.domain.vendor.UnmappedVendorAssetAlertPort
@@ -36,6 +38,9 @@ class TransactionQueryServiceTest {
     @MockK
     lateinit var mappings: VendorAssetMappingQueryService
 
+    @MockK
+    lateinit var transactions: TxRecordRepository
+
     private val unmappedAlerts = mutableListOf<UnmappedVendorAssetAlert>()
     private val unmappedAssetAlerts = UnmappedVendorAssetAlertPort { unmappedAlerts += it }
 
@@ -51,8 +56,12 @@ class TransactionQueryServiceTest {
                 mappings,
                 FireblocksStatusTranslator(FinalityPolicy { 3 }),
                 unmappedAssetAlerts,
+                transactions,
             )
         every { mappings.findByVendorAssetId("asset-uuid") } returns MAPPING
+        every { transactions.findByVendorTxId(any()) } returns null
+        every { transactions.findByActiveVendorTxId(any()) } returns null
+        every { transactions.findByExternalTxId(any()) } returns null
     }
 
     @Test
@@ -71,6 +80,33 @@ class TransactionQueryServiceTest {
         assertThat(result.destinationAddress).isEqualTo("0x9fE2")
         assertThat(result.createdAt).isEqualTo("2026-08-07T02:05:06.789Z")
         assertThat(result.lastUpdated).isEqualTo("2026-08-07T02:06:10.120Z")
+    }
+
+    @Test
+    fun `root txId 단건 조회는 active 대체 거래를 읽고 최초 식별자를 유지한다`() {
+        every { transactions.findByVendorTxId("tx-root") } returns rootRecord()
+        every { vendor.transaction("tx-replacement") } returns
+            fixture(transactionId = "tx-replacement", externalTransactionId = "bst-replacement")
+
+        val result = service.transaction("tx-root")
+
+        assertThat(result.transactionId).isEqualTo("tx-root")
+        assertThat(result.externalTransactionId).isEqualTo("wd-root")
+        verify(exactly = 1) { vendor.transaction("tx-replacement") }
+    }
+
+    @Test
+    fun `최초 externalTxId 단건 조회도 active 대체 거래를 읽고 root 식별자를 유지한다`() {
+        every { transactions.findByExternalTxId("wd-root") } returns rootRecord()
+        every { vendor.transaction("tx-replacement") } returns
+            fixture(transactionId = "tx-replacement", externalTransactionId = "bst-replacement")
+
+        val result = service.transactionByExternalTransactionId("wd-root")
+
+        assertThat(result.transactionId).isEqualTo("tx-root")
+        assertThat(result.externalTransactionId).isEqualTo("wd-root")
+        verify(exactly = 1) { vendor.transaction("tx-replacement") }
+        verify(exactly = 0) { vendor.transactionByExternalTransactionId(any()) }
     }
 
     @Test
@@ -397,6 +433,21 @@ class TransactionQueryServiceTest {
         service.transactions(ACCOUNT_ID, TransactionPageQuery(cursor = second.nextCursor))
         assertThat(unmappedAlerts).hasSize(1)
     }
+
+    private fun rootRecord() =
+        TxRecord(
+            vendorTxId = "tx-root",
+            activeVendorTxId = "tx-replacement",
+            externalTxId = "wd-root",
+            accountId = ACCOUNT_ID,
+            network = "ETHEREUM",
+            symbol = "USDC",
+            transactionHash = "0xabc",
+            lastPublishedStatus = TxStatus.CONFIRMED,
+            confirmationCount = 0,
+            firstDetectedAt = "20260807110000",
+            lastChangedAt = "20260807120000",
+        )
 
     companion object {
         private const val ACCOUNT_ID = "acct_pool_02"
