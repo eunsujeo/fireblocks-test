@@ -90,6 +90,8 @@ interface BoostAttemptRepository {
 
     fun findLatestViableByRoot(rootVendorTransactionId: String): BoostAttempt?
 
+    fun findViableByRoot(rootVendorTransactionId: String): List<BoostAttempt>
+
     fun findByRootAndSequence(
         rootVendorTransactionId: String,
         trySequence: Int,

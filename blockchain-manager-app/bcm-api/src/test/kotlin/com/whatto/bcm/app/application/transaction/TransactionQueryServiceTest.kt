@@ -70,6 +70,7 @@ class TransactionQueryServiceTest {
         every { boosts.findByNewVendorTransactionId(any()) } returns null
         every { boosts.findByExternalTransactionId(any()) } returns null
         every { boosts.findLatestViableByRoot(any()) } returns null
+        every { boosts.findViableByRoot(any()) } returns emptyList()
     }
 
     @Test

@@ -281,6 +281,18 @@ class BoostJdbcAdapter(
                 ROW_MAPPER,
             ).firstOrNull()
 
+    override fun findViableByRoot(rootVendorTransactionId: String): List<BoostAttempt> =
+        jdbc.query(
+            """
+            $SELECT_COLUMNS
+            WHERE boost.orig_tx_id = :rootVendorTransactionId
+              AND boost.bst_stcd IN ('REQUESTED', 'SUBMITTED')
+            ORDER BY boost.try_seq
+            """.trimIndent(),
+            mapOf("rootVendorTransactionId" to rootVendorTransactionId),
+            ROW_MAPPER,
+        )
+
     override fun findByRootAndSequence(
         rootVendorTransactionId: String,
         trySequence: Int,

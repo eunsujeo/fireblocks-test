@@ -10,14 +10,14 @@ import com.whatto.bcm.domain.tx.StallCandidate
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
+import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionPeer
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.domain.vendor.VendorTransactionRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
-import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
-import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.infra.client.fireblocks.FireblocksStatusTranslator
 import com.whatto.bcm.infra.persistence.boost.BoostJdbcAdapter
 import com.whatto.bcm.infra.persistence.config.SpringTransactionRunner
@@ -146,6 +146,67 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             .containsEntry("evt_typ_dvcd", "TXCF")
     }
 
+    @Test
+    fun `RBF 계열 전체가 FAILED일 때만 active 실패를 root에 확정한다`() {
+        val root =
+            transactions.insert(
+                rootRecord().copy(
+                    activeVendorTxId = "tx-replacement",
+                    transactionHash = "0xreplacement",
+                ),
+            )
+        insertSubmittedBoost()
+        val rootFailed = failedReplacementTransaction().copy(transactionId = "tx-root", externalTransactionId = "wd-root")
+        val handler = handler(FamilyVendor(mapOf("tx-root" to rootFailed)))
+
+        handler.observe(
+            StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
+            failedReplacementTransaction(),
+            "20260807120000",
+        )
+
+        assertThat(transactions.findByVendorTxId("tx-root")?.lastPublishedStatus).isEqualTo(TxStatus.FAILED)
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_outbox_l")["evt_typ_dvcd"]).isEqualTo("TXFL")
+    }
+
+    @Test
+    fun `REQUESTED boost 응답을 externalTxId로 회수하고 성공 대체 거래를 root에 확정한다`() {
+        val root = transactions.insert(rootRecord())
+        insertRequestedBoost()
+        val replacement = completedTransaction().copy(transactionId = "tx-replacement", externalTransactionId = "bst-1")
+        val handler =
+            handler(
+                FamilyVendor(
+                    transactions = mapOf("tx-replacement" to replacement),
+                    externalTransactions = mapOf("bst-1" to replacement),
+                ),
+            )
+
+        handler.observe(
+            StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
+            failedReplacementTransaction().copy(transactionId = "tx-root", externalTransactionId = "wd-root"),
+            "20260807120000",
+        )
+
+        assertThat(transactions.findByVendorTxId("tx-root"))
+            .extracting("activeVendorTxId", "lastPublishedStatus", "transactionHash")
+            .containsExactly("tx-replacement", TxStatus.FINALIZED, "0xwinner")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_boost_l")["new_tx_id"]).isEqualTo("tx-replacement")
+    }
+
+    private fun handler(vendor: VendorTransactionPort) =
+        TransactionalStallTerminalObservationHandler(
+            transactions = transactions,
+            statusTranslator = FireblocksStatusTranslator { 1 },
+            transactionRunner = transactionRunner,
+            outbox = outbox,
+            boosts = boosts,
+            vendor = vendor,
+            eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
+            clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
+            outboxMaxAttempts = 5,
+        )
+
     private fun insertSubmittedBoost() {
         jdbc.update(
             """
@@ -156,6 +217,21 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             VALUES
               ('tx-root', 1, 'bst-1', 'SUBMITTED', NULL, NULL,
                'tx-root', '0xwinner', 'HIGH', 'Y', 'tx-replacement', '20260807113000', '20260807113100',
+               'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+        )
+    }
+
+    private fun insertRequestedBoost() {
+        jdbc.update(
+            """
+            INSERT INTO bcm_boost_l
+              (orig_tx_id, try_seq, ext_tx_id, bst_stcd, claim_id, claim_exp_dttm,
+               rplc_tx_id, rplc_tx_hash, fee_lvl, gasless_yn, new_tx_id, req_dttm, rsp_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES
+              ('tx-root', 1, 'bst-1', 'REQUESTED', 'claim-1', '20260807123000',
+               'tx-root', '0xwinner', 'HIGH', 'Y', NULL, '20260807113000', NULL,
                'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
         )
@@ -208,10 +284,12 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
 
 private class FamilyVendor(
     private val transactions: Map<String, VendorTransaction>,
+    private val externalTransactions: Map<String, VendorTransaction> = emptyMap(),
 ) : VendorTransactionPort {
     override fun transaction(transactionId: String): VendorTransaction? = transactions[transactionId]
 
-    override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? = null
+    override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? =
+        externalTransactions[externalTransactionId]
 
     override fun submitTransaction(request: VendorTransactionRequest): VendorTransactionSubmission = error("not used")
 

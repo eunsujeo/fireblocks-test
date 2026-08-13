@@ -288,9 +288,7 @@ class WebhookDecisionTransaction(
                 successEvidence =
                     viableBoost != null &&
                         PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation()),
-                deferFailure =
-                    viableBoost != null &&
-                        viableBoost.newVendorTransactionId != transaction.vendorTransactionId,
+                deferFailure = viableBoost != null,
             )
         val eventType = submission.transactionType.customerEventType()
         if (eventType == null) {

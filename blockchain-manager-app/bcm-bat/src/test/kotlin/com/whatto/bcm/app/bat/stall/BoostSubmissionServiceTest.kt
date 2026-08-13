@@ -335,6 +335,8 @@ private class RecordingBoosts(
 
     override fun findLatestViableByRoot(rootVendorTransactionId: String): BoostAttempt? = null
 
+    override fun findViableByRoot(rootVendorTransactionId: String): List<BoostAttempt> = emptyList()
+
     override fun findByRootAndSequence(
         rootVendorTransactionId: String,
         trySequence: Int,
