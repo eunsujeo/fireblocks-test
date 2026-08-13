@@ -89,14 +89,26 @@ class SweepBatchReconciliationServiceTest {
         assertThat(fixture.targets.rows()).allMatch { it.activeSweepExecutionId == null }
     }
 
+    @Test
+    fun `벤더 최상위 해시가 없어도 저장된 실행 해시와 network record가 일치하면 대사를 완료한다`() {
+        val fixture = fixture(vendorTransactionHash = null)
+
+        val result = fixture.service.runOnce()
+
+        assertThat(result).isEqualTo(SweepReconciliationCycleResult(1, 0, 0))
+        assertThat(fixture.executions.execution.status).isEqualTo(SweepExecutionStatus.PARTIAL)
+        assertThat(fixture.alerts).isEmpty()
+    }
+
     private fun fixture(
         legs: List<SweepLegObservation> = listOf(successLeg(), failedLeg()),
         statuses: SweepTransactionStatusRepository = StableFinalizedStatuses,
         vendorStatus: String = "COMPLETED",
+        vendorTransactionHash: String? = TX_HASH,
     ): ReconciliationFixture {
         val targets = FakeReconciliationTargets()
         val executions = FakeReconciliationExecutions(targets)
-        val vendor = FakeReconciliationVendor(vendorTransaction(vendorStatus))
+        val vendor = FakeReconciliationVendor(vendorTransaction(vendorStatus, vendorTransactionHash))
         val receiptPort = FixedBatchReceiptPort(SweepBatchReceipt(true, legs))
         val erc20 = ReconciliationErc20
         val mappings = ReconciliationMappings(mapping())
@@ -125,36 +137,38 @@ class SweepBatchReconciliationServiceTest {
         return ReconciliationFixture(service, executions, targets, alerts)
     }
 
-    private fun vendorTransaction(status: String) =
-        VendorTransaction(
-            transactionId = VENDOR_TX_ID,
-            externalTransactionId = EXTERNAL_ID,
-            vendorAssetId = "ETH",
-            rawStatus = status,
-            subStatus = null,
-            transactionHash = TX_HASH,
-            source = VendorTransactionPeer("VAULT_ACCOUNT", "operator-vault"),
-            destination = VendorTransactionPeer("ONE_TIME_ADDRESS", null),
-            sourceAddress = null,
-            destinationAddress = SWEEPER,
-            amount = "0",
-            confirmationCount = 1,
-            createdAtEpochMillis = 1,
-            lastUpdatedEpochMillis = 2,
-            networkRecords =
-                listOf(
-                    VendorNetworkRecord(
-                        type = "CONTRACT_CALL",
-                        source = VendorTransactionPeer("VAULT_ACCOUNT", "vault-a"),
-                        destination = VendorTransactionPeer("ONE_TIME_ADDRESS", null),
-                        destinationAddress = OMNIBUS_ADDRESS,
-                        transactionHash = TX_HASH,
-                        vendorAssetId = VENDOR_ASSET,
-                        netAmount = "3",
-                        dropped = false,
-                    ),
+    private fun vendorTransaction(
+        status: String,
+        transactionHash: String?,
+    ) = VendorTransaction(
+        transactionId = VENDOR_TX_ID,
+        externalTransactionId = EXTERNAL_ID,
+        vendorAssetId = "ETH",
+        rawStatus = status,
+        subStatus = null,
+        transactionHash = transactionHash,
+        source = VendorTransactionPeer("VAULT_ACCOUNT", "operator-vault"),
+        destination = VendorTransactionPeer("ONE_TIME_ADDRESS", null),
+        sourceAddress = null,
+        destinationAddress = SWEEPER,
+        amount = "0",
+        confirmationCount = 1,
+        createdAtEpochMillis = 1,
+        lastUpdatedEpochMillis = 2,
+        networkRecords =
+            listOf(
+                VendorNetworkRecord(
+                    type = "CONTRACT_CALL",
+                    source = VendorTransactionPeer("VAULT_ACCOUNT", "vault-a"),
+                    destination = VendorTransactionPeer("ONE_TIME_ADDRESS", null),
+                    destinationAddress = OMNIBUS_ADDRESS,
+                    transactionHash = TX_HASH,
+                    vendorAssetId = VENDOR_ASSET,
+                    netAmount = "3",
+                    dropped = false,
                 ),
-        )
+            ),
+    )
 
     private fun successLeg() = SweepLegObservation(EXECUTION_ID, 1, OWNER_A, "3", "3", true, ZERO_CODE, 10)
 

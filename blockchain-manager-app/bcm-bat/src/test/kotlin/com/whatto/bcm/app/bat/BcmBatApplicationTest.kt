@@ -1,13 +1,26 @@
 package com.whatto.bcm.app.bat
 
+import com.whatto.bcm.app.bat.sweep.LoggingSweepExecutionAlertAdapter
+import com.whatto.bcm.domain.sweep.SweepExecutionAlertPort
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.boot.env.YamlPropertySourceLoader
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.core.env.StandardEnvironment
 import org.springframework.core.io.ClassPathResource
+import org.springframework.stereotype.Component
 import java.time.ZoneId
 
 class BcmBatApplicationTest {
+    @Test
+    fun `sweep 실행 경보 포트는 운영 빈으로 조립된다`() {
+        assertThat(LoggingSweepExecutionAlertAdapter::class.java).hasAnnotation(Component::class.java)
+
+        ApplicationContextRunner()
+            .withUserConfiguration(LoggingSweepExecutionAlertAdapter::class.java)
+            .run { context -> assertThat(context).hasSingleBean(SweepExecutionAlertPort::class.java) }
+    }
+
     @Test
     fun `배치 시각 원천은 KST다`() {
         assertThat(BcmBatApplication().clock().zone).isEqualTo(ZoneId.of("Asia/Seoul"))
