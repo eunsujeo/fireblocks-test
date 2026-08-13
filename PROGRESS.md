@@ -4,7 +4,7 @@
 
 ## 현재 위치
 
-- **Phase 8 T8.2 확정 원본 보관까지 완료했다. 다음 작업은 T8.3 수수료 견적 시계열이다.**
+- **Phase 8 T8.1~T8.3 구현과 전체 검증을 완료했다. 다음 작업은 T8.4 converge다.**
 - `tx-reconciliation`은 기본 비활성 10분 주기다. workspace `GET /v1/transactions`를 source/order 없이
   최대 500건씩 페이징하고, `bcm_job_m.last_scs_dttm` 경계를 1ms 겹쳐 createdAt 창을 이어 붙인다.
 - 벤더 원어 COMPLETED·FAILED·vault 발신 REJECTED/BLOCKED만 root 거래와 비교해 일치·vendor-only·
@@ -18,13 +18,16 @@
 - 월별 파티션은 배포 역할이 `db/operations/create_bcm_raw_tx_partitions.sql`로 대상 월 전에 선생성한다.
   런타임은 DML만 수행하며 파티션 누락·정리 실패 시 적재·인박스 삭제·성공 heartbeat가 모두 롤백된다.
 - 처리 완료(S) 인박스만 운영 보존일 뒤 정리한다. P/F와 아직 보관되지 않은 FINALIZED COMPLETED 원문은 보존한다.
-- `./gradlew check ktlintCheck --rerun-tasks` 전체 449건 그린. 02·03 설계 사본은 waas-wiki `3b033ca`와 byte 동일하다.
-  Phase converge용 Claude agent는 Phase 8 종료 때 재실행한다.
+- `network-fee-quote-collection`은 기본 비활성 5분 주기이며 30초 미만 설정을 거부한다. 등록된 벤더 자산별
+  network fee LOW·MEDIUM·HIGH를 같은 관측 시각으로 `bcm_fee_qt_l`에 저장한다.
+- 모든 자산 응답을 먼저 받은 뒤 견적과 성공 heartbeat를 한 트랜잭션에 기록한다. 동일 초 PK는 멱등이며,
+  일반 제출은 MEDIUM, boost는 저장된 fee level로 요청 시각 이하 최근 견적을 대응하고 미래 견적은 제외한다.
+- `./gradlew check ktlintCheck --rerun-tasks` 전체 456건 그린. 02·03 설계 사본은 waas-wiki `f6fee44`와 byte 동일하다.
 
 ## 다음 작업
 
-- T8.3 수수료 견적 시계열은 02에 동작만 있고 저장 테이블·견적 벤더 API·제출 시각 대응 키가 아직 없다.
-  구현 전에 waas-wiki 02·03에서 저장 모델과 수집/대응 계약을 확정하고 사본을 동기화한다.
+- 2026-08-13 18:53 KST design-sync·code-reviewer를 재시도했으나 둘 다 Claude 세션 제한으로 시작 전에 중단됐다.
+  20:30 KST 제한 해제 뒤 `5cb9301..HEAD` Phase 8 전체 리뷰를 다시 실행하고 지적 반영 후 T8.4·Phase 8을 닫는다.
 
 ## 리뷰 후속·외부 조건
 

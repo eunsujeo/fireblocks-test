@@ -37,6 +37,7 @@
 | `bcm_boost_l` | Phase 1 | Phase 7 |
 | `bcm_job_m` | Phase 1 | Phase 7 (막힘 점검 주기) · Phase 8 (대사 커서·heartbeat) |
 | `bcm_raw_tx_l` | Phase 1 | Phase 8 (일 배치 보관) |
+| `bcm_fee_qt_l` | **Phase 8** | Phase 8 (자산별 네트워크 수수료 견적 시계열 · 제출 시각 대응) |
 | `bcm_sbmt_l` | **Phase 5** (03 신설 — 2026-08-07) | Phase 5 (멱등·분류) · Phase 6 (sweep 제출) · Phase 7 (미결 점검) |
 
 ## Phase 0 — 프로젝트 스캐폴드
@@ -359,8 +360,11 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
   파티션 누락이나 정리 실패 시 모두 롤백된다. 완료: 파티션 범위·멱등/최신 원본·입출금 주소·원문 byte 동일·실패 원자성
   PostgreSQL 테스트와 전체 449건·ktlint 그린.
   근거: 03 원본 보관/보존 규칙 · CLAUDE.md 수신 원문 byte 보존
-- [ ] **T8.3 수수료 견적 시계열** — 02의 견적 관측과 제출 시각 대응 계약을 저장 모델부터 확정하고 주기 수집을 구현한다.
-  완료: 주기 견적 적재·동일 시각 멱등·제출 시각 최근 견적 대응 테스트 그린. 근거: 02 수수료 관측
+- [x] **T8.3 수수료 견적 시계열** (2026-08-13) — 등록 자산별 Fireblocks network fee LOW·MEDIUM·HIGH를
+  기본 비활성 5분 주기로 수집하고 `bcm_fee_qt_l`에 같은 관측 시각으로 적재한다. 30초 미만 주기는 거부하며,
+  모든 벤더 응답을 먼저 받은 뒤 견적과 성공 heartbeat를 한 트랜잭션에 기록한다. 동일 초 PK 멱등, 일반 제출 MEDIUM·
+  boost 저장 fee level의 요청 시각 이하 최근 견적 대응과 미래 견적 제외를 PostgreSQL 테스트로 고정했다.
+  완료: 전체 456건·ktlint 그린. 근거: 02 수수료 관측 · 03 `bcm_fee_qt_l`
 - [ ] **T8.4 E2E + converge** — 배치 3종 완료 후 전체 check·ktlint, design-sync·code-reviewer와 설계 사본
   신선도를 통과하고 Phase 8을 닫는다. 근거: PLAN 공통 완료 규칙
 
