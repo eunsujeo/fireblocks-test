@@ -53,9 +53,9 @@ class TxReconciliationPolicyTest {
                 snapshot("tx-root", TxStatus.FINALIZED),
             )
 
-        org.assertj.core.api.Assertions.assertThatThrownBy {
-            TxReconciliationPolicy.compare(vendor, emptyList())
-        }.isInstanceOf(IllegalArgumentException::class.java)
+        org.assertj.core.api.Assertions
+            .assertThatThrownBy { TxReconciliationPolicy.compare(vendor, emptyList()) }
+            .isInstanceOf(IllegalArgumentException::class.java)
             .hasMessageContaining("tx-root")
     }
 
