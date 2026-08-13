@@ -1,8 +1,8 @@
 package com.whatto.bcm.app.bat.stall
 
-import com.whatto.bcm.app.bat.support.IntegrationTestSupport
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationJob
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationProperties
+import com.whatto.bcm.app.bat.support.IntegrationTestSupport
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.OutboxEventRepository
@@ -11,11 +11,11 @@ import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.StallCandidate
-import com.whatto.bcm.domain.tx.TxRecord
-import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxReconciliationReport
 import com.whatto.bcm.domain.tx.TxReconciliationReportPort
 import com.whatto.bcm.domain.tx.TxReconciliationRepository
+import com.whatto.bcm.domain.tx.TxRecord
+import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorTransaction

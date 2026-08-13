@@ -101,14 +101,18 @@ class TransactionReconciliationJobTest {
         assertThat(vendor.singleLookups).containsExactly("tx-stuck")
         assertThat(recovered).containsExactly("tx-status", "tx-stuck")
         assertThat(reports.single().result.matchedCount).isEqualTo(1)
-        assertThat(reports.single().result.mismatches.map { it.rootVendorTransactionId })
-            .containsExactly(
-                "tx-manager-only",
-                "tx-status",
-                "tx-stuck",
-                "tx-terminal-mismatch",
-                "tx-vendor-only",
-            )
+        assertThat(
+            reports
+                .single()
+                .result.mismatches
+                .map { it.rootVendorTransactionId },
+        ).containsExactly(
+            "tx-manager-only",
+            "tx-status",
+            "tx-stuck",
+            "tx-terminal-mismatch",
+            "tx-vendor-only",
+        )
         assertThat(reports.single().recoveredCount).isEqualTo(2)
         assertThat(jobs.started).containsExactly(JOB_NAME to NOW)
         assertThat(jobs.succeeded).containsExactly(JOB_NAME to NOW)
@@ -145,8 +149,7 @@ class TransactionReconciliationJobTest {
         assertThat(jobs.succeeded).isEmpty()
     }
 
-    private fun reconciliation(record: TxRecord) =
-        TxReconciliationRecord(record, SubmissionTransactionType.WITHDRAWAL, null)
+    private fun reconciliation(record: TxRecord) = TxReconciliationRecord(record, SubmissionTransactionType.WITHDRAWAL, null)
 
     private fun record(
         id: String,
@@ -184,7 +187,14 @@ class TransactionReconciliationJobTest {
         confirmationCount = if (status == "COMPLETED") 1 else 0,
         createdAtEpochMillis = epochMillis("20260807115500"),
         lastUpdatedEpochMillis = epochMillis("20260807115500"),
-        lifecycleStage = if (status == "CONFIRMING") VendorTransactionLifecycleStage.CONFIRMING else VendorTransactionLifecycleStage.TERMINAL,
+        lifecycleStage =
+            if (status ==
+                "CONFIRMING"
+            ) {
+                VendorTransactionLifecycleStage.CONFIRMING
+            } else {
+                VendorTransactionLifecycleStage.TERMINAL
+            },
     )
 
     private fun epochMillis(value: String): Long =
@@ -227,8 +237,7 @@ private class RecordingReconciliationRepository(
     private val pending: List<TxReconciliationRecord> = emptyList(),
     private val byPhysical: Map<String, TxReconciliationRecord> = emptyMap(),
 ) : TxReconciliationRepository {
-    override fun findByPhysicalVendorTransactionId(vendorTransactionId: String): TxReconciliationRecord? =
-        byPhysical[vendorTransactionId]
+    override fun findByPhysicalVendorTransactionId(vendorTransactionId: String): TxReconciliationRecord? = byPhysical[vendorTransactionId]
 
     override fun findDetectedBetween(
         detectedAtOrAfter: String,
