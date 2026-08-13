@@ -5,7 +5,8 @@
 ## 현재 위치
 
 - **Phase 6 T6.11 구현·로컬 검증까지 완료했다. 체크박스와 Phase 완료는 Claude Code의 design-sync·code-reviewer converge 뒤다.**
-- 설계 정본은 waas-wiki `6801113`; 02·03·06·93~95·98 사본은 현재 byte-동일하다.
+- V1 `bcm_swp_exec_l.gasless_yn`과 waas-wiki 03의 sweep/boost 정의를 `_yn VARCHAR(1)` 규약에 맞추고 사본을 byte-동일 동기화했다.
+- 설계 정본 기준 커밋은 waas-wiki `6801113`; 이번 03 사본은 현재 정본 작업 트리와 byte-동일하다. waas-wiki의 별도 06 미커밋 변경은 이 작업에서 동기화하지 않았다.
 - 고객 vault별 제한 allowance, 운영 계정 batch CONTRACT_CALL, `SweepExecution 1:N SweepItem`, network records +
   receipt `SweepLeg` 항목 대사를 채택했다. approve와 batch는 `SWEEP_APPROVE`·`SWEEP_BATCH` 제출 원장으로 분리된다.
 - allowance는 온체인이 정본이다. 0이면 cap approve 후 재관측까지 APPROVING이며, cap 변경은 active item 없음 →

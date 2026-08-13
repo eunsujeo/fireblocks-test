@@ -209,7 +209,7 @@ CREATE TABLE bcm_swp_exec_l (
   item_cnt         INT            NOT NULL,
   req_tot_amt      NUMERIC(36,18) NOT NULL,
   actl_tot_amt     NUMERIC(36,18) NULL,
-  gasless_yn       CHAR(1)        NOT NULL,
+  gasless_yn       VARCHAR(1)     NOT NULL,
   vndr_tx_id       VARCHAR(64)    NULL UNIQUE,
   tx_hash          VARCHAR(128)   NULL,
   req_dttm         VARCHAR(16)    NOT NULL,
