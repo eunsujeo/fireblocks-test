@@ -8,12 +8,16 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.context.annotation.Import
+import org.springframework.jdbc.core.JdbcTemplate
 
 @DataJdbcTest
 @Import(NetworkFeeQuoteJdbcAdapter::class)
 class NetworkFeeQuotePersistenceTest : PersistenceTestSupport() {
     @Autowired
     lateinit var quotes: NetworkFeeQuoteJdbcAdapter
+
+    @Autowired
+    lateinit var jdbc: JdbcTemplate
 
     @Test
     fun `같은 관측 시각의 세 fee level은 한 번만 저장된다`() {
@@ -24,7 +28,7 @@ class NetworkFeeQuotePersistenceTest : PersistenceTestSupport() {
 
         assertThat(quotes.saveAll(observed)).isEqualTo(3)
         assertThat(quotes.saveAll(observed)).isZero()
-        assertThat(quotes.count()).isEqualTo(3)
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bcm_fee_qt_l", Int::class.java)).isEqualTo(3)
     }
 
     @Test
