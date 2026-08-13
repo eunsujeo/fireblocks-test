@@ -20,4 +20,26 @@ class BcmBatApplicationTest {
 
         assertThat(environment.getProperty("spring.threads.virtual.enabled", Boolean::class.java)).isTrue()
     }
+
+    @Test
+    fun `sweep 출시 게이트의 배포 기본값은 모두 닫혀 있다`() {
+        val properties = YamlPropertySourceLoader().load("application", ClassPathResource("application.yaml")).single()
+        val environment = StandardEnvironment().apply { propertySources.addFirst(properties) }
+        val gates =
+            listOf(
+                "normal-approval-enabled",
+                "emergency-revocation-enabled",
+                "batch-submission-enabled",
+                "tap-approval-policy-verified",
+                "tap-revocation-policy-verified",
+                "tap-batch-policy-verified",
+                "callback-verified",
+                "universal-gasless-verified",
+                "sweep-contract-verified",
+            )
+
+        gates.forEach { gate ->
+            assertThat(environment.getProperty("bcm.sweep.security.$gate", Boolean::class.java)).isFalse()
+        }
+    }
 }
