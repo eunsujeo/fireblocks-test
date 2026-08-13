@@ -140,6 +140,13 @@ private class RecordingQuotes : NetworkFeeQuoteRepository {
         feeLevel: com.whatto.bcm.domain.vendor.VendorFeeLevel,
         requestedAt: String,
     ): NetworkFeeQuote? = error("not used")
+
+    override fun findForSubmission(externalTransactionId: String): NetworkFeeQuote? = error("not used")
+
+    override fun findForBoost(
+        originalTransactionId: String,
+        attemptSequence: Int,
+    ): NetworkFeeQuote? = error("not used")
 }
 
 private class RecordingJobs : JobStateRepository {
