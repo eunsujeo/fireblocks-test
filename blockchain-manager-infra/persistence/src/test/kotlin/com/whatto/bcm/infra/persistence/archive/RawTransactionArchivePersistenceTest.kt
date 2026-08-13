@@ -113,7 +113,7 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
-    fun `같은 날 재실행은 중복하지 않고 더 늦은 COMPLETED가 오면 원본을 교체한다`() {
+    fun `같은 날 재실행은 중복하지 않고 성공 커서 경계의 늦은 COMPLETED를 원본에 반영한다`() {
         createPartitions("202608", 1)
         insertFinalizedDeposit()
         insertWebhook(
@@ -134,11 +134,11 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
                 status = "COMPLETED",
                 payloadHash = "f".repeat(64),
                 signature = "signature-new",
-                receivedAt = "20260807130000",
+                receivedAt = "20260807120000",
                 processStatus = "S",
-                processedAt = "20260807130100",
+                processedAt = "20260807120100",
             )
-        val updated = archives.archiveCompletedWindow("20260813", "20260807120000", "20260807140000", 10)
+        val updated = archives.archiveCompletedWindow("20260813", "20260807120000", "20260807130000", 10)
 
         assertThat(duplicate.candidateCount).isZero()
         assertThat(updated.candidateCount).isEqualTo(1)
