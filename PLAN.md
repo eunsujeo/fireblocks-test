@@ -323,9 +323,10 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
   최대 시도·claim 원자 획득·root active 조건부 전환을 PostgreSQL 테스트로 고정했다. 물리 승자 경합에서도 벤더에 실존하는
   `new_tx_id`는 set-once로 남긴다. V1 `bcm_boost_l`은 최신 03 정의와 맞춰졌다. Fireblocks 공식 문서상 CONTRACT_CALL
   RBF도 새 거래는 TRANSFER로 생성되므로 sweep은 원 호출 재실행 근거가 확인될 때까지 intent 생성 전 경보-only로 두었다.
-- [ ] **T7.6 E2E + converge** — 대체 웹훅이 원 거래 상태로 반영되고 DAW-CORE에는 원 txId/externalTxId만 발행되는 세로줄,
-  막힘 점검에서 발견한 종결 최신 관찰의 정상 상태 처리 경로, 동시 실행·이미 교체됨·최대 시도 경보를 PostgreSQL 통합 테스트로
-  검증한 뒤 design-sync·code-reviewer를 통과한다.
+- [x] **T7.6 E2E + converge** (2026-08-13) — 대체 웹훅·조회·고객 이벤트를 root txId/externalTxId로 접고,
+  성공 증거가 있는 원/대체 물리 거래의 승자 hash를 반영한다. FAILED는 살릴 대체 거래가 있으면 유예하고 막힘 점검이 계열 전체를
+  재조회해 성공 우선·전원 실패 때만 확정한다. 유예 시 stall 경보를 비워 재관찰을 보장하고, 미회수 REQUESTED boost는 주기 실패로
+  가시화한다. PostgreSQL 경합·outbox 원자성 테스트와 전체 430건, design-sync·code-reviewer를 통과했다.
 
 - 주기 작업(예: 5분, `bcm_job_m` heartbeat): DB에서 오래 미확정 후보를 고르고 조치 직전 벤더 단건 조회
 - **미결 제출 점검 합류** (Phase 5 에서 이월) — `bcm_sbmt_l` 의 오래된 `REQUESTED` 를 훑어 벤더 `external_tx_id` 조회로 마감한다. 재시도가 오지 않은 건을 회수하는 경로다
