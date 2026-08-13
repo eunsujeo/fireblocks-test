@@ -152,6 +152,8 @@ sequenceDiagram
 - `amount` — 이동 금액. **문자열 decimal** 이다(정밀도). 입금은 `externalTxId` 가 없으므로 **금액의 출처가 이 값뿐이다**
 - `from` — 발신 주소. 입금은 항상 채워진다 — 입금 판별을 의뢰할 때 쓴다
 - `txHash` — 전파 후 채워짐
+- RBF 대체 거래는 별도 고객 거래가 아니다. 조회 응답과 이벤트의 `txId`·`externalTxId`는 최초 거래 값을 유지하고,
+  `txHash`는 root 계열에서 실제로 채굴된 승자 거래 값으로 바뀔 수 있다
 - 벤더의 `subStatus`·`networkStatus` 는 이벤트에 싣지 않는다 — 매니저가 번역에 쓰는 내부 값이다
 
 전달 보장:
@@ -1644,10 +1646,12 @@ _응답_
 ### Transfer
 
 거래 1건. 요청의 `from`/`to`(TransferPeer)는 여기선 확정된 온체인 주소 문자열로 나온다.
+RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값을 유지하고,
+`txHash`는 root 계열에서 실제로 채굴된 승자 거래 값으로 바뀔 수 있다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `txId` | string | 필수 | 벤더 tx id |
+| `txId` | string | 필수 | 최초 root 거래의 벤더 tx id |
 | `txHash` | string \\| null | - | 온체인 거래해시 — 전파 후 채워짐 |
 | `externalTxId` | string \\| null | - | 우리 요청 키 |
 | `network` | string | 필수 | 네트워크 코드 |
@@ -1664,12 +1668,14 @@ _응답_
 ### ChainEvent
 
 큐로 오는 온체인 상태 변경 이벤트 (HTTP 응답이 아니라 메시지 큐로 전달).
+RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값을 유지하고,
+`txHash`는 root 계열에서 실제로 채굴된 승자 거래 값으로 바뀔 수 있다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `eventId` | string | 필수 | 이벤트 고유 id (UUID v7) — 컨슈머 중복 제거 기준 |
 | `type` | EventType | 필수 | `DEPOSIT` `WITHDRAWAL` `INTERNAL` |
-| `txId` | string | 필수 | 벤더 tx id |
+| `txId` | string | 필수 | 최초 root 거래의 벤더 tx id |
 | `txHash` | string \\| null | - | 온체인 거래해시 — 전파 후 채워짐 |
 | `externalTxId` | string \\| null | - | 우리 요청 키 (출금·내부이체) |
 | `accountId` | string | 필수 | 파티션 키 (vault 핸들) |
