@@ -1,5 +1,27 @@
 package com.whatto.bcm.domain.tx
 
+import com.whatto.bcm.domain.submission.SubmissionTransactionType
+
+data class TxReconciliationRecord(
+    val record: TxRecord,
+    val submissionType: SubmissionTransactionType?,
+    val sweepExecutionId: String?,
+)
+
+interface TxReconciliationRepository {
+    fun findByPhysicalVendorTransactionId(vendorTransactionId: String): TxReconciliationRecord?
+
+    fun findDetectedBetween(
+        detectedAtOrAfter: String,
+        detectedAtOrBefore: String,
+    ): List<TxReconciliationRecord>
+
+    fun findPendingChangedAtOrBefore(
+        changedAtOrBefore: String,
+        limit: Int,
+    ): List<TxReconciliationRecord>
+}
+
 data class TxReconciliationSnapshot(
     val rootVendorTransactionId: String,
     val status: TxStatus,
@@ -22,6 +44,17 @@ data class TxReconciliationResult(
     val matchedCount: Int,
     val mismatches: List<TxReconciliationMismatch>,
 )
+
+data class TxReconciliationReport(
+    val from: String,
+    val to: String,
+    val result: TxReconciliationResult,
+    val recoveredCount: Int,
+)
+
+fun interface TxReconciliationReportPort {
+    fun report(report: TxReconciliationReport)
+}
 
 object TxReconciliationPolicy {
     fun compare(

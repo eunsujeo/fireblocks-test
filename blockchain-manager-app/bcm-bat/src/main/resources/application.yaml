@@ -13,6 +13,12 @@ bcm:
   submission-recovery:
     enabled: false
     fixed-delay-millis: 300000
+  tx-reconciliation:
+    enabled: false
+    fixed-delay-millis: 600000
+    initial-lookback-seconds: 600
+    pending-stale-seconds: 600
+    pending-batch-size: 500
   sweep:
     enabled: false
     fixed-delay-millis: 60000

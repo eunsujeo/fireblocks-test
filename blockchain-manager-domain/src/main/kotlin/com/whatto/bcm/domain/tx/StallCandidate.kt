@@ -5,6 +5,7 @@ import com.whatto.bcm.domain.submission.SubmissionTransactionType
 data class StallCandidate(
     val record: TxRecord,
     val submissionType: SubmissionTransactionType?,
+    val sweepExecutionId: String? = null,
 )
 
 interface StallCandidateRepository {

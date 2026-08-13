@@ -5,6 +5,8 @@ import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.tx.StallCandidate
 import com.whatto.bcm.domain.tx.StallCandidateRepository
+import com.whatto.bcm.domain.tx.TxReconciliationRecord
+import com.whatto.bcm.domain.tx.TxReconciliationRepository
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
@@ -30,7 +32,8 @@ class TxJdbcAdapter(
     private val template: JdbcAggregateTemplate,
     private val jdbc: NamedParameterJdbcTemplate,
 ) : TxRecordRepository,
-    StallCandidateRepository {
+    StallCandidateRepository,
+    TxReconciliationRepository {
     private val rowMapper =
         RowMapper { rs, _ ->
             TxRecord(
@@ -48,6 +51,14 @@ class TxJdbcAdapter(
                 stallAlertedAt = rs.getString("stall_alrt_dttm"),
                 firstDetectedAt = rs.getString("frst_dtct_dttm"),
                 lastChangedAt = rs.getString("last_chng_dttm"),
+            )
+        }
+    private val reconciliationRowMapper =
+        RowMapper { rs, rowNumber ->
+            TxReconciliationRecord(
+                record = rowMapper.mapRow(rs, rowNumber),
+                submissionType = rs.getString("tx_dvcd")?.let(SubmissionTransactionType::valueOf),
+                sweepExecutionId = rs.getString("swp_exec_id"),
             )
         }
 
@@ -153,6 +164,64 @@ class TxJdbcAdapter(
 
     override fun findByExternalTxId(externalTxId: String): TxRecord? = crud.findByExtTxId(externalTxId)?.toDomain()
 
+    override fun findByPhysicalVendorTransactionId(vendorTransactionId: String): TxReconciliationRecord? =
+        jdbc
+            .query(
+                """
+                SELECT tx.*, submission.tx_dvcd, submission.swp_exec_id
+                FROM bcm_tx_l tx
+                LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
+                LEFT JOIN bcm_boost_l boost
+                  ON boost.orig_tx_id = tx.vndr_tx_id
+                 AND boost.new_tx_id = :vendorTransactionId
+                WHERE tx.vndr_tx_id = :vendorTransactionId
+                   OR tx.actv_tx_id = :vendorTransactionId
+                   OR boost.new_tx_id = :vendorTransactionId
+                """.trimIndent(),
+                mapOf("vendorTransactionId" to vendorTransactionId),
+                reconciliationRowMapper,
+            ).firstOrNull()
+
+    override fun findDetectedBetween(
+        detectedAtOrAfter: String,
+        detectedAtOrBefore: String,
+    ): List<TxReconciliationRecord> =
+        jdbc.query(
+            """
+            SELECT tx.*, submission.tx_dvcd, submission.swp_exec_id
+            FROM bcm_tx_l tx
+            LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
+            WHERE tx.frst_dtct_dttm >= :detectedAtOrAfter
+              AND tx.frst_dtct_dttm <= :detectedAtOrBefore
+            ORDER BY tx.frst_dtct_dttm, tx.vndr_tx_id
+            """.trimIndent(),
+            mapOf(
+                "detectedAtOrAfter" to detectedAtOrAfter,
+                "detectedAtOrBefore" to detectedAtOrBefore,
+            ),
+            reconciliationRowMapper,
+        )
+
+    override fun findPendingChangedAtOrBefore(
+        changedAtOrBefore: String,
+        limit: Int,
+    ): List<TxReconciliationRecord> {
+        require(limit > 0) { "reconciliation pending limit must be positive" }
+        return jdbc.query(
+            """
+            SELECT tx.*, submission.tx_dvcd, submission.swp_exec_id
+            FROM bcm_tx_l tx
+            LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
+            WHERE tx.last_pub_stcd IN ('SUBMITTED', 'CONFIRMED')
+              AND tx.last_chng_dttm <= :changedAtOrBefore
+            ORDER BY tx.last_chng_dttm, tx.vndr_tx_id
+            LIMIT :limit
+            """.trimIndent(),
+            mapOf("changedAtOrBefore" to changedAtOrBefore, "limit" to limit),
+            reconciliationRowMapper,
+        )
+    }
+
     override fun findStallCandidates(
         changedBefore: String,
         limit: Int,
@@ -160,7 +229,7 @@ class TxJdbcAdapter(
         require(limit > 0) { "stall candidate limit must be positive" }
         return jdbc.query(
             """
-            SELECT candidate.*, submission.tx_dvcd
+            SELECT candidate.*, submission.tx_dvcd, submission.swp_exec_id
             FROM (
               SELECT *
               FROM bcm_tx_l
@@ -178,6 +247,7 @@ class TxJdbcAdapter(
             StallCandidate(
                 record = rowMapper.mapRow(rs, rowNumber),
                 submissionType = rs.getString("tx_dvcd")?.let(SubmissionTransactionType::valueOf),
+                sweepExecutionId = rs.getString("swp_exec_id"),
             )
         }
     }
