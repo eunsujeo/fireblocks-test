@@ -4,7 +4,7 @@
 
 ## 현재 위치
 
-- **Phase 6 T6.11 구현·로컬 검증까지 완료했다. 체크박스와 Phase 완료는 Claude Code의 design-sync·code-reviewer converge 뒤다.**
+- **Phase 6 T6.11 구현·코드 리뷰까지 완료했다. 설계 조건 2건 해소 뒤 design-sync 재검토가 남았다.**
 - V1 `bcm_swp_exec_l.gasless_yn`과 waas-wiki 03의 sweep/boost 정의를 `_yn VARCHAR(1)` 규약에 맞추고 사본을 byte-동일 동기화했다.
 - 설계 정본 기준 커밋은 waas-wiki `6801113`; 이번 03 사본은 현재 정본 작업 트리와 byte-동일하다. waas-wiki의 별도 06 미커밋 변경은 이 작업에서 동기화하지 않았다.
 - 고객 vault별 제한 allowance, 운영 계정 batch CONTRACT_CALL, `SweepExecution 1:N SweepItem`, network records +
@@ -23,13 +23,19 @@
   전부 approve(0)·온체인 0 재관측을 통과했다. 중복 batch 무제출, gasless, outbox 0건도 함께 검증했다.
 - Callback 검증 플래그가 false면 approve·batch·긴급 회수 세 경로가 벤더 호출 전에 fail-closed임을 고정했다.
 - T6.11 테스트 커밋은 `ed3faef`다.
-- `./gradlew check ktlintCheck` 전체 379건 그린, OpenAPI 생성물 신선도를 확인했다.
+- converge 리뷰에서 누락된 `SweepExecutionAlertPort` 운영 logging 빈을 추가하고, 저장된 실행 tx hash로 진행할 때
+  network record를 벤더의 nullable 최상위 hash와 비교하던 오류를 resolved hash 비교로 고쳤다. 회귀 테스트도 추가했다.
+- `./gradlew check ktlintCheck` 전체 381건 그린, OpenAPI 생성물 신선도를 확인했다.
+- Claude Code code-reviewer 재검토는 이전 Critical 2건 해소·신규 Critical 0·커밋 가능으로 판정했다.
+- design-sync는 T6.7~T6.11 구현 정합을 확인했으나 waas-wiki 06의 콜드월렛 요건 16행이 사본보다 앞서 있고,
+  `cc-v1`이 calldata를 해시하지만 03/`bcm_sbmt_l`만으로 재계산할 수 없는 설계 공백을 보고했다(PLAN #39).
 - 기존 Phase 7 T7.0~T7.4 구현은 보존돼 있다. Phase 6 converge 전 T7.5 RBF 제출은 뒤로 둔다.
 
 ## 다음 작업
 
-- Claude Code에서 Phase 6 design-sync와 code-reviewer를 실행하고 발견 사항을 반영한다.
-- 둘 다 통과하면 PLAN의 T6.11·Phase 6 체크박스와 이 파일을 갱신한다.
+- `cc-v1` 재계산 근거를 waas-wiki 03에서 결정·개정한다(제출 원장 calldata 저장 또는 연결 원장 재구성).
+- waas-wiki 06 변경을 검토·커밋한 뒤 사용자가 `docs/design/06-sweep.md` 사본을 동기화한다.
+- 두 조건 해소 후 design-sync를 재실행하고 통과하면 PLAN의 T6.11·Phase 6 체크박스를 갱신한다.
 
 ## 주의·외부 조건
 

@@ -289,8 +289,9 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
   2026-08-13 PostgreSQL/Flyway E2E로 고객 vault 2개의 approve 선기록→온체인 cap 재관측→batch 1:N 선기록·단일 제출→
   1건 성공·1건 실패 대사→두 vault 전부 `approve(0)`·온체인 0 재관측을 검증했다. 같은 claim의 중복 batch 무제출,
   sweep outbox 0건, gasless 요청, Callback 미검증 시 approve·batch·긴급 회수 전 경로 차단과 배포 기본 게이트 9종 false도 고정했다.
-  `./gradlew check ktlintCheck` 379건 그린이고 02·03·06·93~95·98 설계 사본은 waas-wiki `6801113`과 byte-동일하다.
-  **남은 완료 조건은 Claude Code 전용 design-sync·code-reviewer converge다.**
+  2026-08-13 converge에서 실행 경보 운영 빈과 저장된 tx hash 대사 회귀를 보강한 뒤 `./gradlew check ktlintCheck` 381건 그린,
+  code-reviewer는 Critical 0·커밋 가능으로 판정했다. design-sync는 T6.7~T6.11 구현 정합을 확인했지만 현재 waas-wiki 06의
+  콜드월렛 요건 16행 미동기화와 `cc-v1` canonical의 03 정의·재계산 근거 공백(#39)을 보고했다. **두 설계 조건 해소 후 재검토가 남았다.**
 
 ## Phase 7 — 막힘 점검 · 자동 boost
 
@@ -392,6 +393,7 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
 | 36 | **내부이체(delta)의 대납 적용 여부** — 출금·sweep 은 대납 근거가 설계에 있으나(02 출금 시퀀스 · 06 수수료 표) INTERNAL 은 없다. **확인 전까지 켜지 않는다**(근거 없는 설정을 넣지 않는다 — 안 켜도 된다고 확인한 것은 아니다). 대납 없이 가면 출발 vault 에 native 가 있어야 하고, 없으면 `INSUFFICIENT_FUNDS_FOR_FEE` 로 실패한다 | Phase 5 내부이체 E2E 전 — 벤더·운영 확인 |
 | 37 | **출금 요청 본문 크기 상한** — `note`와 구조가 아직 불투명한 `travelRule`에 스키마 상한이 없어 큰 JSON이 벤더 호출·claim 점유를 늘릴 수 있다. 구현이 임의로 필드 상한을 만들면 OpenAPI보다 좁아지므로, 전체 HTTP 본문 상한과 필드별 상한·초과 응답(400/413)을 스펙에서 먼저 확정해야 한다 | 실트래픽 연동 전 — waas-wiki/OpenAPI 결정 |
 | 38 | **막힘 상태·RBF hash 보관 불일치** | ✅ 해결 (2026-08-12) — DB 상태는 후보 선별만 하고 조치 직전 벤더 단건 조회로 `CONFIRMING`·txHash·0 confirmation을 확인한다. `bcm_tx_l`은 root 한 행에 active tx id/hash를 보관하고, stuck 웹훅은 선택적 가속 신호일 뿐 correctness 기준으로 삼지 않는다. waas-wiki 02·03·99와 사본 동기화 완료 |
+| 39 | **sweep CONTRACT_CALL canonical `cc-v1` 재계산 불가** — 구현은 calldata를 포함해 승인 의도를 고정하지만 `bcm_sbmt_l`에는 calldata가 없어 03의 “개별 컬럼으로 재계산” 계약을 만족하지 못한다. calldata 저장 컬럼을 둘지, 연결된 sweep 원장에서 재구성할지 설계 결정이 필요하다 | Phase 6 converge 차단 — waas-wiki 03 결정·개정 후 사본 동기화 |
 | 14 | **03 스키마 미확정 3건** — 약어 · 감사 센티넬 · subStatus 보관 | ✅ 해결 (2026-08-05, 사용자 위임으로 프로젝트 자체 확정) — ① 약어는 03 표기 그대로(`bcm`·`vndr`·`vlt`·`noti`·`swp`) = 프로젝트 약어집. DAW-CORE 약어집 등장 시 대조·조정 ② 센티넬 `empno='SYSTEM'` · `brcd='9999'` — 코드에선 단일 상수로 관리 ③ **subStatus·networkStatus 를 `bcm_tx_l` 에 보관**(사용자 결정 — 이벤트 미탑재는 유지). **반영 필요: waas-wiki 03 개정(컬럼 추가·미확정 절 정리) + 사본 동기화 — Phase 1 착수의 첫 선행 작업 (미실행)** |
 
 ## 범위 밖 (이 저장소가 아님) · 시점 미배정
