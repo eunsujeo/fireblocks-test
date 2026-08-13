@@ -677,16 +677,23 @@ CREATE TABLE bcm_raw_tx_l (
   last_chng_empno VARCHAR(6)  NOT NULL,
   last_chng_brcd  VARCHAR(4)  NOT NULL,
   PRIMARY KEY (base_dt, vndr_tx_id)
-) PARTITION BY RANGE (base_dt);           -- 월 단위 파티션
+) PARTITION BY RANGE (base_dt);           -- 월 단위 파티션 — 대상 월 전에 배포 역할이 선생성
 CREATE INDEX idx_bcm_raw_tx_hash ON bcm_raw_tx_l (tx_hash);        -- 분쟁·역추적 — 이 온체인 tx 의 원본
 CREATE INDEX idx_bcm_raw_tx_addr ON bcm_raw_tx_l (addr, base_dt);  -- 지갑(주소) 기준 기간 조회 — 선두가 주소라 균등 분산
+CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- 같은 벤더 tx 의 더 최신 COMPLETED 원본 판별
 ```
 
-`payload` 는 바이트 그대로 보존해야 해 JSONB 가 아니라 TEXT 다(무결성 해시가 원문 바이트 기준). 이 표의 세 값은 모두 수신 시점에만 만들 수 있어 `bcm_whk_l` 이 정리되기 전에 옮겨야 한다 — 지나가면 소급해서 만들 수 없다. 보존 연한·파티션 주기·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
+`payload` 는 바이트 그대로 보존해야 해 JSONB 가 아니라 TEXT 다(무결성 해시가 원문 바이트 기준). 이 표의 세 값은 모두 수신 시점에만 만들 수 있어 `bcm_whk_l` 이 정리되기 전에 옮겨야 한다 — 지나가면 소급해서 만들 수 없다.
+
+월별 파티션은 **대상 월이 시작되기 전에 배포 역할이 선생성**한다. 애플리케이션 실행 역할은 DDL 권한 없이 이미 생성된 파티션에만 적재한다. 파티션 누락으로 적재가 실패하면 같은 트랜잭션의 `bcm_whk_l` 정리도 롤백하고 `bcm_job_m.last_scs_dttm` 을 전진시키지 않는다. 보존 연한·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
 
 ## 미확정
 
 - **`bcm_tx_l`·`bcm_whk_l`·`bcm_outbox_l` 보존** — 종결·처리 완료·발송 완료 건을 언제까지 두고 언제 정리할지 — `bcm_raw_tx_l` 원본 보관과 역할을 나눈 뒤 확정.
+
+## 확정 이력 (2026-08-13)
+
+- **원본 월별 파티션은 배포 역할이 선생성** — 런타임 애플리케이션에 DDL 권한을 주지 않는다. 누락 시 보관 배치와 같은 실행의 인박스 정리를 함께 실패시키고 성공 heartbeat를 전진시키지 않는다.
 
 ## 확정 이력 (2026-08-12)
 
