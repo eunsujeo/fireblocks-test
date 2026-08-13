@@ -633,6 +633,50 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
+    fun `대체 거래 FAILED가 먼저 와도 보류하고 뒤늦은 원 거래 성공을 승자로 채택한다`() {
+        insertBoostFixture(status = "SUBMITTED", activeVendorTransactionId = REPLACEMENT_TX_ID)
+        inbox.insertIfAbsent(
+            notification(
+                "noti-replacement-failed",
+                managedVaultPayload(
+                    notificationId = "noti-replacement-failed",
+                    externalTransactionId = BOOST_EXTERNAL_TX_ID,
+                    status = "FAILED",
+                    vendorTransactionId = REPLACEMENT_TX_ID,
+                    transactionHash = REPLACEMENT_TX_HASH,
+                ),
+                vendorTransactionId = REPLACEMENT_TX_ID,
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Processed("noti-replacement-failed", 0))
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)["last_pub_stcd"])
+            .isEqualTo("CONFIRMED")
+
+        inbox.insertIfAbsent(
+            notification(
+                "noti-original-late-winner",
+                managedVaultPayload(
+                    notificationId = "noti-original-late-winner",
+                    externalTransactionId = ROOT_EXTERNAL_TX_ID,
+                    status = "COMPLETED",
+                    confirmations = 1,
+                    vendorTransactionId = VENDOR_TX_ID,
+                    transactionHash = ORIGINAL_TX_HASH,
+                ),
+                receivedAt = "20260807120100",
+            ),
+        )
+
+        assertThat(processor.processNext())
+            .isEqualTo(WebhookDecisionOutcome.Processed("noti-original-late-winner", 1))
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID))
+            .containsEntry("actv_tx_id", VENDOR_TX_ID)
+            .containsEntry("last_pub_stcd", "FINALIZED")
+    }
+
+    @Test
     fun `이미 다른 대체 tx로 연결된 boost 웹훅은 즉시 격리한다`() {
         insertBoostFixture(status = "SUBMITTED", activeVendorTransactionId = REPLACEMENT_TX_ID)
         inbox.insertIfAbsent(
