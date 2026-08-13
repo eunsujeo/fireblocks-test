@@ -1,6 +1,8 @@
 package com.whatto.bcm.infra.persistence.support
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.postgresql.PostgreSQLContainer
 
 /**
@@ -14,5 +16,11 @@ abstract class PersistenceTestSupport {
         val postgres: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17-alpine")
                 .apply { start() }
+
+        @JvmStatic
+        @DynamicPropertySource
+        fun limitConnectionPool(registry: DynamicPropertyRegistry) {
+            registry.add("spring.datasource.hikari.maximum-pool-size") { 4 }
+        }
     }
 }

@@ -18,7 +18,9 @@ import com.whatto.bcm.domain.vendor.VendorTransactionPeer
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.domain.vendor.VendorTransactionRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
+import com.whatto.bcm.infra.client.fireblocks.FireblocksProperties
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.boot.env.YamlPropertySourceLoader
 import org.springframework.core.env.StandardEnvironment
@@ -29,11 +31,29 @@ import java.time.ZoneId
 
 class StallCheckJobTest {
     @Test
+    fun `boost claim TTL은 회수 조회와 제출 흐름의 최장 시간보다 길어야 한다`() {
+        val fireblocks = FireblocksProperties()
+
+        assertThatThrownBy {
+            StallCheckSafetyConfig(
+                StallCheckProperties(boostClaimTtlSeconds = 147),
+                fireblocks,
+            )
+        }.isInstanceOf(IllegalArgumentException::class.java)
+
+        StallCheckSafetyConfig(
+            StallCheckProperties(boostClaimTtlSeconds = 148),
+            fireblocks,
+        )
+    }
+
+    @Test
     fun `막힘 점검 스케줄러는 기본 비활성이다`() {
         val properties = YamlPropertySourceLoader().load("application", ClassPathResource("application.yaml")).single()
         val environment = StandardEnvironment().apply { propertySources.addFirst(properties) }
 
         assertThat(environment.getProperty("bcm.stall-check.enabled", Boolean::class.java)).isFalse()
+        assertThat(environment.getProperty("bcm.stall-check.automatic-boost-enabled-networks")).isEmpty()
     }
 
     @Test
@@ -108,18 +128,47 @@ class StallCheckJobTest {
         assertThat(jobs.succeeded).isEmpty()
     }
 
+    @Test
+    fun `활성 네트워크의 boost 후보는 제출하고 경보 표시하지 않는다`() {
+        val candidates = RecordingStallCandidates(listOf(candidate("tx-boost")))
+        val submitted = mutableListOf<Pair<String, String>>()
+
+        job(
+            candidates,
+            RecordingVendor(mapOf("tx-boost" to transaction("tx-boost"))),
+            StallAlertPort { error("successful boost must not alert") },
+            RecordingJobs(),
+            BoostSubmitter { candidate, hash ->
+                submitted += candidate.record.vendorTxId to hash
+                BoostSubmissionResult.Submitted("tx-replacement")
+            },
+            StallCheckProperties(
+                enabled = true,
+                staleAfterSeconds = 300,
+                batchSize = 100,
+                automaticBoostEnabledNetworks = setOf("ETHEREUM"),
+            ),
+        ).run()
+
+        assertThat(submitted).containsExactly("tx-boost" to "0xabc")
+        assertThat(candidates.alertedRoots).isEmpty()
+    }
+
     private fun job(
         candidates: StallCandidateRepository,
         vendor: VendorTransactionPort,
         alerts: StallAlertPort,
         jobs: JobStateRepository,
+        boostSubmitter: BoostSubmitter = BoostSubmitter { _, _ -> error("automatic boost is disabled in this fixture") },
+        properties: StallCheckProperties = StallCheckProperties(enabled = true, staleAfterSeconds = 300, batchSize = 100),
     ) = StallCheckJob(
         candidates,
         vendor,
         alerts,
+        boostSubmitter,
         jobs,
         Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
-        StallCheckProperties(enabled = true, staleAfterSeconds = 300, batchSize = 100),
+        properties,
     )
 
     private companion object {

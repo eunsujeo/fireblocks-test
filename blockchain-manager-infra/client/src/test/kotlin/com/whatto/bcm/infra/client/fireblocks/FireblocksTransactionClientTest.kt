@@ -3,6 +3,7 @@ package com.whatto.bcm.infra.client.fireblocks
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.vendor.VendorContractCallRequest
+import com.whatto.bcm.domain.vendor.VendorFeeLevel
 import com.whatto.bcm.domain.vendor.VendorTransactionDestination
 import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
 import com.whatto.bcm.domain.vendor.VendorTransactionOrder
@@ -78,10 +79,14 @@ class FireblocksTransactionClientTest {
         server
             .expect(requestTo("https://sandbox-api.fireblocks.test/v1/transactions"))
             .andExpect(jsonPath("$.replaceTxByHash").value("0xstuck"))
+            .andExpect(jsonPath("$.feeLevel").value("HIGH"))
             .andExpect(jsonPath("$.useGasless").value(true))
             .andRespond(withSuccess("""{"id":"tx-replacement"}""", MediaType.APPLICATION_JSON))
 
-        val result = client.submitTransaction(request().copy(replaceTransactionHash = "0xstuck"))
+        val result =
+            client.submitTransaction(
+                request().copy(replaceTransactionHash = "0xstuck", feeLevel = VendorFeeLevel.HIGH),
+            )
 
         assertThat(result).isEqualTo(VendorTransactionSubmission.Accepted("tx-replacement"))
         server.verify()
