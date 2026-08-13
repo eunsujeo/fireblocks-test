@@ -1,14 +1,20 @@
 package com.whatto.bcm.app.bat.stall
 
 import com.whatto.bcm.app.bat.support.IntegrationTestSupport
+import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationJob
+import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationProperties
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.OutboxEventRepository
+import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.StallCandidate
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
+import com.whatto.bcm.domain.tx.TxReconciliationReport
+import com.whatto.bcm.domain.tx.TxReconciliationReportPort
+import com.whatto.bcm.domain.tx.TxReconciliationRepository
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorTransaction
@@ -22,6 +28,7 @@ import com.whatto.bcm.infra.client.fireblocks.FireblocksStatusTranslator
 import com.whatto.bcm.infra.persistence.boost.BoostJdbcAdapter
 import com.whatto.bcm.infra.persistence.config.SpringTransactionRunner
 import com.whatto.bcm.infra.persistence.event.OutboxJdbcAdapter
+import com.whatto.bcm.infra.persistence.job.JobStateJdbcAdapter
 import com.whatto.bcm.infra.persistence.tx.TxCrudRepository
 import com.whatto.bcm.infra.persistence.tx.TxJdbcAdapter
 import org.assertj.core.api.Assertions.assertThat
@@ -41,7 +48,13 @@ import java.time.Instant
 import java.time.ZoneId
 
 @SpringBootTest(classes = [StallTerminalObservationIntegrationTest.TestApplication::class])
-@Import(TxJdbcAdapter::class, BoostJdbcAdapter::class, OutboxJdbcAdapter::class, SpringTransactionRunner::class)
+@Import(
+    TxJdbcAdapter::class,
+    BoostJdbcAdapter::class,
+    OutboxJdbcAdapter::class,
+    JobStateJdbcAdapter::class,
+    SpringTransactionRunner::class,
+)
 class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
@@ -61,6 +74,12 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     lateinit var transactionRunner: TransactionRunner
 
     @Autowired
+    lateinit var reconciliation: TxReconciliationRepository
+
+    @Autowired
+    lateinit var jobs: JobStateRepository
+
+    @Autowired
     lateinit var jdbc: JdbcTemplate
 
     @BeforeEach
@@ -77,6 +96,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
         jdbc.update("DELETE FROM bcm_outbox_l")
         jdbc.update("DELETE FROM bcm_boost_l")
         jdbc.update("DELETE FROM bcm_tx_l")
+        jdbc.update("DELETE FROM bcm_job_m")
     }
 
     @Test
@@ -126,6 +146,36 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             .containsEntry("vndr_tx_id", "tx-root")
             .containsEntry("evt_typ_dvcd", "TXCF")
             .containsEntry("topic", "deposit-events")
+    }
+
+    @Test
+    fun `tx 대사는 목록 창 밖 CONFIRMED 입금을 단건 조회해 root와 outbox를 복구한다`() {
+        transactions.insert(rootRecord().copy(externalTxId = null))
+        val completed = completedTransaction().copy(externalTransactionId = null)
+        val vendor = ReconciliationVendor(mapOf("tx-root" to completed))
+        val reports = mutableListOf<TxReconciliationReport>()
+        val job =
+            TransactionReconciliationJob(
+                vendor = vendor,
+                reconciliation = reconciliation,
+                statusTranslator = FireblocksStatusTranslator { 1 },
+                terminalObservations = handler(vendor),
+                reports = TxReconciliationReportPort(reports::add),
+                jobs = jobs,
+                clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
+                properties = TransactionReconciliationProperties(enabled = true),
+            )
+
+        job.run()
+
+        assertThat(vendor.singleLookups).containsExactly("tx-root")
+        assertThat(transactions.findByVendorTxId("tx-root")?.lastPublishedStatus).isEqualTo(TxStatus.FINALIZED)
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_outbox_l"))
+            .containsEntry("vndr_tx_id", "tx-root")
+            .containsEntry("evt_typ_dvcd", "TXCF")
+            .containsEntry("topic", "deposit-events")
+        assertThat(reports.single().recoveredCount).isEqualTo(1)
+        assertThat(jobs.find("tx-reconciliation")?.lastSucceededAt).isEqualTo("20260807120000")
     }
 
     @Test
@@ -332,4 +382,21 @@ private class FamilyVendor(
     override fun submitTransaction(request: VendorTransactionRequest): VendorTransactionSubmission = error("not used")
 
     override fun transactions(request: VendorTransactionPageRequest): VendorPage<VendorTransaction> = error("not used")
+}
+
+private class ReconciliationVendor(
+    private val transactions: Map<String, VendorTransaction>,
+) : VendorTransactionPort {
+    val singleLookups = mutableListOf<String>()
+
+    override fun transaction(transactionId: String): VendorTransaction? {
+        singleLookups += transactionId
+        return transactions[transactionId]
+    }
+
+    override fun transactions(request: VendorTransactionPageRequest): VendorPage<VendorTransaction> = VendorPage(emptyList(), null)
+
+    override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? = null
+
+    override fun submitTransaction(request: VendorTransactionRequest): VendorTransactionSubmission = error("not used")
 }
