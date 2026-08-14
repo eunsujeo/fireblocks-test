@@ -1,5 +1,6 @@
 package com.whatto.bcm.domain.tx
 
+import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -59,8 +60,80 @@ class TxReconciliationPolicyTest {
             .hasMessageContaining("tx-root")
     }
 
+    @Test
+    fun `매니저 종결 스냅샷은 FINALIZED FAILED와 제출 거래의 REJECTED만 포함한다`() {
+        val finalized = reconciliation(TxStatus.FINALIZED, null)
+        val failed = reconciliation(TxStatus.FAILED, null)
+        val outboundRejected = reconciliation(TxStatus.REJECTED, SubmissionTransactionType.WITHDRAWAL)
+        val inboundRejected = reconciliation(TxStatus.REJECTED, null)
+        val pending = reconciliation(TxStatus.CONFIRMED, SubmissionTransactionType.WITHDRAWAL)
+
+        assertThat(TxReconciliationPolicy.managerSnapshot(finalized)?.status).isEqualTo(TxStatus.FINALIZED)
+        assertThat(TxReconciliationPolicy.managerSnapshot(failed)?.status).isEqualTo(TxStatus.FAILED)
+        assertThat(TxReconciliationPolicy.managerSnapshot(outboundRejected)?.status).isEqualTo(TxStatus.REJECTED)
+        assertThat(TxReconciliationPolicy.managerSnapshot(inboundRejected)).isNull()
+        assertThat(TxReconciliationPolicy.managerSnapshot(pending)).isNull()
+    }
+
+    @Test
+    fun `복구는 매니저가 미결인 상태 불일치만 대상으로 한다`() {
+        val recoverable = mismatch(TxReconciliationMismatchType.STATUS_MISMATCH, TxStatus.CONFIRMED)
+        val terminalMismatch = mismatch(TxReconciliationMismatchType.STATUS_MISMATCH, TxStatus.FINALIZED)
+        val vendorOnly = mismatch(TxReconciliationMismatchType.VENDOR_ONLY, null)
+
+        assertThat(TxReconciliationPolicy.shouldRecover(recoverable)).isTrue()
+        assertThat(TxReconciliationPolicy.shouldRecover(terminalMismatch)).isFalse()
+        assertThat(TxReconciliationPolicy.shouldRecover(vendorOnly)).isFalse()
+    }
+
+    @Test
+    fun `RBF 대표 관찰은 성공 증거를 우선하고 증거가 같으면 active 거래를 고른다`() {
+        val previous = evidence("tx-old", "tx-active", succeeded = false)
+        val successful = evidence("tx-success", "tx-active", succeeded = true)
+        val active = evidence("tx-active", "tx-active", succeeded = false)
+        val anotherInactive = evidence("tx-other", "tx-active", succeeded = false)
+
+        assertThat(TxReconciliationPolicy.isPreferredObservation(successful, previous)).isTrue()
+        assertThat(TxReconciliationPolicy.isPreferredObservation(active, previous)).isTrue()
+        assertThat(TxReconciliationPolicy.isPreferredObservation(anotherInactive, previous)).isFalse()
+    }
+
     private fun snapshot(
         rootVendorTransactionId: String,
         status: TxStatus,
     ) = TxReconciliationSnapshot(rootVendorTransactionId, status)
+
+    private fun reconciliation(
+        status: TxStatus,
+        submissionType: SubmissionTransactionType?,
+    ) = TxReconciliationRecord(
+        record =
+            TxRecord(
+                vendorTxId = "tx-root",
+                accountId = "account-1",
+                network = "ETHEREUM",
+                symbol = "USDC",
+                lastPublishedStatus = status,
+                confirmationCount = 0,
+                firstDetectedAt = "20260807110000",
+                lastChangedAt = "20260807110000",
+            ),
+        submissionType = submissionType,
+        sweepExecutionId = null,
+    )
+
+    private fun mismatch(
+        type: TxReconciliationMismatchType,
+        managerStatus: TxStatus?,
+    ) = TxReconciliationMismatch("tx-root", type, TxStatus.FINALIZED, managerStatus)
+
+    private fun evidence(
+        physicalVendorTransactionId: String,
+        activeVendorTransactionId: String,
+        succeeded: Boolean,
+    ) = TxReconciliationObservationEvidence(
+        physicalVendorTransactionId,
+        activeVendorTransactionId,
+        succeeded,
+    )
 }

@@ -81,6 +81,18 @@ class FireblocksTransactionParserTest {
                 "VAULT_ACCOUNT",
             ),
         ).isNull()
+        assertThat(
+            statusTranslator.terminalStatusForReconciliation(
+                VendorStatusObservation("COMPLETED", "AUTO_FREEZE", 0),
+                "UNKNOWN",
+            ),
+        ).isNull()
+        assertThat(
+            statusTranslator.terminalStatusForReconciliation(
+                VendorStatusObservation("COMPLETED", "AUTO_FREEZE", 0),
+                "VAULT_ACCOUNT",
+            ),
+        ).isEqualTo(TxStatus.REJECTED)
     }
 
     @Test
