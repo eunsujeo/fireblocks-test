@@ -48,14 +48,14 @@ entity: bcm_whk_l @2,1 :: 수신 웹훅 알림 원본 — 인박스 (처리 후 
 entity: bcm_outbox_l @3,1 :: 발행 대기 이벤트 — 워커가 상태 변경과 한 트랜잭션에 적재 | evnt_id PK :: 이벤트 id (UUID v7) · 컨슈머 dedup 키 | evt_typ_dvcd :: 이벤트유형 TXCK/TXCF/TXFL | evnt_stcd :: 발행상태 P/D/F/S
 entity: bcm_sbmt_l @4,1 :: 제출 원장 — 우리가 벤더에 낸 건 (출금·내부이체·sweep) | ext_tx_id PK :: 우리 요청 키 = 멱등 키 | req_hash :: 요청 내용 SHA-256 — 같은 키 다른 내용 판별 | tx_dvcd :: WITHDRAWAL/INTERNAL/SWEEP_APPROVE/SWEEP_BATCH | vndr_tx_id UK :: 벤더 응답·웹훅으로 채운다 (NULL=미확인)
 entity: bcm_acnt_m @1,2 :: 계정 매핑 — ref ↔ vault | acnt_id PK :: 매니저가 발급하는 계정 매핑 id | acnt_typ_dvcd UK :: 계정유형 CU 고객 / SY 시스템 | ref UK :: 백엔드 참조 키 = 코어 계정 ID · 유형과 함께 유일 | vndr_vlt_id :: 벤더 vault id (백엔드 비노출)
-entity: bcm_tx_l @2,2 :: 거래 운영 상태 — 감지·발행 추적 | vndr_tx_id PK :: 최초 벤더 tx id = 논리 거래 id | actv_tx_id UK :: 현재 물리 벤더 tx id | tx_hash :: 현재 물리 거래의 온체인 hash | last_pub_stcd :: 마지막으로 발행한 TxStatus
+entity: bcm_tx_l @2,2 :: 거래 운영 상태 — 감지·발행 추적 | vndr_tx_id PK :: 최초 벤더 tx id = 논리 거래 id | actv_tx_id UK :: 현재 물리 벤더 tx id | vndr_crt_dttm :: 벤더 createdAt — 대사 시간축 | last_pub_stcd :: 마지막으로 발행한 TxStatus
 entity: bcm_boost_l @3,2 :: boost intent·이력 — 호출 전 선기록 | orig_tx_id PK :: root 논리 거래 id | try_seq PK :: 시도 순번 | ext_tx_id UK :: RBF 제출 멱등 키 | new_tx_id UK :: 대체 벤더 tx
 entity: bcm_swp_trgt @1,3 :: sweep 대상 마킹 — 작업 큐 | acnt_id PK,FK :: 고객 계정 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | actv_swp_exec_id FK :: 현재 claim한 실행 (NULL=선정 가능)
 entity: bcm_swp_auth_m @2,3 :: sweep 승인 관찰 상태 | acnt_id PK,FK :: 고객 계정 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | swp_ctrt_addr PK :: 승인 대상 sweep 컨트랙트 | alwnc_cap :: 승인 상한 | obs_alwnc :: 마지막 온체인 관찰 allowance
 entity: bcm_swp_exec_l @3,3 :: sweep 실행 — 최상위 batch tx | swp_exec_id PK :: 실행 id | ext_tx_id UK :: batch 제출 멱등 키 | vndr_tx_id UK :: Fireblocks 최상위 tx | swp_exec_stcd :: 실행 상태
 entity: bcm_swp_item_l @4,3 :: sweep 실행 항목 | swp_exec_id PK,FK :: 실행 | item_seq PK :: 실행 안 순번 | acnt_id FK :: 원천 고객 계정 | req_amt :: 요청금액 | actl_amt :: 실제 이동금액 | swp_item_stcd :: 항목 상태
 entity: bcm_raw_tx_l @2,4 :: finalize 원본 — 일 배치 장기 보관 | base_dt PK :: 적재 기준일 = 파티션 키 | vndr_tx_id PK :: 벤더 tx id | payload_hash :: 원문 SHA-256 — 무결성
-entity: bcm_job_m @3,4 :: 주기 작업 상태 — heartbeat · 대사 커서 | job_nm PK :: 작업명 | last_scs_dttm :: 마지막 성공 — tx 대사 대조 범위 이어붙임
+entity: bcm_job_m @3,4 :: 주기 작업 상태 — heartbeat · 대사 커서 | job_nm PK :: 작업명 | last_scs_dttm :: 마지막 성공 — tx 대사의 안정화된 createdAt 창 끝
 entity: bcm_fee_qt_l @4,4 :: 자산별 네트워크 수수료 견적 시계열 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | obs_dttm PK :: 관측 시각 | fee_lvl PK :: LOW/MEDIUM/HIGH
 rel: bcm_acnt_m | bcm_addr_m | 계정당 주소 | one-many
 rel: bcm_acnt_m | bcm_tx_l | 계정 귀속 | one-many
@@ -170,21 +170,21 @@ ins: withdrawal-events | 확정 | tx-w1 | wd-42
 
 ### 웹훅 유실 → tx 대사 복구
 
-확정 웹훅을 놓쳐 tx 가 CONFIRMED 에 멈춰도, 10분 주기 tx 대사가 벤더 목록의 **종결된 건**과 대조해 복구한다(진행 중은 웹훅 몫). `bcm_job_m` 이 대조 범위(마지막 성공 시각)를 이어붙인다.
+확정 웹훅을 놓쳐 tx 가 CONFIRMED 에 멈춰도, 10분 주기 tx 대사가 벤더 목록의 **종결된 건**과 대조해 복구한다(진행 중은 웹훅 몫). 실행 시각에서 안정화 지연을 뺀 벤더 createdAt 창을 만들고, `bcm_job_m.last_scs_dttm`이 마지막으로 끝낸 창의 끝을 이어 붙인다. 양쪽 모두 `vndr_crt_dttm`의 같은 시간축으로 비교한다.
 
 ```anim
 db
-table: bcm_tx_l | vndr_tx_id | last_pub_stcd
+table: bcm_tx_l | vndr_tx_id | vndr_crt_dttm | last_pub_stcd
 table: bcm_job_m | job_nm | last_scs_dttm
 queue: deposit-events | 이벤트 | txId
 step: 확정 웹훅 유실 | 확정 알림이 오지 않아 tx 가 CONFIRMED 에 멈춰 있다
-ins: bcm_tx_l | tx-91c | CONFIRMED
+ins: bcm_tx_l | tx-91c | 11:52 | CONFIRMED
 ins: bcm_job_m | tx-recon | 11:50
-step: tx 대사 실행 | 대사가 last_scs_dttm 이후 생성분을 벤더 목록으로 대조 — tx 가 실제 COMPLETED 임을 발견
+step: tx 대사 실행 | 12:05 실행이면 안정화된 11:50~12:00 createdAt 구간을 양쪽에서 대조 — tx 가 실제 COMPLETED 임을 발견
 step: 복구 — 확정 발행 | 놓친 확정을 deposit-events 에 발행하고 tx 행을 갱신한다
 upd: bcm_tx_l | 1 | last_pub_stcd=FINALIZED
 ins: deposit-events | 입금 확정 | tx-91c
-step: 커서 전진 | 대사가 last_scs_dttm 을 이번 시각으로 전진 — 다음 대사는 여기서 이어붙인다
+step: 커서 전진 | 대사가 last_scs_dttm 을 안정화된 createdAt 창 끝으로 전진 — 실제 실행 시각 12:05와 구분한다
 upd: bcm_job_m | 1 | last_scs_dttm=12:00
 ```
 
@@ -300,6 +300,10 @@ CREATE TABLE bcm_tx_l (
   vndr_sub_stcd   VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 subStatus 원어 — 운영 조사용, 이벤트 미탑재
   vndr_ntwk_stcd  VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 networkStatus 원어 — 운영 조사용, 이벤트 미탑재
   stall_alrt_dttm VARCHAR(16)  NULL,          -- 막힘 경보 올린 일시 — 있으면 다음 주기 건너뜀 · 해소 전이 시 NULL
+  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 createdAt을 KST 초 단위로 변환 — 대사 시간축, set-once
+  rcnc_chck_dttm  VARCHAR(16)  NULL,          -- 창 밖 미결 거래의 마지막 단건 조회 claim/확인 일시
+  rcnc_chck_cnt   INT          NOT NULL DEFAULT 0, -- 단건 조회 횟수 — 영속 백오프 단계
+  rcnc_stop_dttm  VARCHAR(16)  NULL,          -- 최대 추적 나이 도달 시각 — 이후 자동 단건 조회 중단
   frst_dtct_dttm  VARCHAR(16)  NOT NULL,      -- 처음 감지한 일시
   last_chng_dttm  VARCHAR(16)  NOT NULL,      -- 마지막 갱신 일시 — 막힘 점검의 기준
   -- 감사 4컬럼
@@ -310,6 +314,8 @@ CREATE TABLE bcm_tx_l (
 );
 CREATE INDEX idx_bcm_tx_stall ON bcm_tx_l (last_pub_stcd, last_chng_dttm)
   WHERE stall_alrt_dttm IS NULL AND last_pub_stcd IN ('SUBMITTED', 'CONFIRMED');
+CREATE INDEX idx_bcm_tx_rcnc ON bcm_tx_l (last_pub_stcd, rcnc_stop_dttm, rcnc_chck_dttm, frst_dtct_dttm)
+  WHERE last_pub_stcd IN ('SUBMITTED', 'CONFIRMED');
 ```
 
 | 컬럼 | 뜻 |
@@ -321,6 +327,9 @@ CREATE INDEX idx_bcm_tx_stall ON bcm_tx_l (last_pub_stcd, last_chng_dttm)
 | `last_pub_stcd` | 새 알림의 상태와 이 값을 [허용 전이 표](02-bcm-flow.md)에 대조해 발행 여부를 가린다. 발행은 `bcm_outbox_l` 에 같은 트랜잭션으로 적재한다 |
 | `cnfm_cnt`·`last_chng_dttm` | **줄지 않는다** — 큰 값(늦은 시각)으로만 갱신한다. 막힘 점검의 입력이다 |
 | `vndr_sub_stcd`·`vndr_ntwk_stcd` | 마지막 알림의 벤더 원어 — 운영 조사(FAILED 사유 구분·대사 불일치 분석)용. whk_l 은 보존 기간 후 정리되므로 장기 조회처는 여기다. **이벤트에는 싣지 않는다** |
+| `vndr_crt_dttm` | Fireblocks `createdAt`을 저장 직전 KST `yyyyMMddHHmmss`로 변환한 값. 최초 관찰 때만 기록하고 이후 웹훅 수신 시각으로 덮지 않는다. tx 대사는 벤더 목록과 이 컬럼의 같은 닫힌 구간을 비교한다 |
+| `rcnc_chck_dttm`·`rcnc_chck_cnt` | createdAt 창 밖에 남은 미결 거래의 단건 조회 체크포인트. 후보를 `FOR UPDATE SKIP LOCKED`로 원자 claim하면서 벤더 호출 전에 갱신해 다중 인스턴스 중복 조회를 막고, 30초·1분·5분·15분·1시간 백오프의 다음 due를 계산한다 |
+| `rcnc_stop_dttm` | 기본 7일의 최대 추적 나이를 넘긴 시각. 값이 있으면 자동 단건 조회에서 제외하고 리포트·경보로 넘긴다. 웹훅·대사에서 더 최신 벤더 관찰이 실제 적용되면 세 reconciliation 컬럼을 초기화한다 |
 
 ### bcm_sbmt_l — 제출 원장
 
@@ -469,7 +478,7 @@ CREATE INDEX idx_bcm_outbox_send ON bcm_outbox_l (evnt_stcd, evnt_id);  -- 미�
 |---|---|
 | `evnt_id` | time-ordered UUID v7 — PK 이자 컨슈머 dedup 키. relay 가 같은 행을 두 번 보내도 컨슈머가 이 값으로 접는다. 시간정렬이라 별도 생성시각 없이 발송 순서로 쓴다 |
 | `bcm_tx_l` 갱신 | **행을 잠그고 판정한다** (2026-08-06 확정) — 전이 허용 여부는 직전 상태를 읽어야 정해지므로(02 허용 전이 표) 읽고 쓰는 사이에 다른 알림이 끼면 판정이 어긋난다. 그 tx 행을 `SELECT … FOR UPDATE` 로 잠근 뒤 판정·갱신한다. 같은 tx 의 알림만 경합하므로 잠금 범위가 좁다. `cnfm_cnt` 는 추가로 `GREATEST` 로 감싸 **줄지 않게** 한다(02) |
-| set-once 컬럼 | **갱신문에서 제외한다** — `frst_dtct_dttm` 과 감사의 `frst_reg_empno`·`frst_reg_brcd` 는 최초 흔적이라 다시 쓰지 않는다. 갱신은 `last_chng_*` 만 건드린다 |
+| set-once 컬럼 | **갱신문에서 제외한다** — `vndr_crt_dttm`·`frst_dtct_dttm` 과 감사의 `frst_reg_empno`·`frst_reg_brcd` 는 최초 흔적이라 다시 쓰지 않는다. 갱신은 `last_chng_*` 만 건드린다 |
 | UNIQUE 충돌 | 도메인 예외로 바꾸고 **재조회해 이긴 값을 돌려준다** — 경합해도 결과는 하나다 |
 | `evt_typ_dvcd` | 코어 이벤트 어휘와 통일 — TXCK(Checking)·TXCF(Confirmed)·TXFL(Failed)·**TXRJ(Rejected — 2026-08-06 신설 제안, 코어 확정 대기)**. BC→코어 계약이 한 어휘로 흐른다 |
 | `evnt_stcd` | 워커 적재 시 `P`, relay 발송 성공 시 `S`, 실패 누적 시 `F`. relay 는 `P` 를 `evnt_id` 순으로 집는다 |
@@ -641,13 +650,13 @@ CREATE INDEX idx_bcm_boost_open ON bcm_boost_l (bst_stcd, req_dttm);
 
 ### bcm_job_m — 주기 작업 상태
 
-주기 작업(막힘 점검 · sweep 배치 · tx 대사 · 수수료 관측)별 한 행. 밖의 모니터링이 읽기 전용 계정으로 읽는 heartbeat 와, tx 대사의 대조 범위 이어붙임에 쓴다.
+주기 작업(막힘 점검 · sweep 배치 · tx 대사 · 수수료 관측)별 한 행. 밖의 모니터링이 읽기 전용 계정으로 읽는 heartbeat 와, tx 대사의 대조 범위 이어붙임에 쓴다. `last_run_dttm`은 실제 실행 heartbeat지만 tx 대사의 `last_scs_dttm`은 마지막으로 완주한 안정화된 createdAt 창의 끝이므로 두 값이 다를 수 있다. 첫 실행은 현재 안정화 창 끝에서 운영 설정의 초기 lookback만큼 이전부터 시작한다.
 
 ```sql
 CREATE TABLE bcm_job_m (
   job_nm         VARCHAR(64)  PRIMARY KEY,   -- 작업명
   last_run_dttm  VARCHAR(16)  NOT NULL,      -- 마지막 실행 일시 — heartbeat
-  last_scs_dttm  VARCHAR(16)  NULL,          -- 마지막 성공 일시 — tx 대사는 이 값부터 대조 범위를 이어붙인다
+  last_scs_dttm  VARCHAR(16)  NULL,          -- 마지막 성공 경계 — tx 대사는 안정화된 createdAt 창 끝
   -- 감사 4컬럼
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
@@ -721,15 +730,22 @@ CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- �
 
 `payload` 는 바이트 그대로 보존해야 해 JSONB 가 아니라 TEXT 다(무결성 해시가 원문 바이트 기준). 이 표의 세 값은 모두 수신 시점에만 만들 수 있어 `bcm_whk_l` 이 정리되기 전에 옮겨야 한다 — 지나가면 소급해서 만들 수 없다.
 
-월별 파티션은 **대상 월이 시작되기 전에 배포 역할이 선생성**한다. 애플리케이션 실행 역할은 DDL 권한 없이 이미 생성된 파티션에만 적재한다. 파티션 누락으로 적재가 실패하면 같은 트랜잭션의 `bcm_whk_l` 정리도 롤백하고 `bcm_job_m.last_scs_dttm` 을 전진시키지 않는다. 보존 연한·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
+월별 파티션은 **대상 월이 시작되기 전에 배포 역할이 선생성**한다. 애플리케이션 실행 역할은 DDL 권한 없이 이미 생성된 파티션에만 적재한다. 보관 후보는 성공 커서의 하한 없이 실행 경계 이전의 `S` 인박스 중 root 거래가 FINALIZED이고 payload 원어가 COMPLETED이며, `bcm_raw_tx_l`에 같은 tx의 동일하거나 더 최신 `rcv_dttm` 원문이 없는 행이다. 기본 500건씩 실행당 최대 20배치를 처리하고 각 배치를 별도 트랜잭션으로 커밋한다. 파티션 누락이나 중간 적재 실패가 나도 앞서 커밋한 보관분은 유지되며, 다음 실행이 같은 미보관 조건으로 멱등하게 이어받는다.
+
+적격 후보가 더 없음을 확인한 뒤에만 별도 마지막 트랜잭션에서 보존 기간이 지난 처리 완료(`S`) 인박스를 정리하고 성공 heartbeat를 기록한다. 최대 배치에 도달해 적체를 완전히 비우지 못했거나 어느 배치든 실패하면 인박스 정리와 성공 heartbeat는 하지 않는다. 따라서 `last_scs_dttm`은 보관 완전성 커서가 아니라 성공 heartbeat일 뿐이다. 보존 연한·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
 
 ## 미확정
 
 - **`bcm_tx_l`·`bcm_whk_l`·`bcm_outbox_l` 보존** — 종결·처리 완료·발송 완료 건을 언제까지 두고 언제 정리할지 — `bcm_raw_tx_l` 원본 보관과 역할을 나눈 뒤 확정.
 
+## 확정 이력 (2026-08-14)
+
+- **tx 대사는 벤더 createdAt 단일 시간축** — 벤더 목록과 `bcm_tx_l.vndr_crt_dttm`을 안정화 지연이 지난 같은 닫힌 구간으로 비교한다. 창 밖 미결 단건 조회는 DB claim·영속 백오프·실행당 상한·최대 추적 나이를 둔다.
+- **원본 보관은 커서 없는 미보관 재탐색** — 늦게 적격이 된 원문도 다시 찾고, 배치별로 안전하게 커밋한다. 전체 적체를 비운 실행만 인박스 정리와 성공 heartbeat를 남긴다.
+
 ## 확정 이력 (2026-08-13)
 
-- **원본 월별 파티션은 배포 역할이 선생성** — 런타임 애플리케이션에 DDL 권한을 주지 않는다. 누락 시 보관 배치와 같은 실행의 인박스 정리를 함께 실패시키고 성공 heartbeat를 전진시키지 않는다.
+- **원본 월별 파티션은 배포 역할이 선생성** — 런타임 애플리케이션에 DDL 권한을 주지 않는다. 누락 시 해당 보관 배치를 실패시키고 인박스 정리와 성공 heartbeat를 남기지 않는다.
 - **수수료 시계열은 자산별 network fee 관측** — 등록된 벤더 assetId의 LOW·MEDIUM·HIGH 응답을 `bcm_fee_qt_l`에 정규화한다. 일반 제출은 MEDIUM, boost는 저장된 fee level로 제출 시각 이하의 최근 관측을 논리 대응하며 특정 거래 시뮬레이션과 실비는 분리한다.
 
 ## 확정 이력 (2026-08-12)
