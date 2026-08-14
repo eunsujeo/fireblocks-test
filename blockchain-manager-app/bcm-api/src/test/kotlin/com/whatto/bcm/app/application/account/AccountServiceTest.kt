@@ -36,7 +36,7 @@ class AccountServiceTest {
     private val assetMappingQueryService = mockk<VendorAssetMappingQueryService>()
     private val walletVendorPort = mockk<WalletVendorPort>()
 
-    // KST 고정 시각 — registeredAt 은 14자 일시 (CLAUDE.md 3절)
+    // zone이 KST인 Clock이어도 registeredAt은 UTC 14자 일시로 정규화한다 (CLAUDE.md 3절).
     private val fixedClock = Clock.fixed(Instant.parse("2026-08-05T12:04:05Z"), ZoneId.of("Asia/Seoul"))
 
     private val service =

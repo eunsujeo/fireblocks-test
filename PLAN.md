@@ -143,7 +143,7 @@ Phase 0 이월 사항 → Phase 1 에서 회수:
 
 fbhook PoC 에서 검증된 경로를 이식한다 (`~/Workspace/fbhook` 참고).
 
-- [x] **T3.1 수신 기반** — V1 원문 TEXT/hash/sign + raw sign, KST Clock, 가상 스레드와 HTTP 연결 상한
+- [x] **T3.1 수신 기반** — V1 원문 TEXT/hash/sign + raw sign, 당시 KST Clock(2026-08-14 UTC로 대체), 가상 스레드와 HTTP 연결 상한
 - [x] **T3.2 웹훅 세로줄** — `POST /webhook` RS512 detached JWS 원문 검증 → `bcm_whk_l` 적재 → 200,
   서명 없음·불일치 401, `noti_id` 순차·동시 중복 무시. JWKS 최초 실패·낯선 kid는 외부 호출을 증폭하지 않게 timeout·cooldown 처리
 - [x] **T3.3 converge** — design-sync 사본 13개 byte-동일·핵심 계약 정합 확인. code-reviewer 지적의 필수 필드 결손,
@@ -155,7 +155,7 @@ fbhook PoC 에서 검증된 경로를 이식한다 (`~/Workspace/fbhook` 참고)
 - **본문 바이트를 한 번 읽어 세 곳에 같은 `byte[]` 를 쓴다** — 서명 검증 · `payload`(TEXT) 저장 · `payload_hash`(SHA-256 소문자 hex). 서명 헤더 원문은 `sign_vl` 에 함께 적재 (03 · 셋 다 수신 시점에만 만들 수 있다)
 - JWKS 조회는 타임아웃 + 수신 스레드와 분리
 - 가상 스레드 활성(`spring.threads.virtual.enabled=true`) + **수신 동시성 명시 상한** — 커넥션 풀이 실질 상한이라 무제한이면 폭주 시 커넥션 대기로 쌓인다 ([.claude/rules/virtual-thread.md](.claude/rules/virtual-thread.md))
-- Clock 빈 2곳(`bcm-api`·`bcm-bat`)을 KST 로 교체 — 프로덕션 UTC ↔ 테스트 KST 모순 해소 (#26)
+- Clock 빈 2곳(`bcm-api`·`bcm-bat`)을 당시 KST 로 교체 — 2026-08-14 모든 DB 일시·일자 UTC 결정으로 재교체 (#26)
 
 **완료 기준**: 96-payload-sample 실물 payload 로 통합 테스트 — 정상 적재 / 서명 없음·가짜 서명 401 / noti_id 중복 무시. **적재된 `payload` 바이트가 수신 본문과 완전히 같고**(저장했다 꺼낸 값으로 서명 재검증 통과), `payload_hash` 가 그 바이트의 SHA-256 과 일치.
 
@@ -408,7 +408,7 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
 | 23 | **balanceOf — "계정 있음·자산 지갑 미발급" 케이스 계약 미정의** (T2.5 design-sync, 중) — 벤더 4xx → VendorApiException → 500 으로 떨어짐. `depositAddressOf` 는 같은 구분을 `data: null` 로 명시하는데 balanceOf 는 침묵. DAW-CORE 가 주소 발급 전 잔액 조회 시 500 | 차기 스펙 개정 시 — DAW-CORE 정합 포함 사용자 결정 |
 | 24 | **생성 오퍼레이션의 409 가 스펙 표면에 없음** (T2.5 design-sync) — UNIQUE 경합 후 재조회마저 실패하는 극단 경로에서 409 전파, 스펙 CONFLICT 는 submitTransaction 에만 표기. 정상 운영 도달 불가한 방어 경로 | 차기 스펙 개정 시 |
 | 25 | **벤더 생성 성공 + 로컬 insert 실패(비-충돌) 복구 경로** (T2.5 code-reviewer M3) — 멱등 창(24h) 이후 재시도가 벤더 "이미 존재" 4xx → 500 영구 반복(고아 vault·지갑). "already exists" 식별 fallback 또는 벤더-로컬 대사 항목 필요 | Phase 8 대사 설계 시 함께 — 또는 조기 fallback 구현. **참고: 제출 경로는 같은 문제를 "원장 먼저, 벤더 나중 + 벤더 조회로 회수"로 풀었다(02 출금 절·#6)** — 계정·주소 생성에도 같은 형태를 쓸지 검토 |
-| 26 | **일시 14자 컬럼의 zone 규약 (KST vs UTC)** (T2.5 code-reviewer C1) | ✅ 해결 (2026-08-06) — **KST(`Asia/Seoul`)** 설계 확정. 코어 스키마 사본에 시간대 근거가 없어 설계 결정으로 갔다(근거: 오프셋 없는 14자 포맷 · `base_dt` 영업일 경계 · 이미 KST 인 `@Scheduled(zone)` · KST 는 서머타임 없음). **Phase 3 에서 Clock 빈 2곳을 KST 로 교체.** DAW-CORE 회신이 오면 대조 — 어긋나면 빈 2개 교체(운영 데이터 쌓이기 전이라 되돌리는 비용 없음) |
+| 26 | **일시 14자 컬럼의 zone 규약 (KST vs UTC)** (T2.5 code-reviewer C1) | ✅ 해결 갱신 (2026-08-14) — **모든 DB `_dttm`·`_dt`·`base_dt`를 UTC로 통일.** Clock 빈 2곳은 `Clock.systemUTC()`이고 벤더 epoch도 공통 유틸에서 UTC로 변환한다. API는 ISO 8601 UTC(`Z`), 화면·정산·보고서에서만 필요한 시간대로 변환한다. 2026-08-06 KST 결정은 대체됐다. |
 | 27 | **Admin API OpenAPI 계약 부재** | ✅ 해결 (2026-08-06) — 스펙 v0.2.0에 벤더 중립 Admin API 7개와 요청·응답 스키마 확정, 스펙 자동 대조 테스트 추가 |
 | 28 | **매핑 삭제와 주소 발급의 동시성** — 삭제 전 `existsByAsset` 확인과 DELETE가 단일 트랜잭션/제약이 아니어서, Admin 삭제와 최초 주소 발급이 정확히 경합하면 TOCTOU 가능. 장기 벤더 호출 동안 잠글지, FK/예약 상태를 둘지 설계 필요 | 실자산 운영 전 확정 |
 | 29 | **물리 삭제 Admin 감사 흔적** — DELETE는 직원·부점 헤더를 필수로 받지만 `bcm_vndr_ast_m` 행을 물리 삭제하면 감사 4컬럼도 함께 사라진다. 삭제 이력 표·논리 삭제·외부 감사 로그 중 보존 방식을 07/03에서 확정해야 한다 | 실자산 운영 전 — 설계 결정 대기 |

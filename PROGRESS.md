@@ -4,36 +4,30 @@
 
 ## 현재 위치
 
-- **Phase 8 T8.1~T8.3 구현과 전체 검증을 완료했다. 다음 작업은 T8.4 converge다.**
-- `tx-reconciliation`은 기본 비활성 10분 주기다. workspace `GET /v1/transactions`를 source/order 없이
-  최대 500건씩 페이징하고, `bcm_job_m.last_scs_dttm` 경계를 1ms 겹쳐 createdAt 창을 이어 붙인다.
-- 벤더 원어 COMPLETED·FAILED·vault 발신 REJECTED/BLOCKED만 root 거래와 비교해 일치·vendor-only·
-  manager-only·status mismatch를 로깅 리포트한다. 종결 상태 불일치는 자동 정정하지 않는다.
-- 목록 창 밖의 오래된 `SUBMITTED`·`CONFIRMED`는 active 물리 tx 단건 조회로 확인한다. 종결이 확인되면 기존
-  상태기계+outbox 트랜잭션을 재사용해 입금을 복구하고, SWEEP_BATCH는 실행 원장을 RECONCILING으로 옮긴다.
-- RBF 계열은 성공 증거를 우선하고 active가 아닌 지연 실패를 제외한다. 반복 벤더 cursor나 처리 예외가 나면
-  성공 heartbeat를 전진시키지 않는다.
-- `raw-transaction-archive`는 기본 비활성 일 배치다. 활성화할 때 양의 `retentionDays` 운영 설정이 필수다.
-  성공 커서 경계를 포함해 마지막 COMPLETED 원문·수신 해시·서명을 그대로 월 파티션에 이관한다.
-- 월별 파티션은 배포 역할이 `db/operations/create_bcm_raw_tx_partitions.sql`로 대상 월 전에 선생성한다.
-  런타임은 DML만 수행하며 파티션 누락·정리 실패 시 적재·인박스 삭제·성공 heartbeat가 모두 롤백된다.
-- 처리 완료(S) 인박스만 운영 보존일 뒤 정리한다. P/F와 아직 보관되지 않은 FINALIZED COMPLETED 원문은 보존한다.
-- `network-fee-quote-collection`은 기본 비활성 5분 주기이며 30초 미만 설정을 거부한다. 등록된 벤더 자산별
-  network fee LOW·MEDIUM·HIGH를 같은 관측 시각으로 `bcm_fee_qt_l`에 저장한다.
-- 모든 자산 응답을 먼저 받은 뒤 견적과 성공 heartbeat를 한 트랜잭션에 기록한다. 동일 초 PK는 멱등이며,
-  일반 제출은 MEDIUM, boost는 저장된 fee level로 요청 시각 이하 최근 견적을 대응하고 미래 견적은 제외한다.
-- `./gradlew check ktlintCheck --rerun-tasks` 전체 456건 그린. 02·03 설계 사본은 waas-wiki `f6fee44`와 byte 동일하다.
+- **Phase 8 T8.1~T8.3 구현 완료, T8.4 converge의 외부 리뷰만 남았다.**
+- tx 대사는 벤더 `createdAt` 안정화 창과 `bcm_tx_l.vndr_crt_dttm`을 UTC로 비교한다. 초 단위 경계를
+  1ms/999ms 보정하고, 종결 번역은 벤더 translator, 비교·복구 판단은 domain 정책에 모았다.
+- 창 밖 `SUBMITTED`·`CONFIRMED`는 DB 원자 claim, 30초/1분/5분/15분/1시간 백오프, 실행당 100건,
+  최대 7일 추적으로 단건 조회한다. 새 관찰이 실제 적용되면 대사 체크포인트를 초기화한다.
+- 원본 보관은 커서 하한 없이 미보관 COMPLETED 원문을 재탐색한다. 500건×최대 20배치를 각각 커밋하고,
+  적체를 비운 실행만 정리+성공 heartbeat를 별도 커밋한다. 미보관 COMPLETED 원문은 root 상태와 무관하게 보존한다.
+- 수수료 견적은 등록 자산별 LOW/MEDIUM/HIGH를 같은 관측 시각으로 저장하며 일반 제출 MEDIUM,
+  boost는 저장 fee level의 제출시각 이하 최근 견적을 대응한다.
+- 2026-08-14 확정으로 모든 DB `_dttm`·`_dt`·`base_dt`를 UTC로 통일했다. Clock 빈 2곳은
+  `Clock.systemUTC()`, 벤더 epoch와 대사 API 경계도 공통 UTC 유틸을 쓴다.
+- `docs/design/02-bcm-flow.md`·`03-bcm-db.md`·`98-batch-sweep.md`는 현재 waas-wiki와 byte 동일하다.
+- `./gradlew check ktlintCheck --rerun-tasks` 전체 468건 그린.
 
 ## 다음 작업
 
-- 2026-08-13 18:53 KST design-sync·code-reviewer를 재시도했으나 둘 다 Claude 세션 제한으로 시작 전에 중단됐다.
-  20:30 KST 제한 해제 뒤 `5cb9301..HEAD` Phase 8 전체 리뷰를 다시 실행하고 지적 반영 후 T8.4·Phase 8을 닫는다.
+- 2026-08-14 code-reviewer와 design-sync를 최종 UTC 상태로 실행했으나 둘 다 Claude 세션 한도로 종료됐다.
+  **14:50 KST 제한 해제 후 `d5610fc..HEAD` 범위로 두 리뷰를 재실행**하고 지적을 반영한다.
+- 두 리뷰가 통과하면 PLAN T8.4와 Phase 8 체크박스를 닫고 PROGRESS를 완료 상태로 갱신한다.
 
 ## 리뷰 후속·외부 조건
 
 - 계열 승자가 cnfm>0 뒤 reorg로 뒤바뀌는 경우는 confirmation 감소 금지와 충돌하므로 설계 판단이 필요하다.
 - FAILED boost 뒤 늦은 웹훅의 벤더 생성 가능성과 COMPLETED hash 보장은 실측·QnA가 필요하다.
-  boost persistence 경합 분기 직접 테스트도 보강 후보다.
-- stall stale 시간이 boost claim TTL보다 길다는 설정 불변식과 EVM 네트워크 판별 하드코딩은 후속 개선 후보다.
+- `bcm_job_m.markSucceeded` 다중 인스턴스 회귀 방지, pending 한 건 실패 격리, N+1/보관 scan 개선은 Phase 9 후보다.
 - `docs/design/`은 AI 직접 수정 금지다. 실연동 전 TAP·Callback·gasless, 컨트랙트 감사와 회수 훈련이 필요하다.
 - `TXRJ`는 코어 회신 후 단일 enum 상수만 교체한다. 경보 채널은 PLAN #13 확정 전 logging adapter다.
