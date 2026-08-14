@@ -1,7 +1,9 @@
 package com.whatto.bcm.support.time
 
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 
@@ -20,4 +22,9 @@ object CoreDateTimes {
     fun parse(value: String): LocalDateTime = LocalDateTime.parse(value, FORMATTER)
 
     fun now(clock: Clock): String = format(LocalDateTime.now(clock))
+
+    fun fromEpochMillis(
+        epochMillis: Long,
+        zoneId: ZoneId,
+    ): String = format(Instant.ofEpochMilli(epochMillis).atZone(zoneId).toLocalDateTime())
 }

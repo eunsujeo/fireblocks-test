@@ -31,4 +31,12 @@ data class TxRecord(
     val firstDetectedAt: String,
     /** 마지막 갱신 일시 — 감소 금지, 막힘 점검의 기준 */
     val lastChangedAt: String,
+    /** 벤더 createdAt — 대사 단일 시간축, 최초값 보존 */
+    val vendorCreatedAt: String = firstDetectedAt,
+    /** 창 밖 미결 거래의 마지막 단건 조회 claim 시각 */
+    val reconciliationCheckedAt: String? = null,
+    /** 창 밖 미결 거래 단건 조회 횟수 — 영속 백오프 단계 */
+    val reconciliationCheckCount: Int = 0,
+    /** 최대 추적 나이 도달 시각 — 값이 있으면 자동 단건 조회 중단 */
+    val reconciliationStoppedAt: String? = null,
 )

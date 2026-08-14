@@ -27,38 +27,35 @@ class RawTransactionArchiveJob(
     fun run() {
         val current = LocalDateTime.now(clock)
         val now = CoreDateTimes.format(current)
-        val receivedAtOrAfter = jobs.find(JOB_NAME)?.lastSucceededAt ?: BEGINNING_OF_TIME
         val baseDate = now.take(8)
         val cleanupCutoff = CoreDateTimes.format(current.minusDays(properties.requiredRetentionDays))
         jobs.markStarted(JOB_NAME, now)
 
+        var archivedCount = 0
+        var drained = false
+        var batchCount = 0
+        while (batchCount < properties.maxBatchesPerRun && !drained) {
+            batchCount += 1
+            val batch =
+                transactionRunner.run {
+                    archives.archiveCompletedBatch(baseDate, now, properties.batchSize)
+                }
+            archivedCount += batch.archivedCount
+            if (batch.candidateCount < properties.batchSize) {
+                drained = true
+            }
+        }
+        check(drained) {
+            "raw transaction archive backlog remains after max batches: maxBatchesPerRun=${properties.maxBatchesPerRun}"
+        }
         val result =
             transactionRunner.run {
-                var archivedCount = 0
-                var batch =
-                    archives.archiveCompletedWindow(
-                        baseDate,
-                        receivedAtOrAfter,
-                        now,
-                        properties.batchSize,
-                    )
-                while (batch.candidateCount > 0) {
-                    archivedCount += batch.archivedCount
-                    batch =
-                        archives.archiveCompletedWindow(
-                            baseDate,
-                            receivedAtOrAfter,
-                            now,
-                            properties.batchSize,
-                        )
-                }
                 val deletedCount = archives.deleteProcessedAtOrBefore(cleanupCutoff)
                 jobs.markSucceeded(JOB_NAME, now)
                 ArchiveRunResult(archivedCount, deletedCount)
             }
         logger.info(
-            "원본 보관 완료 from={} to={} baseDate={} archived={} deletedInbox={}",
-            receivedAtOrAfter,
+            "원본 보관 완료 to={} baseDate={} archived={} deletedInbox={}",
             now,
             baseDate,
             result.archivedCount,
@@ -68,7 +65,6 @@ class RawTransactionArchiveJob(
 
     internal companion object {
         const val JOB_NAME = "raw-transaction-archive"
-        const val BEGINNING_OF_TIME = "00010101000000"
         val logger = LoggerFactory.getLogger(RawTransactionArchiveJob::class.java)
     }
 }
@@ -84,10 +80,12 @@ data class RawTransactionArchiveProperties(
     val fixedDelayMillis: Long = 86_400_000,
     val retentionDays: Long? = null,
     val batchSize: Int = 500,
+    val maxBatchesPerRun: Int = 20,
 ) {
     init {
         require(fixedDelayMillis > 0) { "fixedDelayMillis must be positive" }
         require(batchSize > 0) { "batchSize must be positive" }
+        require(maxBatchesPerRun > 0) { "maxBatchesPerRun must be positive" }
         require(retentionDays == null || retentionDays > 0) { "retentionDays must be positive" }
         require(!enabled || retentionDays != null) { "retentionDays is required when raw transaction archive is enabled" }
     }

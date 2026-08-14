@@ -42,18 +42,26 @@ class TransactionReconciliationJob(
     @Scheduled(fixedDelayString = "\${bcm.tx-reconciliation.fixed-delay-millis:600000}")
     fun run() {
         val current = LocalDateTime.now(clock)
-        val to = CoreDateTimes.format(current)
+        val runAt = CoreDateTimes.format(current)
+        val stabilized = current.minusSeconds(properties.stabilizationDelaySeconds)
+        val to = CoreDateTimes.format(stabilized)
         val from =
             jobs.find(JOB_NAME)?.lastSucceededAt
-                ?: CoreDateTimes.format(current.minusSeconds(properties.initialLookbackSeconds))
-        jobs.markStarted(JOB_NAME, to)
+                ?: CoreDateTimes.format(stabilized.minusSeconds(properties.initialLookbackSeconds))
+        jobs.markStarted(JOB_NAME, runAt)
 
-        val windowRecords = reconciliation.findDetectedBetween(from, to)
+        val windowRecords = reconciliation.findCreatedBetween(from, to)
         val selected = selectRootObservations(allTransactions(from, to))
+        val stoppedTrackingCount =
+            reconciliation.markExpiredPendingStopped(
+                CoreDateTimes.format(current.minusSeconds(properties.pendingMaxAgeSeconds)),
+                runAt,
+            )
         reconciliation
-            .findPendingChangedAtOrBefore(
+            .claimPendingForReconciliation(
                 CoreDateTimes.format(current.minusSeconds(properties.pendingStaleSeconds)),
-                properties.pendingBatchSize,
+                runAt,
+                properties.pendingMaxLookupsPerRun,
             ).filter { it.record.vendorTxId !in selected }
             .forEach { pending ->
                 vendor
@@ -99,7 +107,7 @@ class TransactionReconciliationJob(
                 )
                 recoveredCount += 1
             }
-        reports.report(TxReconciliationReport(from, to, result, recoveredCount))
+        reports.report(TxReconciliationReport(from, to, result, recoveredCount, stoppedTrackingCount))
         jobs.markSucceeded(JOB_NAME, to)
     }
 
@@ -116,13 +124,19 @@ class TransactionReconciliationJob(
                     VendorTransactionPageRequest(
                         sourceVaultId = null,
                         afterEpochMillis = epochMillis(from) - CURSOR_OVERLAP_MILLIS,
-                        beforeEpochMillis = epochMillis(to),
+                        beforeEpochMillis = epochMillis(to) + UPPER_SECOND_MILLIS,
                         order = null,
                         limit = VENDOR_PAGE_LIMIT,
                         cursor = cursor,
                     ),
                 )
-            transactions += page.data.filter { it.terminalStatusForReconciliation() != null }
+            val fromEpochMillis = epochMillis(from)
+            val toEpochMillis = epochMillis(to) + UPPER_SECOND_MILLIS
+            transactions +=
+                page.data.filter {
+                    it.createdAtEpochMillis in fromEpochMillis..toEpochMillis &&
+                        it.terminalStatusForReconciliation() != null
+                }
             cursor = page.next
             if (cursor != null && !seenCursors.add(cursor)) {
                 throw IllegalStateException("vendor returned a repeated transaction cursor: cursor=$cursor")
@@ -192,6 +206,7 @@ class TransactionReconciliationJob(
         const val JOB_NAME = "tx-reconciliation"
         const val VENDOR_PAGE_LIMIT = 500
         const val CURSOR_OVERLAP_MILLIS = 1L
+        const val UPPER_SECOND_MILLIS = 999L
     }
 }
 
@@ -200,14 +215,18 @@ data class TransactionReconciliationProperties(
     val enabled: Boolean = false,
     val fixedDelayMillis: Long = 600_000,
     val initialLookbackSeconds: Long = 600,
+    val stabilizationDelaySeconds: Long = 300,
     val pendingStaleSeconds: Long = 600,
-    val pendingBatchSize: Int = 500,
+    val pendingMaxLookupsPerRun: Int = 100,
+    val pendingMaxAgeSeconds: Long = 604_800,
 ) {
     init {
         require(fixedDelayMillis > 0) { "fixedDelayMillis must be positive" }
         require(initialLookbackSeconds > 0) { "initialLookbackSeconds must be positive" }
+        require(stabilizationDelaySeconds > 0) { "stabilizationDelaySeconds must be positive" }
         require(pendingStaleSeconds > 0) { "pendingStaleSeconds must be positive" }
-        require(pendingBatchSize > 0) { "pendingBatchSize must be positive" }
+        require(pendingMaxLookupsPerRun > 0) { "pendingMaxLookupsPerRun must be positive" }
+        require(pendingMaxAgeSeconds > 0) { "pendingMaxAgeSeconds must be positive" }
     }
 }
 
@@ -227,13 +246,17 @@ class LoggingTxReconciliationReportAdapter : TxReconciliationReportPort {
                 mismatch.managerStatus,
             )
         }
+        if (report.stoppedTrackingCount > 0) {
+            logger.warn("거래 대사 자동 추적 최대 나이 도달 count={}", report.stoppedTrackingCount)
+        }
         logger.info(
-            "거래 대사 완료 from={} to={} matched={} mismatches={} recovered={}",
+            "거래 대사 완료 from={} to={} matched={} mismatches={} recovered={} stoppedTracking={}",
             report.from,
             report.to,
             report.result.matchedCount,
             report.result.mismatches.size,
             report.recoveredCount,
+            report.stoppedTrackingCount,
         )
     }
 

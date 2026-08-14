@@ -14,6 +14,7 @@ data class TxObservation(
     val vendorSubStatus: String?,
     val vendorNetworkStatus: String?,
     val observedAt: String,
+    val vendorCreatedAt: String = observedAt,
 )
 
 data class TxStateChange(
@@ -56,6 +57,9 @@ class TxStateMachine(
                     previous.copy(
                         stallAlertedAt = null,
                         lastChangedAt = maxOf(previous.lastChangedAt, observation.observedAt),
+                        reconciliationCheckedAt = null,
+                        reconciliationCheckCount = 0,
+                        reconciliationStoppedAt = null,
                     ),
                 )
             return TxStateChange(deferred, emptyList())
@@ -75,13 +79,18 @@ class TxStateMachine(
     ): TxStateChange {
         val decision = TransitionTable.decide(previous.lastPublishedStatus, observation.status)
         val candidate = candidate(previous, observation, decision.statusToRecord(previous.lastPublishedStatus, observation.status))
+        val madeProgress = madeProgress(previous, candidate)
+        val newerObservation = observation.observedAt > previous.lastChangedAt
         val record =
             repository.update(
                 candidate.copy(
                     vendorTxId = previous.vendorTxId,
                     activeVendorTxId = previous.activeVendorTxId,
                     externalTxId = previous.externalTxId ?: candidate.externalTxId,
-                    stallAlertedAt = previous.stallAlertedAt.takeUnless { madeProgress(previous, candidate) },
+                    stallAlertedAt = previous.stallAlertedAt.takeUnless { madeProgress },
+                    reconciliationCheckedAt = previous.reconciliationCheckedAt.takeUnless { newerObservation },
+                    reconciliationCheckCount = previous.reconciliationCheckCount.takeUnless { newerObservation } ?: 0,
+                    reconciliationStoppedAt = previous.reconciliationStoppedAt.takeUnless { newerObservation },
                 ),
             )
         return TxStateChange(record, decision.publishedStatuses(observation.status))
@@ -124,6 +133,7 @@ class TxStateMachine(
         vendorNetworkStatus = observation.vendorNetworkStatus,
         firstDetectedAt = previous?.firstDetectedAt ?: observation.observedAt,
         lastChangedAt = observation.observedAt,
+        vendorCreatedAt = previous?.vendorCreatedAt ?: observation.vendorCreatedAt,
     )
 
     private fun madeProgress(

@@ -10,9 +10,8 @@ import org.springframework.stereotype.Repository
 class RawTransactionArchiveJdbcAdapter(
     private val jdbc: NamedParameterJdbcTemplate,
 ) : RawTransactionArchiveRepository {
-    override fun archiveCompletedWindow(
+    override fun archiveCompletedBatch(
         baseDate: String,
-        receivedAtOrAfter: String,
         receivedAtOrBefore: String,
         limit: Int,
     ): RawTransactionArchiveBatch {
@@ -48,7 +47,6 @@ class RawTransactionArchiveJdbcAdapter(
                     ON submission.vndr_tx_id = transaction.vndr_tx_id
                   WHERE webhook.prcs_stcd = 'S'
                     AND webhook.vndr_tx_id IS NOT NULL
-                    AND webhook.rcv_dttm >= :receivedAtOrAfter
                     AND webhook.rcv_dttm <= :receivedAtOrBefore
                     AND webhook.payload::jsonb #>> '{data,status}' = 'COMPLETED'
                 ), candidates AS MATERIALIZED (
@@ -93,7 +91,6 @@ class RawTransactionArchiveJdbcAdapter(
                 """.trimIndent(),
                 mapOf(
                     "baseDate" to baseDate,
-                    "receivedAtOrAfter" to receivedAtOrAfter,
                     "receivedAtOrBefore" to receivedAtOrBefore,
                     "limit" to limit,
                     "employeeNo" to SystemAudit.EMPNO,
@@ -116,12 +113,6 @@ class RawTransactionArchiveJdbcAdapter(
               AND webhook.prcs_dttm <= :processedAtOrBefore
               AND (
                 COALESCE(webhook.payload::jsonb #>> '{data,status}', '') <> 'COMPLETED'
-                OR NOT EXISTS (
-                  SELECT 1
-                  FROM bcm_tx_l transaction
-                  WHERE transaction.actv_tx_id = webhook.vndr_tx_id
-                    AND transaction.last_pub_stcd = 'FINALIZED'
-                )
                 OR EXISTS (
                   SELECT 1
                   FROM bcm_raw_tx_l archived

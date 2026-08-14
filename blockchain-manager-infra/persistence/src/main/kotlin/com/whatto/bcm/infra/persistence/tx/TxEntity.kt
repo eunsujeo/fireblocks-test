@@ -34,6 +34,14 @@ data class TxEntity(
     val vndrNtwkStcd: String?,
     @Column("stall_alrt_dttm")
     val stallAlrtDttm: String?,
+    @Column("vndr_crt_dttm")
+    val vndrCrtDttm: String,
+    @Column("rcnc_chck_dttm")
+    val rcncChckDttm: String?,
+    @Column("rcnc_chck_cnt")
+    val rcncChckCnt: Int,
+    @Column("rcnc_stop_dttm")
+    val rcncStopDttm: String?,
     @Column("frst_dtct_dttm")
     val frstDtctDttm: String,
     @Column("last_chng_dttm")
@@ -63,6 +71,10 @@ data class TxEntity(
             stallAlertedAt = stallAlrtDttm,
             firstDetectedAt = frstDtctDttm,
             lastChangedAt = lastChngDttm,
+            vendorCreatedAt = vndrCrtDttm,
+            reconciliationCheckedAt = rcncChckDttm,
+            reconciliationCheckCount = rcncChckCnt,
+            reconciliationStoppedAt = rcncStopDttm,
         )
 
     companion object {
@@ -80,6 +92,10 @@ data class TxEntity(
                 vndrSubStcd = txRecord.vendorSubStatus,
                 vndrNtwkStcd = txRecord.vendorNetworkStatus,
                 stallAlrtDttm = txRecord.stallAlertedAt,
+                vndrCrtDttm = txRecord.vendorCreatedAt,
+                rcncChckDttm = txRecord.reconciliationCheckedAt,
+                rcncChckCnt = txRecord.reconciliationCheckCount,
+                rcncStopDttm = txRecord.reconciliationStoppedAt,
                 frstDtctDttm = txRecord.firstDetectedAt,
                 lastChngDttm = txRecord.lastChangedAt,
                 frstRegEmpno = SystemAudit.EMPNO,

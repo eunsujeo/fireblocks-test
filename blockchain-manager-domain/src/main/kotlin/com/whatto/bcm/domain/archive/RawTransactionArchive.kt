@@ -6,9 +6,8 @@ data class RawTransactionArchiveBatch(
 )
 
 interface RawTransactionArchiveRepository {
-    fun archiveCompletedWindow(
+    fun archiveCompletedBatch(
         baseDate: String,
-        receivedAtOrAfter: String,
         receivedAtOrBefore: String,
         limit: Int,
     ): RawTransactionArchiveBatch

@@ -11,13 +11,20 @@ data class TxReconciliationRecord(
 interface TxReconciliationRepository {
     fun findByPhysicalVendorTransactionId(vendorTransactionId: String): TxReconciliationRecord?
 
-    fun findDetectedBetween(
-        detectedAtOrAfter: String,
-        detectedAtOrBefore: String,
+    fun findCreatedBetween(
+        createdAtOrAfter: String,
+        createdAtOrBefore: String,
     ): List<TxReconciliationRecord>
 
-    fun findPendingChangedAtOrBefore(
+    fun markExpiredPendingStopped(
+        detectedAtOrBefore: String,
+        stoppedAt: String,
+    ): Int
+
+    /** 후보를 잠그고 확인 시각·횟수를 먼저 기록한 실행자만 반환한다. 백오프 단계는 저장소 계약에 고정한다. */
+    fun claimPendingForReconciliation(
         changedAtOrBefore: String,
+        checkedAt: String,
         limit: Int,
     ): List<TxReconciliationRecord>
 }
@@ -50,6 +57,7 @@ data class TxReconciliationReport(
     val to: String,
     val result: TxReconciliationResult,
     val recoveredCount: Int,
+    val stoppedTrackingCount: Int,
 )
 
 fun interface TxReconciliationReportPort {

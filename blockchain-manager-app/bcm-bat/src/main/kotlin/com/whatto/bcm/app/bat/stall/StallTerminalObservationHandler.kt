@@ -20,6 +20,7 @@ import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.support.id.UuidV7Generator
+import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.Clock
@@ -42,7 +43,7 @@ class TransactionalStallTerminalObservationHandler(
     private val boosts: BoostAttemptRepository,
     private val vendor: VendorTransactionPort,
     private val eventSerializer: ChainEventSerializer,
-    clock: Clock,
+    private val clock: Clock,
     @param:Value("\${bcm.webhook-worker.outbox-max-attempts:5}") private val outboxMaxAttempts: Int,
 ) : StallTerminalObservationHandler {
     private val stateMachine = TxStateMachine(transactions)
@@ -130,6 +131,7 @@ class TransactionalStallTerminalObservationHandler(
                     vendorSubStatus = transaction.subStatus,
                     vendorNetworkStatus = candidate.record.vendorNetworkStatus,
                     observedAt = observedAt,
+                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis, clock.zone),
                 ),
                 successEvidence = PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation()),
             )

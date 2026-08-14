@@ -24,6 +24,7 @@ data class FireblocksTransaction(
     val transactionHash: String?,
     val externalTransactionId: String?,
     val confirmationCount: Int,
+    val createdAtEpochMillis: Long,
 ) {
     fun statusObservation() = VendorStatusObservation(rawStatus, subStatus, confirmationCount)
 }
@@ -48,6 +49,13 @@ class FireblocksTransactionParser(
         if (!confirmationsNode.isNumber || confirmationsNode.asInt() < 0) {
             throw WebhookPayloadException("invalid data.numOfConfirmations")
         }
+        val createdAtNode = data.path("createdAt")
+        if (createdAtNode.isMissingNode || createdAtNode.isNull) {
+            throw WebhookPayloadException("missing data.createdAt")
+        }
+        if (!createdAtNode.isNumber || createdAtNode.asLong() < 0) {
+            throw WebhookPayloadException("invalid data.createdAt")
+        }
 
         return FireblocksTransaction(
             vendorTransactionId = requiredText(data.path("id").asString(), "data.id"),
@@ -63,6 +71,7 @@ class FireblocksTransactionParser(
             transactionHash = optionalText(data.path("txHash").asString()),
             externalTransactionId = optionalText(data.path("externalTxId").asString()),
             confirmationCount = confirmationsNode.asInt(),
+            createdAtEpochMillis = createdAtNode.asLong(),
         )
     }
 

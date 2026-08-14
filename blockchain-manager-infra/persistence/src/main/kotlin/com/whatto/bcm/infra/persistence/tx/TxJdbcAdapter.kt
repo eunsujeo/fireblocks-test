@@ -51,6 +51,10 @@ class TxJdbcAdapter(
                 stallAlertedAt = rs.getString("stall_alrt_dttm"),
                 firstDetectedAt = rs.getString("frst_dtct_dttm"),
                 lastChangedAt = rs.getString("last_chng_dttm"),
+                vendorCreatedAt = rs.getString("vndr_crt_dttm"),
+                reconciliationCheckedAt = rs.getString("rcnc_chck_dttm"),
+                reconciliationCheckCount = rs.getInt("rcnc_chck_cnt"),
+                reconciliationStoppedAt = rs.getString("rcnc_stop_dttm"),
             )
         }
     private val reconciliationRowMapper =
@@ -89,6 +93,9 @@ class TxJdbcAdapter(
                        vndr_sub_stcd = :vendorSubStatus,
                        vndr_ntwk_stcd = :vendorNetworkStatus,
                        stall_alrt_dttm = :stallAlertedAt,
+                       rcnc_chck_dttm = :reconciliationCheckedAt,
+                       rcnc_chck_cnt = :reconciliationCheckCount,
+                       rcnc_stop_dttm = :reconciliationStoppedAt,
                        last_chng_dttm = GREATEST(last_chng_dttm, :lastChangedAt),
                        last_chng_empno = :employeeNo,
                        last_chng_brcd = :branchCode
@@ -129,6 +136,9 @@ class TxJdbcAdapter(
                        vndr_sub_stcd = :vendorSubStatus,
                        vndr_ntwk_stcd = :vendorNetworkStatus,
                        stall_alrt_dttm = NULL,
+                       rcnc_chck_dttm = :reconciliationCheckedAt,
+                       rcnc_chck_cnt = :reconciliationCheckCount,
+                       rcnc_stop_dttm = :reconciliationStoppedAt,
                        last_chng_dttm = GREATEST(last_chng_dttm, :lastChangedAt),
                        last_chng_empno = :employeeNo,
                        last_chng_brcd = :branchCode
@@ -182,42 +192,98 @@ class TxJdbcAdapter(
                 reconciliationRowMapper,
             ).firstOrNull()
 
-    override fun findDetectedBetween(
-        detectedAtOrAfter: String,
-        detectedAtOrBefore: String,
+    override fun findCreatedBetween(
+        createdAtOrAfter: String,
+        createdAtOrBefore: String,
     ): List<TxReconciliationRecord> =
         jdbc.query(
             """
             SELECT tx.*, submission.tx_dvcd, submission.swp_exec_id
             FROM bcm_tx_l tx
             LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
-            WHERE tx.frst_dtct_dttm >= :detectedAtOrAfter
-              AND tx.frst_dtct_dttm <= :detectedAtOrBefore
-            ORDER BY tx.frst_dtct_dttm, tx.vndr_tx_id
+            WHERE tx.vndr_crt_dttm >= :createdAtOrAfter
+              AND tx.vndr_crt_dttm <= :createdAtOrBefore
+            ORDER BY tx.vndr_crt_dttm, tx.vndr_tx_id
             """.trimIndent(),
             mapOf(
-                "detectedAtOrAfter" to detectedAtOrAfter,
-                "detectedAtOrBefore" to detectedAtOrBefore,
+                "createdAtOrAfter" to createdAtOrAfter,
+                "createdAtOrBefore" to createdAtOrBefore,
             ),
             reconciliationRowMapper,
         )
 
-    override fun findPendingChangedAtOrBefore(
+    override fun markExpiredPendingStopped(
+        detectedAtOrBefore: String,
+        stoppedAt: String,
+    ): Int =
+        jdbc.update(
+            """
+            UPDATE bcm_tx_l
+            SET rcnc_stop_dttm = :stoppedAt,
+                last_chng_empno = :employeeNo,
+                last_chng_brcd = :branchCode
+            WHERE last_pub_stcd IN ('SUBMITTED', 'CONFIRMED')
+              AND frst_dtct_dttm <= :detectedAtOrBefore
+              AND rcnc_stop_dttm IS NULL
+            """.trimIndent(),
+            mapOf(
+                "detectedAtOrBefore" to detectedAtOrBefore,
+                "stoppedAt" to stoppedAt,
+                "employeeNo" to SystemAudit.EMPNO,
+                "branchCode" to SystemAudit.BRCD,
+            ),
+        )
+
+    override fun claimPendingForReconciliation(
         changedAtOrBefore: String,
+        checkedAt: String,
         limit: Int,
     ): List<TxReconciliationRecord> {
         require(limit > 0) { "reconciliation pending limit must be positive" }
         return jdbc.query(
             """
-            SELECT tx.*, submission.tx_dvcd, submission.swp_exec_id
-            FROM bcm_tx_l tx
-            LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
-            WHERE tx.last_pub_stcd IN ('SUBMITTED', 'CONFIRMED')
-              AND tx.last_chng_dttm <= :changedAtOrBefore
-            ORDER BY tx.last_chng_dttm, tx.vndr_tx_id
-            LIMIT :limit
+            WITH candidates AS MATERIALIZED (
+              SELECT tx.vndr_tx_id
+              FROM bcm_tx_l tx
+              WHERE tx.last_pub_stcd IN ('SUBMITTED', 'CONFIRMED')
+                AND tx.last_chng_dttm <= :changedAtOrBefore
+                AND tx.rcnc_stop_dttm IS NULL
+                AND (
+                  tx.rcnc_chck_dttm IS NULL
+                  OR to_timestamp(tx.rcnc_chck_dttm, 'YYYYMMDDHH24MISS') +
+                    CASE
+                      WHEN tx.rcnc_chck_cnt = 1 THEN INTERVAL '30 seconds'
+                      WHEN tx.rcnc_chck_cnt = 2 THEN INTERVAL '1 minute'
+                      WHEN tx.rcnc_chck_cnt = 3 THEN INTERVAL '5 minutes'
+                      WHEN tx.rcnc_chck_cnt = 4 THEN INTERVAL '15 minutes'
+                      ELSE INTERVAL '1 hour'
+                    END <= to_timestamp(:checkedAt, 'YYYYMMDDHH24MISS')
+                )
+              ORDER BY tx.rcnc_chck_dttm NULLS FIRST, tx.last_chng_dttm, tx.vndr_tx_id
+              LIMIT :limit
+              FOR UPDATE SKIP LOCKED
+            ), claimed AS (
+              UPDATE bcm_tx_l tx
+              SET rcnc_chck_dttm = :checkedAt,
+                  rcnc_chck_cnt = tx.rcnc_chck_cnt + 1,
+                  last_chng_empno = :employeeNo,
+                  last_chng_brcd = :branchCode
+              FROM candidates
+              WHERE tx.vndr_tx_id = candidates.vndr_tx_id
+              RETURNING tx.*
+            )
+            SELECT claimed.*, submission.tx_dvcd, submission.swp_exec_id
+            FROM claimed
+            LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = claimed.vndr_tx_id
+            ORDER BY claimed.rcnc_chck_dttm, claimed.last_chng_dttm, claimed.vndr_tx_id
             """.trimIndent(),
-            mapOf("changedAtOrBefore" to changedAtOrBefore, "limit" to limit),
+            mapOf(
+                "changedAtOrBefore" to changedAtOrBefore,
+                "checkedAt" to checkedAt,
+                "limit" to limit,
+                "employeeNo" to SystemAudit.EMPNO,
+                "branchCode" to SystemAudit.BRCD,
+            ),
             reconciliationRowMapper,
         )
     }
@@ -292,6 +358,9 @@ class TxJdbcAdapter(
             "vendorSubStatus" to vendorSubStatus,
             "vendorNetworkStatus" to vendorNetworkStatus,
             "stallAlertedAt" to stallAlertedAt,
+            "reconciliationCheckedAt" to reconciliationCheckedAt,
+            "reconciliationCheckCount" to reconciliationCheckCount,
+            "reconciliationStoppedAt" to reconciliationStoppedAt,
             "lastChangedAt" to lastChangedAt,
             "employeeNo" to SystemAudit.EMPNO,
             "branchCode" to SystemAudit.BRCD,
@@ -301,6 +370,7 @@ class TxJdbcAdapter(
         const val TX_COLUMNS =
             """SELECT vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
                       last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
+                      vndr_crt_dttm, rcnc_chck_dttm, rcnc_chck_cnt, rcnc_stop_dttm,
                       frst_dtct_dttm, last_chng_dttm"""
     }
 }

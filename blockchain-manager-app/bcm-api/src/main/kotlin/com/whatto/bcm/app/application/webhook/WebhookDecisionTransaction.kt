@@ -171,6 +171,7 @@ class WebhookDecisionTransaction(
                     vendorSubStatus = transaction.subStatus,
                     vendorNetworkStatus = transaction.networkStatus,
                     observedAt = inboxItem.receivedAt,
+                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis, clock.zone),
                 ),
             )
         val events =
@@ -284,6 +285,7 @@ class WebhookDecisionTransaction(
                     vendorSubStatus = transaction.subStatus,
                     vendorNetworkStatus = transaction.networkStatus,
                     observedAt = inboxItem.receivedAt,
+                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis, clock.zone),
                 ),
                 successEvidence =
                     viableBoost != null &&

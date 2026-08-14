@@ -17,12 +17,15 @@ bcm:
     enabled: false
     fixed-delay-millis: 600000
     initial-lookback-seconds: 600
+    stabilization-delay-seconds: 300
     pending-stale-seconds: 600
-    pending-batch-size: 500
+    pending-max-lookups-per-run: 100
+    pending-max-age-seconds: 604800
   raw-transaction-archive:
     enabled: false
     fixed-delay-millis: 86400000
     batch-size: 500
+    max-batches-per-run: 20
   network-fee-quote-collection:
     enabled: false
     fixed-delay-millis: 300000

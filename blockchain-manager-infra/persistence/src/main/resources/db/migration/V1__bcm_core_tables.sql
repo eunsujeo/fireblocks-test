@@ -96,6 +96,10 @@ CREATE TABLE bcm_tx_l (
   vndr_sub_stcd   VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 subStatus 원어 — 운영 조사용, 이벤트 미탑재
   vndr_ntwk_stcd  VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 networkStatus 원어 — 운영 조사용, 이벤트 미탑재
   stall_alrt_dttm VARCHAR(16)  NULL,          -- 막힘 경보 일시 — 있으면 다음 주기 건너뜀
+  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 createdAt KST 초 단위 — 대사 시간축, set-once
+  rcnc_chck_dttm  VARCHAR(16)  NULL,          -- 창 밖 미결 거래의 마지막 단건 조회 claim 시각
+  rcnc_chck_cnt   INT          NOT NULL DEFAULT 0, -- 단건 조회 횟수 — 영속 백오프 단계
+  rcnc_stop_dttm  VARCHAR(16)  NULL,          -- 최대 추적 나이 도달 시각
   frst_dtct_dttm  VARCHAR(16)  NOT NULL,
   last_chng_dttm  VARCHAR(16)  NOT NULL,      -- 감소 금지 — 막힘 점검의 기준
   frst_reg_empno  VARCHAR(6)  NOT NULL,
@@ -105,6 +109,8 @@ CREATE TABLE bcm_tx_l (
 );
 CREATE INDEX idx_bcm_tx_stall ON bcm_tx_l (last_pub_stcd, last_chng_dttm)
   WHERE stall_alrt_dttm IS NULL AND last_pub_stcd IN ('SUBMITTED', 'CONFIRMED');
+CREATE INDEX idx_bcm_tx_rcnc ON bcm_tx_l (last_pub_stcd, rcnc_stop_dttm, rcnc_chck_dttm, frst_dtct_dttm)
+  WHERE last_pub_stcd IN ('SUBMITTED', 'CONFIRMED');
 
 -- 제출 원장 — externalTxId 멱등 판정과 벤더 호출 전 요청 영속화의 기준 행
 CREATE TABLE bcm_sbmt_l (
