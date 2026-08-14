@@ -94,6 +94,19 @@ class FireblocksStatusTranslator(
             network = network,
         )
 
+    override fun terminalStatusForReconciliation(
+        observation: VendorStatusObservation,
+        sourceType: String,
+    ): TxStatus? {
+        if (observation.subStatus in FREEZE_SUB_STATUSES) return TxStatus.REJECTED
+        return when (observation.rawStatus) {
+            "COMPLETED" -> TxStatus.FINALIZED
+            "FAILED" -> TxStatus.FAILED
+            "REJECTED", "BLOCKED" -> if (sourceType == VAULT_ACCOUNT_SOURCE) TxStatus.REJECTED else null
+            else -> null
+        }
+    }
+
     fun translate(
         transaction: FireblocksTransaction,
         network: String,
@@ -143,6 +156,7 @@ class FireblocksStatusTranslator(
     }
 
     private companion object {
+        const val VAULT_ACCOUNT_SOURCE = "VAULT_ACCOUNT"
         val FREEZE_SUB_STATUSES = setOf("AUTO_FREEZE", "FROZEN_MANUALLY", "REJECTED_AML_SCREENING")
     }
 }

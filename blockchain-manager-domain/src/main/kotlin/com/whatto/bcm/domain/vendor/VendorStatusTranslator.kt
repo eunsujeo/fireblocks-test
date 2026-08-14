@@ -13,6 +13,12 @@ interface VendorStatusTranslator {
         observation: VendorStatusObservation,
         network: String,
     ): TxStatus
+
+    /** 대사 대상 벤더 종결 원어면 공통 상태를, 진행 중이거나 대상 밖이면 null을 반환한다. */
+    fun terminalStatusForReconciliation(
+        observation: VendorStatusObservation,
+        sourceType: String,
+    ): TxStatus?
 }
 
 /** 번역에 필요한 최소 관찰값 — 벤더 응답이든 웹훅 알림이든 같은 형태로 넘긴다. */

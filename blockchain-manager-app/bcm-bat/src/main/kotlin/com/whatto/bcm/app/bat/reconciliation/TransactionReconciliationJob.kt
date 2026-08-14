@@ -58,8 +58,11 @@ class TransactionReconciliationJob(
             .forEach { pending ->
                 vendor
                     .transaction(pending.record.activeVendorTxId)
-                    ?.takeIf { it.isTerminalForReconciliation() }
-                    ?.let { selected[pending.record.vendorTxId] = RootObservation(pending, it) }
+                    ?.let { transaction ->
+                        transaction.terminalStatusForReconciliation()?.let { status ->
+                            selected[pending.record.vendorTxId] = RootObservation(pending, transaction, status)
+                        }
+                    }
             }
 
         val managerByRoot = linkedMapOf<String, TxReconciliationRecord>()
@@ -73,7 +76,7 @@ class TransactionReconciliationJob(
             selected.values.map { observation ->
                 TxReconciliationSnapshot(
                     observation.rootVendorTransactionId,
-                    observation.status(statusTranslator),
+                    observation.status,
                 )
             }
         val managerSnapshots =
@@ -119,7 +122,7 @@ class TransactionReconciliationJob(
                         cursor = cursor,
                     ),
                 )
-            transactions += page.data.filter { it.isTerminalForReconciliation() }
+            transactions += page.data.filter { it.terminalStatusForReconciliation() != null }
             cursor = page.next
             if (cursor != null && !seenCursors.add(cursor)) {
                 throw IllegalStateException("vendor returned a repeated transaction cursor: cursor=$cursor")
@@ -131,9 +134,10 @@ class TransactionReconciliationJob(
     private fun selectRootObservations(transactions: List<VendorTransaction>): MutableMap<String, RootObservation> {
         val selected = linkedMapOf<String, RootObservation>()
         transactions.forEach { transaction ->
+            val status = checkNotNull(transaction.terminalStatusForReconciliation())
             val managed = reconciliation.findByPhysicalVendorTransactionId(transaction.transactionId)
             if (managed == null) {
-                selected[transaction.transactionId] = RootObservation(null, transaction)
+                selected[transaction.transactionId] = RootObservation(null, transaction, status)
                 return@forEach
             }
             if (
@@ -142,7 +146,7 @@ class TransactionReconciliationJob(
             ) {
                 return@forEach
             }
-            val candidate = RootObservation(managed, transaction)
+            val candidate = RootObservation(managed, transaction, status)
             val previous = selected[managed.record.vendorTxId]
             if (previous == null || candidate.preferredOver(previous)) {
                 selected[managed.record.vendorTxId] = candidate
@@ -158,12 +162,8 @@ class TransactionReconciliationJob(
             .toInstant()
             .toEpochMilli()
 
-    private fun VendorTransaction.isTerminalForReconciliation(): Boolean =
-        when (rawStatus) {
-            "COMPLETED", "FAILED" -> true
-            "REJECTED", "BLOCKED" -> source.type == VAULT_ACCOUNT
-            else -> false
-        }
+    private fun VendorTransaction.terminalStatusForReconciliation(): TxStatus? =
+        statusTranslator.terminalStatusForReconciliation(statusObservation(), source.type)
 
     private fun TxReconciliationRecord.isTerminalForReconciliation(): Boolean =
         when (record.lastPublishedStatus) {
@@ -175,13 +175,10 @@ class TransactionReconciliationJob(
     private data class RootObservation(
         val managed: TxReconciliationRecord?,
         val transaction: VendorTransaction,
+        val status: TxStatus,
     ) {
         val rootVendorTransactionId: String
             get() = managed?.record?.vendorTxId ?: transaction.transactionId
-
-        fun status(translator: VendorStatusTranslator): TxStatus =
-            managed?.let { translator.translate(transaction.statusObservation(), it.record.network) }
-                ?: transaction.rawTerminalStatus()
 
         fun preferredOver(previous: RootObservation): Boolean {
             val succeeds = PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation())
@@ -189,21 +186,12 @@ class TransactionReconciliationJob(
             if (succeeds != previousSucceeds) return succeeds
             return transaction.transactionId == managed?.record?.activeVendorTxId
         }
-
-        private fun VendorTransaction.rawTerminalStatus(): TxStatus =
-            when (rawStatus) {
-                "COMPLETED" -> TxStatus.FINALIZED
-                "FAILED" -> TxStatus.FAILED
-                "REJECTED", "BLOCKED" -> TxStatus.REJECTED
-                else -> error("non-terminal transaction selected: transactionId=$transactionId status=$rawStatus")
-            }
     }
 
     internal companion object {
         const val JOB_NAME = "tx-reconciliation"
         const val VENDOR_PAGE_LIMIT = 500
         const val CURSOR_OVERLAP_MILLIS = 1L
-        const val VAULT_ACCOUNT = "VAULT_ACCOUNT"
     }
 }
 
