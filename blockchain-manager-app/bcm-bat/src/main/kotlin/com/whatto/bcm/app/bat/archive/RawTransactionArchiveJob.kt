@@ -3,6 +3,7 @@ package com.whatto.bcm.app.bat.archive
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.archive.RawTransactionArchiveRepository
 import com.whatto.bcm.domain.job.JobStateRepository
+import com.whatto.bcm.support.time.BusinessDates
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -12,7 +13,6 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.Clock
-import java.time.LocalDateTime
 
 @Component
 @ConditionalOnProperty(prefix = "bcm.raw-transaction-archive", name = ["enabled"], havingValue = "true")
@@ -25,9 +25,9 @@ class RawTransactionArchiveJob(
 ) {
     @Scheduled(fixedDelayString = "\${bcm.raw-transaction-archive.fixed-delay-millis:86400000}")
     fun run() {
-        val current = LocalDateTime.now(clock)
+        val current = CoreDateTimes.current(clock)
         val now = CoreDateTimes.format(current)
-        val baseDate = now.take(8)
+        val baseDate = BusinessDates.now(clock)
         val cleanupCutoff = CoreDateTimes.format(current.minusDays(properties.requiredRetentionDays))
         jobs.markStarted(JOB_NAME, now)
 

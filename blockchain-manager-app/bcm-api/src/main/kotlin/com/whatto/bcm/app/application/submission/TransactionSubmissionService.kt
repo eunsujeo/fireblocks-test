@@ -28,7 +28,6 @@ import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.Duration
-import java.time.LocalDateTime
 import java.util.UUID
 
 @Service
@@ -358,13 +357,13 @@ class TransactionSubmissionService(
             id = UUID.randomUUID().toString(),
             expiresAt =
                 CoreDateTimes.format(
-                    LocalDateTime.now(clock).plusSeconds(properties.claimTtlSeconds),
+                    CoreDateTimes.current(clock).plusSeconds(properties.claimTtlSeconds),
                 ),
         )
 
     private fun retryAfterSeconds(record: SubmissionRecord): Long {
         val expiresAt = record.claimExpiresAt?.let(CoreDateTimes::parse) ?: return 1
-        return Duration.between(LocalDateTime.now(clock), expiresAt).seconds.coerceAtLeast(1)
+        return Duration.between(CoreDateTimes.current(clock), expiresAt).seconds.coerceAtLeast(1)
     }
 
     private data class SubmissionClaim(

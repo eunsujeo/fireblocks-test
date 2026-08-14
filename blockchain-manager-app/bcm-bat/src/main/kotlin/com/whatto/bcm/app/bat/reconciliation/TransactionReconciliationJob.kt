@@ -25,7 +25,6 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.Clock
-import java.time.LocalDateTime
 
 @Component
 @ConditionalOnProperty(prefix = "bcm.tx-reconciliation", name = ["enabled"], havingValue = "true")
@@ -41,7 +40,7 @@ class TransactionReconciliationJob(
 ) {
     @Scheduled(fixedDelayString = "\${bcm.tx-reconciliation.fixed-delay-millis:600000}")
     fun run() {
-        val current = LocalDateTime.now(clock)
+        val current = CoreDateTimes.current(clock)
         val runAt = CoreDateTimes.format(current)
         val stabilized = current.minusSeconds(properties.stabilizationDelaySeconds)
         val to = CoreDateTimes.format(stabilized)
@@ -167,12 +166,7 @@ class TransactionReconciliationJob(
         return selected
     }
 
-    private fun epochMillis(value: String): Long =
-        CoreDateTimes
-            .parse(value)
-            .atZone(clock.zone)
-            .toInstant()
-            .toEpochMilli()
+    private fun epochMillis(value: String): Long = CoreDateTimes.toEpochMillis(value)
 
     private fun VendorTransaction.terminalStatusForReconciliation(): TxStatus? =
         statusTranslator.terminalStatusForReconciliation(statusObservation(), source.type)

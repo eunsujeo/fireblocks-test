@@ -20,6 +20,7 @@ import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.support.id.UuidV7Generator
+import com.whatto.bcm.support.time.BusinessDates
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -131,7 +132,7 @@ class TransactionalStallTerminalObservationHandler(
                     vendorSubStatus = transaction.subStatus,
                     vendorNetworkStatus = candidate.record.vendorNetworkStatus,
                     observedAt = observedAt,
-                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis, clock.zone),
+                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis),
                 ),
                 successEvidence = PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation()),
             )
@@ -172,7 +173,7 @@ class TransactionalStallTerminalObservationHandler(
                     )
                 OutboxEvent(
                     eventId = eventId,
-                    eventDate = observedAt.take(8),
+                    eventDate = BusinessDates.now(clock),
                     vendorTransactionId = stateChange.record.vendorTxId,
                     eventType = OutboxEventType.forPublishedStatus(publishedStatus),
                     topic = eventType.topic,

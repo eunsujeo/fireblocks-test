@@ -32,6 +32,7 @@ import com.whatto.bcm.domain.webhook.WebhookPayloadException
 import com.whatto.bcm.infra.client.fireblocks.FireblocksStatusTranslator
 import com.whatto.bcm.infra.client.fireblocks.FireblocksTransaction
 import com.whatto.bcm.infra.client.fireblocks.FireblocksTransactionParser
+import com.whatto.bcm.support.time.BusinessDates
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -171,7 +172,7 @@ class WebhookDecisionTransaction(
                     vendorSubStatus = transaction.subStatus,
                     vendorNetworkStatus = transaction.networkStatus,
                     observedAt = inboxItem.receivedAt,
-                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis, clock.zone),
+                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis),
                 ),
             )
         val events =
@@ -285,7 +286,7 @@ class WebhookDecisionTransaction(
                     vendorSubStatus = transaction.subStatus,
                     vendorNetworkStatus = transaction.networkStatus,
                     observedAt = inboxItem.receivedAt,
-                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis, clock.zone),
+                    vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis),
                 ),
                 successEvidence =
                     viableBoost != null &&
@@ -350,7 +351,7 @@ class WebhookDecisionTransaction(
             )
         return OutboxEvent(
             eventId = eventId,
-            eventDate = CoreDateTimes.now(clock).take(8),
+            eventDate = BusinessDates.now(clock),
             vendorTransactionId = txRecord.vendorTxId,
             eventType = OutboxEventType.forPublishedStatus(status),
             topic = eventType.topic,

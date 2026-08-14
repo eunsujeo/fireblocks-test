@@ -27,7 +27,6 @@ import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.time.Clock
-import java.time.LocalDateTime
 
 sealed interface BoostSubmissionResult {
     data class Submitted(
@@ -83,7 +82,7 @@ class BoostSubmissionService(
             return BoostSubmissionResult.Alert(StallAlertReason.TRANSACTION_TYPE_NOT_ELIGIBLE)
         }
         val prepared = prepare(submission)
-        val now = LocalDateTime.now(clock)
+        val now = CoreDateTimes.current(clock)
         val request =
             BoostIntentRequest(
                 externalTransactionId = externalTransactionIds.nextId(),

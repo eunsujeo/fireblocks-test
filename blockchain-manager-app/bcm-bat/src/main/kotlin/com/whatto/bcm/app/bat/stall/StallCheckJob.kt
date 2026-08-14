@@ -21,7 +21,6 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.Clock
-import java.time.LocalDateTime
 
 @Component
 @ConditionalOnProperty(prefix = "bcm.stall-check", name = ["enabled"], havingValue = "true")
@@ -37,7 +36,7 @@ class StallCheckJob(
 ) {
     @Scheduled(fixedDelayString = "\${bcm.stall-check.fixed-delay-millis:300000}")
     fun run() {
-        val current = LocalDateTime.now(clock)
+        val current = CoreDateTimes.current(clock)
         val now = CoreDateTimes.format(current)
         jobs.markStarted(JOB_NAME, now)
         val stallCandidates =

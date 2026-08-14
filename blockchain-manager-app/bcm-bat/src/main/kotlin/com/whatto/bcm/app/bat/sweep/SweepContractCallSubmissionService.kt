@@ -20,7 +20,6 @@ import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.stereotype.Service
 import java.time.Clock
 import java.time.Duration
-import java.time.LocalDateTime
 import java.util.UUID
 
 data class SweepContractCallCommand(
@@ -248,7 +247,7 @@ class SweepContractCallSubmissionService(
     )
 
     private fun newClaim(): SubmissionClaim {
-        val now = LocalDateTime.now(clock)
+        val now = CoreDateTimes.current(clock)
         return SubmissionClaim(
             UUID.randomUUID().toString(),
             CoreDateTimes.format(now.plusSeconds(properties.claimTtlSeconds)),
