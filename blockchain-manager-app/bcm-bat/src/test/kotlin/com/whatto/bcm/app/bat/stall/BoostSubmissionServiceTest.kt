@@ -179,7 +179,7 @@ class BoostSubmissionServiceTest {
     )
 
     private companion object {
-        val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul"))
+        val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul"))
     }
 }
 

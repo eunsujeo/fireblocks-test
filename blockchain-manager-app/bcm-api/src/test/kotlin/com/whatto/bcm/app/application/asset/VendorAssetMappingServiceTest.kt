@@ -27,7 +27,7 @@ class VendorAssetMappingServiceTest {
     private val blockchains = mockk<VendorBlockchainCatalogRepository>()
     private val addressQueryService = mockk<DepositAddressQueryService>()
     private val vendorCatalog = mockk<VendorAssetCatalogPort>()
-    private val clock = Clock.fixed(Instant.parse("2026-08-06T03:00:00Z"), ZoneId.of("Asia/Seoul"))
+    private val clock = Clock.fixed(Instant.parse("2026-08-06T12:00:00Z"), ZoneId.of("Asia/Seoul"))
     private val service = VendorAssetMappingService(mappings, blockchains, addressQueryService, vendorCatalog, clock)
 
     private val audit = AuditActor("123456", "0001")

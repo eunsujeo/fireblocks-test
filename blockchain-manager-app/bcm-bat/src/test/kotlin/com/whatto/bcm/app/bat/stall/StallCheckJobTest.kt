@@ -201,7 +201,7 @@ class StallCheckJobTest {
         terminalObservations,
         boostSubmitter,
         jobs,
-        Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
+        Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
         properties,
     )
 

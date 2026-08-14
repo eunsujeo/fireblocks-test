@@ -482,7 +482,7 @@ class TransactionSubmissionServiceTest {
         private const val EXTERNAL_ID = "wd-260713-0042"
         private const val SENDER_ID = "acct_pool_02"
         private const val NOW = "20260807120000"
-        private val FIXED_CLOCK = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul"))
+        private val FIXED_CLOCK = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul"))
         private val MAPPING =
             VendorAssetMapping(
                 network = "ETHEREUM",

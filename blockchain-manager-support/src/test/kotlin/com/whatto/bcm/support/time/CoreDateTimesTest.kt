@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 
 /**
@@ -39,17 +39,20 @@ class CoreDateTimesTest {
     }
 
     @Test
-    fun `now 는 주입된 Clock 의 시각을 쓴다`() {
-        val clock = Clock.fixed(Instant.parse("2026-08-05T00:30:15Z"), ZoneId.of("Asia/Seoul"))
+    fun `now 는 Clock zone과 무관하게 UTC 절대시각을 쓴다`() {
+        val clock = Clock.fixed(Instant.parse("2026-08-05T00:30:15Z"), ZoneOffset.ofHours(9))
 
-        assertThat(CoreDateTimes.now(clock)).isEqualTo("20260805093015")
+        assertThat(CoreDateTimes.now(clock)).isEqualTo("20260805003015")
     }
 
     @Test
-    fun `벤더 epoch millisecond는 지정한 시간대의 코어 일시로 변환한다`() {
-        val zone = ZoneId.of("Asia/Seoul")
+    fun `벤더 epoch millisecond는 UTC 코어 일시로 변환한다`() {
+        assertThat(CoreDateTimes.fromEpochMillis(1_786_068_306_789)).isEqualTo("20260807020506")
+    }
 
-        assertThat(CoreDateTimes.fromEpochMillis(1_786_068_306_789, zone)).isEqualTo("20260807110506")
+    @Test
+    fun `UTC 코어 일시는 epoch millisecond로 왕복한다`() {
+        assertThat(CoreDateTimes.toEpochMillis("20260807020506")).isEqualTo(1_786_068_306_000)
     }
 
     @Test

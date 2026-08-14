@@ -9,7 +9,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.core.env.StandardEnvironment
 import org.springframework.core.io.ClassPathResource
 import org.springframework.stereotype.Component
-import java.time.ZoneId
+import java.time.ZoneOffset
 
 class BcmBatApplicationTest {
     @Test
@@ -22,8 +22,8 @@ class BcmBatApplicationTest {
     }
 
     @Test
-    fun `배치 시각 원천은 KST다`() {
-        assertThat(BcmBatApplication().clock().zone).isEqualTo(ZoneId.of("Asia/Seoul"))
+    fun `배치 절대시각 원천은 UTC다`() {
+        assertThat(BcmBatApplication().clock().zone).isEqualTo(ZoneOffset.UTC)
     }
 
     @Test

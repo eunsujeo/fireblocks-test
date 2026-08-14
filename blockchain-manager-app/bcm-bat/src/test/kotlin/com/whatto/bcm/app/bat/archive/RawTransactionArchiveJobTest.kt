@@ -27,7 +27,7 @@ class RawTransactionArchiveJobTest {
                 ArchiveRequest("20260813", NOW, 2),
                 ArchiveRequest("20260813", NOW, 2),
             )
-        assertThat(archives.cleanupCutoffs).containsExactly("20260714120000")
+        assertThat(archives.cleanupCutoffs).containsExactly("20260714030000")
         assertThat(transactions.runCount).isEqualTo(3)
         assertThat(jobs.started).containsExactly(JOB_NAME to NOW)
         assertThat(jobs.succeeded).containsExactly(JOB_NAME to NOW)
@@ -87,23 +87,36 @@ class RawTransactionArchiveJobTest {
             .hasMessageContaining("retentionDays")
     }
 
+    @Test
+    fun `보관 절대시각은 UTC이고 파티션 업무일자는 KST다`() {
+        val archives = RecordingArchives(ArrayDeque(listOf(RawTransactionArchiveBatch(0, 0))))
+        val jobs = RecordingJobs(null)
+        val boundaryClock = Clock.fixed(Instant.parse("2026-08-13T15:30:00Z"), ZoneId.of("UTC"))
+
+        job(archives, jobs, clock = boundaryClock).run()
+
+        assertThat(archives.archiveRequests).containsExactly(ArchiveRequest("20260814", "20260813153000", 2))
+        assertThat(jobs.started).containsExactly(JOB_NAME to "20260813153000")
+    }
+
     private fun job(
         archives: RawTransactionArchiveRepository,
         jobs: JobStateRepository,
         transactionRunner: TransactionRunner = CountingTransactionRunner(),
         properties: RawTransactionArchiveProperties =
             RawTransactionArchiveProperties(enabled = true, retentionDays = 30, batchSize = 2),
+        clock: Clock = CLOCK,
     ) = RawTransactionArchiveJob(
         archives = archives,
         jobs = jobs,
         transactionRunner = transactionRunner,
-        clock = CLOCK,
+        clock = clock,
         properties = properties,
     )
 
     private companion object {
         const val JOB_NAME = "raw-transaction-archive"
-        const val NOW = "20260813120000"
+        const val NOW = "20260813030000"
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-13T03:00:00Z"), ZoneId.of("Asia/Seoul"))
     }
 }

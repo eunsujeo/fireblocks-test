@@ -87,7 +87,7 @@ class NetworkFeeQuoteCollectionJobTest {
 
     private companion object {
         const val NOW = "20260813120000"
-        val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-13T03:00:00Z"), ZoneId.of("Asia/Seoul"))
+        val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-13T12:00:00Z"), ZoneId.of("Asia/Seoul"))
     }
 }
 

@@ -119,7 +119,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 boosts = boosts,
                 vendor = FamilyVendor(emptyMap()),
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
-                clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
+                clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
                 outboxMaxAttempts = 5,
             )
 
@@ -189,7 +189,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 terminalObservations = handler(vendor),
                 reports = TxReconciliationReportPort(reports::add),
                 jobs = jobs,
-                clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
+                clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
                 properties = TransactionReconciliationProperties(enabled = true),
             )
 
@@ -225,7 +225,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 boosts = boosts,
                 vendor = FamilyVendor(mapOf("tx-root" to completedTransaction())),
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
-                clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
+                clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
                 outboxMaxAttempts = 5,
             )
 
@@ -320,7 +320,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             boosts = boosts,
             vendor = vendor,
             eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
-            clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZoneId.of("Asia/Seoul")),
+            clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
             outboxMaxAttempts = 5,
         )
 

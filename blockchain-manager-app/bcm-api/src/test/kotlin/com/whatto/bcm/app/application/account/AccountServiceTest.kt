@@ -37,7 +37,7 @@ class AccountServiceTest {
     private val walletVendorPort = mockk<WalletVendorPort>()
 
     // KST 고정 시각 — registeredAt 은 14자 일시 (CLAUDE.md 3절)
-    private val fixedClock = Clock.fixed(Instant.parse("2026-08-05T03:04:05Z"), ZoneId.of("Asia/Seoul"))
+    private val fixedClock = Clock.fixed(Instant.parse("2026-08-05T12:04:05Z"), ZoneId.of("Asia/Seoul"))
 
     private val service =
         AccountService(accountRepository, depositAddressRepository, assetMappingQueryService, walletVendorPort, fixedClock)

@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
-import java.time.ZoneId
+import java.time.ZoneOffset
 
 class TransactionReconciliationJobTest {
     @Test
@@ -221,8 +221,8 @@ class TransactionReconciliationJobTest {
     private companion object {
         const val JOB_NAME = "tx-reconciliation"
         const val NOW = "20260807120000"
-        val ZONE: ZoneId = ZoneId.of("Asia/Seoul")
-        val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), ZONE)
+        val ZONE = ZoneOffset.UTC
+        val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZONE)
     }
 }
 

@@ -14,7 +14,7 @@ import org.springframework.core.env.Environment
 import org.springframework.core.task.AsyncTaskExecutor
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.Clock
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -209,7 +209,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `앱 시각은 KST이고 HTTP 수신은 가상 스레드와 동시 연결 상한을 쓴다`() {
+    fun `앱 절대시각 원천은 UTC이고 HTTP 수신은 가상 스레드와 동시 연결 상한을 쓴다`() {
         val taskRanOnVirtualThread = AtomicBoolean(false)
         val taskCompleted = CountDownLatch(1)
         val tomcatWebServer = webServerApplicationContext.webServer as TomcatWebServer
@@ -220,7 +220,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             taskCompleted.countDown()
         }
 
-        assertThat(clock.zone).isEqualTo(ZoneId.of("Asia/Seoul"))
+        assertThat(clock.zone).isEqualTo(ZoneOffset.UTC)
         assertThat(environment.getProperty("spring.threads.virtual.enabled", Boolean::class.java)).isTrue()
         assertThat(protocolHandler.maxConnections).isEqualTo(100)
         assertThat(protocolHandler.executor.javaClass.simpleName).contains("VirtualThreadExecutor")
