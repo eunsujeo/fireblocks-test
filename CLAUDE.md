@@ -98,6 +98,7 @@ blockchain-manager-svc/            (rootProject.name = "blockchain-manager")
 - **테스트 없는 완료 없음** — 규칙은 [docs/testing.md](docs/testing.md). 계약 로직(전이 표·dedup·outbox)은 반드시 테스트로 고정한다. 테스트 수정은 구현과 별도 커밋으로.
 - **커밋은 마일스톤 단위** — 매 편집마다 커밋하지 않는다. 커밋 메시지 끝: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`. PROGRESS.md 는 세션 종료 시 갱신.
 - **강제 장치** — 이 파일의 규칙 중 일부는 hook 으로 이중화돼 있다: docs/design 쓰기 차단 + ktlint(`.claude/settings.json` · `.claude/hooks/`), 시크릿 스캔(`.githooks/pre-commit`). hook 이 막으면 우회하지 말고 원인을 고친다.
+- **converge 리뷰는 순차·재개 가능하게 실행** — `./scripts/converge-review.sh design-sync <base>` 성공 후 `code-reviewer`를 실행한다. 두 agent를 병렬 실행하지 않고, 한도 초과 시 `.git/claude-converge/`에 저장된 같은 세션을 재개한다.
 - 프롬프트 작성 요령·작업 요청 템플릿: [docs/ai/prompt-guide.md](docs/ai/prompt-guide.md).
 
 ## 7. 확정·미확정

@@ -6,6 +6,13 @@ tools: Read, Grep, Glob, Bash
 
 blockchain-manager 코드와 설계 문서 사본(`docs/design/`)의 정합을 점검한다. 수정하지 않고 **차이만 보고**한다.
 
+## 점검 범위 결정 — 반드시 먼저 수행
+
+사용자 요청에 `base..HEAD` 같은 커밋 범위가 있으면 `git diff --name-status <범위>`와
+`git diff <범위> --`로 변경 파일을 먼저 확정한다. 명시 범위가 없으면 staged → unstaged →
+`origin/main...HEAD` 순서로 찾는다. 보고서 첫머리에 실제 범위와 변경 파일 목록을 적는다.
+범위는 영향 파일을 찾는 기준이며, 아래 설계 계약 대조와 사본 신선도 검사는 생략하지 않는다.
+
 점검 항목:
 
 0. **사본 신선도** — `../waas-wiki` 가 이 머신에 있으면 먼저 `docs/design/` 사본과 원본
@@ -20,8 +27,5 @@ blockchain-manager 코드와 설계 문서 사본(`docs/design/`)의 정합을 �
 6. **스펙 이원화 감시** — docs/api/openapi.yaml 의 이벤트 계약(ChainEvent·토픽·전달 보장) vs 01·02 대조
    (이벤트 계약은 두 문서에 걸쳐 있어 드리프트가 생긴 전력이 있다 — PLAN 미해결 표 #1).
    생성물 신선도: `python3 docs/api/build.py` 재생성 시 spec.js·api.md·api.html 에 diff 가 없는가.
-
-알려진 예외 (차이로 보고하지 않는다): 06-sweep 사본의 배치안 기록과 "옴니버스 유지 여부 미확정" 서술은
-확정 결정(건별 · 목적지 = 옴니버스, CLAUDE.md 3절)과 어긋난 채 유지 중 — waas-wiki 06 개정 전까지 정상.
 
 보고 형식: 차이 목록 — [코드 위치] vs [문서 절], 어느 쪽이 정본인지 판단은 하지 않는다 (코드를 고칠지 설계를 고칠지는 사용자 결정). 차이 없으면 "정합"이라고 명시.

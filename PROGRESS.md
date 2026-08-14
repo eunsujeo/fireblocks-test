@@ -21,7 +21,8 @@
 ## 다음 작업
 
 - 2026-08-14 code-reviewer와 design-sync를 최종 UTC 상태로 실행했으나 둘 다 Claude 세션 한도로 종료됐다.
-  **14:50 KST 제한 해제 후 `d5610fc..HEAD` 범위로 두 리뷰를 재실행**하고 지적을 반영한다.
+  **14:50 KST 제한 해제 후** 새 순차·세션 재개 스크립트로 먼저
+  `./scripts/converge-review.sh design-sync d5610fc`, 통과 뒤 `code-reviewer`를 실행하고 지적을 반영한다.
 - 두 리뷰가 통과하면 PLAN T8.4와 Phase 8 체크박스를 닫고 PROGRESS를 완료 상태로 갱신한다.
 
 ## 리뷰 후속·외부 조건

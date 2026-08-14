@@ -21,8 +21,10 @@
 - **task 층** — Phase 착수 시 첫 작업은 그 Phase 를 체크박스 task 로 분해하는 것이다. task 마다
   완료 기준(어떤 테스트가 통과하면 done)과 근거 설계 절을 붙인다. 분해 결과는 이 문서의 해당 Phase 아래에 둔다.
 - **세션 단위** — 1 세션 = task 1~2개 = 리뷰 가능한 diff 1개. 세션이 끝나면 [PROGRESS.md](PROGRESS.md) 갱신.
-- **Phase 마무리(converge)** — 완료 기준 통과 후 ① design-sync agent 로 설계 대비 정합 재검사
-  ② code-reviewer agent 로 diff 리뷰 ③ 체크박스 갱신 + PROGRESS.md 갱신. 셋이 끝나야 Phase 종료다.
+- **Phase 마무리(converge)** — 완료 기준 통과 후 ① `./scripts/converge-review.sh design-sync <base>`
+  ② 지적 반영 후 `./scripts/converge-review.sh code-reviewer <base>`를 **순차 실행** ③ 체크박스와 PROGRESS 갱신.
+  스크립트는 `.git/claude-converge/`의 세션을 재개하므로 한도 초과 때 새 세션으로 처음부터 재시작하지 않는다.
+  마지막 성공 리뷰 commit을 PROGRESS에 기록하며, 셋이 끝나야 Phase 종료다.
 
 ## 테이블 ↔ Phase 대응 (고아 테이블 방지)
 
