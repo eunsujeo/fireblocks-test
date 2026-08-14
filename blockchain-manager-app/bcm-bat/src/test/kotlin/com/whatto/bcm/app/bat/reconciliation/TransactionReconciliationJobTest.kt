@@ -230,6 +230,17 @@ private object TestStatusTranslator : VendorStatusTranslator {
             "CONFIRMING" -> TxStatus.CONFIRMED
             else -> TxStatus.SUBMITTED
         }
+
+    override fun terminalStatusForReconciliation(
+        observation: VendorStatusObservation,
+        sourceType: String,
+    ): TxStatus? =
+        when (observation.rawStatus) {
+            "COMPLETED" -> TxStatus.FINALIZED
+            "FAILED" -> TxStatus.FAILED
+            "REJECTED", "BLOCKED" -> if (sourceType == "VAULT_ACCOUNT") TxStatus.REJECTED else null
+            else -> null
+        }
 }
 
 private class RecordingReconciliationRepository(

@@ -2,6 +2,7 @@ package com.whatto.bcm.app.application.webhook
 
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.vendor.VendorStatusObservation
 import com.whatto.bcm.infra.client.fireblocks.FireblocksStatusTranslator
 import com.whatto.bcm.infra.client.fireblocks.FireblocksTransactionParser
 import org.assertj.core.api.Assertions.assertThat
@@ -45,6 +46,40 @@ class FireblocksTransactionParserTest {
 
         assertThat(statusTranslator.translate(frozen, "ETHEREUM")).isEqualTo(TxStatus.REJECTED)
         assertThat(statusTranslator.translate(failed, "ETHEREUM")).isEqualTo(TxStatus.FAILED)
+    }
+
+    @Test
+    fun `대사 종결 상태는 벤더 번역기 한 곳에서 발신 방향까지 판정한다`() {
+        assertThat(
+            statusTranslator.terminalStatusForReconciliation(
+                VendorStatusObservation("COMPLETED", null, 0),
+                "VAULT_ACCOUNT",
+            ),
+        ).isEqualTo(TxStatus.FINALIZED)
+        assertThat(
+            statusTranslator.terminalStatusForReconciliation(
+                VendorStatusObservation("FAILED", null, 0),
+                "UNKNOWN",
+            ),
+        ).isEqualTo(TxStatus.FAILED)
+        assertThat(
+            statusTranslator.terminalStatusForReconciliation(
+                VendorStatusObservation("REJECTED", null, 0),
+                "VAULT_ACCOUNT",
+            ),
+        ).isEqualTo(TxStatus.REJECTED)
+        assertThat(
+            statusTranslator.terminalStatusForReconciliation(
+                VendorStatusObservation("BLOCKED", null, 0),
+                "UNKNOWN",
+            ),
+        ).isNull()
+        assertThat(
+            statusTranslator.terminalStatusForReconciliation(
+                VendorStatusObservation("CONFIRMING", null, 0),
+                "VAULT_ACCOUNT",
+            ),
+        ).isNull()
     }
 
     @Test
