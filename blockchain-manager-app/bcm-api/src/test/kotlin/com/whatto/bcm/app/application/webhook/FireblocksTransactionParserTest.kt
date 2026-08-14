@@ -26,6 +26,7 @@ class FireblocksTransactionParserTest {
         assertThat(transaction.destinationAddress).isEqualTo("0x628501678d302023ca4555B678581917dF8D7636")
         assertThat(transaction.amount).isEqualTo("100")
         assertThat(transaction.confirmationCount).isEqualTo(1)
+        assertThat(transaction.createdAtEpochMillis).isEqualTo(1_785_738_506_296)
         assertThat(statusTranslator.translate(transaction, "ETHEREUM")).isEqualTo(TxStatus.CONFIRMED)
     }
 

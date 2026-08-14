@@ -46,6 +46,13 @@ class CoreDateTimesTest {
     }
 
     @Test
+    fun `벤더 epoch millisecond는 지정한 시간대의 코어 일시로 변환한다`() {
+        val zone = ZoneId.of("Asia/Seoul")
+
+        assertThat(CoreDateTimes.fromEpochMillis(1_786_068_306_789, zone)).isEqualTo("20260807110506")
+    }
+
+    @Test
     fun `14자가 아니면 파싱을 거부한다`() {
         assertThatThrownBy { CoreDateTimes.parse("20260805") }
             .isInstanceOf(DateTimeParseException::class.java)

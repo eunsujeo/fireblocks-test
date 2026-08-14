@@ -58,7 +58,7 @@ class RawTransactionArchiveIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `인박스 정리 뒤 실패하면 원본 적재와 삭제와 성공 heartbeat를 모두 롤백한다`() {
+    fun `인박스 정리가 실패해도 앞서 커밋한 원본은 유지하고 삭제와 성공 heartbeat만 롤백한다`() {
         insertFinalizedTransactionAndWebhook()
         val failingCleanup =
             object : RawTransactionArchiveRepository by archives {
@@ -74,7 +74,7 @@ class RawTransactionArchiveIntegrationTest : IntegrationTestSupport() {
             .isInstanceOf(IllegalStateException::class.java)
             .hasMessageContaining("cleanup failed")
 
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_raw_tx_l", Long::class.java)).isZero()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_raw_tx_l", Long::class.java)).isEqualTo(1)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_whk_l", Long::class.java)).isEqualTo(1)
         assertThat(jobs.find(RawTransactionArchiveJob.JOB_NAME)?.lastSucceededAt).isNull()
     }
@@ -105,12 +105,12 @@ class RawTransactionArchiveIntegrationTest : IntegrationTestSupport() {
             INSERT INTO bcm_tx_l
               (vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
                last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
-               frst_dtct_dttm, last_chng_dttm,
+               vndr_crt_dttm, frst_dtct_dttm, last_chng_dttm,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
               ('tx-archive', 'tx-archive', NULL, 'account-1', 'ETHEREUM', 'USDC', '0xHash',
                'FINALIZED', 3, 'CONFIRMED', 'CONFIRMED', NULL,
-               '20260701100000', '20260701120000',
+               '20260701100000', '20260701100000', '20260701120000',
                'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
         )

@@ -14,19 +14,21 @@ import java.time.ZoneId
 
 class RawTransactionArchiveJobTest {
     @Test
-    fun `성공 커서 창을 모두 보관하고 운영 보존일이 지난 처리 인박스를 같은 실행에서 정리한다`() {
-        val archives = RecordingArchives(ArrayDeque(listOf(RawTransactionArchiveBatch(2, 2), RawTransactionArchiveBatch(0, 0))))
+    fun `미보관 적체를 배치별 트랜잭션으로 비운 뒤 정리와 성공 heartbeat를 별도 커밋한다`() {
+        val archives = RecordingArchives(ArrayDeque(listOf(RawTransactionArchiveBatch(2, 2), RawTransactionArchiveBatch(1, 1))))
         val jobs = RecordingJobs(JobState(JOB_NAME, "20260812120000", "20260812120000"))
-        val job = job(archives, jobs)
+        val transactions = CountingTransactionRunner()
+        val job = job(archives, jobs, transactions)
 
         job.run()
 
         assertThat(archives.archiveRequests)
             .containsExactly(
-                ArchiveRequest("20260813", "20260812120000", NOW, 500),
-                ArchiveRequest("20260813", "20260812120000", NOW, 500),
+                ArchiveRequest("20260813", NOW, 2),
+                ArchiveRequest("20260813", NOW, 2),
             )
         assertThat(archives.cleanupCutoffs).containsExactly("20260714120000")
+        assertThat(transactions.runCount).isEqualTo(3)
         assertThat(jobs.started).containsExactly(JOB_NAME to NOW)
         assertThat(jobs.succeeded).containsExactly(JOB_NAME to NOW)
     }
@@ -47,6 +49,32 @@ class RawTransactionArchiveJobTest {
     }
 
     @Test
+    fun `실행당 최대 배치를 모두 채우면 정리와 성공 heartbeat 없이 다음 실행으로 넘긴다`() {
+        val archives = RecordingArchives(ArrayDeque(listOf(RawTransactionArchiveBatch(2, 2), RawTransactionArchiveBatch(2, 2))))
+        val jobs = RecordingJobs(null)
+        val job =
+            job(
+                archives,
+                jobs,
+                properties =
+                    RawTransactionArchiveProperties(
+                        enabled = true,
+                        retentionDays = 30,
+                        batchSize = 2,
+                        maxBatchesPerRun = 2,
+                    ),
+            )
+
+        assertThatThrownBy(job::run)
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("backlog")
+
+        assertThat(archives.archiveRequests).hasSize(2)
+        assertThat(archives.cleanupCutoffs).isEmpty()
+        assertThat(jobs.succeeded).isEmpty()
+    }
+
+    @Test
     fun `활성화한 보관 배치는 양의 운영 보존일을 필수로 요구한다`() {
         assertThatThrownBy {
             RawTransactionArchiveProperties(enabled = true, retentionDays = null)
@@ -62,15 +90,15 @@ class RawTransactionArchiveJobTest {
     private fun job(
         archives: RawTransactionArchiveRepository,
         jobs: JobStateRepository,
+        transactionRunner: TransactionRunner = CountingTransactionRunner(),
+        properties: RawTransactionArchiveProperties =
+            RawTransactionArchiveProperties(enabled = true, retentionDays = 30, batchSize = 2),
     ) = RawTransactionArchiveJob(
         archives = archives,
         jobs = jobs,
-        transactionRunner =
-            object : TransactionRunner {
-                override fun <T> run(block: () -> T): T = block()
-            },
+        transactionRunner = transactionRunner,
         clock = CLOCK,
-        properties = RawTransactionArchiveProperties(enabled = true, retentionDays = 30),
+        properties = properties,
     )
 
     private companion object {
@@ -82,7 +110,6 @@ class RawTransactionArchiveJobTest {
 
 private data class ArchiveRequest(
     val baseDate: String,
-    val receivedAtOrAfter: String,
     val receivedAtOrBefore: String,
     val limit: Int,
 )
@@ -94,13 +121,12 @@ private class RecordingArchives(
     val archiveRequests = mutableListOf<ArchiveRequest>()
     val cleanupCutoffs = mutableListOf<String>()
 
-    override fun archiveCompletedWindow(
+    override fun archiveCompletedBatch(
         baseDate: String,
-        receivedAtOrAfter: String,
         receivedAtOrBefore: String,
         limit: Int,
     ): RawTransactionArchiveBatch {
-        archiveRequests += ArchiveRequest(baseDate, receivedAtOrAfter, receivedAtOrBefore, limit)
+        archiveRequests += ArchiveRequest(baseDate, receivedAtOrBefore, limit)
         archiveFailure?.let { throw it }
         return batches.removeFirst()
     }
@@ -108,6 +134,15 @@ private class RecordingArchives(
     override fun deleteProcessedAtOrBefore(processedAtOrBefore: String): Int {
         cleanupCutoffs += processedAtOrBefore
         return 3
+    }
+}
+
+private class CountingTransactionRunner : TransactionRunner {
+    var runCount = 0
+
+    override fun <T> run(block: () -> T): T {
+        runCount += 1
+        return block()
     }
 }
 

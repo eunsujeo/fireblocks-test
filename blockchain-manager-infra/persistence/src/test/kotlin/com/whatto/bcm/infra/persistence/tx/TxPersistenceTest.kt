@@ -40,6 +40,7 @@ class TxPersistenceTest : PersistenceTestSupport() {
         transactionHash: String? = null,
         status: TxStatus = TxStatus.CONFIRMED,
         confirmationCount: Int = 1,
+        vendorCreatedAt: String = "20260805113000",
     ) = TxRecord(
         vendorTxId = vendorTxId,
         activeVendorTxId = activeVendorTxId,
@@ -52,6 +53,7 @@ class TxPersistenceTest : PersistenceTestSupport() {
         confirmationCount = confirmationCount,
         vendorSubStatus = "PENDING_BLOCKCHAIN_CONFIRMATIONS",
         vendorNetworkStatus = "CONFIRMING",
+        vendorCreatedAt = vendorCreatedAt,
         firstDetectedAt = "20260805120000",
         lastChangedAt = "20260805120000",
     )
@@ -246,30 +248,50 @@ class TxPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
-    fun `대사 창과 미종결 후보는 경계와 상태를 지켜 시각 순으로 조회한다`() {
-        txRecords.insert(txRecord(vendorTxId = "tx-before", status = TxStatus.FINALIZED))
-        txRecords.insert(txRecord(vendorTxId = "tx-boundary", status = TxStatus.FINALIZED))
-        txRecords.insert(txRecord(vendorTxId = "tx-window-final", status = TxStatus.FINALIZED))
-        txRecords.insert(txRecord(vendorTxId = "tx-window-pending", status = TxStatus.CONFIRMED, confirmationCount = 0))
-        txRecords.insert(txRecord(vendorTxId = "tx-after", status = TxStatus.FAILED))
-        jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807114959' WHERE vndr_tx_id = 'tx-before'")
-        jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807115000' WHERE vndr_tx_id = 'tx-boundary'")
-        jdbc.update(
-            "UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807115100', last_chng_dttm = '20260807115100' " +
-                "WHERE vndr_tx_id = 'tx-window-final'",
-        )
-        jdbc.update(
-            "UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807115200', last_chng_dttm = '20260807114000' " +
-                "WHERE vndr_tx_id = 'tx-window-pending'",
-        )
-        jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260807120001' WHERE vndr_tx_id = 'tx-after'")
+    fun `대사 창은 최초 감지가 아니라 벤더 createdAt의 닫힌 구간으로 조회한다`() {
+        txRecords.insert(txRecord(vendorTxId = "tx-before", status = TxStatus.FINALIZED, vendorCreatedAt = "20260807114959"))
+        txRecords.insert(txRecord(vendorTxId = "tx-boundary", status = TxStatus.FINALIZED, vendorCreatedAt = "20260807115000"))
+        txRecords.insert(txRecord(vendorTxId = "tx-window", status = TxStatus.FINALIZED, vendorCreatedAt = "20260807115100"))
+        txRecords.insert(txRecord(vendorTxId = "tx-after", status = TxStatus.FAILED, vendorCreatedAt = "20260807120001"))
+        jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260808120000' WHERE vndr_tx_id = 'tx-boundary'")
 
-        val window = txRecords.findDetectedBetween("20260807115000", "20260807120000")
-        val pending = txRecords.findPendingChangedAtOrBefore("20260807115000", 10)
+        val window = txRecords.findCreatedBetween("20260807115000", "20260807120000")
 
         assertThat(window.map { it.record.vendorTxId })
-            .containsExactly("tx-boundary", "tx-window-final", "tx-window-pending")
-        assertThat(pending.map { it.record.vendorTxId }).containsExactly("tx-window-pending")
+            .containsExactly("tx-boundary", "tx-window")
+    }
+
+    @Test
+    fun `미결 대사 claim은 확인 시각과 횟수를 먼저 남기고 영속 백오프를 지킨다`() {
+        txRecords.insert(txRecord(vendorTxId = "tx-pending", confirmationCount = 0))
+        jdbc.update(
+            "UPDATE bcm_tx_l SET last_chng_dttm = '20260807110000' WHERE vndr_tx_id = 'tx-pending'",
+        )
+
+        val first = txRecords.claimPendingForReconciliation("20260807115000", "20260807120000", 10)
+        val tooEarly = txRecords.claimPendingForReconciliation("20260807115000", "20260807120029", 10)
+        val second = txRecords.claimPendingForReconciliation("20260807115000", "20260807120030", 10)
+
+        assertThat(first.map { it.record.vendorTxId }).containsExactly("tx-pending")
+        assertThat(first.single().record.reconciliationCheckedAt).isEqualTo("20260807120000")
+        assertThat(first.single().record.reconciliationCheckCount).isEqualTo(1)
+        assertThat(tooEarly).isEmpty()
+        assertThat(second.single().record.reconciliationCheckedAt).isEqualTo("20260807120030")
+        assertThat(second.single().record.reconciliationCheckCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `최대 추적 나이를 넘긴 미결 거래는 중단 표시 후 단건 조회 claim에서 제외한다`() {
+        txRecords.insert(txRecord(vendorTxId = "tx-expired", confirmationCount = 0))
+        jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260731115959' WHERE vndr_tx_id = 'tx-expired'")
+
+        val stopped = txRecords.markExpiredPendingStopped("20260731120000", "20260807120000")
+        val claimed = txRecords.claimPendingForReconciliation("20260807115000", "20260807120000", 10)
+
+        assertThat(stopped).isEqualTo(1)
+        assertThat(claimed).isEmpty()
+        assertThat(txRecords.findByVendorTxId("tx-expired")?.reconciliationStoppedAt)
+            .isEqualTo("20260807120000")
     }
 
     @Test

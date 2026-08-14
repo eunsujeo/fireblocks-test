@@ -92,11 +92,11 @@ class NetworkFeeQuotePersistenceTest : PersistenceTestSupport() {
             """
             INSERT INTO bcm_tx_l
               (vndr_tx_id, actv_tx_id, acnt_id, ntwk_cd, tkn_smbl, last_pub_stcd, cnfm_cnt,
-               frst_dtct_dttm, last_chng_dttm,
+               vndr_crt_dttm, frst_dtct_dttm, last_chng_dttm,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
               ('tx-root', 'tx-root', 'acct-1', 'ETHEREUM', 'USDC', 'SUBMITTED', 0,
-               '20260813110000', '20260813110000',
+               '20260813110000', '20260813110000', '20260813110000',
                'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
         )

@@ -94,7 +94,7 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
             processedAt = null,
         )
 
-        val archived = archives.archiveCompletedWindow("20260813", "00010101000000", "20260807130000", 10)
+        val archived = archives.archiveCompletedBatch("20260813", "20260807130000", 10)
         val deleted = archives.deleteProcessedAtOrBefore("20260807130000")
 
         assertThat(archived.candidateCount).isEqualTo(1)
@@ -113,7 +113,7 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
-    fun `같은 날 재실행은 중복하지 않고 성공 커서 경계의 늦은 COMPLETED를 원본에 반영한다`() {
+    fun `같은 날 재실행은 중복하지 않고 이전 성공 경계보다 오래된 늦은 적격 원문도 반영한다`() {
         createPartitions("202608", 1)
         insertFinalizedDeposit()
         insertWebhook(
@@ -126,8 +126,12 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
             processedAt = "20260807110100",
         )
 
-        archives.archiveCompletedWindow("20260813", "00010101000000", "20260807120000", 10)
-        val duplicate = archives.archiveCompletedWindow("20260813", "00010101000000", "20260807120000", 10)
+        jdbc.update("UPDATE bcm_tx_l SET last_pub_stcd = 'CONFIRMED' WHERE vndr_tx_id = 'tx-deposit'")
+        val beforeFinalized = archives.archiveCompletedBatch("20260813", "20260807130000", 10)
+        val deletedBeforeFinalized = archives.deleteProcessedAtOrBefore("20260807130000")
+        jdbc.update("UPDATE bcm_tx_l SET last_pub_stcd = 'FINALIZED' WHERE vndr_tx_id = 'tx-deposit'")
+        archives.archiveCompletedBatch("20260813", "20260807130000", 10)
+        val duplicate = archives.archiveCompletedBatch("20260813", "20260807130000", 10)
         val latestPayload =
             insertWebhook(
                 notificationId = "completed-new",
@@ -138,8 +142,10 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
                 processStatus = "S",
                 processedAt = "20260807120100",
             )
-        val updated = archives.archiveCompletedWindow("20260813", "20260807120000", "20260807130000", 10)
+        val updated = archives.archiveCompletedBatch("20260813", "20260807130000", 10)
 
+        assertThat(beforeFinalized.candidateCount).isZero()
+        assertThat(deletedBeforeFinalized).isZero()
         assertThat(duplicate.candidateCount).isZero()
         assertThat(updated.candidateCount).isEqualTo(1)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_raw_tx_l", Long::class.java)).isEqualTo(1)
@@ -164,7 +170,7 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
             processedAt = "20260807120100",
         )
 
-        archives.archiveCompletedWindow("20260813", "00010101000000", "20260807130000", 10)
+        archives.archiveCompletedBatch("20260813", "20260807130000", 10)
 
         assertThat(jdbc.queryForMap("SELECT * FROM bcm_raw_tx_l"))
             .containsEntry("vndr_tx_id", "tx-withdrawal")
@@ -187,7 +193,7 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
         )
 
         assertThatThrownBy {
-            archives.archiveCompletedWindow("20261007", "00010101000000", "20261007130000", 10)
+            archives.archiveCompletedBatch("20261007", "20261007130000", 10)
         }.isInstanceOf(DataAccessException::class.java)
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_raw_tx_l", Long::class.java)).isZero()
@@ -216,12 +222,12 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
             INSERT INTO bcm_tx_l
               (vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
                last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
-               frst_dtct_dttm, last_chng_dttm,
+               vndr_crt_dttm, frst_dtct_dttm, last_chng_dttm,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
               ('tx-deposit', 'tx-deposit', NULL, 'account-1', 'ETHEREUM', 'USDC', '0xHash',
                'FINALIZED', 3, 'CONFIRMED', 'CONFIRMED', NULL,
-               '20260807100000', '20260807120000',
+               '20260807100000', '20260807100000', '20260807120000',
                'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
         )
@@ -233,12 +239,12 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
             INSERT INTO bcm_tx_l
               (vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
                last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
-               frst_dtct_dttm, last_chng_dttm,
+               vndr_crt_dttm, frst_dtct_dttm, last_chng_dttm,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
               ('tx-withdrawal', 'tx-withdrawal', 'wd-1', 'account-1', 'ETHEREUM', 'USDC', '0xHash',
                'FINALIZED', 3, 'CONFIRMED', 'CONFIRMED', NULL,
-               '20260807100000', '20260807120000',
+               '20260807100000', '20260807100000', '20260807120000',
                'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
         )

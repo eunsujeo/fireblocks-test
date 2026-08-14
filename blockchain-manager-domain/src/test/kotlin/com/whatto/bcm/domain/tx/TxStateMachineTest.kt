@@ -73,6 +73,33 @@ class TxStateMachineTest {
         assertThat(reorg.statusesToPublish).containsExactly(TxStatus.FAILED)
     }
 
+    @Test
+    fun `벤더 생성 시각은 최초값을 보존하고 실제 진행 관찰은 대사 확인 상태를 초기화한다`() {
+        val repository =
+            MemoryTxRecords(
+                record().copy(
+                    vendorCreatedAt = "20260807100000",
+                    reconciliationCheckedAt = "20260807113000",
+                    reconciliationCheckCount = 3,
+                    reconciliationStoppedAt = "20260807114000",
+                ),
+            )
+
+        val result =
+            TxStateMachine(repository).observeRoot(
+                "tx-root",
+                observation(TxStatus.FINALIZED, confirmationCount = 1).copy(
+                    vendorCreatedAt = "20260807115900",
+                ),
+                successEvidence = true,
+            )
+
+        assertThat(result.record.vendorCreatedAt).isEqualTo("20260807100000")
+        assertThat(result.record.reconciliationCheckedAt).isNull()
+        assertThat(result.record.reconciliationCheckCount).isZero()
+        assertThat(result.record.reconciliationStoppedAt).isNull()
+    }
+
     private fun record(
         activeVendorTxId: String = "tx-root",
         transactionHash: String? = "0xroot",

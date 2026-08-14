@@ -810,10 +810,10 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
             INSERT INTO bcm_tx_l
               (vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
                last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
-               frst_dtct_dttm, last_chng_dttm,
+               vndr_crt_dttm, frst_dtct_dttm, last_chng_dttm,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES (?, ?, ?, 'acct-pool', 'ETHEREUM', 'USDC', ?,
-                    'CONFIRMED', 0, NULL, NULL, NULL, '20260807115900', '20260807115900',
+                    'CONFIRMED', 0, NULL, NULL, NULL, '20260807115900', '20260807115900', '20260807115900',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             VENDOR_TX_ID,

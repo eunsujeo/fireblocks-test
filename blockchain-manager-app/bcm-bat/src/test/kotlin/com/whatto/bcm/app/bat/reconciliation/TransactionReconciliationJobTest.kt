@@ -59,6 +59,7 @@ class TransactionReconciliationJobTest {
                                     transaction("tx-vendor-only", "FAILED"),
                                     transaction("tx-progress", "CONFIRMING"),
                                     transaction("tx-incoming-rejected", "REJECTED", sourceType = "UNKNOWN"),
+                                    transaction("tx-too-new", "COMPLETED", createdAt = "20260807115501"),
                                 ),
                                 "cursor-2",
                             ),
@@ -97,7 +98,7 @@ class TransactionReconciliationJobTest {
             assertThat(it.limit).isEqualTo(500)
         }
         assertThat(vendor.pageRequests.first().afterEpochMillis).isEqualTo(epochMillis("20260807115000") - 1)
-        assertThat(vendor.pageRequests.first().beforeEpochMillis).isEqualTo(epochMillis(NOW))
+        assertThat(vendor.pageRequests.first().beforeEpochMillis).isEqualTo(epochMillis("20260807115500") + 999)
         assertThat(vendor.singleLookups).containsExactly("tx-stuck")
         assertThat(recovered).containsExactly("tx-status", "tx-stuck")
         assertThat(reports.single().result.matchedCount).isEqualTo(1)
@@ -114,8 +115,14 @@ class TransactionReconciliationJobTest {
             "tx-vendor-only",
         )
         assertThat(reports.single().recoveredCount).isEqualTo(2)
+        assertThat(reports.single().stoppedTrackingCount).isZero()
         assertThat(jobs.started).containsExactly(JOB_NAME to NOW)
-        assertThat(jobs.succeeded).containsExactly(JOB_NAME to NOW)
+        assertThat(jobs.succeeded).containsExactly(JOB_NAME to "20260807115500")
+        assertThat(repository.createdWindows).containsExactly("20260807115000" to "20260807115500")
+        assertThat(repository.stopRequests)
+            .containsExactly("20260731120000" to NOW)
+        assertThat(repository.claimRequests)
+            .containsExactly(ReconciliationClaimRequest("20260807115000", NOW, 100))
     }
 
     @Test
@@ -145,7 +152,7 @@ class TransactionReconciliationJobTest {
             .isInstanceOf(IllegalStateException::class.java)
             .hasMessageContaining("repeated")
 
-        assertThat(vendor.pageRequests.first().afterEpochMillis).isEqualTo(epochMillis("20260807115000") - 1)
+        assertThat(vendor.pageRequests.first().afterEpochMillis).isEqualTo(epochMillis("20260807114500") - 1)
         assertThat(jobs.succeeded).isEmpty()
     }
 
@@ -172,6 +179,7 @@ class TransactionReconciliationJobTest {
         id: String,
         status: String,
         sourceType: String = "VAULT_ACCOUNT",
+        createdAt: String = "20260807115500",
     ) = VendorTransaction(
         transactionId = id,
         externalTransactionId = "wd-$id",
@@ -185,7 +193,7 @@ class TransactionReconciliationJobTest {
         destinationAddress = "0xto",
         amount = "1",
         confirmationCount = if (status == "COMPLETED") 1 else 0,
-        createdAtEpochMillis = epochMillis("20260807115500"),
+        createdAtEpochMillis = epochMillis(createdAt),
         lastUpdatedEpochMillis = epochMillis("20260807115500"),
         lifecycleStage =
             if (status ==
@@ -247,19 +255,45 @@ private class RecordingReconciliationRepository(
     private val detected: List<TxReconciliationRecord> = emptyList(),
     private val pending: List<TxReconciliationRecord> = emptyList(),
     private val byPhysical: Map<String, TxReconciliationRecord> = emptyMap(),
+    private val stoppedCount: Int = 0,
 ) : TxReconciliationRepository {
+    val createdWindows = mutableListOf<Pair<String, String>>()
+    val stopRequests = mutableListOf<Pair<String, String>>()
+    val claimRequests = mutableListOf<ReconciliationClaimRequest>()
+
     override fun findByPhysicalVendorTransactionId(vendorTransactionId: String): TxReconciliationRecord? = byPhysical[vendorTransactionId]
 
-    override fun findDetectedBetween(
-        detectedAtOrAfter: String,
-        detectedAtOrBefore: String,
-    ): List<TxReconciliationRecord> = detected
+    override fun findCreatedBetween(
+        createdAtOrAfter: String,
+        createdAtOrBefore: String,
+    ): List<TxReconciliationRecord> {
+        createdWindows += createdAtOrAfter to createdAtOrBefore
+        return detected
+    }
 
-    override fun findPendingChangedAtOrBefore(
+    override fun markExpiredPendingStopped(
+        detectedAtOrBefore: String,
+        stoppedAt: String,
+    ): Int {
+        stopRequests += detectedAtOrBefore to stoppedAt
+        return stoppedCount
+    }
+
+    override fun claimPendingForReconciliation(
         changedAtOrBefore: String,
+        checkedAt: String,
         limit: Int,
-    ): List<TxReconciliationRecord> = pending.take(limit)
+    ): List<TxReconciliationRecord> {
+        claimRequests += ReconciliationClaimRequest(changedAtOrBefore, checkedAt, limit)
+        return pending.take(limit)
+    }
 }
+
+private data class ReconciliationClaimRequest(
+    val changedAtOrBefore: String,
+    val checkedAt: String,
+    val limit: Int,
+)
 
 private class RecordingVendor(
     private val pages: Map<String?, VendorPage<VendorTransaction>>,
