@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
 /**
- * 앱 전역 절대시각 원천. `_dttm`은 UTC로 저장하고 업무 일자는 BusinessDates가 KST로 산정한다.
+ * 앱 전역 시각 원천. `_dttm`과 `_dt`를 모두 UTC로 산정한다.
  */
 @Configuration
 class ClockConfig {
