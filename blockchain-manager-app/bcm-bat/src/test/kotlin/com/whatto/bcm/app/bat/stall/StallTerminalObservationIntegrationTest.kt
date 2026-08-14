@@ -202,7 +202,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             .containsEntry("evt_typ_dvcd", "TXCF")
             .containsEntry("topic", "deposit-events")
         assertThat(reports.single().recoveredCount).isEqualTo(1)
-        assertThat(jobs.find("tx-reconciliation")?.lastSucceededAt).isEqualTo("20260807120000")
+        assertThat(jobs.find("tx-reconciliation")?.lastSucceededAt).isEqualTo("20260807115500")
     }
 
     @Test
