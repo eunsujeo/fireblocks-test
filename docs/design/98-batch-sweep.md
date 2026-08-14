@@ -30,11 +30,11 @@ ERC-20 의 `transfer` 는 **호출한 계정(msg.sender)의 잔액**을 옮긴�
 | 방식 | 주소당 비용 구조 | 대략치 |
 |---|---|---|
 | 개별 전송 (기준) | 고정비 21k + 실행 ~45k | ~66k |
-| 배치 + 서명 증명 (3009·2612) | 서명 검증(ecrecover ~3k) + 논스 기록(~20k대) + 실행 ~45k | **~70k대 — 절감이 미미하거나 역전** |
+| 배치 + 회차별 서명 증명 (3009·2612) | 서명 검증(ecrecover ~3k) + 논스 기록(~20k대) + 실행 ~45k | **~70k대 — 절감이 미미하거나 역전** |
 | 배치 + 사전 approve | 최초 approve M건 + 이후 allowance 확인 + 실행 | 최초 회차는 역전 · allowance 재사용 시에만 절감 가능 |
 | 배치 + 상시 권한 (7702 운영자) | 권한 확인(~수 k) + 실행 ~45k | **~50k — 진짜 절감** |
 
-즉 **"배치 = 가스 절감"은 상시 권한 방식에서만 성립**하고, 서명 방식 배치의 이득은 가스가 아니라 다른 데 있다 — 제출·추적할 온체인 tx 가 1건(가스비 싼 창을 확실히 잡음, 실패 관리 단순), 그리고 방식에 따라 벤더 호출 감소. 수치는 대략치라 실제 채택 전 실측이 필요하다.
+이 대략치에서는 **가스 절감이 분명하게 나타나는 쪽이 상시 권한 방식**이다. 회차별 서명 방식은 배치했더라도 권한 검증·nonce 기록 때문에 개별 전송보다 싸다고 단정할 수 없다. 대신 제출·추적할 온체인 tx를 1건으로 줄이고 가스비가 싼 창에 함께 실행하며 실패 관리를 모을 수 있다. 실제 gas는 토큰 구현·storage 상태·calldata·부분 실패 처리에 따라 달라지므로 채택 전 실측한다. 2612 allowance를 회차 사이에 재사용하면 이후 비용은 사전 approve 방식과 같아지지만 상시 권한도 함께 남는다(4절).
 
 ## 3. 방법 1 — EIP-3009 transferWithAuthorization
 
@@ -73,7 +73,117 @@ sequenceDiagram
 
 ## 4. 방법 2 — EIP-2612 permit
 
-"컨트랙트 S 에게 내 토큰 X 만큼의 사용 한도(allowance)를 준다"를 typed 서명으로 만들고, 배치 컨트랙트가 `permit(서명)` → `transferFrom` 두 단계로 가져간다. 3009 와 비교했을 때의 차이만 보면 된다:
+`permit`은 ERC-20 `approve`를 서명으로 대신하는 확장이다. 받는주소 vault가 온체인 거래를 내는 대신 **"컨트랙트 S가 내 토큰을 X만큼 쓸 수 있다"**는 EIP-712 typed message를 서명하고, 배치 컨트랙트가 그 서명을 토큰 컨트랙트에 제출한다. 토큰 컨트랙트가 서명을 검증하면 `allowance[owner][spender] = value`를 기록하고 owner의 permit nonce를 1 올린다. 그 다음에야 sweeper가 `transferFrom`으로 자산을 옴니버스로 옮긴다 ([EIP-2612](https://eips.ethereum.org/EIPS/eip-2612)).
+
+`permit` 자체는 전송 지시가 아니다. **allowance를 만드는 방식만 `approve` 거래에서 오프체인 서명으로 바꾼다.** 따라서 실제 인출 권한과 목적지 통제는 방법 3과 마찬가지로 allowance와 sweeper 코드에 남는다.
+
+```mermaid
+sequenceDiagram
+  participant M as 매니저
+  participant F as Fireblocks
+  participant O as 운영 계정 vault
+  participant S as 배치 sweeper 컨트랙트
+  participant T as permit 지원 토큰 컨트랙트
+  participant P as 옴니버스
+
+  Note over M,F: 오프체인 — 받는주소마다 permit 서명 1건
+  loop 받는주소 M개 각각
+    M->>T: nonces(owner) · DOMAIN_SEPARATOR 조회
+    M->>F: TYPED_MESSAGE 서명 요청<br/>owner · spender · value · nonce · deadline
+    F-->>M: vault 키의 EIP-712 서명
+  end
+  Note over M,P: 온체인 — 운영 계정이 배치 거래 1건 제출
+  M->>F: 운영 계정의 batchSweepWithPermit(items) CONTRACT_CALL
+  F->>O: 운영 계정 vault 서명
+  O->>S: permit 서명 M개와 이동 금액 제출
+  loop 항목 M개 각각
+    S->>T: permit(owner, sweeper, value, deadline, v, r, s)
+    T->>T: allowance 기록 · owner nonce 증가
+    S->>T: transferFrom(owner, omnibus, amount)
+    T->>P: 받는주소 잔액 → 옴니버스
+  end
+```
+
+### 서명이 무엇을 허용하나
+
+표준 permit message는 다섯 값을 서명한다.
+
+| 필드 | 뜻 | 배치 설계에서의 값 |
+|---|---|---|
+| `owner` | 토큰 소유자 | 고객 받는주소 vault의 EVM 주소 |
+| `spender` | allowance를 받을 주소 | 승인된 sweeper 컨트랙트 |
+| `value` | 새 allowance 값 | 회차 이동량 또는 승인된 운영 상한 |
+| `nonce` | owner별 순차 permit nonce | 서명 직전 토큰 컨트랙트에서 읽은 값 |
+| `deadline` | permit 제출 만료시각 | 배치 제출·재시도 시간을 포함한 짧은 유효기간 |
+
+일반적인 EIP-712 domain은 토큰 이름·버전·chainId·토큰 컨트랙트 주소(`verifyingContract`)로 서명 영역을 가른다. 그래서 message 다섯 값이 같아도 다른 체인·토큰의 서명으로 대신할 수 없다. 반대로 **목적지(옴니버스)는 message에 없다** — `spender`가 누구인지만 묶이고 그 spender가 어디로 보낼지는 컨트랙트 코드가 정한다.
+
+토큰이 `permit`이라는 이름을 가졌다고 곧 EIP-2612 호환인 것도 아니다. EIP-2612 이전의 DAI형 permit은 `value` 대신 `allowed`를 쓰고 `deadline` 대신 `expiry`를 쓰는 등 서명 schema가 다르다. 자산 온보딩 때 함수 ABI만이 아니라 `DOMAIN_SEPARATOR`·message type·nonce 의미까지 실측해야 한다.
+
+### allowance를 회차마다 만들지, 재사용할지
+
+permit도 `approve`와 같은 allowance를 만들기 때문에 두 방식으로 운영할 수 있다.
+
+| 운용 | 서명·제출 | 실행 뒤 권한 | 성질 |
+|---|---|---|---|
+| **회차형** — 이동할 금액만 permit | 매 sweep마다 permit 서명 M건 + 배치 1건 | 전액 이동 성공 시 allowance 0 | 권한은 좁지만 매 회차 M개 서명이 남는다 |
+| **재사용형** — 운영 상한으로 permit | 최초 permit 서명 M건 + 배치 1건, 이후 배치 1건 | 사용하고 남은 allowance 유지 | 최초 approve 거래를 없애지만 이후 위험은 방법 3과 같다 |
+
+회차형은 받는주소가 gas를 내는 `approve` M건을 없애고 온체인 제출을 배치 1건으로 접는다. 그러나 Fireblocks에는 여전히 vault별 typed-message 서명 M건을 요청해야 하고, batch 내부에서도 `permit + transferFrom`이 M번 실행되므로 실행 gas는 M에 비례한다.
+
+재사용형은 다음 회차부터 벤더 호출도 배치 1건으로 줄지만, 그 이득은 allowance를 남겨 두기 때문에 생긴다. 즉 **permit의 장점은 최초 온체인 approve를 서명으로 바꾸는 데 있고, allowance를 재사용하는 순간 수탁 위험은 방법 3과 같아진다.**
+
+### nonce와 재시도
+
+permit nonce는 토큰 컨트랙트가 owner별 순차 카운터로 보관한다. 서로 다른 받는주소는 nonce가 독립이라 병렬 서명이 가능하지만, 같은 `(owner, token)`에서 두 permit을 동시에 만들면 둘이 같은 nonce를 읽을 수 있고 먼저 실행된 하나만 유효하다.
+
+- 대상 claim부터 서명·제출이 끝날 때까지 같은 `(owner, token)` permit 작업은 하나만 허용한다.
+- 서명 직전에 `nonces(owner)`를 읽고, 서명 원문·nonce·deadline을 실행 항목에 같이 보관한다.
+- 제출 결과가 불명확하면 새 서명부터 만들지 않는다. 온체인 nonce와 allowance를 먼저 읽어 기존 permit의 소비 여부를 판정한다.
+- nonce가 이미 증가했지만 필요한 allowance가 없으면 다른 permit이 소비한 상태다 — 기존 서명을 재제출하지 않고 새 nonce로 다시 만든다.
+- deadline 만료는 영구 실패가 아니라 재서명 대상이다. 너무 긴 deadline은 탈취된 서명의 유효 창을 넓히고, 너무 짧으면 승인·서명·배치 대기 중 정상 만료가 늘어난다.
+
+누구든 서명을 얻으면 `permit`을 먼저 제출할 수 있다. 제3자가 먼저 제출해도 allowance 자체는 같은 값이지만, 뒤따르는 배치의 `permit` 호출은 nonce 불일치로 revert할 수 있다. 배치 컨트랙트가 `allowance(owner, sweeper)`를 먼저 확인해 충분하면 permit 단계를 생략하도록 만들 수는 있으나, 이 분기도 실행 의도·이벤트·재처리 계약에 명시해야 한다. 특히 회차형에서 기존 allowance가 요청금액보다 크다는 이유만으로 permit을 생략하면 **서명한 정확한 `value`로 allowance를 덮어쓴다**는 통제가 사라진다. 회차형은 기존 allowance가 0인지 확인한 뒤 permit을 실행하거나, 기존 allowance를 허용하는 별도 정책을 둬야 한다.
+
+`permit`도 기존 ERC-20 approval 변경 경쟁 조건을 그대로 가진다. 이미 0이 아닌 allowance를 다른 0이 아닌 값으로 덮어쓰면 spender가 변경 전 allowance와 변경 후 allowance를 모두 소비할 여지가 있다. 우리 구조에서는 회차형의 시작 allowance를 0으로 제한하고, 재사용형의 상한 변경은 `0`으로 내린 사실을 확인한 뒤 새 permit을 만드는 절차가 필요하다.
+
+### 부분 성공 배치에서 남는 상태
+
+`permit` 성공 뒤 `transferFrom`이 실패했는데 batch가 그 실패만 잡아 계속 진행하면, **토큰은 안 움직였지만 nonce는 소비되고 allowance는 남을 수 있다.** 다음 회차가 "전송 실패"만 보고 같은 서명을 재사용하면 nonce 불일치로 다시 실패한다.
+
+항목별 부분 성공을 허용하려면 한 항목의 `permit + transferFrom`을 하나의 원자 실행 경계로 묶는다. 단순히 batch 함수가 `permit`을 호출한 뒤 `transferFrom`만 `try/catch`하면 안 된다 — transfer 실패를 잡는 순간 앞서 성공한 permit의 nonce·allowance는 그대로 남는다. `permit + transferFrom` 전체를 별도 외부 호출 프레임(예: 권한 제한된 self-call 또는 전용 helper)에 넣고, transfer 실패 시 그 프레임 전체를 revert한 뒤 바깥 batch가 항목 실패를 잡아 다음 항목으로 진행해야 한다. 토큰이 `false`를 반환하는 구현도 명시적으로 revert시켜야 같은 원자성이 성립한다. 이 구조 자체의 재진입·호출자 검증은 별도 감사 대상이다.
+
+### Fireblocks에서 성립하는 경로와 미실측
+
+Fireblocks 공식 문서는 EIP-712 `TYPED_MESSAGE` 서명을 지원하고, EVM 호환 체인에서도 API의 `assetId`는 `ETH`를 사용한다고 설명한다 ([Sign Typed Messages in Ethereum](https://developers.fireblocks.com/reference/sign-typed-messages-for-ethereum-and-evm-networks)). 이 경로를 우리 구조에 놓으면 다음과 같다.
+
+| 단계 | Fireblocks source | operation | gas |
+|---|---|---|---|
+| permit 생성 | 각 고객 vault | `TYPED_MESSAGE` | 오프체인 서명이라 없음 |
+| batch 실행 | sweep 운영 계정 vault | `CONTRACT_CALL` | 운영 계정 직접 부담 또는 Gasless relay |
+
+Circle Gateway 공식 기술 문서도 USDC 입금 수단으로 EIP-2612 permit을 열거한다 ([Gateway Technical Guide](https://developers.circle.com/gateway/references/technical-guide)). 다만 체인별 토큰 프록시가 같은 구현 버전을 가리킨다는 보장은 별도이므로 실제 채택은 `(network, token contract)`별 `permit`·`nonces`·`DOMAIN_SEPARATOR` 실측을 전제로 한다.
+
+여기까지는 공식 기능을 조합하면 성립하는 경로다. **우리 Fireblocks workspace와 batch 컨트랙트로 실측한 것은 아니다.** 출시 후보로 되돌리려면 다음을 확인해야 한다.
+
+- Permit typed message가 TAP·API Co-signer·Callback을 어떤 transaction type으로 통과하는지, Callback에서 domain과 다섯 message 값을 모두 검증할 수 있는지.
+- Fireblocks가 돌려주는 서명을 토큰별 `v/r/s` 형태로 정확히 정규화할 수 있는지.
+- 서명 주체는 고객 vault지만 온체인 제출 주체는 운영 계정인 거래에서 `networkRecords`가 원천 vault·금액을 방법 3 실측과 동일하게 귀속하는지.
+- batch CONTRACT_CALL만 Gasless로 제출할 때 어느 vault가 EIP-7702 upgrade 대상인지. 고객 vault는 온체인 gasless 거래가 아니라 typed message만 서명하므로 **고객 vault까지 upgrade된다고 현재 근거로 단정하지 않는다.**
+- M개 typed-message 서명 요청의 처리량·정책 승인 지연·rate limit이 배치 주기를 감당하는지.
+
+### 수탁 경계와 현재 판단
+
+회차형 permit은 목적지가 서명에 묶이지 않고 spender만 묶인다는 점에서 EIP-3009보다 권한이 넓다. 재사용형 permit은 allowance가 남는다는 점에서 방법 3과 같은 긴급 회수·sweeper 침해 위험을 가진다. 최소 통제도 두 성질을 따라간다.
+
+- spender는 승인된 비업그레이드형 sweeper로 고정하고, sweeper의 목적지는 배포 시 옴니버스로 불변 고정한다.
+- 회차형은 `value = 요청금액`을 기본으로 하고 deadline 상한을 둔다. 재사용형이면 무제한 대신 vault·토큰별 운영 상한과 잔여 allowance 모니터링을 둔다.
+- Callback은 token domain·owner·spender·value·nonce·deadline을 선기록한 실행 의도와 대조하고, 서명 hash를 보관한다.
+- 항목별 permit 소비 여부·allowance·실제 이동량·실패 코드를 이벤트와 온체인 조회로 대사한다.
+
+**현재 구현안에서는 제외한다.** 이유는 ① 모든 대상 토큰이 EIP-2612를 지원하지 않고, ② 회차형은 vault별 서명 M건이 계속 남으며, ③ 재사용형은 방법 3과 같은 상시 allowance가 되고, ④ 방법 3만 Fireblocks 제출·`networkRecords` 귀속·부분 실패를 end-to-end로 실측했기 때문이다. 서명형을 택한다면 USDC가 지원하고 목적지·금액·기한을 한 번에 묶는 EIP-3009가 우선이고, permit은 3009가 없는 EIP-2612 토큰의 차선이다.
+
+3009와의 차이를 한 표로 접으면 다음과 같다.
 
 | | 3009 | 2612 |
 |---|---|---|
@@ -81,8 +191,6 @@ sequenceDiagram
 | 실행 후 잔여 | 없음 (1회용) | transferFrom 이 부분 실행되면 **allowance 잔여** 가능 — 관리 필요 |
 | 논스 | 랜덤 — 순서 무관 | **소유자별 순차** — 같은 주소의 permit 두 장을 한 배치에 순서 없이 못 싣는다 |
 | 토큰 지원 | 3009 지원 토큰만 (USDC O) | 2612 가 더 흔함 — 3009 없는 토큰의 차선 |
-
-수탁 관점에서는 3009 가 우선이고, 2612 는 **3009 를 지원하지 않는 토큰의 차선책**이다.
 
 ## 5. 방법 3 — ERC-20 approve + transferFrom
 
@@ -251,7 +359,7 @@ sequenceDiagram
 
 성질:
 
-- **sweep 1회당 벤더 호출 1건** (3009·2612 는 서명 M건이 남는다) · 주소당 gas 도 최저(~50k) — 권한 검증이 서명 복원 없이 규칙 확인뿐이라서.
+- **sweep 1회당 벤더 호출 1건** (3009와 회차형 2612는 서명 M건이 남는다) · 주소당 gas 도 최저(~50k) — 권한 검증이 서명 복원 없이 규칙 확인뿐이라서.
 - **대가는 상시 인출 권한** — 위임은 영속이다(자동 만료 없음 · 해제는 0 주소로 재위임). 1회용 서명 모델과 달리 "언제든 뺄 수 있는 권한"이 서 있는 상태가 되고, **어떤 코드를 위임하느냐가 보안의 전부**다.
 - **주소·키 불변** — 입금 주소 재발급·재고지가 필요 없다. 수탁 모델에서 7702 노선의 최대 이점.
 - **Fireblocks 접점** — Universal Gasless 가 이미 이 메커니즘으로 vault 를 upgrade 한다(첫 gasless 거래 때 위임 설정). 단 위임 서명은 vault 키(MPC)로만 만들 수 있어 반드시 벤더를 거치고, **벤더는 자기가 만든 지갑 코드로만 위임시킨다**(Vault account upgrade policy — 위임 코드는 잔액을 전부 뺄 수 있어서 벤더가 통제). 따라서 배치가 되려면 **벤더의 그 지갑 코드에 "지정 운영자의 인출 실행" 기능이 있거나, 우리 코드 위임을 예외 허용해야** 한다 — 어느 쪽인지 미확인(벤더 문의 ④).
@@ -311,14 +419,14 @@ operator 거래 아래 `networkRecords` 7개가 붙고, **원천 vault 가 귀�
 |---|---|---|---|---|
 | 상시 권한 | 없음 | 잔여 allowance 가능 | **있음 — allowance 소진·취소까지** | **있음 — 영속 위임** |
 | 목적지 고정 | **서명에 묶임** | 컨트랙트 로직 몫 | 컨트랙트 로직 몫 | 위임 코드 몫 |
-| sweep 1회당 벤더 호출 | M(서명)+1(제출) | M+1 | 최초 M(approve)+1, 이후 1 | **1** |
+| sweep 1회당 벤더 호출 | M(서명)+1(제출) | 회차형 M+1 · 재사용형 최초 M+1, 이후 1 | 최초 M(approve)+1, 이후 1 | **1** |
 | 주소당 gas | ~70k대 | ~75k대 | 최초 approve 비용 + 이후 transferFrom | **~50k** |
 | 토큰 조건 | 3009 지원 (USDC O · KRWK 미확인) | 2612 지원 (USDC O · KRWK 미확인) | ERC-20 approve 호환 | 무관 |
 | 벤더 의존 | TYPED_MESSAGE 서명 (지원 확인됨 · [문서](https://developers.fireblocks.com/reference/sign-typed-messages-for-ethereum-and-evm-networks)) | 동일 | **CONTRACT_CALL 로 제출 · 기록은 operation=APPROVE · 배치 안의 이동은 networkRecords 에 원천 vault 로 귀속 (실측 확정)** · 정책 매칭·gasless 는 미실측 | 위임 코드 구현 (미확인) |
 
 읽는 법 — **안전(1회용·목적지 고정)을 잡으면 서명 M건이 남고(3009), 호출·가스 최소를 잡으면 allowance 또는 위임의 상시 권한을 감수한다(approve·7702).** 현재 06의 채택안은 Fireblocks에서 실행 경로를 실측한 `approve + transferFrom`이다. 다른 방식은 구현 범위에서 제외한다.
 
-**상시 권한 칸의 단서** — 이 대비는 gas 를 대납으로 조달하지 않을 때만 그대로 성립한다. Universal Gasless 를 쓰면 어느 방법을 고르든 첫 거래에서 vault 가 7702 로 upgrade 되므로, 벤더 위임이 이미 서 있는 상태 위에 각 방법의 권한이 얹힌다 (5절 "Universal Gasless 로 낼 수 있나").
+**상시 권한 칸의 단서** — approve 방식은 고객 vault가 최초 approve를 Gasless 거래로 제출하므로 그 vault에 Fireblocks의 EIP-7702 위임이 함께 선다(5절 "Universal Gasless 로 낼 수 있나"). 반면 3009·2612 방식은 고객 vault가 typed message만 서명하고 운영 계정이 온체인 거래를 제출한다. 이 경우 고객 vault까지 upgrade되는지는 공식 근거와 실측이 없어 단정하지 않고, 운영 계정의 Gasless 적용 범위와 함께 확인 대상으로 둔다.
 
 **토큰 조건의 정확한 뜻** — 3009·2612 는 ERC-20 표준이 아니라 발행자가 배포 때 넣는 **선택 확장**이다. 최소 스펙(transfer/approve 만)으로 배포된 토큰이면 그 자산의 배치는 7702(토큰 무관 — 계정 쪽 기능)나 approve 방식만 남는다. 불변 컨트랙트면 나중에 확장을 추가할 수도 없다 — **원화 SC 발행 스펙에 관여할 수 있는 단계라면 EIP-3009(+2612) 포함을 발행 요구사항으로 넣는 것이 최선**이다(구현 비용은 표준 라이브러리 수준).
 

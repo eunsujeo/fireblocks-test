@@ -13,8 +13,8 @@ group: 블록체인 매니저
 
 - **접두** `bcm_` · **접미** `_m`(마스터) · `_l`(내역/로그) · `_trgt`(작업 대상)
 - **컬럼 축약** `_stcd`(상태코드) · `_dvcd`(구분코드) · `_yn`(VARCHAR(1) Y/N) · `_cnt`(횟수) · `_dttm`(일시) · `_dt`(일자) · `_id` · payload(JSONB — 단 수신 바이트를 그대로 보존하는 `bcm_whk_l`·`bcm_raw_tx_l` 은 TEXT)
-- **일시는 VARCHAR(16)** — 코어와 동일(TIMESTAMP 안 씀) · 값은 `yyyyMMddHHmmss` 14자 · **일자는 VARCHAR(8)** (YYYYMMDD)
-- **일시·일자의 시간대는 KST(`Asia/Seoul`)** (2026-08-06 확정) — 포맷에 오프셋이 없어 값만 보고는 시간대를 알 수 없으니 시스템 전체가 하나로 고정돼야 한다. 일 배치·파티션 경계(`base_dt`)도 KST 로 자른다 — 영업일과 어긋나지 않게. 벤더가 주는 절대시각(epoch ms)은 저장 직전 한 곳에서 KST 로 바꾼다
+- **일시는 VARCHAR(16)** — 코어와 동일(TIMESTAMP 안 씀) · 값은 UTC `yyyyMMddHHmmss` 14자 · **일자는 VARCHAR(8)** UTC `yyyyMMdd`
+- **DB 일시·일자는 모두 UTC** (2026-08-14 확정) — `_dttm`, `_dt`, `base_dt`, 벤더 `createdAt` · epoch ms를 UTC 기준으로 저장한다. 포맷에 오프셋이 없으므로 DB 값은 항상 UTC로 해석한다. API는 ISO 8601 UTC(`Z`), 화면·정산·보고서는 필요한 시간대로 변환하여 산정한다
 - **id 길이** — 벤더가 주는 값(벤더 tx·vault·알림 id)은 잘리지 않게 VARCHAR(64) 유지. 코어 자체 id 는 16~36
 - **자산은 두 컬럼** — `ntwk_cd`(네트워크코드 20자) + `tkn_smbl`(토큰심볼 16자). 코어 마스터의 컬럼명·크기를 따르되 **값은 우리가 정한다** — 코어 키(`tkn_id` 등)에 의존하지 않는다
 - **감사 4컬럼** — 모든 테이블에 `frst_reg_empno`(6)·`frst_reg_brcd`(4)·`last_chng_empno`(6)·`last_chng_brcd`(4). 자동 처리 행은 시스템 센티넬 `empno='SYSTEM'`·`brcd='9999'`(2026-08-05 확정 — 구현은 단일 상수), Admin 수동 개입(수동 boost·동결 해제 등)은 실제 직원/부점. 행 발생·변경 "시각"은 별도 도메인 `_dttm` 이 담당한다(코어와 동일 분리)
@@ -300,7 +300,7 @@ CREATE TABLE bcm_tx_l (
   vndr_sub_stcd   VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 subStatus 원어 — 운영 조사용, 이벤트 미탑재
   vndr_ntwk_stcd  VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 networkStatus 원어 — 운영 조사용, 이벤트 미탑재
   stall_alrt_dttm VARCHAR(16)  NULL,          -- 막힘 경보 올린 일시 — 있으면 다음 주기 건너뜀 · 해소 전이 시 NULL
-  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 createdAt을 KST 초 단위로 변환 — 대사 시간축, set-once
+  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 createdAt을 UTC 초 단위로 변환 — 대사 시간축, set-once
   rcnc_chck_dttm  VARCHAR(16)  NULL,          -- 창 밖 미결 거래의 마지막 단건 조회 claim/확인 일시
   rcnc_chck_cnt   INT          NOT NULL DEFAULT 0, -- 단건 조회 횟수 — 영속 백오프 단계
   rcnc_stop_dttm  VARCHAR(16)  NULL,          -- 최대 추적 나이 도달 시각 — 이후 자동 단건 조회 중단
@@ -327,7 +327,7 @@ CREATE INDEX idx_bcm_tx_rcnc ON bcm_tx_l (last_pub_stcd, rcnc_stop_dttm, rcnc_ch
 | `last_pub_stcd` | 새 알림의 상태와 이 값을 [허용 전이 표](02-bcm-flow.md)에 대조해 발행 여부를 가린다. 발행은 `bcm_outbox_l` 에 같은 트랜잭션으로 적재한다 |
 | `cnfm_cnt`·`last_chng_dttm` | **줄지 않는다** — 큰 값(늦은 시각)으로만 갱신한다. 막힘 점검의 입력이다 |
 | `vndr_sub_stcd`·`vndr_ntwk_stcd` | 마지막 알림의 벤더 원어 — 운영 조사(FAILED 사유 구분·대사 불일치 분석)용. whk_l 은 보존 기간 후 정리되므로 장기 조회처는 여기다. **이벤트에는 싣지 않는다** |
-| `vndr_crt_dttm` | Fireblocks `createdAt`을 저장 직전 KST `yyyyMMddHHmmss`로 변환한 값. 최초 관찰 때만 기록하고 이후 웹훅 수신 시각으로 덮지 않는다. tx 대사는 벤더 목록과 이 컬럼의 같은 닫힌 구간을 비교한다 |
+| `vndr_crt_dttm` | Fireblocks `createdAt`을 저장 직전 UTC `yyyyMMddHHmmss`로 변환한 값. 최초 관찰 때만 기록하고 이후 웹훅 수신 시각으로 덮지 않는다. tx 대사는 벤더 목록과 이 컬럼의 같은 닫힌 구간을 비교한다 |
 | `rcnc_chck_dttm`·`rcnc_chck_cnt` | createdAt 창 밖에 남은 미결 거래의 단건 조회 체크포인트. 후보를 `FOR UPDATE SKIP LOCKED`로 원자 claim하면서 벤더 호출 전에 갱신해 다중 인스턴스 중복 조회를 막고, 30초·1분·5분·15분·1시간 백오프의 다음 due를 계산한다 |
 | `rcnc_stop_dttm` | 기본 7일의 최대 추적 나이를 넘긴 시각. 값이 있으면 자동 단건 조회에서 제외하고 리포트·경보로 넘긴다. 웹훅·대사에서 더 최신 벤더 관찰이 실제 적용되면 세 reconciliation 컬럼을 초기화한다 |
 
@@ -673,7 +673,7 @@ CREATE TABLE bcm_job_m (
 CREATE TABLE bcm_fee_qt_l (
   ntwk_cd          VARCHAR(20)    NOT NULL,
   tkn_smbl         VARCHAR(16)    NOT NULL,
-  obs_dttm         VARCHAR(16)    NOT NULL,   -- 견적 관측 일시, KST yyyyMMddHHmmss
+  obs_dttm         VARCHAR(16)    NOT NULL,   -- 견적 관측 일시, UTC yyyyMMddHHmmss
   fee_lvl          VARCHAR(16)    NOT NULL,   -- LOW / MEDIUM / HIGH
   vndr_ast_id      VARCHAR(64)    NOT NULL,   -- 관측 당시 Fireblocks assetId
   fee_per_byte     NUMERIC(36,18) NULL,       -- UTXO 등 자산 유형별 응답
@@ -703,7 +703,7 @@ finalize 된 tx 의 벤더 원문을 일 배치로 장기 보관한다. 원본�
 
 ```sql
 CREATE TABLE bcm_raw_tx_l (
-  base_dt        VARCHAR(8)   NOT NULL,   -- 적재 기준일 = 파티션 키 (YYYYMMDD)
+  base_dt        VARCHAR(8)   NOT NULL,   -- UTC 적재 기준일 = 파티션 키 (YYYYMMDD)
   vndr_tx_id     VARCHAR(64)  NOT NULL,   -- 벤더 tx id
   ext_tx_id      VARCHAR(128) NULL,       -- 출금 건 식별자 — 입금은 NULL
   tx_hash        VARCHAR(128) NULL,       -- 온체인 거래 해시
@@ -732,7 +732,7 @@ CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- �
 
 월별 파티션은 **대상 월이 시작되기 전에 배포 역할이 선생성**한다. 애플리케이션 실행 역할은 DDL 권한 없이 이미 생성된 파티션에만 적재한다. 보관 후보는 성공 커서의 하한 없이 실행 경계 이전의 `S` 인박스 중 root 거래가 FINALIZED이고 payload 원어가 COMPLETED이며, `bcm_raw_tx_l`에 같은 tx의 동일하거나 더 최신 `rcv_dttm` 원문이 없는 행이다. 기본 500건씩 실행당 최대 20배치를 처리하고 각 배치를 별도 트랜잭션으로 커밋한다. 파티션 누락이나 중간 적재 실패가 나도 앞서 커밋한 보관분은 유지되며, 다음 실행이 같은 미보관 조건으로 멱등하게 이어받는다.
 
-적격 후보가 더 없음을 확인한 뒤에만 별도 마지막 트랜잭션에서 보존 기간이 지난 처리 완료(`S`) 인박스를 정리하고 성공 heartbeat를 기록한다. 최대 배치에 도달해 적체를 완전히 비우지 못했거나 어느 배치든 실패하면 인박스 정리와 성공 heartbeat는 하지 않는다. 따라서 `last_scs_dttm`은 보관 완전성 커서가 아니라 성공 heartbeat일 뿐이다. 보존 연한·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
+적격 후보가 더 없음을 확인한 뒤에만 별도 마지막 트랜잭션에서 보존 기간이 지난 처리 완료(`S`) 인박스를 정리하고 성공 heartbeat를 기록한다. 원어가 COMPLETED인 인박스는 root가 아직 FINALIZED가 아니어도 동일하거나 더 최신 `rcv_dttm` 원문이 보관되기 전까지 정리 대상에서 제외한다. 최대 배치에 도달해 적체를 완전히 비우지 못했거나 어느 배치든 실패하면 인박스 정리와 성공 heartbeat는 하지 않는다. 따라서 `last_scs_dttm`은 보관 완전성 커서가 아니라 성공 heartbeat일 뿐이다. 보존 연한·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
 
 ## 미확정
 
@@ -740,6 +740,7 @@ CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- �
 
 ## 확정 이력 (2026-08-14)
 
+- **DB 일시·일자는 UTC로 통일** — `_dttm`은 UTC `yyyyMMddHHmmss`, `_dt`·`base_dt`는 UTC `yyyyMMdd`로 저장한다. API는 ISO 8601 UTC를 쓰고 화면·정산·보고서에서만 필요한 시간대로 변환한다. 2026-08-06의 KST 저장 결정은 이 결정으로 대체한다.
 - **tx 대사는 벤더 createdAt 단일 시간축** — 벤더 목록과 `bcm_tx_l.vndr_crt_dttm`을 안정화 지연이 지난 같은 닫힌 구간으로 비교한다. 창 밖 미결 단건 조회는 DB claim·영속 백오프·실행당 상한·최대 추적 나이를 둔다.
 - **원본 보관은 커서 없는 미보관 재탐색** — 늦게 적격이 된 원문도 다시 찾고, 배치별로 안전하게 커밋한다. 전체 적체를 비운 실행만 인박스 정리와 성공 heartbeat를 남긴다.
 
@@ -761,7 +762,7 @@ CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- �
 
 ## 확정 이력 (2026-08-06)
 
-- **일시의 시간대 = KST(`Asia/Seoul`)** — 14자 포맷에 오프셋이 없어 한 시간대로 고정해야 하고, `base_dt` 일 경계가 영업일과 맞아야 한다. 코어 스키마 사본에는 시간대를 밝힌 근거가 없어 설계 결정으로 확정했다 — DAW-CORE 회신이 오면 대조한다(어긋나면 Clock 빈 교체로 끝난다).
+- **일시의 시간대 = KST(`Asia/Seoul`)** — 14자 포맷에 오프셋이 없어 한 시간대로 고정해야 한다는 초기 결정이었다. **2026-08-14에 `_dttm`·`_dt`·`base_dt` 모두 UTC 기준으로 대체했다.**
 - **수신 원문은 바이트 그대로** — `bcm_whk_l.payload` 를 JSONB 에서 TEXT 로 바꾸고 `payload_hash`·`sign_vl` 을 수신 시점에 함께 남긴다. JSONB 정규화 때문에 기존 스키마로는 `bcm_raw_tx_l.payload_hash` 의 "수신 시점 와이어 바이트" 요구를 지킬 수 없었다.
 
 ## 확정 이력 (2026-08-05)
