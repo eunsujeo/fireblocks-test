@@ -3,7 +3,7 @@ package com.whatto.bcm.app.bat.reconciliation
 import com.whatto.bcm.app.bat.stall.StallTerminalObservationHandler
 import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.domain.tx.StallCandidate
-import com.whatto.bcm.domain.tx.TxReconciliationMismatchType
+import com.whatto.bcm.domain.tx.TxReconciliationObservationEvidence
 import com.whatto.bcm.domain.tx.TxReconciliationPolicy
 import com.whatto.bcm.domain.tx.TxReconciliationRecord
 import com.whatto.bcm.domain.tx.TxReconciliationReport
@@ -74,7 +74,7 @@ class TransactionReconciliationJob(
             }
 
         val managerByRoot = linkedMapOf<String, TxReconciliationRecord>()
-        windowRecords.filter { it.isTerminalForReconciliation() }.forEach {
+        windowRecords.filter { TxReconciliationPolicy.managerSnapshot(it) != null }.forEach {
             managerByRoot[it.record.vendorTxId] = it
         }
         selected.values.mapNotNull(RootObservation::managed).forEach {
@@ -87,17 +87,12 @@ class TransactionReconciliationJob(
                     observation.status,
                 )
             }
-        val managerSnapshots =
-            managerByRoot.values.map {
-                TxReconciliationSnapshot(it.record.vendorTxId, it.record.lastPublishedStatus)
-            }
+        val managerSnapshots = managerByRoot.values.map { TxReconciliationPolicy.snapshot(it.record) }
         val result = TxReconciliationPolicy.compare(vendorSnapshots, managerSnapshots)
         var recoveredCount = 0
         result.mismatches
-            .filter {
-                it.type == TxReconciliationMismatchType.STATUS_MISMATCH &&
-                    it.managerStatus in setOf(TxStatus.SUBMITTED, TxStatus.CONFIRMED)
-            }.forEach { mismatch ->
+            .filter(TxReconciliationPolicy::shouldRecover)
+            .forEach { mismatch ->
                 val observation = checkNotNull(selected[mismatch.rootVendorTransactionId])
                 val managed = checkNotNull(observation.managed)
                 terminalObservations.observe(
@@ -162,7 +157,10 @@ class TransactionReconciliationJob(
             }
             val candidate = RootObservation(managed, transaction, status)
             val previous = selected[managed.record.vendorTxId]
-            if (previous == null || candidate.preferredOver(previous)) {
+            if (
+                previous == null ||
+                TxReconciliationPolicy.isPreferredObservation(candidate.evidence(), previous.evidence())
+            ) {
                 selected[managed.record.vendorTxId] = candidate
             }
         }
@@ -179,13 +177,6 @@ class TransactionReconciliationJob(
     private fun VendorTransaction.terminalStatusForReconciliation(): TxStatus? =
         statusTranslator.terminalStatusForReconciliation(statusObservation(), source.type)
 
-    private fun TxReconciliationRecord.isTerminalForReconciliation(): Boolean =
-        when (record.lastPublishedStatus) {
-            TxStatus.FINALIZED, TxStatus.FAILED -> true
-            TxStatus.REJECTED -> submissionType != null
-            TxStatus.SUBMITTED, TxStatus.CONFIRMED -> false
-        }
-
     private data class RootObservation(
         val managed: TxReconciliationRecord?,
         val transaction: VendorTransaction,
@@ -194,12 +185,12 @@ class TransactionReconciliationJob(
         val rootVendorTransactionId: String
             get() = managed?.record?.vendorTxId ?: transaction.transactionId
 
-        fun preferredOver(previous: RootObservation): Boolean {
-            val succeeds = PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation())
-            val previousSucceeds = PhysicalTransactionEvidence.hasSucceeded(previous.transaction.statusObservation())
-            if (succeeds != previousSucceeds) return succeeds
-            return transaction.transactionId == managed?.record?.activeVendorTxId
-        }
+        fun evidence() =
+            TxReconciliationObservationEvidence(
+                physicalVendorTransactionId = transaction.transactionId,
+                activeVendorTransactionId = managed?.record?.activeVendorTxId,
+                succeeded = PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation()),
+            )
     }
 
     internal companion object {

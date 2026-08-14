@@ -34,6 +34,12 @@ data class TxReconciliationSnapshot(
     val status: TxStatus,
 )
 
+data class TxReconciliationObservationEvidence(
+    val physicalVendorTransactionId: String,
+    val activeVendorTransactionId: String?,
+    val succeeded: Boolean,
+)
+
 enum class TxReconciliationMismatchType {
     VENDOR_ONLY,
     MANAGER_ONLY,
@@ -65,6 +71,27 @@ fun interface TxReconciliationReportPort {
 }
 
 object TxReconciliationPolicy {
+    fun managerSnapshot(record: TxReconciliationRecord): TxReconciliationSnapshot? =
+        when (record.record.lastPublishedStatus) {
+            TxStatus.FINALIZED, TxStatus.FAILED -> snapshot(record.record)
+            TxStatus.REJECTED -> if (record.submissionType != null) snapshot(record.record) else null
+            TxStatus.SUBMITTED, TxStatus.CONFIRMED -> null
+        }
+
+    fun snapshot(record: TxRecord): TxReconciliationSnapshot = TxReconciliationSnapshot(record.vendorTxId, record.lastPublishedStatus)
+
+    fun shouldRecover(mismatch: TxReconciliationMismatch): Boolean =
+        mismatch.type == TxReconciliationMismatchType.STATUS_MISMATCH &&
+            mismatch.managerStatus in setOf(TxStatus.SUBMITTED, TxStatus.CONFIRMED)
+
+    fun isPreferredObservation(
+        candidate: TxReconciliationObservationEvidence,
+        previous: TxReconciliationObservationEvidence,
+    ): Boolean {
+        if (candidate.succeeded != previous.succeeded) return candidate.succeeded
+        return candidate.physicalVendorTransactionId == candidate.activeVendorTransactionId
+    }
+
     fun compare(
         vendor: List<TxReconciliationSnapshot>,
         manager: List<TxReconciliationSnapshot>,

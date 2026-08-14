@@ -107,7 +107,9 @@ class FireblocksStatusTranslator(
         observation: VendorStatusObservation,
         sourceType: String,
     ): TxStatus? {
-        if (observation.subStatus in FREEZE_SUB_STATUSES) return TxStatus.REJECTED
+        if (observation.subStatus in FREEZE_SUB_STATUSES) {
+            return if (sourceType == VAULT_ACCOUNT_SOURCE) TxStatus.REJECTED else null
+        }
         return when (observation.rawStatus) {
             "COMPLETED" -> TxStatus.FINALIZED
             "FAILED" -> TxStatus.FAILED
