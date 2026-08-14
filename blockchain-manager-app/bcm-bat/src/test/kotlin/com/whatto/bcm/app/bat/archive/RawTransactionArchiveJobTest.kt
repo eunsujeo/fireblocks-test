@@ -88,14 +88,14 @@ class RawTransactionArchiveJobTest {
     }
 
     @Test
-    fun `보관 절대시각은 UTC이고 파티션 업무일자는 KST다`() {
+    fun `보관 절대시각과 파티션 업무일자는 모두 UTC다`() {
         val archives = RecordingArchives(ArrayDeque(listOf(RawTransactionArchiveBatch(0, 0))))
         val jobs = RecordingJobs(null)
         val boundaryClock = Clock.fixed(Instant.parse("2026-08-13T15:30:00Z"), ZoneId.of("UTC"))
 
         job(archives, jobs, clock = boundaryClock).run()
 
-        assertThat(archives.archiveRequests).containsExactly(ArchiveRequest("20260814", "20260813153000", 2))
+        assertThat(archives.archiveRequests).containsExactly(ArchiveRequest("20260813", "20260813153000", 2))
         assertThat(jobs.started).containsExactly(JOB_NAME to "20260813153000")
     }
 
