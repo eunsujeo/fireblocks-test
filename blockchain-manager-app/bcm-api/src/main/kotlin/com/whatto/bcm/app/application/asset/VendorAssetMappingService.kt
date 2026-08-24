@@ -1,6 +1,8 @@
 package com.whatto.bcm.app.application.asset
 
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheRepository
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
@@ -14,7 +16,6 @@ import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.stereotype.Service
 import java.time.Clock
-import java.util.Locale
 
 /** 07-asset-master의 벤더 중립 Admin 조회·채택·set-once 등록·안전 삭제 오케스트레이션. */
 @Service
@@ -22,6 +23,7 @@ class VendorAssetMappingService(
     private val mappingRepository: VendorAssetMappingRepository,
     private val blockchainRepository: VendorBlockchainCatalogRepository,
     private val depositAddressQueryService: DepositAddressQueryService,
+    private val assetCatalogCache: VendorAssetCatalogCacheRepository,
     private val vendorCatalog: VendorAssetCatalogPort,
     private val clock: Clock,
 ) {
@@ -63,18 +65,15 @@ class VendorAssetMappingService(
     }
 
     fun assetCandidates(
-        symbol: String,
+        query: String,
         network: String?,
-    ): List<AssetCandidate> {
-        val blockchains =
-            network?.let { listOf(adoptedBlockchain(it)) }
-                ?: blockchainRepository.findAll(adopted = true)
-        return blockchains.flatMap { blockchain ->
-            allVendorAssets(blockchain.candidateId, symbol.uppercase(Locale.ROOT))
-                .filter { it.blockchainId == blockchain.candidateId }
-                .map { AssetCandidate.from(requireNotNull(blockchain.network), it) }
-        }
-    }
+    ): VendorAssetCatalogSearchResult =
+        assetCatalogCache.search(
+            query = query,
+            network = network,
+            staleBefore = CoreDateTimes.format(CoreDateTimes.current(clock).minusHours(CATALOG_STALE_HOURS)),
+            limit = MAX_CANDIDATES,
+        )
 
     fun mappings(
         network: String?,
@@ -160,6 +159,8 @@ class VendorAssetMappingService(
 
     companion object {
         private const val NATIVE_ASSET_CLASS = "NATIVE"
+        private const val CATALOG_STALE_HOURS = 48L
+        private const val MAX_CANDIDATES = 50
     }
 }
 
@@ -184,31 +185,3 @@ data class RegisterVendorAssetMappingCommand(
     val branchCode: String,
     val requestId: String = "UNSPECIFIED",
 )
-
-data class AssetCandidate(
-    val network: String,
-    val symbol: String,
-    val displayName: String?,
-    val decimals: Int?,
-    val contractAddress: String?,
-    val native: Boolean,
-) {
-    companion object {
-        private const val NATIVE_ASSET_CLASS = "NATIVE"
-
-        fun from(
-            network: String,
-            asset: VendorAsset,
-        ): AssetCandidate {
-            val native = asset.assetClass == NATIVE_ASSET_CLASS
-            return AssetCandidate(
-                network = network,
-                symbol = asset.displaySymbol,
-                displayName = asset.displayName,
-                decimals = asset.decimals,
-                contractAddress = if (native) null else asset.contractAddress,
-                native = native,
-            )
-        }
-    }
-}

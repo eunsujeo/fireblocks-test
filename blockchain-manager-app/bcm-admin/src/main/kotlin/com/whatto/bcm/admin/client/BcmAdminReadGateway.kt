@@ -14,9 +14,9 @@ interface BcmAdminReadGateway {
     ): List<AdminAssetMapping>
 
     fun assetCandidates(
-        symbol: String,
+        query: String,
         network: String?,
-    ): List<AdminAssetCandidate>
+    ): AdminAssetCandidateSearchResult
 
     fun adoptNetwork(command: AdoptAdminNetwork): AdminNetwork
 

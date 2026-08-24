@@ -34,6 +34,7 @@ Blockchain Manager 로컬 실행기
   ./scripts/local.sh configure [fireblocks]
   ./scripts/local.sh up [fireblocks|stub]
   ./scripts/local.sh status
+  ./scripts/local.sh sync assets
   ./scripts/local.sh stop [api|webhook|admin]
   ./scripts/local.sh test deposit
   ./scripts/local.sh logs [api|webhook|admin|chain|stub|infra]
@@ -443,6 +444,52 @@ verify_fireblocks_api_authentication() {
     echo "Fireblocks API 인증 성공 — 블록체인 목록 읽기 완료"
 }
 
+sync_asset_catalog_now() {
+    require_command docker
+    local active_mode
+    active_mode="$(active_local_mode)"
+    use_active_dataset
+    running api || fail "자산 카탈로그 동기화는 실행 중인 로컬 환경이 필요합니다. up ${active_mode}를 먼저 실행하세요."
+    docker info >/dev/null 2>&1 || fail "Docker가 실행 중이지 않습니다."
+    compose ps --status running --services | grep -Fxq postgres || fail "PostgreSQL이 실행 중이지 않습니다."
+
+    case "$active_mode" in
+        fireblocks)
+            ensure_fireblocks_config
+            ;;
+        stub)
+            running stub || fail "Stub 모드 자산 카탈로그 동기화에는 Fireblocks 로컬 Stub이 필요합니다."
+            export BCM_VENDOR_MODE=STUB
+            export BCM_CHAIN_MODE=LOCAL
+            export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
+            export SPRING_DATASOURCE_USERNAME=postgres
+            export SPRING_DATASOURCE_PASSWORD=bcm
+            export KAFKA_BOOTSTRAP_SERVERS="127.0.0.1:$KAFKA_PORT"
+            export BCM_HTTP_MAX_CONNECTIONS=100
+            export BCM_FIREBLOCKS_BASE_URL="http://127.0.0.1:$STUB_PORT"
+            export BCM_FIREBLOCKS_API_KEY=bcm-local-stub
+            export BCM_FIREBLOCKS_PRIVATE_KEY_FILE="$(prepare_local_api_key)"
+            export FIREBLOCKS_JWKS_URL="http://127.0.0.1:$STUB_PORT/.well-known/jwks.json"
+            unset BCM_FIREBLOCKS_PRIVATE_KEY_PEM
+            ;;
+        *) fail "알 수 없는 로컬 실행 모드가 기록되어 있습니다: $active_mode" ;;
+    esac
+
+    local sync_log="$STATE_DIR/asset-catalog-sync.log"
+    : > "$sync_log"
+    chmod 600 "$sync_log"
+    echo "채택 네트워크의 Fireblocks 자산 카탈로그 동기화 중..."
+    if ! (
+        cd "$REPO_ROOT"
+        export BCM_JOB=asset-catalog-sync-once
+        ./gradlew --no-daemon :blockchain-manager-app:bcm-bat:bootRun
+    ) > "$sync_log" 2>&1; then
+        echo "상세 로그: $sync_log" >&2
+        fail "자산 카탈로그 동기화에 실패했습니다."
+    fi
+    echo "자산 카탈로그 동기화 완료 — Admin에서 검색 결과를 다시 확인하세요."
+}
+
 stop_tree() {
     local pid="$1"
     local child
@@ -827,6 +874,12 @@ case "$command_name" in
         esac
         ;;
     status) status_all ;;
+    sync)
+        case "${1:-}" in
+            assets) sync_asset_catalog_now ;;
+            *) fail "동기화 대상은 assets만 지원합니다." ;;
+        esac
+        ;;
     stop)
         case "${1:-}" in
             api|webhook|admin) stop_process "$1" ;;

@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -709,7 +709,7 @@ class SmokeEnvironment:
                 state = "DOWN"
             self.ledger.set_component(component, state)
 
-    def bat_environment(self) -> dict[str, str]:
+    def bat_environment(self, job: str = "catalog-sync-once") -> dict[str, str]:
         environment = self.environment()
         environment.update(
             {
@@ -722,7 +722,7 @@ class SmokeEnvironment:
                 "BCM_FIREBLOCKS_API_KEY": "bcm-local-stub",
                 "BCM_FIREBLOCKS_PRIVATE_KEY_FILE": str(self.state_dir / "stub" / "fireblocks-api-private-key.pem"),
                 "FIREBLOCKS_JWKS_URL": f"http://127.0.0.1:{SMOKE_STUB_PORT}/.well-known/jwks.json",
-                "BCM_JOB": "catalog-sync-once",
+                "BCM_JOB": job,
             }
         )
         environment.pop("BCM_FIREBLOCKS_PRIVATE_KEY_PEM", None)
@@ -732,7 +732,14 @@ class SmokeEnvironment:
         self.run_bat_job(
             ["./gradlew", "--no-daemon", ":blockchain-manager-app:bcm-bat:bootRun"],
             "catalog-sync",
-            environment=self.bat_environment(),
+            environment=self.bat_environment("catalog-sync-once"),
+        )
+
+    def sync_asset_catalog(self) -> None:
+        self.run_bat_job(
+            ["./gradlew", "--no-daemon", ":blockchain-manager-app:bcm-bat:bootRun"],
+            "asset-catalog-sync",
+            environment=self.bat_environment("asset-catalog-sync-once"),
         )
 
     def run_bat_job(
@@ -891,7 +898,7 @@ class SmokeEnvironment:
             shutil.rmtree(self.state_dir)
 
 
-def adopt_local_asset(ledger: RunLedger) -> None:
+def adopt_local_asset(ledger: RunLedger, sync_asset_catalog: Callable[[], None]) -> None:
     actor_headers = {"X-Employee-No": "TST001", "X-Branch-Code": "9999"}
     networks, headers = http_json("GET", f"http://127.0.0.1:{SMOKE_API_PORT}/admin/networks?chainId=31337")
     candidates = response_data(networks, "네트워크 카탈로그 조회")
@@ -910,12 +917,22 @@ def adopt_local_asset(ledger: RunLedger) -> None:
         payload={"candidateId": local.get("candidateId")},
         headers=actor_headers,
     )
+    sync_asset_catalog()
     for symbol in ("TUSD", "ETH"):
         assets, _ = http_json(
             "GET",
-            f"http://127.0.0.1:{SMOKE_API_PORT}/admin/asset-candidates?symbol={symbol}&network=LOCAL",
+            f"http://127.0.0.1:{SMOKE_API_PORT}/admin/asset-candidates?q={symbol}&network=LOCAL",
         )
-        asset = next((item for item in response_data(assets, "자산 후보 조회") if item.get("symbol") == symbol), None)
+        search_result = response_data(assets, "자산 후보 조회")
+        candidate_items = search_result.get("items") if isinstance(search_result, dict) else None
+        if not isinstance(candidate_items, list):
+            raise StepFailure(
+                code="INVALID_ASSET_CANDIDATE_RESPONSE",
+                message="자산 후보 응답 형식이 올바르지 않습니다.",
+                next_action="BCM API 로그를 확인하세요.",
+                retryable=False,
+            )
+        asset = next((item for item in candidate_items if item.get("symbol") == symbol), None)
         if asset is None:
             raise StepFailure(
                 code="LOCAL_ASSET_NOT_FOUND",
@@ -1779,7 +1796,7 @@ def smoke_suite(ledger: RunLedger, keep_on_failure: bool) -> None:
             ledger,
             3,
             "catalog-sync",
-            "Fireblocks 카탈로그 1회 동기화",
+            "Fireblocks 블록체인 카탈로그 1회 동기화",
             environment.sync_catalog,
             classification=("SIMULATED_VENDOR",),
         )
@@ -1787,8 +1804,8 @@ def smoke_suite(ledger: RunLedger, keep_on_failure: bool) -> None:
             ledger,
             4,
             "asset-adoption",
-            "Admin 로컬 네트워크·자산 등록",
-            lambda: adopt_local_asset(ledger),
+            "Admin 로컬 네트워크 채택·자산 카탈로그 동기화·매핑 등록",
+            lambda: adopt_local_asset(ledger, environment.sync_asset_catalog),
             classification=("SIMULATED_VENDOR",),
         )
 
@@ -1914,7 +1931,7 @@ def full_suite(ledger: RunLedger, keep_on_failure: bool) -> None:
             ledger,
             3,
             "catalog-sync",
-            "Fireblocks 카탈로그 1회 동기화",
+            "Fireblocks 블록체인 카탈로그 1회 동기화",
             environment.sync_catalog,
             classification=("SIMULATED_VENDOR",),
         )
@@ -1922,8 +1939,8 @@ def full_suite(ledger: RunLedger, keep_on_failure: bool) -> None:
             ledger,
             4,
             "asset-adoption",
-            "Admin 로컬 네트워크·자산 등록",
-            lambda: adopt_local_asset(ledger),
+            "Admin 로컬 네트워크 채택·자산 카탈로그 동기화·매핑 등록",
+            lambda: adopt_local_asset(ledger, environment.sync_asset_catalog),
             classification=("SIMULATED_VENDOR",),
         )
 

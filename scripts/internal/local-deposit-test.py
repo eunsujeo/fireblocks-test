@@ -72,11 +72,19 @@ def run_gradle(task: str, environment: dict[str, str]) -> str:
     return result.stdout
 
 
-def sync_catalog() -> None:
+def run_catalog_job(job: str) -> None:
     environment = os.environ.copy()
-    environment["BCM_JOB"] = "catalog-sync-once"
+    environment["BCM_JOB"] = job
     environment.pop("BCM_FIREBLOCKS_PRIVATE_KEY_PEM", None)
     run_gradle(":blockchain-manager-app:bcm-bat:bootRun", environment)
+
+
+def sync_catalog() -> None:
+    run_catalog_job("catalog-sync-once")
+
+
+def sync_asset_catalog() -> None:
+    run_catalog_job("asset-catalog-sync-once")
 
 
 LOCAL_CATALOG = (
@@ -130,6 +138,7 @@ def ensure_local_asset(runner: Any, ledger: LocalLedger) -> None:
     api_port = runner.SMOKE_API_PORT
     actor_headers = {"X-Employee-No": "LOCAL", "X-Branch-Code": "9999"}
     expected_contracts = local_catalog_contracts()
+    adopted: list[tuple[str, tuple[str, ...]]] = []
     for network, chain_id, symbols in LOCAL_CATALOG:
         networks, headers = runner.http_json("GET", f"http://127.0.0.1:{api_port}/admin/networks?chainId={chain_id}")
         candidates = runner.response_data(networks, "네트워크 카탈로그 조회")
@@ -144,6 +153,11 @@ def ensure_local_asset(runner: Any, ledger: LocalLedger) -> None:
                 payload={"candidateId": candidate.get("candidateId")},
                 headers=actor_headers,
             )
+        adopted.append((network, symbols))
+
+    sync_asset_catalog()
+
+    for network, symbols in adopted:
         for symbol in symbols:
             mappings, _ = runner.http_json(
                 "GET",
@@ -161,9 +175,13 @@ def ensure_local_asset(runner: Any, ledger: LocalLedger) -> None:
                 )
             assets, _ = runner.http_json(
                 "GET",
-                f"http://127.0.0.1:{api_port}/admin/asset-candidates?symbol={symbol}&network={network}",
+                f"http://127.0.0.1:{api_port}/admin/asset-candidates?q={symbol}&network={network}",
             )
-            asset = next((item for item in runner.response_data(assets, "자산 후보 조회") if item.get("symbol") == symbol), None)
+            search_result = runner.response_data(assets, "자산 후보 조회")
+            candidate_items = search_result.get("items") if isinstance(search_result, dict) else None
+            if not isinstance(candidate_items, list):
+                raise runner.StepFailure("INVALID_ASSET_CANDIDATE_RESPONSE", "자산 후보 응답 형식이 올바르지 않습니다.", "BCM API 로그를 확인하세요.", False)
+            asset = next((item for item in candidate_items if item.get("symbol") == symbol), None)
             if asset is None:
                 raise runner.StepFailure("LOCAL_ASSET_NOT_FOUND", f"{network}/{symbol} 후보가 없습니다.", "Stub 로그를 확인하세요.", True)
             if str(asset.get("contractAddress", "")).lower() != expected_contracts[(network, symbol)]:

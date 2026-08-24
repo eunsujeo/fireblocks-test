@@ -78,7 +78,7 @@ bcm-api·bcm-webhook·bcm-admin과 개발자 전용 PostgreSQL·Kafka를 한 번
 `fireblocks`의 첫 실행은 `.env` 설정 질문을 자동으로 시작합니다. `stub`은 Foundry/Anvil 1.7.1과 Forge를 확인하고
 런타임 전용 RSA·EVM 키를 `build/local/stub/`에 생성하므로 `.env`나 실 Fireblocks API key가 필요하지 않습니다.
 `up fireblocks`는 API·Webhook·Admin을 시작하기 전에 실제 BCM Fireblocks 클라이언트로 블록체인 목록을 한 번 읽어
-API 인증을 확인하고 카탈로그를 동기화합니다. 실패하면 애플리케이션 기동을 중단하며 안전한 상세 로그는
+API 인증을 확인하고 블록체인 카탈로그를 동기화합니다. 실패하면 애플리케이션 기동을 중단하며 안전한 상세 로그는
 `build/local/fireblocks-preflight.log`에 남깁니다. 이 확인은 거래 생성 권한·TAP·Webhook JWKS 검사가 아닙니다.
 두 모드는 PostgreSQL·Kafka Docker volume도 각각 사용하므로 Stub에서 만든 테스트 매핑·계정·거래가 Fireblocks 화면에
 섞이지 않습니다. `status`의 현재 실행 모드와 Admin 상단의 `벤더 + 체인 · 데이터셋` 표시로 연결 대상을 확인할 수 있습니다.
@@ -110,6 +110,7 @@ cp /발급받은/경로/fireblocks-private-key.pem .keys/
 
 ```sh
 ./scripts/local.sh status          # 프로세스·컨테이너 상태
+./scripts/local.sh sync assets     # 신규 채택 네트워크의 자산 검색 캐시 즉시 갱신
 ./scripts/local.sh stop webhook    # api|webhook|admin 중 하나만 종료
 ./scripts/local.sh test deposit    # up stub 환경의 입금→Webhook→FINALIZED→Kafka→Admin 점검
 ./scripts/local.sh logs api        # chain|stub|api|webhook|admin|infra 로그
@@ -128,6 +129,9 @@ Webhook management health만 읽습니다. FUNCTION_TEST에서는 검증된 고�
 Webhook listener로 전달됩니다. `reset`은 Stub 상태와 Anvil 기준
 snapshot만 복원하며 기본 URL은 `http://127.0.0.1:18080`입니다. 다른 loopback 포트는 `BCM_LOCAL_STUB_BASE_URL`로 지정합니다.
 `bcm-bat`는 실행할 작업과 안전 설정을 명시해야 하는 비웹 프로세스이므로 기본 `up`에는 포함하지 않습니다.
+Admin에서 새 네트워크를 채택한 직후 자산을 찾으려면 `./scripts/local.sh sync assets`를 한 번 실행합니다. 검색은 이 캐시의
+심볼·표시명·contract address 인덱스를 사용하고, 실제 등록 시에는 Fireblocks에서 주소를 다시 확인합니다. 정기 배포 환경에서는
+BAT의 일 1회 `VENDOR_ASSET_CATALOG_SYNC` 작업이 같은 캐시를 갱신합니다.
 
 `up stub`의 최초 실행은 ETHEREUM(chain id 31337)과 BASE(chain id 31338)에 테스트 USDC·KRWK 컨트랙트를 배포하고,
 두 토큰 모두 decimals 6으로 Fireblocks Stub 카탈로그와 BCM 매핑까지 자동 준비합니다. 이후 실행은 같은 seed·manifest와

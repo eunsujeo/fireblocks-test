@@ -31,7 +31,7 @@
 | [02-bcm-flow.md](docs/design/02-bcm-flow.md) | **이벤트 계약** — 허용 전이 표 · evnt_id dedup · relay 순차 발송 · 감지 합성 발행 · boost txId 접기 |
 | [03-bcm-db.md](docs/design/03-bcm-db.md) | **bcm_ 코어 스키마** — 컬럼명·타입 그대로 구현 |
 | [06-sweep.md](docs/design/06-sweep.md) | sweep 정책 (트리거·밴드S) · approve + transferFrom 배치 실행 계약 |
-| [07-asset-master.md](docs/design/07-asset-master.md) | **블록체인 카탈로그 + 벤더 자산 매핑 2테이블** · 등록 검증 · Admin API · 벤더 경계 변환 |
+| [07-asset-master.md](docs/design/07-asset-master.md) | **블록체인·자산 카탈로그 캐시 + 벤더 자산 현재/변경 매핑** · 등록 재검증 · Admin API · 벤더 경계 변환 |
 | [08-bcm-admin.md](docs/design/08-bcm-admin.md) | **Blockchain Manager Admin** — 운영 조사 · 컨트랙트/실행 정책 · 밴드S · 승인 · 비상 운영 · UI/UX 경계 |
 | [09-asset-map.md](docs/design/09-asset-map.md) | 고객 vault·옴니버스·출금 풀·회사자산·외부 콜드 간 시나리오별 자산 이동 지도 |
 | [10-local-fireblocks-integration.md](docs/design/10-local-fireblocks-integration.md) | **로컬 통합 테스트 계약** — Fireblocks API 지원표 · Stub/Anvil 경계 · 실행 모드 · 키 · reset · 실벤더 승인선 |

@@ -95,14 +95,14 @@ def step(runner: Any, ledger: Any, index: int, step_id: str, name: str, action: 
 
 def run_asset_catalog(runner: Any, helper: Any, ledger: Any) -> None:
     step(runner, ledger, 1, "local-readiness", "기동 중인 STUB+LOCAL component 확인", lambda: preflight(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
-    step(runner, ledger, 2, "catalog-sync", "BAT 자산 카탈로그 1회 동기화", helper.sync_catalog, ("SIMULATED_VENDOR",))
-    step(runner, ledger, 3, "asset-mapping", "ETHEREUM·BASE의 USDC/KRWK 매핑 확인", lambda: helper.ensure_local_asset(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
+    step(runner, ledger, 2, "catalog-sync", "BAT 블록체인 카탈로그 1회 동기화", helper.sync_catalog, ("SIMULATED_VENDOR",))
+    step(runner, ledger, 3, "asset-mapping", "자산 카탈로그 동기화와 ETHEREUM·BASE의 USDC/KRWK 매핑 확인", lambda: helper.ensure_local_asset(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
 
 
 def run_customer_vault(runner: Any, helper: Any, ledger: Any, ref: str, symbol: str) -> None:
     step(runner, ledger, 1, "local-readiness", "기동 중인 STUB+LOCAL component 확인", lambda: preflight(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
-    step(runner, ledger, 2, "catalog-sync", "BAT 자산 카탈로그 1회 동기화", helper.sync_catalog, ("SIMULATED_VENDOR",))
-    step(runner, ledger, 3, "asset-mapping", "ETHEREUM·BASE의 USDC/KRWK 매핑 확인", lambda: helper.ensure_local_asset(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
+    step(runner, ledger, 2, "catalog-sync", "BAT 블록체인 카탈로그 1회 동기화", helper.sync_catalog, ("SIMULATED_VENDOR",))
+    step(runner, ledger, 3, "asset-mapping", "자산 카탈로그 동기화와 ETHEREUM·BASE의 USDC/KRWK 매핑 확인", lambda: helper.ensure_local_asset(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
 
     def create() -> None:
         account_id, address = runner.create_account(ledger, "CUSTOMER", ref, symbol)
@@ -115,8 +115,8 @@ def run_customer_vault(runner: Any, helper: Any, ledger: Any, ref: str, symbol: 
 def run_deposit_success(runner: Any, helper: Any, ledger: Any) -> None:
     context: dict[str, str] = {}
     step(runner, ledger, 1, "local-readiness", "기동 중인 STUB+LOCAL component 확인", lambda: preflight(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
-    step(runner, ledger, 2, "catalog-sync", "BAT 자산 카탈로그 1회 동기화", helper.sync_catalog, ("SIMULATED_VENDOR",))
-    step(runner, ledger, 3, "asset-mapping", "ETHEREUM·BASE의 USDC/KRWK 매핑 확인", lambda: helper.ensure_local_asset(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
+    step(runner, ledger, 2, "catalog-sync", "BAT 블록체인 카탈로그 1회 동기화", helper.sync_catalog, ("SIMULATED_VENDOR",))
+    step(runner, ledger, 3, "asset-mapping", "자산 카탈로그 동기화와 ETHEREUM·BASE의 USDC/KRWK 매핑 확인", lambda: helper.ensure_local_asset(runner, ledger), ("REAL_LOCAL", "SIMULATED_VENDOR"))
 
     def create() -> None:
         account_id, address = runner.create_deposit_destination(ledger)

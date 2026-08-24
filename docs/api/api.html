@@ -975,17 +975,19 @@ window.OPENAPI = {
           "Admin"
         ],
         "summary": "등록 가능한 자산 후보",
-        "description": "**심볼로 찾고 네트워크는 결과로 받는다.** `symbol=USDC` 하나면 채택한 네트워크마다 잡히는 USDC 가 한 번에 온다 — 네트워크를 먼저 고를 필요가 없다.\n\n운영자가 **컨트랙트 주소를 눈으로 대조**하는 자리다. 발행사 공식 문서의 주소와 같은 행을 찾으면, 그 행의 `network` 와 `contractAddress` 를 그대로 등록에 쓴다.\n\n**채택한 네트워크에서만 찾는다.** 찾던 네트워크가 안 보이면 아직 채택하지 않은 것이므로 `PUT /admin/networks/{code}` 를 먼저 한다.\n\n계약에서 자산 코드 이름은 `symbol` 하나로 통일한다. 단, 후보 조회의 `symbol` 은 아직 우리 코드가 아닌 벤더 표기이며, 등록할 때 우리 `symbol` 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다.\n\n읽기 전용이고 아무것도 바꾸지 않는다.\n",
+        "description": "별도 동기화한 Fireblocks 자산 카탈로그 캐시에서 **심볼·표시명·컨트랙트 주소로 찾고 네트워크는 결과로 받는다.** `q=USDC` 하나면 채택한 네트워크마다 관련 자산이 한 번에 온다 — 네트워크를 먼저 고를 필요가 없다.\n\n운영자가 **컨트랙트 주소를 눈으로 대조**하는 자리다. 발행사 공식 문서의 주소와 같은 행을 찾으면, 그 행의 `network` 와 `contractAddress` 를 그대로 등록에 쓴다.\n\n**채택한 네트워크에서만 찾는다.** 찾던 네트워크가 안 보이면 아직 채택하지 않은 것이므로 `PUT /admin/networks/{code}` 를 먼저 한다.\n\n결과의 `symbol` 은 아직 우리 코드가 아닌 벤더 표기이며, 등록할 때 우리 `symbol` 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다. 캐시는 탐색용이고 실제 등록은 Fireblocks에서 주소를 다시 해소한다.\n\n읽기 전용이고 아무것도 바꾸지 않는다.\n",
         "operationId": "assetCandidatesOf",
         "parameters": [
           {
-            "name": "symbol",
+            "name": "q",
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 64
             },
-            "description": "심볼로 찾는다 — 대소문자를 가리지 않는다. 벤더 표기가 우리 코드와 다를 수 있다",
+            "description": "심볼·표시명·컨트랙트 주소로 찾는다 — 대소문자를 가리지 않는다",
             "example": "USDC"
           },
           {
@@ -1738,7 +1740,11 @@ window.OPENAPI = {
         "required": [
           "network",
           "symbol",
-          "native"
+          "displayName",
+          "assetClass",
+          "decimals",
+          "contractAddress",
+          "catalogSyncedAt"
         ],
         "properties": {
           "network": {
@@ -1761,6 +1767,17 @@ window.OPENAPI = {
               }
             ],
             "example": "USD Coin"
+          },
+          "assetClass": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "FT"
           },
           "decimals": {
             "oneOf": [
@@ -1785,9 +1802,66 @@ window.OPENAPI = {
             "description": "네이티브 자산은 null",
             "example": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
           },
-          "native": {
-            "type": "boolean",
-            "description": "그 체인의 네이티브 자산인지"
+          "catalogSyncedAt": {
+            "type": "string",
+            "description": "이 후보가 속한 네트워크 자산 카탈로그의 마지막 성공 동기화 UTC 시각",
+            "example": "20260824010000"
+          }
+        }
+      },
+      "AssetCatalogSource": {
+        "type": "object",
+        "required": [
+          "network",
+          "state",
+          "catalogSyncedAt"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "BASE"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "STALE",
+              "NEVER_SYNCED"
+            ],
+            "description": "마지막 성공이 48시간 이내면 READY, 더 오래됐으면 STALE, 성공 이력이 없으면 NEVER_SYNCED"
+          },
+          "catalogSyncedAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "20260824010000"
+          }
+        }
+      },
+      "AssetCandidateSearchResult": {
+        "type": "object",
+        "required": [
+          "items",
+          "sources"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/AssetCandidate"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetCatalogSource"
+            }
           }
         }
       },
@@ -1799,10 +1873,7 @@ window.OPENAPI = {
         ],
         "properties": {
           "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AssetCandidate"
-            }
+            "$ref": "#/components/schemas/AssetCandidateSearchResult"
           },
           "meta": {
             "$ref": "#/components/schemas/Meta"

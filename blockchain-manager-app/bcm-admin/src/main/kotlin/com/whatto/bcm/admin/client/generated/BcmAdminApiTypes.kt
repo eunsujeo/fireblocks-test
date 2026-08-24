@@ -27,9 +27,23 @@ data class AdminAssetCandidate(
     val network: String,
     val symbol: String,
     val displayName: String? = null,
+    val assetClass: String? = null,
     val decimals: Int? = null,
     val contractAddress: String? = null,
-    val native: Boolean,
+    val catalogSyncedAt: String,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminAssetCatalogSource(
+    val network: String,
+    val state: String,
+    val catalogSyncedAt: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminAssetCandidateSearchResult(
+    val items: List<AdminAssetCandidate>,
+    val sources: List<AdminAssetCatalogSource>,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -57,7 +71,7 @@ data class BcmAssetMappingListResponse(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class BcmAssetCandidateListResponse(
-    val data: List<AdminAssetCandidate>,
+    val data: AdminAssetCandidateSearchResult,
     val meta: BcmMeta,
 )
 

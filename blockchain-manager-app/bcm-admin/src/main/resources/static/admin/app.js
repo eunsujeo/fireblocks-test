@@ -354,10 +354,11 @@ function assetAddDialog() {
     <div class="asset-dialog-body">
       <form class="asset-search" id="asset-candidate-search" role="search">
         <label for="asset-candidate-symbol">어떤 자산을 찾으세요?</label>
-        <div><span class="search-icon" aria-hidden="true"></span><input id="asset-candidate-symbol" name="symbol" maxlength="16" pattern="[A-Z0-9_]{1,16}" autocomplete="off" placeholder="예: USDC" required><button class="button" type="submit">검색</button></div>
+        <div><span class="search-icon" aria-hidden="true"></span><input id="asset-candidate-symbol" name="q" minlength="2" maxlength="64" autocomplete="off" placeholder="USDC, USD Coin, contract address" required><button class="button" type="submit">검색</button></div>
       </form>
-      <p class="asset-search-help">USDC처럼 Symbol만 입력하세요. 채택한 모든 Network의 관련 후보를 한 번에 보여 드립니다.</p>
+      <p class="asset-search-help">정확한 Network를 몰라도 됩니다. Symbol, asset name 또는 contract address로 찾아보세요.</p>
       <div class="asset-candidate-status" id="asset-candidate-status" role="status">자산을 입력하면 네트워크별 후보를 찾습니다.</div>
+      <div class="asset-catalog-sources" id="asset-catalog-sources" aria-label="자산 카탈로그 동기화 상태"></div>
       <div class="asset-candidate-list" id="asset-candidate-list" role="listbox" aria-label="등록 가능한 자산 후보"></div>
       <section class="asset-selection" id="asset-selection" aria-labelledby="asset-selection-title" hidden>
         <div><p class="eyebrow">등록할 자산 확인</p><h3 id="asset-selection-title"></h3></div>
@@ -378,6 +379,7 @@ function bindAssetAddDialog(activeMappings) {
   const input = dialog.querySelector("#asset-candidate-symbol");
   const list = dialog.querySelector("#asset-candidate-list");
   const status = dialog.querySelector("#asset-candidate-status");
+  const sources = dialog.querySelector("#asset-catalog-sources");
   const selection = dialog.querySelector("#asset-selection");
   const symbolInput = dialog.querySelector("#asset-registration-symbol");
   const register = dialog.querySelector("#register-asset");
@@ -410,6 +412,7 @@ function bindAssetAddDialog(activeMappings) {
   dialog.addEventListener("close", () => {
     search.reset();
     list.innerHTML = "";
+    sources.innerHTML = "";
     status.textContent = "자산을 입력하면 네트워크별 후보를 찾습니다.";
     showMessage("");
     resetSelection();
@@ -417,28 +420,34 @@ function bindAssetAddDialog(activeMappings) {
 
   search.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const symbol = input.value.trim().toUpperCase();
-    input.value = symbol;
-    if (!/^[A-Z0-9_]{1,16}$/.test(symbol)) return;
+    const query = input.value.trim();
+    input.value = query;
+    if (query.length < 2 || query.length > 64) return;
     resetSelection();
     showMessage("");
     list.innerHTML = "";
-    status.textContent = `‘${symbol}’ 후보를 찾는 중입니다…`;
+    sources.innerHTML = "";
+    status.textContent = `‘${query}’ 후보를 찾는 중입니다…`;
     try {
       const [payload, mappingPayload] = await Promise.all([
-        request(`/bff/admin/asset-candidates?symbol=${encodeURIComponent(symbol)}`, {
+        request(`/bff/admin/asset-candidates?q=${encodeURIComponent(query)}`, {
           headers: { "X-BCM-Local-Asset-Management": "execute" },
         }),
         request("/bff/admin/assets"),
       ]);
-      candidates = payload.data || [];
+      candidates = payload.data?.items || [];
+      const catalogSources = payload.data?.sources || [];
+      sources.innerHTML = catalogSources.map(assetCatalogSource).join("");
       const currentMappings = mappingPayload.data || activeMappings;
       const mappedCandidates = candidates.map((candidate) => ({ candidate, mapping: registeredAssetMapping(candidate, currentMappings) }));
       const availableCount = mappedCandidates.filter(({ mapping }) => !mapping).length;
       const registeredCount = mappedCandidates.length - availableCount;
+      const neverSynced = catalogSources.filter((source) => source.state === "NEVER_SYNCED").map((source) => source.network);
       status.textContent = candidates.length
         ? `${candidates.length}개 후보 · 등록 가능 ${availableCount}개${registeredCount ? ` · 이미 등록 ${registeredCount}개` : ""}`
-        : `‘${symbol}’ 후보가 없습니다.`;
+        : neverSynced.length
+          ? `${neverSynced.join(", ")} catalog가 아직 동기화되지 않았습니다. ./scripts/local.sh sync assets를 실행하세요.`
+          : `‘${query}’ 후보가 없습니다.`;
       list.innerHTML = mappedCandidates.map(({ candidate, mapping }, index) => assetCandidateRow(candidate, index, mapping)).join("");
       list.querySelectorAll("[data-candidate-index]").forEach((option) => option.addEventListener("click", () => {
         if (option.disabled) return;
@@ -486,9 +495,15 @@ function assetCandidateRow(candidate, index, mapping) {
   const address = candidate.contractAddress || "Native asset";
   return `<button class="asset-candidate" type="button" role="option" aria-selected="false" data-candidate-index="${index}" ${mapping ? "disabled aria-disabled=\"true\"" : ""}>
     <span class="asset-avatar" aria-hidden="true">${escapeHtml(candidate.symbol.slice(0, 2))}</span>
-    <span class="asset-candidate-copy"><strong>${escapeHtml(candidate.symbol)} <small>${escapeHtml(candidate.displayName || "")}</small></strong><span>${escapeHtml(candidate.network)} · Decimals ${escapeHtml(candidate.decimals ?? "—")}</span><code title="${escapeHtml(address)}">${escapeHtml(address)}</code>${mapping ? `<em>이미 BCM에 등록됨 · ${escapeHtml(mapping.symbol)}</em>` : ""}</span>
+    <span class="asset-candidate-copy"><strong>${escapeHtml(candidate.symbol)} <small>${escapeHtml(candidate.displayName || "")}</small></strong><span>${escapeHtml(candidate.network)} · ${escapeHtml(candidate.assetClass || "UNKNOWN")} · Decimals ${escapeHtml(candidate.decimals ?? "—")}</span><code title="${escapeHtml(address)}">${escapeHtml(address)}</code><small>Catalog ${coreTime(candidate.catalogSyncedAt)}</small>${mapping ? `<em>이미 BCM에 등록됨 · ${escapeHtml(mapping.symbol)}</em>` : ""}</span>
     <span class="asset-select-mark" aria-hidden="true">${mapping ? "등록됨" : "선택"}</span>
   </button>`;
+}
+
+function assetCatalogSource(source) {
+  const tone = { READY: "success", STALE: "warning", NEVER_SYNCED: "danger" }[source.state] || "danger";
+  const time = source.catalogSyncedAt ? coreTime(source.catalogSyncedAt) : "동기화 이력 없음";
+  return `<div><strong>${escapeHtml(source.network)}</strong><span class="status ${tone}">${escapeHtml(source.state)}</span><small>${time}</small></div>`;
 }
 
 function assetFilters(filters) {

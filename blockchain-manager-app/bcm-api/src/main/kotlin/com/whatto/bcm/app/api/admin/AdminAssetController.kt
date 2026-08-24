@@ -72,12 +72,12 @@ class AdminAssetController(
 
     @GetMapping("/admin/asset-candidates")
     fun assetCandidates(
-        @RequestParam symbol: String,
-        @RequestParam(required = false) network: String?,
+        @RequestParam @Size(min = 2, max = 64) q: String,
+        @RequestParam(required = false) @Pattern(regexp = NETWORK_PATTERN) network: String?,
         httpRequest: HttpServletRequest,
-    ): ApiResponse<List<AssetCandidateData>> =
+    ): ApiResponse<AssetCandidateSearchData> =
         ApiResponse.of(
-            service.assetCandidates(symbol, network).map(AssetCandidateData::from),
+            AssetCandidateSearchData.from(service.assetCandidates(q, network)),
             RequestIdFilter.requestIdOf(httpRequest),
         )
 

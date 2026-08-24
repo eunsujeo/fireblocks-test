@@ -34,12 +34,12 @@ class LocalAssetManagementBffController(
 ) {
     @GetMapping("/bff/admin/asset-candidates")
     fun candidates(
-        @RequestParam @Size(min = 1, max = 16) @Pattern(regexp = SYMBOL_PATTERN) symbol: String,
+        @RequestParam @Size(min = 2, max = 64) q: String,
         @RequestParam(required = false) @Size(max = 20) @Pattern(regexp = NETWORK_PATTERN) network: String?,
         request: HttpServletRequest,
     ): BffResponse<*> {
         requireLocalAssetHeader(request)
-        return BffResponse(service.candidates(symbol, network), meta(request), ViewState.FRESH, emptyList())
+        return BffResponse(service.candidates(q, network), meta(request), ViewState.FRESH, emptyList())
     }
 
     @PostMapping("/bff/admin/assets", consumes = [MediaType.APPLICATION_JSON_VALUE])

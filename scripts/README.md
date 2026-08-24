@@ -7,7 +7,7 @@ README나 CI에서 안내하는 최상위 명령을 통해 실행한다.
 
 | 명령 | 용도 |
 |---|---|
-| `./scripts/local.sh` | 로컬 PostgreSQL·Kafka·API·Webhook·Admin과 Fireblocks 또는 Stub+Anvil 실행 |
+| `./scripts/local.sh` | 로컬 PostgreSQL·Kafka·API·Webhook·Admin과 Fireblocks 또는 Stub+Anvil 실행, `sync assets`로 자산 검색 캐시 갱신 |
 | `./scripts/system-test.sh` | 독립된 smoke/full 시스템 테스트와 상태·로그 조회 |
 | `./scripts/ci.sh` | 커밋 전 전체 검증 |
 | `./scripts/system-test-ci.sh` | CI 제품에 연결할 PR/nightly/manual-fireblocks lane 선택 |

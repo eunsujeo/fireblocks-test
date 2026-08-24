@@ -1,6 +1,6 @@
 package com.whatto.bcm.admin.application
 
-import com.whatto.bcm.admin.client.AdminAssetCandidate
+import com.whatto.bcm.admin.client.AdminAssetCandidateSearchResult
 import com.whatto.bcm.admin.client.AdminAssetMapping
 import com.whatto.bcm.admin.client.AdminNetwork
 import com.whatto.bcm.admin.client.AdoptAdminNetwork
@@ -17,9 +17,9 @@ class LocalAssetManagementService(
     private val properties: AdminProperties,
 ) {
     fun candidates(
-        symbol: String,
+        query: String,
         network: String?,
-    ): List<AdminAssetCandidate> = gateway.assetCandidates(symbol, network)
+    ): AdminAssetCandidateSearchResult = gateway.assetCandidates(query, network)
 
     fun register(request: LocalAssetRegistration): AdminAssetMapping =
         gateway.registerAssetMapping(

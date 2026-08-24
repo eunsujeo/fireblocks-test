@@ -42,13 +42,13 @@ class HttpBcmAdminReadGateway(
         ).data
 
     override fun assetCandidates(
-        symbol: String,
+        query: String,
         network: String?,
-    ): List<AdminAssetCandidate> =
+    ): AdminAssetCandidateSearchResult =
         get(
             source = "assetCandidates",
             path = "/admin/asset-candidates",
-            query = mapOf("symbol" to symbol, "network" to network),
+            query = mapOf("q" to query, "network" to network),
             responseType = BcmAssetCandidateListResponse::class.java,
         ).data
 

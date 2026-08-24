@@ -1,7 +1,9 @@
 package com.whatto.bcm.app.api.admin
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.whatto.bcm.app.application.asset.AssetCandidate
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSource
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import jakarta.validation.constraints.NotBlank
@@ -42,19 +44,44 @@ data class AssetCandidateData(
     val network: String,
     val symbol: String,
     val displayName: String?,
+    val assetClass: String?,
     val decimals: Int?,
     val contractAddress: String?,
-    val native: Boolean,
+    val catalogSyncedAt: String,
 ) {
     companion object {
-        fun from(candidate: AssetCandidate) =
+        fun from(candidate: VendorAssetCatalogCandidate) =
             AssetCandidateData(
                 candidate.network,
                 candidate.symbol,
                 candidate.displayName,
+                candidate.assetClass,
                 candidate.decimals,
                 candidate.contractAddress,
-                candidate.native,
+                candidate.catalogSyncedAt,
+            )
+    }
+}
+
+data class AssetCatalogSourceData(
+    val network: String,
+    val state: String,
+    val catalogSyncedAt: String?,
+) {
+    companion object {
+        fun from(source: VendorAssetCatalogSource) = AssetCatalogSourceData(source.network, source.state.name, source.catalogSyncedAt)
+    }
+}
+
+data class AssetCandidateSearchData(
+    val items: List<AssetCandidateData>,
+    val sources: List<AssetCatalogSourceData>,
+) {
+    companion object {
+        fun from(result: VendorAssetCatalogSearchResult) =
+            AssetCandidateSearchData(
+                result.items.map(AssetCandidateData::from),
+                result.sources.map(AssetCatalogSourceData::from),
             )
     }
 }

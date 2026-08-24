@@ -1233,25 +1233,25 @@ _응답_
 
 **등록 가능한 자산 후보**
 
-**심볼로 찾고 네트워크는 결과로 받는다.** `symbol=USDC` 하나면 채택한 네트워크마다 잡히는 USDC 가 한 번에 온다 — 네트워크를 먼저 고를 필요가 없다.
+별도 동기화한 Fireblocks 자산 카탈로그 캐시에서 **심볼·표시명·컨트랙트 주소로 찾고 네트워크는 결과로 받는다.** `q=USDC` 하나면 채택한 네트워크마다 관련 자산이 한 번에 온다 — 네트워크를 먼저 고를 필요가 없다.
 
 운영자가 **컨트랙트 주소를 눈으로 대조**하는 자리다. 발행사 공식 문서의 주소와 같은 행을 찾으면, 그 행의 `network` 와 `contractAddress` 를 그대로 등록에 쓴다.
 
 **채택한 네트워크에서만 찾는다.** 찾던 네트워크가 안 보이면 아직 채택하지 않은 것이므로 `PUT /admin/networks/{code}` 를 먼저 한다.
 
-계약에서 자산 코드 이름은 `symbol` 하나로 통일한다. 단, 후보 조회의 `symbol` 은 아직 우리 코드가 아닌 벤더 표기이며, 등록할 때 우리 `symbol` 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다.
+결과의 `symbol` 은 아직 우리 코드가 아닌 벤더 표기이며, 등록할 때 우리 `symbol` 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다. 캐시는 탐색용이고 실제 등록은 Fireblocks에서 주소를 다시 해소한다.
 
 읽기 전용이고 아무것도 바꾸지 않는다.
 
 ```bash
-curl "https://{baseUrl}/blockchain/manage-api/admin/asset-candidates?symbol=USDC&network=BASE"
+curl "https://{baseUrl}/blockchain/manage-api/admin/asset-candidates?q=USDC&network=BASE"
 ```
 
 _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `symbol` | query | string | 필수 | USDC | 심볼로 찾는다 — 대소문자를 가리지 않는다. 벤더 표기가 우리 코드와 다를 수 있다 |
+| `q` | query | string | 필수 | USDC | 심볼·표시명·컨트랙트 주소로 찾는다 — 대소문자를 가리지 않는다 |
 | `network` | query | string | - | BASE | 특정 네트워크로 좁힌다 (선택) |
 
 
@@ -1261,16 +1261,26 @@ _응답_
 
 ```json
 {
-  "data": [
-    {
-      "network": "BASE",
-      "symbol": "USDC",
-      "displayName": "USD Coin",
-      "decimals": 6,
-      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "native": false
-    }
-  ],
+  "data": {
+    "items": [
+      {
+        "network": "BASE",
+        "symbol": "USDC",
+        "displayName": "USD Coin",
+        "assetClass": "FT",
+        "decimals": 6,
+        "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "catalogSyncedAt": "20260824010000"
+      }
+    ],
+    "sources": [
+      {
+        "network": "BASE",
+        "state": "READY",
+        "catalogSyncedAt": "20260824010000"
+      }
+    ]
+  },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
   }
@@ -1279,7 +1289,7 @@ _응답_
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `data` | AssetCandidate[] | 필수 |  |
+| `data` | AssetCandidateSearchResult | 필수 |  |
 | `meta` | Meta | 필수 |  |
 
 
@@ -2227,17 +2237,35 @@ _응답_
 |---|---|---|---|
 | `network` | string | 필수 | 이 자산이 있는 우리 네트워크 코드 |
 | `symbol` | string | 필수 | 벤더가 이 자산에 붙인 표기 — 등록할 때 이 값을 그대로 쓰거나 우리 값을 따로 정한다 |
-| `displayName` | string \\| null | - |  |
-| `decimals` | integer \\| null | - |  |
-| `contractAddress` | string \\| null | - | 네이티브 자산은 null |
-| `native` | boolean | 필수 | 그 체인의 네이티브 자산인지 |
+| `displayName` | string \\| null | 필수 |  |
+| `assetClass` | string \\| null | 필수 |  |
+| `decimals` | integer \\| null | 필수 |  |
+| `contractAddress` | string \\| null | 필수 | 네이티브 자산은 null |
+| `catalogSyncedAt` | string | 필수 | 이 후보가 속한 네트워크 자산 카탈로그의 마지막 성공 동기화 UTC 시각 |
+
+
+### AssetCatalogSource
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `network` | string | 필수 |  |
+| `state` | string | 필수 | 마지막 성공이 48시간 이내면 READY, 더 오래됐으면 STALE, 성공 이력이 없으면 NEVER_SYNCED `READY` `STALE` `NEVER_SYNCED` |
+| `catalogSyncedAt` | string \\| null | 필수 |  |
+
+
+### AssetCandidateSearchResult
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `items` | AssetCandidate[] | 필수 |  |
+| `sources` | AssetCatalogSource[] | 필수 |  |
 
 
 ### AssetCandidateListResponse
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `data` | AssetCandidate[] | 필수 |  |
+| `data` | AssetCandidateSearchResult | 필수 |  |
 | `meta` | Meta | 필수 |  |
 
 
