@@ -509,7 +509,7 @@ function assetCatalogSource(source) {
 function assetFilters(filters) {
   const advanced = Boolean(filters.network || filters.symbol);
   return `<form class="filters asset-simple-search" id="asset-filter" aria-label="자산 검색">
-    <label>찾을 자산<input name="q" maxlength="128" value="${escapeHtml(filters.q || "")}" placeholder="예: USDC" autocomplete="off"><small>네트워크를 몰라도 됩니다.</small></label>
+    <label>찾을 자산<input name="q" maxlength="128" value="${escapeHtml(filters.q || "")}" placeholder="예: USDC" autocomplete="off"></label>
     <button class="button primary" type="submit">자산 찾기</button><a class="button" href="/admin/assets" data-link>초기화</a>
     <details class="asset-advanced-filters" ${advanced ? "open" : ""}><summary>Advanced</summary><div>
       <label>Network<input name="network" maxlength="20" value="${escapeHtml(filters.network || "")}" placeholder="BASE" autocomplete="off"></label>
