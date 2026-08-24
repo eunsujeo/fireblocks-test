@@ -12,12 +12,19 @@ import {
   formatCoreTime,
   isGlobalSearchShortcut,
   registeredAssetMapping,
+  assetCandidateSelectable,
   resolveViewState,
   runSingleFlight,
   shouldRefreshTestRun,
   testRunIdFromPath,
   transactionIdentifierFromPath,
 } from "../../main/resources/static/admin/app-state.js";
+
+test("미지원 Fireblocks 후보는 등록 선택을 허용하지 않는다", () => {
+  assert.equal(assetCandidateSelectable({ registrationAllowed: false }, null), false);
+  assert.equal(assetCandidateSelectable({ registrationAllowed: true }, null), true);
+  assert.equal(assetCandidateSelectable({ registrationAllowed: true }, { symbol: "USDC" }), false);
+});
 
 const staticRoot = new URL("../../main/resources/static/admin/", import.meta.url);
 const shellSource = readFileSync(new URL("index.html", staticRoot), "utf8");

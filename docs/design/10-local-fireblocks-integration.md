@@ -276,6 +276,10 @@ Assets 화면에서 `USDC`를 검색해 Fireblocks assetId와 컨트랙트 주�
 애플리케이션 기동 전에 중단한다. 콘솔에는 Secret·JWT·벤더 응답 원문을 내보내지 않고 권한이 제한된
 `build/local/fireblocks-preflight.log` 경로와 안전한 다음 조치만 안내한다.
 
+로컬 시작 bootstrap의 자산 동기화는 위 두 지원 네트워크만 대상으로 해 `up fireblocks` 완료 시간을 Fireblocks 전체 카탈로그 크기에
+묶지 않는다. 모든 네트워크의 읽기 전용 자산 후보가 필요하면 `local.sh sync assets`로 전체 one-shot을 명시 실행한다. 이 실행도
+미지원 네트워크를 자동 채택하거나 자산 매핑을 만들지 않는다.
+
 이미 `local.sh up stub`으로 기동한 개발 환경의 빠른 입금 점검은 `local.sh test deposit`으로 제공한다. 이 helper는
 `STUB+LOCAL`에서만 실행하며 각 단계의 시작·성공·실패와 다음 조치를 평문으로 출력한다. 공개 BCM API로 계정·주소를 준비하고,
 Stub 제어면으로 Anvil 입금을 주입한 뒤 독립 BCM Webhook 수신, `FINALIZED`, Kafka event까지 확인한다. 운영 코드·Domain Port에

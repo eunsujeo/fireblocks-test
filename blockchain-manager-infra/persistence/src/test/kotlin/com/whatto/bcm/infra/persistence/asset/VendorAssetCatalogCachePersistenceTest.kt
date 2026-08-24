@@ -31,10 +31,11 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
     fun setUp() {
         blockchains.insert(blockchain("ethereum-id", "ETHEREUM"))
         blockchains.insert(blockchain("base-id", "BASE"))
+        blockchains.insert(blockchain("polygon-id", null))
     }
 
     @Test
-    fun `V12는 자산 카탈로그 캐시와 네 검색 인덱스를 만든다`() {
+    fun `V13은 빈 자산 snapshot도 구분하는 network 성공 시각을 만든다`() {
         val columns =
             jdbc.queryForList(
                 """
@@ -74,6 +75,12 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
             "idx_bcm_vndr_ast_ctlg_address",
             "idx_bcm_vndr_ast_ctlg_search",
         )
+        assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='bcm_blkc_m' AND column_name='ast_sync_dttm'",
+                Long::class.java,
+            ),
+        ).isEqualTo(1)
     }
 
     @Test
@@ -87,12 +94,19 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
                 asset("tether", "USDT", "Tether USD", "0x3333"),
             ),
         )
+        assets.replaceSnapshot(
+            snapshot(
+                "polygon-id",
+                "20260824020000",
+                asset("usdc-polygon", "USDC", "USD Coin", "0x9999"),
+            ),
+        )
 
         val symbolResult = assets.search("usdc", null, "20260822010000", 50)
         val nameResult = assets.search("usd coin", "ETHEREUM", "20260822010000", 50)
         val addressResult = assets.search("0x333", null, "20260822010000", 50)
 
-        assertThat(symbolResult.items.map { it.symbol }).containsExactly("USDC", "USDC.e")
+        assertThat(symbolResult.items.map { it.fireblocksAssetId }).containsExactly("usdc-eth", "usdc-polygon", "usdc-old")
         assertThat(nameResult.items.map { it.symbol }).containsExactly("USDC", "USDC.e")
         assertThat(addressResult.items.map { it.symbol }).containsExactly("USDT")
         assertThat(symbolResult.items.single { it.symbol == "USDC" }.catalogSyncedAt)
@@ -100,13 +114,26 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
         assertThat(symbolResult.items.single { it.symbol == "USDC" })
             .extracting("fireblocksAssetId", "networkDisplayName", "chainId", "testnet")
             .containsExactly("usdc-eth", "ETHEREUM", 1L, false)
-        assertThat(symbolResult.sources)
-            .extracting<String> { it.network }
-            .containsExactly("BASE", "ETHEREUM")
+        assertThat(symbolResult.items.single { it.fireblocksAssetId == "usdc-polygon" }.network).isNull()
+        assertThat(symbolResult.items.single { it.fireblocksAssetId == "usdc-polygon" }.registrationAllowed).isFalse()
+        assertThat(symbolResult.items.single { it.fireblocksAssetId == "usdc-polygon" }.registrationDisabledReason)
+            .isEqualTo("BCM 지원 Network가 아닙니다.")
+        assertThat(symbolResult.sources.map { it.vendorBlockchainId })
+            .containsExactly("base-id", "ethereum-id", "polygon-id")
         assertThat(symbolResult.sources.single { it.network == "ETHEREUM" }.state)
             .isEqualTo(VendorAssetCatalogCacheState.READY)
         assertThat(symbolResult.sources.single { it.network == "BASE" }.state)
             .isEqualTo(VendorAssetCatalogCacheState.NEVER_SYNCED)
+    }
+
+    @Test
+    fun `자산이 0건인 network도 성공 시각과 READY 상태를 남긴다`() {
+        assets.replaceSnapshot(snapshot("polygon-id", "20260824030000"))
+
+        val source = assets.search("usdc", null, "20260822010000", 50).sources.single { it.vendorBlockchainId == "polygon-id" }
+
+        assertThat(source.state).isEqualTo(VendorAssetCatalogCacheState.READY)
+        assertThat(source.catalogSyncedAt).isEqualTo("20260824030000")
     }
 
     @Test
@@ -170,8 +197,8 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
 
     private fun blockchain(
         id: String,
-        network: String,
-    ) = VendorBlockchainCatalog(id, network, 1, network, false, false, "20260824000000")
+        network: String?,
+    ) = VendorBlockchainCatalog(id, network, 1, network ?: "Polygon", false, false, "20260824000000")
 
     private fun snapshot(
         blockchainId: String,

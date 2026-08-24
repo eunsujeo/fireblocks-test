@@ -16,7 +16,18 @@ class VendorAssetCatalogCacheSyncOnceRunnerTest {
 
         VendorAssetCatalogCacheSyncOnceRunner(command, context.proxy).run(DefaultApplicationArguments())
 
-        assertThat(command.invocations).isEqualTo(1)
+        assertThat(command.scopes).containsExactly(VendorAssetCatalogSyncScope.ALL)
+        assertThat(context.closed.get()).isTrue()
+    }
+
+    @Test
+    fun `로컬 bootstrap 일회 job은 채택 네트워크 범위만 동기화한다`() {
+        val command = RecordingCommand()
+        val context = RecordingContext()
+
+        VendorAssetCatalogCacheSupportedSyncOnceRunner(command, context.proxy).run(DefaultApplicationArguments())
+
+        assertThat(command.scopes).containsExactly(VendorAssetCatalogSyncScope.ADOPTED)
         assertThat(context.closed.get()).isTrue()
     }
 
@@ -29,17 +40,17 @@ class VendorAssetCatalogCacheSyncOnceRunnerTest {
             VendorAssetCatalogCacheSyncOnceRunner(command, context.proxy).run(DefaultApplicationArguments())
         }.isInstanceOf(IllegalStateException::class.java)
 
-        assertThat(command.invocations).isEqualTo(1)
+        assertThat(command.scopes).containsExactly(VendorAssetCatalogSyncScope.ALL)
         assertThat(context.closed.get()).isFalse()
     }
 
     private class RecordingCommand(
         private val failure: RuntimeException? = null,
     ) : VendorAssetCatalogCacheSyncCommand {
-        var invocations = 0
+        val scopes = mutableListOf<VendorAssetCatalogSyncScope>()
 
-        override fun sync() {
-            invocations += 1
+        override fun sync(scope: VendorAssetCatalogSyncScope) {
+            scopes += scope
             failure?.let { throw it }
         }
     }

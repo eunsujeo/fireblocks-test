@@ -45,7 +45,7 @@ NATIVE · FT · FIAT · NFT · SFT · VIRTUAL 로, 스테이블코인이라는 �
 
 ## 표 셋 — 카탈로그·현재 매핑·변경 snapshot
 
-**벤더 블록체인 카탈로그와 채택한 네트워크의 자산 카탈로그를 동기화하고, 자산 매핑은 손으로 등록한다. 매핑 이력은 별도 version으로 관리하지 않고 변경 전후 snapshot으로 남긴다.**
+**벤더 블록체인 카탈로그와 모든 네트워크의 자산 카탈로그를 읽기 전용으로 동기화하고, 지원 네트워크 채택과 자산 매핑은 별도 행위로 둔다. 자산 매핑은 손으로 등록하며, 매핑 이력은 별도 version으로 관리하지 않고 변경 전후 snapshot으로 남긴다.**
 
 ```sql
 -- 벤더 블록체인 카탈로그 — 일 1회 동기화. 고르기 위한 참조 데이터다
@@ -57,11 +57,12 @@ CREATE TABLE bcm_blkc_m (
   test_yn       VARCHAR(1)   NOT NULL,     -- 시험망 여부 (벤더 onchain.test)
   deprc_yn      VARCHAR(1)   NOT NULL,     -- 벤더가 폐기 표시 (metadata.deprecated)
   sync_dttm     VARCHAR(16)  NOT NULL,     -- 마지막 동기화 일시
+  ast_sync_dttm VARCHAR(16)  NULL,         -- 이 네트워크의 마지막 자산 카탈로그 성공 동기화 일시(0건 포함)
   -- 감사 4컬럼
   UNIQUE (ntwk_cd)
 );
 
--- 벤더 자산 카탈로그 캐시 — 채택한 네트워크에서 찾기 위한 참조 데이터다
+-- 벤더 자산 카탈로그 캐시 — 모든 벤더 네트워크에서 찾기 위한 읽기 전용 참조 데이터다
 CREATE TABLE bcm_vndr_ast_ctlg_m (
   vndr_ast_id   VARCHAR(64)  PRIMARY KEY,  -- 벤더 assetId
   vndr_blkc_id  VARCHAR(64)  NOT NULL,     -- 벤더 blockchainId
@@ -146,18 +147,22 @@ snapshot에는 `network`·`symbol`·`vendorAssetId`·`contractAddress`·`activeY
 - **벤더 목록에서 사라진 체인은 지우지 않는다.** 폐기 표시는 `deprc_yn` 으로만 남긴다.
 - **`chain_id` 가 바뀌면 갱신하지 않고 경보**한다.
 
-그 다음 `ntwk_cd IS NOT NULL`인 채택 네트워크마다 `GET /v1/assets?blockchainId=...`를 끝까지 페이징해
+그 다음 벤더 카탈로그의 모든 네트워크마다 `GET /v1/assets?blockchainId=...`를 끝까지 페이징해
 `bcm_vndr_ast_ctlg_m`을 갱신한다.
 
 - 한 네트워크의 모든 페이지를 메모리에 받은 뒤 **한 DB 트랜잭션으로** upsert하고, 이번 성공 snapshot에서 사라진 기존 행은
   지우지 않고 `prst_yn=N`으로 표시한다.
 - HTTP 오류·잘못된 응답·중간 페이지 실패가 있으면 그 네트워크의 DB를 전혀 바꾸지 않는다. 다른 네트워크의 성공은 독립적으로
   반영하고, 작업 전체는 일부 실패로 기록·경보한다.
+- 성공 snapshot이 0건이어도 `bcm_blkc_m.ast_sync_dttm`을 갱신한다. 후보가 없는 것과 아직 동기화하지 않은 것을 구분하는 기준이며,
+  실패한 네트워크는 직전 성공 시각을 유지한다.
 - 같은 `vndr_ast_id`가 기존과 다른 `vndr_blkc_id`에서 관찰되면 기존 행을 옮기지 않고 그 네트워크 동기화를 실패시킨다.
 - 자동 행의 감사값은 `SYSTEM`/`9999`를 쓰며 최초 감사값은 덮지 않고 마지막 변경 감사값만 갱신한다.
 - BAT 작업 이름은 `VENDOR_ASSET_CATALOG_SYNC`다. 정기 작업과 one-shot은 같은 application service를 사용한다.
-- 새로 채택한 네트워크는 다음 정기 실행을 기다리지 않고 해당 네트워크 자산 동기화를 한 번 요청할 수 있다. 이 동기화가
-  실패해도 채택 자체를 되돌리지는 않으며 후보 화면에 `아직 동기화되지 않음`을 표시한다.
+- 정기 작업과 운영자 수동 one-shot은 모든 네트워크를 대상으로 한다. 로컬 시작 bootstrap은 기동 시간을 전체 벤더 카탈로그 크기에
+  묶지 않도록 지원 목록으로 연결한 네트워크만 빠르게 동기화하며, 전체 후보가 필요하면 별도 전체 one-shot을 실행한다.
+- 새로 채택한 네트워크는 다음 정기 실행을 기다리지 않고 지원 네트워크 대상 동기화를 한 번 요청할 수 있다. 이 동기화가 실패해도
+  채택 자체를 되돌리지는 않으며 후보 화면에 `아직 동기화되지 않음`을 표시한다.
 
 ## 변환은 벤더 경계에서 한 번
 
@@ -175,7 +180,8 @@ snapshot에는 `network`·`symbol`·`vendorAssetId`·`contractAddress`·`activeY
 - 자산은 **컨트랙트 주소**로 가리킨다. 네이티브 자산은 주소를 비운다.
 - 채택 전 체인은 목록에서 받은 **손잡이**(`candidateId`)로 가리킨다. Admin 은 해석하지도 보관하지도 않는다.
 - **chainId 로 채택하지 않는다** — 비 EVM 에는 없다. 찾는 데만 쓴다(`GET /admin/networks?chainId=8453`).
-- **자산 후보는 자유 검색어로 찾고 네트워크는 결과로 받는다.** 채택한 네트워크에서만 찾는다.
+- **자산 후보는 자유 검색어로 찾고 네트워크는 결과로 받는다.** 전체 벤더 카탈로그에서 찾되, 채택하지 않은 네트워크의 후보는
+  읽기 전용 비교 정보로만 보여 주고 선택·등록하지 못하게 한다.
 
 ```mermaid
 sequenceDiagram
@@ -189,9 +195,9 @@ sequenceDiagram
 
     Note over ADM,FB: 고르기 — 캐시에서 심볼·이름으로 찾는다
     ADM->>API: GET /admin/asset-candidates — q=USDC
-    API->>MDB: 채택한 네트워크의 현재 카탈로그 검색
+    API->>MDB: 모든 네트워크의 현재 카탈로그 검색
     MDB-->>API: exact · prefix · 단어 검색 결과
-    API-->>ADM: 네트워크 이름·testnet·chainId · 심볼 · 표시명 · Fireblocks assetId · 컨트랙트 주소 · 소수 자릿수 · 동기화 시각<br/>운영자가 발행사 문서와 대조
+    API-->>ADM: 네트워크 이름·testnet·chainId · 지원/등록 가능 여부 · 심볼 · 표시명 · Fireblocks assetId · 컨트랙트 주소 · 소수 자릿수 · 동기화 시각<br/>운영자가 발행사 문서와 대조
 
     Note over ADM,FB: 등록 — 주소로 자산을 지정한다
     ADM->>API: POST 매핑 등록<br/>network · symbol · fireblocksAssetId · contractAddress<br/>직원번호 · 부점코드
@@ -256,13 +262,15 @@ TESTNET의 지원 네트워크 코드는 시작 스크립트의 고정 지원 �
 
 수정 오퍼레이션은 두지 않는다. 주소·현재 매핑·감사 흔적을 물리 삭제하지 않으며, 해제는 `bcm_vndr_ast_m.actv_yn=N`으로 표시한다. 잘못된 매핑은 논리 해제한 뒤 등록 절차를 다시 거쳐 같은 현재 행을 교체한다. 별도 mapping version이나 활성 binding 테이블은 두지 않고, 등록·해제·재활성·교체의 변경 전후 상태를 `bcm_vndr_ast_chng_l`에 추가 전용 snapshot으로 남긴다.
 
-후보 검색의 `q`는 2~64자이며 대소문자를 가리지 않는다. `prst_yn=Y`만 대상으로 심볼 exact → 심볼 prefix → 표시명
+후보 검색의 `q`는 2~64자이며 대소문자를 가리지 않는다. 모든 네트워크의 `prst_yn=Y`를 대상으로 심볼 exact → 심볼 prefix → 표시명
 exact/prefix → `simple` 사전의 단어 prefix → 컨트랙트 주소 exact/prefix 순으로 정렬하고 같은 점수에서는
-네트워크·심볼·컨트랙트 주소 순으로 고정한다. 최대 50건만 반환한다. 응답 `data`는 다음 두 값을 갖는다.
+등록 가능한 지원 네트워크를 먼저 둔 뒤 네트워크 표시명·심볼·컨트랙트 주소 순으로 고정한다. 최대 50건만 반환한다. 응답 `data`는 다음 두 값을 갖는다.
 
-- `items` — 내부 연결값 `network`, 사람이 비교할 `networkDisplayName`·`chainId`·`testnet`, 자산의 `symbol`·`displayName`·
-  `fireblocksAssetId`·`assetClass`·`decimals`·`contractAddress`·`catalogSyncedAt`.
-- `sources` — 채택 네트워크마다 `network`·`state`(`READY`/`STALE`/`NEVER_SYNCED`)·`catalogSyncedAt`.
+- `items` — nullable 내부 연결값 `network`, 사람이 비교할 `networkDisplayName`·`chainId`·`testnet`, 서버 판정
+  `registrationAllowed`·`registrationDisabledReason`, 자산의 `symbol`·`displayName`·`fireblocksAssetId`·`assetClass`·
+  `decimals`·`contractAddress`·`catalogSyncedAt`. `network=NULL`인 미지원 후보는 등록할 수 없다.
+- `sources` — 모든 벤더 네트워크마다 nullable `network`·`networkDisplayName`·`state`(`READY`/`STALE`/`NEVER_SYNCED`)·
+  `catalogSyncedAt`.
   마지막 성공이 48시간보다 오래됐으면 `STALE`이다.
 
 캐시가 비었거나 오래돼도 임의로 실시간 벤더 조회로 우회하지 않으며 안전한 빈 결과와 `sources` 상태를 보여 준다.

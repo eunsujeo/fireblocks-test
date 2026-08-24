@@ -38,7 +38,7 @@ group: 블록체인 매니저
 | `bcm_fee_qt_l` | 자산별 LOW·MEDIUM·HIGH 네트워크 수수료 견적 시계열 | 제출·boost 요청 시각의 최근 견적 대응 · sweep 가스비 조건 입력 |
 | `bcm_raw_tx_l` | finalize 트랜잭션 원본 | 일 배치 보관 — 장기 보존 |
 | `bcm_blkc_m` | 벤더 블록체인 카탈로그 — 일 1회 동기화 | 네트워크 채택 · 자산 등록 때 고르기 ([자산 매핑](07-asset-master.md)) |
-| `bcm_vndr_ast_ctlg_m` | 채택 네트워크의 벤더 자산 카탈로그 캐시 — 일 1회 동기화 | Admin 심볼·표시명 후보 검색. 등록 때는 Fireblocks 재검증 ([자산 매핑](07-asset-master.md)) |
+| `bcm_vndr_ast_ctlg_m` | 모든 네트워크의 벤더 자산 카탈로그 캐시 — 일 1회 동기화 | Admin 심볼·표시명 후보 검색. 미지원 후보는 읽기 전용이며 등록 때는 Fireblocks 재검증 ([자산 매핑](07-asset-master.md)) |
 | `bcm_vndr_ast_m` | 자산의 현재 매핑 — (네트워크, 토큰) ↔ 벤더 assetId · 활성 여부 | 활성 매핑 판정 · 벤더 호출 직전 변환 ([자산 매핑](07-asset-master.md)) |
 | `bcm_vndr_ast_chng_l` | 자산 매핑 변경 원장 — 변경 전후 snapshot, 추가 전용 | 등록·해제·재활성·교체 감사와 장애 대조 ([자산 매핑](07-asset-master.md)) |
 

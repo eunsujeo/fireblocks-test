@@ -24,13 +24,14 @@ class VendorAssetCatalogCacheSyncServiceTest {
     private val clock = Clock.fixed(Instant.parse("2026-08-24T01:00:00Z"), ZoneOffset.UTC)
 
     @Test
-    fun `채택 네트워크마다 모든 페이지를 받은 뒤 snapshot을 교체하고 성공 heartbeat를 남긴다`() {
+    fun `전체 동기화는 미채택 네트워크까지 모든 페이지를 받은 뒤 snapshot을 교체한다`() {
         val vendor =
             FakeVendorAssetCatalog(
                 mapOf(
                     PageKey("ethereum-id", null) to VendorPage(listOf(asset("usdc", "ethereum-id", "USDC")), "next"),
                     PageKey("ethereum-id", "next") to VendorPage(listOf(asset("usdt", "ethereum-id", "USDT")), null),
                     PageKey("base-id", null) to VendorPage(listOf(asset("krwk", "base-id", "KRWK")), null),
+                    PageKey("unused-id", null) to VendorPage(listOf(asset("usdc-unused", "unused-id", "USDC")), null),
                 ),
             )
         val cache = RecordingAssetCatalogCache()
@@ -38,7 +39,7 @@ class VendorAssetCatalogCacheSyncServiceTest {
 
         service(vendor, cache, jobs).sync()
 
-        assertThat(cache.snapshots.map { it.vendorBlockchainId }).containsExactly("base-id", "ethereum-id")
+        assertThat(cache.snapshots.map { it.vendorBlockchainId }).containsExactly("base-id", "ethereum-id", "unused-id")
         assertThat(
             cache.snapshots
                 .single { it.vendorBlockchainId == "ethereum-id" }
@@ -51,11 +52,27 @@ class VendorAssetCatalogCacheSyncServiceTest {
     }
 
     @Test
+    fun `지원 네트워크 동기화는 로컬 bootstrap을 위해 채택 네트워크만 조회한다`() {
+        val vendor =
+            FakeVendorAssetCatalog(
+                mapOf(
+                    PageKey("base-id", null) to VendorPage(emptyList(), null),
+                    PageKey("ethereum-id", null) to VendorPage(emptyList(), null),
+                ),
+            )
+        val cache = RecordingAssetCatalogCache()
+
+        service(vendor, cache, RecordingJobStates()).sync(VendorAssetCatalogSyncScope.ADOPTED)
+
+        assertThat(cache.snapshots.map { it.vendorBlockchainId }).containsExactly("base-id", "ethereum-id")
+    }
+
+    @Test
     fun `한 네트워크 조회가 실패해도 나머지를 반영하고 작업 전체는 실패로 남긴다`() {
         val vendor =
             FakeVendorAssetCatalog(
                 pages = mapOf(PageKey("base-id", null) to VendorPage(listOf(asset("krwk", "base-id", "KRWK")), null)),
-                failures = setOf(PageKey("ethereum-id", null)),
+                failures = setOf(PageKey("ethereum-id", null), PageKey("unused-id", null)),
             )
         val cache = RecordingAssetCatalogCache()
         val jobs = RecordingJobStates()
@@ -65,7 +82,7 @@ class VendorAssetCatalogCacheSyncServiceTest {
             .isInstanceOf(VendorAssetCatalogSyncException::class.java)
 
         assertThat(cache.snapshots.map { it.vendorBlockchainId }).containsExactly("base-id")
-        assertThat(alerts.networks).containsExactly("ETHEREUM")
+        assertThat(alerts.networks).containsExactly("ETHEREUM", "unused-id")
         assertThat(jobs.started).hasSize(1)
         assertThat(jobs.succeeded).isEmpty()
     }
@@ -77,6 +94,7 @@ class VendorAssetCatalogCacheSyncServiceTest {
                 mapOf(
                     PageKey("base-id", null) to VendorPage(listOf(asset("wrong", "ethereum-id", "USDC")), null),
                     PageKey("ethereum-id", null) to VendorPage(emptyList(), null),
+                    PageKey("unused-id", null) to VendorPage(emptyList(), null),
                 ),
             )
         val cache = RecordingAssetCatalogCache()
