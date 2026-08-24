@@ -97,6 +97,9 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
         assertThat(addressResult.items.map { it.symbol }).containsExactly("USDT")
         assertThat(symbolResult.items.single { it.symbol == "USDC" }.catalogSyncedAt)
             .isEqualTo("20260824010000")
+        assertThat(symbolResult.items.single { it.symbol == "USDC" })
+            .extracting("fireblocksAssetId", "networkDisplayName", "chainId", "testnet")
+            .containsExactly("usdc-eth", "ETHEREUM", 1L, false)
         assertThat(symbolResult.sources)
             .extracting<String> { it.network }
             .containsExactly("BASE", "ETHEREUM")

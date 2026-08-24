@@ -18,6 +18,15 @@ runner = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = runner
 SPEC.loader.exec_module(runner)
 
+LOCAL_DEPOSIT_SPEC = importlib.util.spec_from_file_location(
+    "local_deposit_test",
+    ROOT / "scripts/internal/local-deposit-test.py",
+)
+assert LOCAL_DEPOSIT_SPEC is not None and LOCAL_DEPOSIT_SPEC.loader is not None
+local_deposit = importlib.util.module_from_spec(LOCAL_DEPOSIT_SPEC)
+sys.modules[LOCAL_DEPOSIT_SPEC.name] = local_deposit
+LOCAL_DEPOSIT_SPEC.loader.exec_module(local_deposit)
+
 
 class FakeLedger:
     def __init__(self, root: Path) -> None:
@@ -277,6 +286,105 @@ def test_retention_preserves_active_runs_and_removes_matching_launcher_logs() ->
         assert len(list(launcher.glob("completed-*.log"))) == runner.MAX_RETAINED_RUNS - 1
 
 
+def test_fireblocks_catalog_bootstrap_adopts_supported_testnets_before_asset_sync() -> None:
+    calls: list[tuple[str, str, dict[str, object] | None]] = []
+    sync_calls: list[str] = []
+
+    class FakeRunner:
+        SMOKE_API_PORT = 38080
+
+        @staticmethod
+        def http_json(
+            method: str,
+            url: str,
+            payload: dict[str, object] | None = None,
+            headers: dict[str, str] | None = None,
+        ) -> tuple[dict[str, object], dict[str, str]]:
+            calls.append((method, url, payload))
+            if method == "GET":
+                chain_id = 11155111 if "11155111" in url else 84532
+                return {
+                    "data": [
+                        {
+                            "candidateId": f"candidate-{chain_id}",
+                            "code": None,
+                            "chainId": chain_id,
+                            "testnet": True,
+                            "deprecated": False,
+                        }
+                    ]
+                }, {}
+            return {"data": {}}, {}
+
+        @staticmethod
+        def response_data(document: dict[str, object], context: str) -> object:
+            return document["data"]
+
+    original_load_runner = local_deposit.load_runner
+    original_sync = local_deposit.sync_asset_catalog
+    local_deposit.load_runner = lambda: FakeRunner()
+    local_deposit.sync_asset_catalog = lambda: sync_calls.append("assets")
+    try:
+        local_deposit.bootstrap_fireblocks_catalog()
+    finally:
+        local_deposit.load_runner = original_load_runner
+        local_deposit.sync_asset_catalog = original_sync
+
+    put_calls = [call for call in calls if call[0] == "PUT"]
+    assert [(url.rsplit("/", 1)[-1], payload["candidateId"]) for _, url, payload in put_calls] == [
+        ("ETHEREUM_SEPOLIA", "candidate-11155111"),
+        ("BASE_SEPOLIA", "candidate-84532"),
+    ]
+    assert sync_calls == ["assets"]
+
+
+def test_fireblocks_catalog_bootstrap_rejects_conflicting_network_code() -> None:
+    sync_calls: list[str] = []
+
+    class FakeRunner:
+        SMOKE_API_PORT = 38080
+
+        @staticmethod
+        def http_json(
+            method: str,
+            url: str,
+            payload: dict[str, object] | None = None,
+            headers: dict[str, str] | None = None,
+        ) -> tuple[dict[str, object], dict[str, str]]:
+            return {
+                "data": [
+                    {
+                        "candidateId": "candidate-conflict",
+                        "code": "WRONG_NETWORK",
+                        "chainId": 11155111,
+                        "testnet": True,
+                        "deprecated": False,
+                    }
+                ]
+            }, {}
+
+        @staticmethod
+        def response_data(document: dict[str, object], context: str) -> object:
+            return document["data"]
+
+    original_load_runner = local_deposit.load_runner
+    original_sync = local_deposit.sync_asset_catalog
+    local_deposit.load_runner = lambda: FakeRunner()
+    local_deposit.sync_asset_catalog = lambda: sync_calls.append("assets")
+    try:
+        try:
+            local_deposit.bootstrap_fireblocks_catalog()
+        except RuntimeError as error:
+            assert "expected ETHEREUM_SEPOLIA, actual WRONG_NETWORK" in str(error)
+        else:
+            raise AssertionError("다른 BCM Network code가 연결된 chainId를 허용했습니다.")
+    finally:
+        local_deposit.load_runner = original_load_runner
+        local_deposit.sync_asset_catalog = original_sync
+
+    assert sync_calls == []
+
+
 test_start_failure_records_observed_component_states()
 test_bat_job_records_ephemeral_component_lifecycle()
 test_bat_job_failure_is_preserved_for_diagnostics()
@@ -287,4 +395,6 @@ test_postgres_digest_does_not_log_ledger_rows()
 test_step_observations_preserve_repeated_identifiers()
 test_runtime_collision_is_recorded_as_environment_step_failure()
 test_retention_preserves_active_runs_and_removes_matching_launcher_logs()
+test_fireblocks_catalog_bootstrap_adopts_supported_testnets_before_asset_sync()
+test_fireblocks_catalog_bootstrap_rejects_conflicting_network_code()
 print("system test runner unit tests passed")

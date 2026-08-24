@@ -40,7 +40,7 @@ class AdminAssetControllerTest {
     private val mapping = VendorAssetMapping("ETHEREUM", "USDC", "secret-asset-id", "0xA0B8", "20260806120000", "123456", "0001")
 
     @Test
-    fun `목록 3개 — network를 내부 조회 키로 쓰되 응답에 벤더 id가 없다`() {
+    fun `목록 3개 — 자산 후보와 현재 매핑은 Fireblocks asset id와 Network 표시정보를 돌려준다`() {
         every { service.networks("eth", 1, true, false) } returns listOf(network)
         every { service.assetCandidates("USDC", "ETHEREUM") } returns candidateSearchResult()
         every { service.mappings("ETHEREUM", "USDC") } returns listOf(mapping)
@@ -62,6 +62,10 @@ class AdminAssetControllerTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.data.items[0].network").value("ETHEREUM"))
             .andExpect(jsonPath("$.data.items[0].symbol").value("USDC"))
+            .andExpect(jsonPath("$.data.items[0].networkDisplayName").value("Ethereum"))
+            .andExpect(jsonPath("$.data.items[0].chainId").value(1))
+            .andExpect(jsonPath("$.data.items[0].testnet").value(false))
+            .andExpect(jsonPath("$.data.items[0].fireblocksAssetId").value("secret-asset-id"))
             .andExpect(jsonPath("$.data.items[0].assetClass").value("FT"))
             .andExpect(jsonPath("$.data.items[0].catalogSyncedAt").value("20260806110000"))
             .andExpect(jsonPath("$.data.items[0]", not(hasKey<String>("id"))))
@@ -74,6 +78,7 @@ class AdminAssetControllerTest {
             .andExpect(jsonPath("$.data[0].symbol").value("USDC"))
             .andExpect(jsonPath("$.data[0].token").doesNotExist())
             .andExpect(jsonPath("$.data[0].contractAddress").value("0xA0B8"))
+            .andExpect(jsonPath("$.data[0].fireblocksAssetId").value("secret-asset-id"))
             .andExpect(jsonPath("$.data[0]", not(hasKey<String>("vendorAssetId"))))
             .andExpect(jsonPath("$.data[0]", not(hasKey<String>("registeredByEmployeeNo"))))
     }
@@ -86,6 +91,7 @@ class AdminAssetControllerTest {
                 match {
                     it.network == "ETHEREUM" &&
                         it.symbol == "USDC" &&
+                        it.fireblocksAssetId == "secret-asset-id" &&
                         it.contractAddress == "0xA0b8" &&
                         it.employeeNo == "123456" &&
                         it.branchCode == "0001" &&
@@ -112,10 +118,11 @@ class AdminAssetControllerTest {
                     .header("X-Employee-No", "123456")
                     .header("X-Branch-Code", "0001")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"network":"ETHEREUM","symbol":"USDC","contractAddress":"0xA0b8"}"""),
+                    .content("""{"network":"ETHEREUM","symbol":"USDC","fireblocksAssetId":"secret-asset-id","contractAddress":"0xA0b8"}"""),
             ).andExpect(status().isCreated)
             .andExpect(jsonPath("$.data.network").value("ETHEREUM"))
             .andExpect(jsonPath("$.data.symbol").value("USDC"))
+            .andExpect(jsonPath("$.data.fireblocksAssetId").value("secret-asset-id"))
             .andExpect(jsonPath("$.data.token").doesNotExist())
             .andExpect(jsonPath("$.data", not(hasKey<String>("vendorAssetId"))))
 
@@ -141,7 +148,7 @@ class AdminAssetControllerTest {
             .perform(
                 post("/admin/asset-mappings")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"network":"ETHEREUM","symbol":"USDC","contractAddress":null}"""),
+                    .content("""{"network":"ETHEREUM","symbol":"USDC","fireblocksAssetId":"secret-asset-id","contractAddress":null}"""),
             ).andExpect(status().isBadRequest)
 
         verify(exactly = 0) { service.register(any()) }
@@ -155,7 +162,7 @@ class AdminAssetControllerTest {
                     .header("X-Employee-No", "123456")
                     .header("X-Branch-Code", "0001")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"network":"ETHEREUM","symbol":"ETH"}"""),
+                    .content("""{"network":"ETHEREUM","symbol":"ETH","fireblocksAssetId":"ETH_TEST"}"""),
             ).andExpect(status().isBadRequest)
 
         verify(exactly = 0) { service.register(any()) }
@@ -163,7 +170,21 @@ class AdminAssetControllerTest {
 
     private fun candidateSearchResult() =
         VendorAssetCatalogSearchResult(
-            listOf(VendorAssetCatalogCandidate("ETHEREUM", "USDC", "USD Coin", "FT", 6, "0xA0B8", "20260806110000")),
+            listOf(
+                VendorAssetCatalogCandidate(
+                    network = "ETHEREUM",
+                    networkDisplayName = "Ethereum",
+                    chainId = 1,
+                    testnet = false,
+                    symbol = "USDC",
+                    displayName = "USD Coin",
+                    fireblocksAssetId = "secret-asset-id",
+                    assetClass = "FT",
+                    decimals = 6,
+                    contractAddress = "0xA0B8",
+                    catalogSyncedAt = "20260806110000",
+                ),
+            ),
             listOf(VendorAssetCatalogSource("ETHEREUM", VendorAssetCatalogCacheState.READY, "20260806110000")),
         )
 }

@@ -38,7 +38,15 @@ class VendorAssetMappingServiceTest {
         VendorAssetMappingService(mappings, blockchains, addressQueryService, assetCatalogCache, vendorCatalog, clock)
 
     private val audit = AuditActor("123456", "0001")
-    private val command = RegisterVendorAssetMappingCommand("ETHEREUM", "USDC", "0xA0b8", "123456", "0001")
+    private val command =
+        RegisterVendorAssetMappingCommand(
+            network = "ETHEREUM",
+            symbol = "USDC",
+            fireblocksAssetId = "asset-uuid",
+            contractAddress = "0xA0b8",
+            employeeNo = "123456",
+            branchCode = "0001",
+        )
 
     @Test
     fun `등록 — 채택한 network의 자산을 끝까지 페이징해 주소 하나를 해소하고 실제 감사로 저장한다`() {
@@ -92,11 +100,22 @@ class VendorAssetMappingServiceTest {
     }
 
     @Test
+    fun `등록 — 화면에서 고른 Fireblocks asset id와 최신 자산이 다르면 주소가 같아도 거절한다`() {
+        every { mappings.find("ETHEREUM", "USDC") } returns null
+        every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
+        every { vendorCatalog.assets("ethereum-id", null, null) } returns
+            VendorPage(listOf(vendorAsset("different-asset", "0xA0B8")), null)
+
+        assertThatThrownBy { service.register(command) }.isInstanceOf(InvalidAssetMappingException::class.java)
+        verify(exactly = 0) { mappings.save(any(), any()) }
+    }
+
+    @Test
     fun `등록 — 같은 주소가 두 자산에 잡히면 사람이 판단하도록 409다`() {
         every { mappings.find("ETHEREUM", "USDC") } returns null
         every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
         every { vendorCatalog.assets("ethereum-id", null, null) } returns
-            VendorPage(listOf(vendorAsset("one", "0xA0B8"), vendorAsset("two", "0xa0b8")), null)
+            VendorPage(listOf(vendorAsset("asset-uuid", "0xA0B8"), vendorAsset("asset-uuid", "0xa0b8")), null)
 
         assertThatThrownBy { service.register(command) }.isInstanceOf(ConflictException::class.java)
         verify(exactly = 0) { mappings.save(any(), any()) }
@@ -115,7 +134,7 @@ class VendorAssetMappingServiceTest {
 
     @Test
     fun `등록 — contractAddress null은 그 체인의 네이티브 자산 하나로 해소한다`() {
-        val nativeCommand = command.copy(symbol = "ETH", contractAddress = null)
+        val nativeCommand = command.copy(symbol = "ETH", fireblocksAssetId = "native-id", contractAddress = null)
         every { mappings.find("ETHEREUM", "ETH") } returns null
         every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
         every { vendorCatalog.assets("ethereum-id", null, null) } returns
@@ -142,13 +161,17 @@ class VendorAssetMappingServiceTest {
                 items =
                     listOf(
                         VendorAssetCatalogCandidate(
-                            "ETHEREUM",
-                            "USDC",
-                            "USD Coin",
-                            "FT",
-                            6,
-                            "0xA0B8",
-                            "20260806110000",
+                            network = "ETHEREUM",
+                            networkDisplayName = "Ethereum",
+                            chainId = 1,
+                            testnet = false,
+                            symbol = "USDC",
+                            displayName = "USD Coin",
+                            fireblocksAssetId = "asset-uuid",
+                            assetClass = "FT",
+                            decimals = 6,
+                            contractAddress = "0xA0B8",
+                            catalogSyncedAt = "20260806110000",
                         ),
                     ),
                 sources =

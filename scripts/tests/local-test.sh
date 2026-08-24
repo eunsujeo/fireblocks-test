@@ -161,6 +161,9 @@ done
 for contract in \
     'up_stub()' \
     'verify_fireblocks_api_authentication()' \
+    'bootstrap_fireblocks_asset_catalog()' \
+    'local-deposit-test.py" --bootstrap-fireblocks-catalog' \
+    'Fireblocks 지원 네트워크·자산 카탈로그 준비 완료' \
     'export BCM_JOB=catalog-sync-once' \
     'asset-catalog-sync-once' \
     'sync_asset_catalog_now()' \
@@ -202,10 +205,28 @@ for contract in \
     }
 done
 
+for contract in \
+    '("ETHEREUM_SEPOLIA", 11155111)' \
+    '("BASE_SEPOLIA", 84532)' \
+    '지원 Fireblocks TESTNET을 찾지 못했습니다' \
+    'sync_asset_catalog()'; do
+    grep -Fq "$contract" scripts/internal/local-deposit-test.py || {
+        echo "Fireblocks 자산 우선 검색 bootstrap 계약이 없습니다: $contract" >&2
+        exit 1
+    }
+done
+
 preflight_line="$(grep -n 'verify_fireblocks_api_authentication$' scripts/local.sh | tail -1 | cut -d: -f1)"
 api_start_line="$(grep -n 'start_gradle_process api ' scripts/local.sh | head -1 | cut -d: -f1)"
 [ -n "$preflight_line" ] && [ -n "$api_start_line" ] && [ "$preflight_line" -lt "$api_start_line" ] || {
     echo "Fireblocks 인증 확인이 BCM API 기동보다 먼저 실행되지 않습니다." >&2
+    exit 1
+}
+
+fireblocks_bootstrap_line="$(grep -n 'bootstrap_fireblocks_asset_catalog$' scripts/local.sh | tail -1 | cut -d: -f1)"
+admin_start_line="$(grep -n 'start_gradle_process admin ' scripts/local.sh | head -1 | cut -d: -f1)"
+[ -n "$fireblocks_bootstrap_line" ] && [ -n "$admin_start_line" ] && [ "$fireblocks_bootstrap_line" -lt "$admin_start_line" ] || {
+    echo "Fireblocks 지원 Network와 자산 catalog가 Admin 준비 전에 초기화되지 않습니다." >&2
     exit 1
 }
 

@@ -77,28 +77,29 @@ test("일반 검색어에서 안전한 자산 후보 심볼만 찾아낸다", ()
 
 test("후보와 같은 네트워크·주소의 기존 등록을 대소문자와 네이티브 여부까지 대조한다", () => {
   const mappings = [
-    { network: "BASE", symbol: "USDC", contractAddress: "0xAbCd" },
-    { network: "ETHEREUM", symbol: "ETH", contractAddress: null },
+    { network: "BASE", symbol: "USDC", fireblocksAssetId: "USDC_BASE", contractAddress: "0xAbCd" },
+    { network: "ETHEREUM", symbol: "ETH", fireblocksAssetId: "ETH", contractAddress: null },
   ];
 
   assert.equal(
-    registeredAssetMapping({ network: "BASE", contractAddress: "0xabcd" }, mappings)?.symbol,
+    registeredAssetMapping({ network: "BASE", fireblocksAssetId: "USDC_BASE", contractAddress: "0xabcd" }, mappings)?.symbol,
     "USDC",
   );
   assert.equal(
-    registeredAssetMapping({ network: "ETHEREUM", contractAddress: null }, mappings)?.symbol,
+    registeredAssetMapping({ network: "ETHEREUM", fireblocksAssetId: "ETH", contractAddress: null }, mappings)?.symbol,
     "ETH",
   );
-  assert.equal(registeredAssetMapping({ network: "BASE", contractAddress: "0x9999" }, mappings), undefined);
+  assert.equal(registeredAssetMapping({ network: "BASE", fireblocksAssetId: "USDC_BASE", contractAddress: "0x9999" }, mappings), undefined);
+  assert.equal(registeredAssetMapping({ network: "BASE", fireblocksAssetId: "USDC_BASE_V2", contractAddress: "0xabcd" }, mappings), undefined);
 });
 
-test("자산 후보 없음은 Network 미등록과 catalog 미동기화와 실제 검색 결과 없음을 구분한다", () => {
+test("자산 후보 없음은 로컬 준비 실패와 catalog 미동기화와 실제 검색 결과 없음을 구분한다", () => {
   assert.deepEqual(assetCandidateEmptyState("USDC", []), {
-    kind: "NETWORK_REQUIRED",
-    message: "채택한 Network가 없습니다.",
-    detail: "먼저 Fireblocks Network를 선택해 BCM code를 등록하세요.",
-    actionHref: "/admin/networks?adopted=false",
-    actionLabel: "Network 등록",
+    kind: "CATALOG_SETUP_REQUIRED",
+    message: "지원 Network catalog가 준비되지 않았습니다.",
+    detail: "./scripts/local.sh restart fireblocks로 지원 Network와 asset catalog를 다시 준비하세요.",
+    actionHref: null,
+    actionLabel: null,
   });
   assert.deepEqual(assetCandidateEmptyState("USDC", [
     { network: "BASE_SEPOLIA", state: "NEVER_SYNCED" },
@@ -204,7 +205,7 @@ test("Admin 메뉴와 기술 라벨은 익숙한 영어 용어를 사용하고 �
   assert.match(shellSource, />Policies</);
   assert.match(shellSource, />Transactions</);
   assert.match(appSource, /<summary>Advanced<\/summary>/);
-  assert.match(appSource, /<th>Network<\/th><th>Symbol<\/th><th>Contract address<\/th><th>Registered at \(UTC\)<\/th>/);
+  assert.match(appSource, /<th>Network<\/th><th>Symbol<\/th><th>Fireblocks Asset ID<\/th><th>Contract address<\/th><th>Registered at \(UTC\)<\/th>/);
   assert.match(appSource, /<div><dt>Decimals<\/dt>/);
   assert.match(appSource, /<h1>Transaction investigation<\/h1>/);
   assert.match(appSource, /<h1>Contract registry<\/h1>/);
@@ -243,7 +244,13 @@ test("자산 등록은 검색·후보 선택·검증 요약을 한 모달에서 
   assert.match(appSource, /NEVER_SYNCED/);
   assert.match(appSource, /assetCandidateEmptyState/);
   assert.match(appSource, /data-asset-prerequisite/);
-  assert.match(appSource, /\/admin\/networks\?adopted=false/);
+  assert.doesNotMatch(appSource, /먼저 Fireblocks Network를 선택해 BCM code를 등록하세요/);
+  assert.match(appSource, /Fireblocks Asset ID/);
+  assert.match(appSource, /fireblocksAssetId/);
+  assert.match(appSource, /networkDisplayName/);
+  assert.match(appSource, /Testnet/);
+  assert.match(appSource, /Contract address 복사/);
+  assert.match(appSource, /identifier\(selected\.fireblocksAssetId, "Fireblocks Asset ID"\)/);
   assert.match(appSource, /\.\/scripts\/local\.sh sync assets/);
   assert.match(appSource, /method: "POST"/);
   assert.match(appSource, /"X-BCM-Local-Asset-Management": "execute"/);
@@ -262,11 +269,11 @@ test("첫 화면은 Fireblocks 카탈로그에서 네트워크와 자산 등록�
   assert.match(appSource, /catalogNetworkCount/);
   assert.match(appSource, /adoptedNetworkCount/);
   assert.match(appSource, /catalogSyncedAt/);
-  assert.match(appSource, /\/admin\/networks\?adopted=false/);
   assert.match(appSource, /\/admin\/assets\?action=add/);
   assert.match(appSource, /developerPortalUrl/);
-  assert.match(appSource, /id="network-adopt-dialog"/);
-  assert.match(appSource, /method: "PUT"/);
+  assert.match(appSource, /지원 Network는 시작 과정에서 자동 연결/);
+  assert.match(appSource, /USDC 검색·등록/);
+  assert.doesNotMatch(appSource, /id="network-adopt-dialog"|data-adopt-network/);
   assert.match(appSource, /"X-BCM-Local-Asset-Management": "execute"/);
 });
 

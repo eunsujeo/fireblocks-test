@@ -30,12 +30,13 @@ class AdminAssetSpecComplianceTest {
     private lateinit var service: VendorAssetMappingService
 
     @Test
-    fun `자산 매핑 POST 요청과 응답이 벤더 id 없는 0_3_0 계약과 일치한다`() {
+    fun `자산 매핑 POST 요청과 응답은 선택한 Fireblocks asset id를 포함한다`() {
         every {
             service.register(
                 match {
                     it.network == "BASE" &&
                         it.symbol == "USDC" &&
+                        it.fireblocksAssetId == "USDC_BASE" &&
                         it.contractAddress == "0x8335" &&
                         it.employeeNo == "123456" &&
                         it.branchCode == "0001" &&
@@ -50,7 +51,7 @@ class AdminAssetSpecComplianceTest {
                     .header("X-Employee-No", "123456")
                     .header("X-Branch-Code", "0001")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"network":"BASE","symbol":"USDC","contractAddress":"0x8335"}"""),
+                    .content("""{"network":"BASE","symbol":"USDC","fireblocksAssetId":"USDC_BASE","contractAddress":"0x8335"}"""),
             ).andExpect(status().isCreated)
             .andExpect(openApi().isValid(SPEC))
     }
@@ -59,7 +60,21 @@ class AdminAssetSpecComplianceTest {
     fun `자산 후보 GET은 q 필수이고 캐시 원천 상태를 포함한다`() {
         every { service.assetCandidates("USDC", null) } returns
             VendorAssetCatalogSearchResult(
-                listOf(VendorAssetCatalogCandidate("BASE", "USDC", "USD Coin", "FT", 6, "0x8335", "20260824010000")),
+                listOf(
+                    VendorAssetCatalogCandidate(
+                        network = "BASE",
+                        networkDisplayName = "Base",
+                        chainId = 8453,
+                        testnet = false,
+                        symbol = "USDC",
+                        displayName = "USD Coin",
+                        fireblocksAssetId = "USDC_BASE",
+                        assetClass = "FT",
+                        decimals = 6,
+                        contractAddress = "0x8335",
+                        catalogSyncedAt = "20260824010000",
+                    ),
+                ),
                 listOf(VendorAssetCatalogSource("BASE", VendorAssetCatalogCacheState.READY, "20260824010000")),
             )
 

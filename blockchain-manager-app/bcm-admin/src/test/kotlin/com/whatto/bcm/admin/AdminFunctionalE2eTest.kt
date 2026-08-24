@@ -167,6 +167,9 @@ class AdminFunctionalE2eTest {
                     .header("X-BCM-Local-Asset-Management", "execute"),
             ).andExpect(status().isOk)
             .andExpect(jsonPath("$.data.items[0].network").value("BASE"))
+            .andExpect(jsonPath("$.data.items[0].networkDisplayName").value("Base"))
+            .andExpect(jsonPath("$.data.items[0].testnet").value(false))
+            .andExpect(jsonPath("$.data.items[0].fireblocksAssetId").value("USDC_BASE"))
             .andExpect(jsonPath("$.data.items[0].decimals").value(6))
             .andExpect(jsonPath("$.data.sources[0].state").value("READY"))
 
@@ -176,15 +179,16 @@ class AdminFunctionalE2eTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Origin", "http://localhost")
                     .header("X-BCM-Local-Asset-Management", "execute")
-                    .content("""{"network":"BASE","symbol":"USDC","contractAddress":"0x8335"}"""),
+                    .content("""{"network":"BASE","symbol":"USDC","fireblocksAssetId":"USDC_BASE","contractAddress":"0x8335"}"""),
             ).andExpect(status().isCreated)
             .andExpect(jsonPath("$.data.symbol").value("USDC"))
+            .andExpect(jsonPath("$.data.fireblocksAssetId").value("USDC_BASE"))
 
         mockMvc
             .perform(
                 post("/bff/admin/assets")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"network":"BASE","symbol":"USDC","contractAddress":"0x8335"}"""),
+                    .content("""{"network":"BASE","symbol":"USDC","fireblocksAssetId":"USDC_BASE","contractAddress":"0x8335"}"""),
             ).andExpect(status().isForbidden)
     }
 
@@ -245,7 +249,7 @@ class AdminFunctionalE2eTest {
                     check(exchange.requestHeaders.getFirst("X-Branch-Code") == if (exchange.requestMethod == "POST") "9999" else null)
                     respond(
                         exchange,
-                        """{"data":${if (exchange.requestMethod == "POST") "{\"network\":\"BASE\",\"symbol\":\"USDC\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}" else "[{\"network\":\"BASE\",\"symbol\":\"USDC\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}]"},"meta":{"requestId":"bcm-assets"}}""",
+                        """{"data":${if (exchange.requestMethod == "POST") "{\"network\":\"BASE\",\"symbol\":\"USDC\",\"fireblocksAssetId\":\"USDC_BASE\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}" else "[{\"network\":\"BASE\",\"symbol\":\"USDC\",\"fireblocksAssetId\":\"USDC_BASE\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}]"},"meta":{"requestId":"bcm-assets"}}""",
                         if (exchange.requestMethod == "POST") 201 else 200,
                     )
                 }
@@ -253,7 +257,7 @@ class AdminFunctionalE2eTest {
                     check(exchange.requestURI.query?.contains("q=USD+Coin") == true)
                     respond(
                         exchange,
-                        """{"data":{"items":[{"network":"BASE","symbol":"USDC","displayName":"USD Coin","assetClass":"FT","decimals":6,"contractAddress":"0x8335","catalogSyncedAt":"20260824010000"}],"sources":[{"network":"BASE","state":"READY","catalogSyncedAt":"20260824010000"}]},"meta":{"requestId":"bcm-candidates"}}""",
+                        """{"data":{"items":[{"network":"BASE","networkDisplayName":"Base","chainId":8453,"testnet":false,"symbol":"USDC","displayName":"USD Coin","fireblocksAssetId":"USDC_BASE","assetClass":"FT","decimals":6,"contractAddress":"0x8335","catalogSyncedAt":"20260824010000"}],"sources":[{"network":"BASE","state":"READY","catalogSyncedAt":"20260824010000"}]},"meta":{"requestId":"bcm-candidates"}}""",
                     )
                 }
                 createContext("/admin/runtime-readiness") { exchange -> respond(exchange, runtimeReadinessResponse) }
