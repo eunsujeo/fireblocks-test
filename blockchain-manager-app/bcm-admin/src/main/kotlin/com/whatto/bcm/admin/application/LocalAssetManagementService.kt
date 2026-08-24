@@ -33,6 +33,20 @@ class LocalAssetManagementService(
             ),
         )
 
+    fun registerAll(requests: List<LocalAssetRegistration>): List<AdminAssetMapping> =
+        gateway.registerAssetMappings(
+            requests.map { request ->
+                RegisterAdminAssetMapping(
+                    network = request.network,
+                    symbol = request.symbol,
+                    fireblocksAssetId = request.fireblocksAssetId,
+                    contractAddress = request.contractAddress,
+                    employeeNo = properties.localAssetManagement.employeeNo,
+                    branchCode = properties.localAssetManagement.branchCode,
+                )
+            },
+        )
+
     fun adoptNetwork(request: LocalNetworkAdoption): AdminNetwork =
         gateway.adoptNetwork(
             AdoptAdminNetwork(

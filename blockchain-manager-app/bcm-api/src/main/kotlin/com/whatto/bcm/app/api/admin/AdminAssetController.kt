@@ -115,6 +115,32 @@ class AdminAssetController(
         return ApiResponse.of(AssetMappingData.from(mapping), RequestIdFilter.requestIdOf(httpRequest))
     }
 
+    @PostMapping("/admin/asset-mappings/bulk")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun registerAll(
+        @Valid @RequestBody request: BulkRegisterAssetMappingsRequest,
+        @RequestHeader(EMPLOYEE_HEADER) @NotBlank @Size(max = 6) employeeNo: String,
+        @RequestHeader(BRANCH_HEADER) @NotBlank @Size(max = 4) branchCode: String,
+        httpRequest: HttpServletRequest,
+    ): ApiResponse<List<AssetMappingData>> {
+        val requestId = RequestIdFilter.requestIdOf(httpRequest)
+        val mappings =
+            service.registerAll(
+                request.items.map { item ->
+                    RegisterVendorAssetMappingCommand(
+                        network = checkNotNull(item.network),
+                        symbol = checkNotNull(item.symbol),
+                        fireblocksAssetId = checkNotNull(item.fireblocksAssetId),
+                        contractAddress = item.contractAddress,
+                        employeeNo = employeeNo,
+                        branchCode = branchCode,
+                        requestId = requestId,
+                    )
+                },
+            )
+        return ApiResponse.of(mappings.map(AssetMappingData::from), requestId)
+    }
+
     @DeleteMapping("/admin/asset-mappings/{network}/{symbol}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(

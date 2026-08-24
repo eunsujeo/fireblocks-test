@@ -72,6 +72,7 @@ bootstrap에 만들지 않고 명시적인 시나리오가 소유한다.
 | 기능 | 메서드·경로 | BCM이 보내는 값 | BCM이 읽는 값 | Stub |
 |---|---|---|---|---|
 | Vault 생성 | `POST /v1/vault/accounts` | `name`, `Idempotency-Key` | `id`, `name` | 상태형 구현 |
+| Vault 목록 | `GET /v1/vault/accounts_paged` | `limit=1..500`, 선택 `after` | `accounts[].id/name/assets`, `paging.after` | Admin 읽기·대조용 페이지 구현 |
 | Vault wallet·주소 생성 | `POST /v1/vault/accounts/{vaultId}/{assetId}` | `Idempotency-Key`, 본문 없음 | `address`, 선택 `tag` | 결정적 EVM 주소 할당 |
 | Vault 자산 잔액 | `GET /v1/vault/accounts/{vaultId}/{assetId}` | 경로 식별자 | `total`, `available`, `pending`, `frozen`, `lockedAmount` | Anvil 상태를 기준으로 산출하되 Fireblocks 잔액 구분은 시뮬레이션 |
 | 블록체인 목록 | `GET /v1/blockchains` | `pageSize=500`, 선택 `pageCursor` | 필수 `data[].id/displayName`; 선택 `metadata.deprecated`, `onchain.protocol/chainId/test/signingAlgo`, `next` | 로컬 EVM 카탈로그 |

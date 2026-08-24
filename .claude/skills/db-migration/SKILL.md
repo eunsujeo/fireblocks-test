@@ -1,6 +1,6 @@
 ---
 name: db-migration
-description: bcm_ 테이블 Flyway 마이그레이션 작성·변경 절차. 새 테이블 추가, 컬럼 추가/변경, 스키마 마이그레이션 작업 시 사용 — 03-bcm-db 대조부터 검증 테스트까지의 체크리스트.
+description: bcm_ 테이블 Git 관리 SQL 작성·변경 절차. 새 테이블 추가, 컬럼 추가/변경, 스키마 변경 작업 시 사용 — 03-bcm-db 대조부터 검증 테스트까지의 체크리스트.
 ---
 
 # db-migration — bcm_ 스키마 마이그레이션 절차
@@ -12,7 +12,8 @@ description: bcm_ 테이블 Flyway 마이그레이션 작성·변경 절차. 새
 1. **설계 대조가 먼저다** — docs/design/03-bcm-db.md 또는 07-asset-master.md의 해당 테이블 절을 읽고 컬럼명·타입·제약·인덱스를
    **그대로** 옮긴다. 설계에 없는 변경이 필요하면 중단 — waas-wiki 개정(사용자 승인) → 사본 동기화 후 진행.
 2. **파일 위치·네이밍** — `blockchain-manager-infra/persistence/src/main/resources/db/migration/V{n}__{설명}.sql`.
-   n 은 순차, 설명은 스네이크 영문. 배포·공유·보존 DB에 적용된 마이그레이션은 절대 수정하지 않는다(새 V{n+1} 로).
+   n 은 순차, 설명은 스네이크 영문이며 같은 디렉터리의 `manifest.txt` 끝에 추가한다. 배포·공유·보존 DB에 적용된 SQL은
+   절대 수정하지 않는다(새 V{n+1} 로).
    영속 DB 없이 Testcontainers로만 검증하는 배포 전 V1은, 확정 설계와 맞추라는 명시 결정이 있을 때만 직접 정합시킨다.
 3. **코어 규약 타입** (CLAUDE.md 3절):
    - 일시 `VARCHAR(16)` (`_dttm`) · 일자 `VARCHAR(8)` (`_dt`) — TIMESTAMP 금지
@@ -23,7 +24,7 @@ description: bcm_ 테이블 Flyway 마이그레이션 작성·변경 절차. 새
    NOT NULL. 자동 처리 행 센티넬: `empno='SYSTEM'` · `brcd='9999'` (구현은 단일 상수).
 5. **멱등은 물리 제약으로** — 앱 로직이 아니라 UNIQUE/PK 가 최종 방어다
    (`(acnt_typ_dvcd, ref)` UNIQUE · `(acnt_id, ntwk_cd, tkn_smbl)` PK · `vndr_ast_id` UNIQUE · ext_tx_id UNIQUE · noti_id PK · evnt_id PK).
-6. **검증 테스트** — 통합 테스트(Testcontainers)에 스키마 검증을 추가/갱신한다:
+6. **검증 테스트** — test-support 초기화기가 manifest의 SQL을 Testcontainers PostgreSQL에 직접 적용한다. 스키마 검증을 추가/갱신한다:
    - 테이블 존재 (information_schema.tables)
    - 유니크/PK 제약 존재 (table_constraints + key_column_usage)
    - 새/변경 컬럼 존재 (information_schema.columns)

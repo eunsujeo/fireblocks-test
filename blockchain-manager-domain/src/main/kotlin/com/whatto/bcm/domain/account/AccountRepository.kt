@@ -12,4 +12,6 @@ interface AccountRepository {
     ): Account?
 
     fun findByAccountId(accountId: String): Account?
+
+    fun findAll(): List<Account> = emptyList()
 }

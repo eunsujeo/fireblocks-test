@@ -212,6 +212,24 @@ data class BcmAdminTransactionInvestigationResponse(
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminVault(
+    val reconciliationStatus: String,
+    val accountId: String? = null,
+    val accountType: String? = null,
+    val ref: String? = null,
+    val vendorVaultId: String,
+    val vendorVaultName: String? = null,
+    val walletCount: Int? = null,
+    val registeredAt: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmAdminVaultListResponse(
+    val data: List<AdminVault>,
+    val meta: BcmMeta,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class AdminContract(
     val versionId: String,
     val scopeId: String,
@@ -484,9 +502,21 @@ data class AdminWebhookRuntime(
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminSweepRuntime(
+    val enabled: Boolean,
+    val state: String,
+    val activeContractCount: Int,
+    val activePolicyCount: Int,
+    val executorLastRunAt: String? = null,
+    val executorLastSucceededAt: String? = null,
+    val disabledReasons: List<String>,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class AdminRuntimeReadiness(
     val observedAt: String,
     val webhook: AdminWebhookRuntime,
+    val sweep: AdminSweepRuntime,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

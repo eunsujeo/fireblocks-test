@@ -20,6 +20,7 @@
 - [x] Phase 12 — 전체 시스템 통합 테스트·진단 (2026-08-20)
 - [x] Phase 13 — Webhook 독립 경계 + 로컬 기능 점검 UX (2026-08-21)
 - [x] Phase 14 — 실행 가능한 API 개발자 포털 + 로컬 시나리오 콘솔 (2026-08-21)
+- [x] Phase 14 후속 — Admin 운영 등록·진단 UX 수렴 (2026-08-24)
 - [ ] Phase 15 — Production 배포 준비 계획 (보류 — 운영 논의 재개 시 착수)
 
 ## 작업 규칙 (모든 Phase 공통)
@@ -37,6 +38,19 @@
 Phase 0~14의 task·완료 기준·검증 증적은 [완료 Phase 0~14 상세 이력](docs/history/phase-0-14-plan.md)으로 분리했다.
 현재 계획 문서에는 다음 작업과 아직 열린 설계 항목만 유지한다.
 
+## Phase 14 후속 — Admin 운영 등록·진단 UX 수렴
+
+- [x] **T14.6 Network·Asset 선택 UX** — Fireblocks 전체 카탈로그는 진단용으로 동기화하되 기본 Network 화면은 BCM 연결분만
+  보여 준다. 자산 후보는 검색 간 최대 20개를 유지하고 모든 후보를 검증한 뒤 한 트랜잭션으로 등록한다.
+- [x] **T14.7 Vault·sweep 준비 상태** — Fireblocks 전체 vault와 BCM 계정을 읽기 전용으로 대조하고
+  `MANAGED/UNMANAGED/MISSING_IN_FIREBLOCKS`를 표시한다. Contracts·Policies는 활성 binding/evidence와 sweep 실행 금지 사유를 함께 보여 준다.
+- [x] **T14.8 관리 책임·보안 경계** — 공유 환경의 Network·Asset·정책·컨트랙트 workflow 소유자를 DAW-ADMIN으로 정정한다.
+  이 저장소의 Admin은 로컬 개발·진단 콘솔이며, Fireblocks Security Admin Vault 자격증명을 BCM에 두지 않는다.
+- [x] **T14.9 실패 계약·문서** — 일괄 등록 실패의 index·network·symbol·reason을 BCM API→로컬 BFF→UI까지 보존하고
+  OpenAPI 실행 문서와 회귀 테스트를 갱신한다.
+- [x] **T14.10 사본 동기화·converge** — waas-wiki 06·07·08·10을 `docs/design/`에 byte 동일하게 복사하고 전체 CI 후
+  독립 design-sync→code-reviewer를 순차 통과한다.
+
 ## Phase 15 — Production 배포 준비 계획
 
 Phase 14까지 통과한 기능·프로세스 경계를 실제 운영 환경에 옮기기 위한 **계획만** 수립한다. 사용자가 운영 논의를
@@ -51,7 +65,7 @@ PostgreSQL·Kafka, ingress/TLS, Secret, 운영 일정은 미정이다.
   [운영 배포 결정표](docs/runbooks/production-deployment-plan.md)에 현재 답변을 기록했으며 나머지는 Phase 재개 시 확정한다.
 - [ ] **T15.1 산출물·버전·공급망 계획** — API/Webhook/Admin/BAT 독립 BootJar, 설정 템플릿, checksum·SBOM,
   서명·보관·불변 release ID·rollback 단위를 정하고 local/test-support 모듈 미포함을 검증한다.
-- [ ] **T15.2 DB·Kafka 배포 순서** — Flyway 실행 소유권·사전 백업·하위 호환성·rollback 한계, 4개 토픽의 생성·파티션·보관·ACL과
+- [ ] **T15.2 DB·Kafka 배포 순서** — DBA SQL 적용 소유권·사전 백업·하위 호환성·rollback 한계, 4개 토픽의 생성·파티션·보관·ACL과
   서비스 기동 순서를 문서화한다.
 - [ ] **T15.3 런타임 토폴로지·독립성** — 구성 요소별 port·health/readiness·graceful shutdown·수평 확장·singleton 작업·장애 영향을
   정하고 Admin·로컬 체인·Stub 제거 조합에서 production 모듈의 런타임 의존 0을 재검증한다.
@@ -97,6 +111,7 @@ T15.0 결정 후 별도 산정한다.
 | 47 | **밴드S sweep 선행·풀별 최소잔액 증적 자리 미정** — hot→cold에서 고객 vault sweep FINALIZED 선행과 출금 풀 최소 운영잔액 보호가 필요하지만 현재 proposal은 기존 sweep 실행 ID·풀별 관찰/최소 잔액을 보관하지 않는다 | DAW-CORE 입력 payload 계약만으로 충분한지, BCM 원장 FK/증적 컬럼이 필요한지 03·06에서 확정 후 구현 |
 | 49 | **고정 cold 목적지 변경의 보안 정족수 원장 부재** — 06·08은 목적지 변경에 서로 다른 승인자 2명+보안 승인자 1명과 TAP 재검증을 요구하지만 현재 `fixedColdAddresses`는 배포 설정이고 version/change request 대상이 아니다 | 실자금 실행 전 목적지 registry의 정책 version·변경 요청·TAP evidence DB/API 자리를 03·08에서 확정하고 배포 설정 직접 변경을 차단 |
 | 50 | **cold→hot 입금 FINALIZED 증적 구조 미정** — `COLD_DEPOSIT` proposal item에는 외부 cold 발신 주소/tx hash가 없고 현재 event 기록은 구조화되지 않은 observation payload를 신뢰해 `FINALIZED`를 추가할 수 있다 | cold→hot 실행 전 고정 외부 cold 발신 주소·tx hash·독립 체인 재조회·FINALIZED 증적과 다음 item 개방 조건을 03·06·08에서 확정 |
+| 51 | **Fireblocks vault 전체 대사 규모 상한** — 현재 로컬 전용 Admin의 전체 vault 대사는 벤더와 DB 결과를 한 요청에서 메모리에 모아 반환한다. 대규모 workspace에서는 timeout·heap 사용량과 식별자 노출 범위가 커질 수 있다 | 공유 Admin 또는 대규모 workspace 도입 전 cursor 기반 paging·비동기 실행 원장·응답 상한을 설계하고 회귀 테스트 추가 |
 
 
 ## 범위 밖 (이 저장소가 아님) · 시점 미배정

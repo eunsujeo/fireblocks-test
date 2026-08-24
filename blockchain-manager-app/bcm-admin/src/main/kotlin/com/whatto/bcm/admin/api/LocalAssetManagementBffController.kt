@@ -62,6 +62,28 @@ class LocalAssetManagementBffController(
             .body(BffResponse(result, meta(httpRequest), ViewState.FRESH, emptyList()))
     }
 
+    @PostMapping("/bff/admin/assets/bulk", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun registerAll(
+        @Valid @RequestBody request: LocalAssetBulkRegistrationRequest,
+        httpRequest: HttpServletRequest,
+    ): ResponseEntity<BffResponse<*>> {
+        requireSameOriginMutation(httpRequest)
+        val result =
+            service.registerAll(
+                request.items.map { item ->
+                    LocalAssetRegistration(
+                        network = checkNotNull(item.network),
+                        symbol = checkNotNull(item.symbol),
+                        fireblocksAssetId = checkNotNull(item.fireblocksAssetId),
+                        contractAddress = item.contractAddress,
+                    )
+                },
+            )
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(BffResponse(result, meta(httpRequest), ViewState.FRESH, emptyList()))
+    }
+
     @PutMapping("/bff/admin/networks/{code}", consumes = [MediaType.APPLICATION_JSON_VALUE])
     fun adoptNetwork(
         @PathVariable @Pattern(regexp = NETWORK_PATTERN) code: String,
@@ -115,6 +137,11 @@ data class LocalAssetRegistrationRequest(
     val fireblocksAssetId: String?,
     @field:Size(max = 128)
     val contractAddress: String?,
+)
+
+data class LocalAssetBulkRegistrationRequest(
+    @field:Size(min = 1, max = 20)
+    val items: List<@Valid LocalAssetRegistrationRequest>,
 )
 
 data class LocalNetworkAdoptionRequest(

@@ -45,6 +45,25 @@ class InvalidAssetMappingException(
     val reason: String,
 ) : BcmException("invalid asset mapping: network=$network reason=$reason")
 
+/** 자산 매핑 저장 경합 — 일괄 등록 호출자가 실패 항목을 문자열 추정 없이 식별하게 한다. */
+class VendorAssetMappingRegistrationConflictException(
+    val network: String,
+    val symbol: String,
+    cause: Throwable? = null,
+) : BcmException("vendor asset mapping registration conflict: network=$network symbol=$symbol", cause)
+
+/** Admin 일괄 자산 등록에서 실패한 항목을 특정한다. network·symbol은 공개 운영 식별자이며 PII가 아니다. */
+class BulkAssetMappingException(
+    val index: Int,
+    val network: String,
+    val symbol: String,
+    val reason: String,
+    val failure: BcmException,
+) : BcmException(
+        "bulk asset mapping failed: index=$index network=$network symbol=$symbol reason=$reason",
+        failure,
+    )
+
 /** 요청 파라미터 사이의 조건처럼 Bean Validation만으로 표현하기 어려운 계약 위반. */
 class InvalidRequestException(
     val field: String,

@@ -1,5 +1,6 @@
 package com.whatto.bcm.domain.admin
 
+import com.whatto.bcm.domain.job.RuntimeAttestationEntry
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.time.Duration
@@ -22,6 +23,7 @@ data class AdminContractSummary(
 data class AdminPolicySummary(
     val versionId: String,
     val scopeId: String,
+    val contractVersionId: String?,
     val versionNumber: Int,
     val schemaVersion: String,
     val state: String,
@@ -315,6 +317,8 @@ interface AdminGovernanceQueryRepository {
 
     fun findPolicies(now: Instant): List<AdminPolicySummary>
 
+    fun findSweepRuntimeAttestationEntries(now: Instant): List<RuntimeAttestationEntry>
+
     fun findChangeRequest(
         requestId: String,
         now: Instant,
@@ -369,4 +373,15 @@ data class AdminWebhookRuntimeObservation(
 data class AdminRuntimeReadiness(
     val observedAt: Instant,
     val webhook: AdminWebhookRuntimeObservation,
+    val sweep: AdminSweepRuntimeReadiness,
+)
+
+data class AdminSweepRuntimeReadiness(
+    val enabled: Boolean,
+    val state: String,
+    val activeContractCount: Int,
+    val activePolicyCount: Int,
+    val executorLastRunAt: Instant?,
+    val executorLastSucceededAt: Instant?,
+    val disabledReasons: List<String>,
 )

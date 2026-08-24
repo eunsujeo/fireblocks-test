@@ -7,10 +7,13 @@ import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
+import com.whatto.bcm.domain.exception.BcmException
+import com.whatto.bcm.domain.exception.BulkAssetMappingException
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.exception.VendorApiException
+import com.whatto.bcm.domain.exception.VendorAssetMappingRegistrationConflictException
 import com.whatto.bcm.domain.vendor.VendorAsset
 import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.support.time.CoreDateTimes
@@ -114,6 +117,102 @@ class VendorAssetMappingService(
             )
         return mappingRepository.save(mapping, command.requestId)
     }
+
+    /** 최대 건수는 API 경계에서 제한하며, 여기서는 모든 후보를 검증한 뒤 한 번에 저장한다. */
+    fun registerAll(commands: List<RegisterVendorAssetMappingCommand>): List<VendorAssetMapping> {
+        if (commands.isEmpty()) return emptyList()
+        val duplicateKeys = commands.groupingBy { it.network to it.symbol }.eachCount().filterValues { it > 1 }
+        if (duplicateKeys.isNotEmpty()) {
+            val (network, symbol) = duplicateKeys.keys.first()
+            val index = commands.indexOfFirst { it.network == network && it.symbol == symbol }
+            throw bulkFailure(index, commands[index], "duplicateAssetMapping", ConflictException("assetMapping", "$network:$symbol"))
+        }
+        val duplicateVendorAssets = commands.groupingBy { it.fireblocksAssetId }.eachCount().filterValues { it > 1 }
+        if (duplicateVendorAssets.isNotEmpty()) {
+            val vendorAssetId = duplicateVendorAssets.keys.first()
+            val index = commands.indexOfFirst { it.fireblocksAssetId == vendorAssetId }
+            throw bulkFailure(index, commands[index], "duplicateVendorAsset", ConflictException("vendorAsset", vendorAssetId))
+        }
+        commands.forEachIndexed { index, command ->
+            mappingRepository.find(command.network, command.symbol)?.let {
+                throw bulkFailure(
+                    index,
+                    command,
+                    "assetMappingAlreadyExists",
+                    ConflictException("assetMapping", "${command.network}:${command.symbol}"),
+                )
+            }
+        }
+
+        val assetsByNetwork =
+            commands
+                .map { it.network }
+                .distinct()
+                .associateWith { network ->
+                    val index = commands.indexOfFirst { it.network == network }
+                    val command = commands[index]
+                    try {
+                        val blockchain = adoptedBlockchain(network)
+                        blockchain to allVendorAssets(blockchain.candidateId, symbol = null)
+                    } catch (exception: BcmException) {
+                        throw bulkFailure(index, command, failureReason(exception), exception)
+                    }
+                }
+        val registeredAt = CoreDateTimes.now(clock)
+        val mappings =
+            commands.mapIndexed { index, command ->
+                try {
+                    val (blockchain, assets) = checkNotNull(assetsByNetwork[command.network])
+                    val matches =
+                        assets.filter { asset ->
+                            asset.blockchainId == blockchain.candidateId &&
+                                asset.id == command.fireblocksAssetId &&
+                                when (command.contractAddress) {
+                                    null -> asset.assetClass == NATIVE_ASSET_CLASS
+                                    else -> asset.contractAddress?.equals(command.contractAddress, ignoreCase = true) == true
+                                }
+                        }
+                    if (matches.isEmpty()) throw InvalidAssetMappingException(command.network, "assetNotFound")
+                    if (matches.size > 1) throw ConflictException("assetCandidate", "${command.network}:ambiguous")
+                    val vendorAsset = matches.single()
+                    VendorAssetMapping(
+                        network = command.network,
+                        symbol = command.symbol,
+                        vendorAssetId = vendorAsset.id,
+                        contractAddress = command.contractAddress?.let { vendorAsset.contractAddress },
+                        registeredAt = registeredAt,
+                        registeredByEmployeeNo = command.employeeNo,
+                        registeredByBranchCode = command.branchCode,
+                    )
+                } catch (exception: BcmException) {
+                    throw bulkFailure(index, command, failureReason(exception), exception)
+                }
+            }
+        return try {
+            mappingRepository.saveAll(mappings, commands.first().requestId)
+        } catch (exception: VendorAssetMappingRegistrationConflictException) {
+            val index = commands.indexOfFirst { it.network == exception.network && it.symbol == exception.symbol }
+            check(index >= 0) {
+                "asset mapping conflict does not belong to request: network=${exception.network} symbol=${exception.symbol}"
+            }
+            throw bulkFailure(index, commands[index], "concurrentConflict", exception)
+        }
+    }
+
+    private fun bulkFailure(
+        index: Int,
+        command: RegisterVendorAssetMappingCommand,
+        reason: String,
+        failure: BcmException,
+    ) = BulkAssetMappingException(index, command.network, command.symbol, reason, failure)
+
+    private fun failureReason(exception: BcmException): String =
+        when (exception) {
+            is InvalidAssetMappingException -> exception.reason
+            is ConflictException -> exception.resource
+            is VendorAssetMappingRegistrationConflictException -> "concurrentConflict"
+            else -> "vendorValidationFailed"
+        }
 
     @Suppress("UNUSED_PARAMETER")
     fun delete(

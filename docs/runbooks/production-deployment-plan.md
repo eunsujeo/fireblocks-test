@@ -17,7 +17,7 @@ DNS·방화벽 변경, DB migration, Kafka topic 생성, Fireblocks 호출을 �
 | 외부 연결 | Fireblocks API, Fireblocks JWKS, 운영 경보 수신기. Webhook은 Fireblocks에서 공개 HTTPS ingress로 수신 |
 | 관리면 | API `9090`, Webhook `9091` 기본값. 공개 listener와 분리하고 외부 공개 금지 |
 | 안전 기본값 | sweep·boost·recovery·archive 등 자금/배치 실행은 기본 비활성 또는 hard ceiling 0 |
-| migration | 첫 운영 배포 전 V1 baseline 확정. 운영 배포 뒤에는 V1 제자리 수정 금지, 증분 migration만 사용 |
+| DB DDL | Git 관리 SQL을 DBA가 애플리케이션보다 먼저 적용. 운영 BootJar는 Flyway를 포함하지 않고 DDL을 실행하지 않음 |
 
 ## T15.0 결정 로그
 

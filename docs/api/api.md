@@ -1548,6 +1548,125 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
+#### `POST` https://{baseUrl}/blockchain/manage-api/admin/asset-mappings/bulk
+
+**자산 매핑 일괄 등록**
+
+검색 결과에서 선택한 자산을 최대 20개까지 한 번에 등록한다. 서버는 기존 매핑, 요청 내 중복,
+Fireblocks 최신 Asset ID·네트워크·컨트랙트 주소를 모두 먼저 검증한 뒤 현재 매핑과 변경 snapshot을
+한 트랜잭션으로 저장한다. 한 항목이라도 실패하면 아무 항목도 저장하지 않는다. 항목 실패 응답의
+`error.details`는 요청 배열의 `index`, `network`, `symbol`, 수정 판단용 `reason`을 포함한다.
+
+```bash
+curl -X POST "https://{baseUrl}/blockchain/manage-api/admin/asset-mappings/bulk" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "items": [
+    {
+      "network": "BASE",
+      "symbol": "USDC",
+      "fireblocksAssetId": "USDC_BASE",
+      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    }
+  ]
+}'
+```
+
+_파라미터_
+
+| 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
+|---|---|---|---|---|---|
+| `X-Employee-No` | header | string | 필수 | 123456 | 조작한 직원 번호 — 감사 흔적으로 남는다 |
+| `X-Branch-Code` | header | string | 필수 | 0001 | 조작한 부점 코드 |
+
+
+_요청 본문_
+
+```json
+{
+  "items": [
+    {
+      "network": "BASE",
+      "symbol": "USDC",
+      "fireblocksAssetId": "USDC_BASE",
+      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    }
+  ]
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `items` | RegisterAssetMappingRequest[] | 필수 |  |
+
+
+_응답_
+
+`201` — 모두 등록됨
+
+```json
+{
+  "data": [
+    {
+      "network": "BASE",
+      "symbol": "USDC",
+      "fireblocksAssetId": "USDC_BASE",
+      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "registeredAt": "20260806031045"
+    }
+  ],
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AssetMapping[] | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`400` — 요청 검증 실패
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "amount must be a decimal string"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`409` — 상태·멱등 충돌
+
+```json
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "externalTxId already used"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
 #### `GET` https://{baseUrl}/blockchain/manage-api/admin/transaction-investigations/{identifier}
 
 **거래 운영 조사**
@@ -1707,6 +1826,54 @@ _응답_
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/vaults
+
+**Fireblocks vault와 BCM 계정 대조**
+
+Fireblocks workspace의 vault를 끝까지 페이징하고 BCM 계정 레지스트리와 vendor vault id로 대조한다.
+계정·vault를 생성하지 않는 읽기 전용 진단 API이며, 자산별 잔액과 주소는 목록에서 선조회하지 않는다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/vaults"
+```
+
+_파라미터_
+
+| 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
+|---|---|---|---|---|---|
+| `q` | query | string | - |  | accountId, ref, Fireblocks vault id 또는 이름 검색 |
+
+
+_응답_
+
+`200` — vault 대조 목록
+
+```json
+{
+  "data": [
+    {
+      "reconciliationStatus": "MANAGED",
+      "accountId": "string",
+      "accountType": "CUSTOMER",
+      "ref": "string",
+      "vendorVaultId": "string",
+      "vendorVaultName": "string",
+      "walletCount": 0,
+      "registeredAt": "string"
+    }
+  ],
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminVault[] | 필수 |  |
 | `meta` | Meta | 필수 |  |
 
 
@@ -2076,7 +2243,7 @@ _응답_
 
 **Admin 로컬 첫 실행·Webhook runtime 준비 상태**
 
-Webhook 인박스·outbox의 안전한 집계와 마지막 수신 시각을 조회한다. 원문 payload·서명·오류 원문은 반환하지 않는다.
+Webhook 인박스·outbox의 안전한 집계와 마지막 수신 시각, sweep 실행 준비 상태를 조회한다. 원문 payload·서명·오류 원문은 반환하지 않는다.
 `NEVER_RECEIVED`는 아직 관찰이 없다는 뜻이며 그 사실만으로 장애를 판정하지 않는다. 읽기 전용 상태·복구 진입점만 제공한다.
 
 ```bash
@@ -2099,6 +2266,17 @@ _응답_
       "pendingOutboxCount": 0,
       "poisonedOutboxCount": 0,
       "statusPath": "/admin/emergency"
+    },
+    "sweep": {
+      "enabled": false,
+      "state": "READY",
+      "activeContractCount": 0,
+      "activePolicyCount": 0,
+      "executorLastRunAt": "2026-07-13T04:05:06.789Z",
+      "executorLastSucceededAt": "2026-07-13T04:05:06.789Z",
+      "disabledReasons": [
+        "string"
+      ]
     }
   },
   "meta": {
@@ -2457,6 +2635,28 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 | `priorityFee` | string \\| null | 필수 |  |
 
 
+### AdminVaultListResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminVault[] | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminVault
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `reconciliationStatus` | string | 필수 | `MANAGED` `UNMANAGED` `MISSING_IN_FIREBLOCKS` |
+| `accountId` | string \\| null | 필수 |  |
+| `accountType` | string \\| null | 필수 |  |
+| `ref` | string \\| null | 필수 |  |
+| `vendorVaultId` | string | 필수 |  |
+| `vendorVaultName` | string \\| null | 필수 |  |
+| `walletCount` | integer \\| null | 필수 |  |
+| `registeredAt` | string \\| null | 필수 |  |
+
+
 ### AdminContractListResponse
 
 | 필드 | 타입 | 필수 | 설명 |
@@ -2596,6 +2796,20 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 |---|---|---|---|
 | `observedAt` | string (ISO 8601) | 필수 |  |
 | `webhook` | AdminWebhookRuntime | 필수 |  |
+| `sweep` | AdminSweepRuntime | 필수 |  |
+
+
+### AdminSweepRuntime
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `enabled` | boolean | 필수 |  |
+| `state` | string | 필수 | `READY` `DISABLED` |
+| `activeContractCount` | integer | 필수 |  |
+| `activePolicyCount` | integer | 필수 |  |
+| `executorLastRunAt` | string (ISO 8601) \\| null | 필수 | bcm-bat sweep 실행기가 마지막 주기를 시작한 UTC 시각. 관찰 이력이 없으면 null이다. |
+| `executorLastSucceededAt` | string (ISO 8601) \\| null | 필수 | bcm-bat sweep 실행기가 마지막 주기를 성공 완료한 UTC 시각. 시작 시각보다 과거이거나 3분 넘게 오래되면 READY가 아니다. |
+| `disabledReasons` | string[] | 필수 |  |
 
 
 ### AdminWebhookRuntime
@@ -2833,6 +3047,13 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 | `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null |
 
 
+### BulkRegisterAssetMappingsRequest
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `items` | RegisterAssetMappingRequest[] | 필수 |  |
+
+
 ### Meta
 
 | 필드 | 타입 | 필수 | 설명 |
@@ -2854,6 +3075,19 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 |---|---|---|---|
 | `code` | string | 필수 | 에러 코드 (API Conventions 표 참조) |
 | `message` | string | 필수 | 사람이 읽는 설명 — 분기 판단은 `code` 로 한다 |
+| `details` | ErrorDetails | - |  |
+
+
+### ErrorDetails
+
+일괄 요청에서 실패한 항목. 단건·일반 오류에서는 생략한다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `index` | integer | 필수 | 요청 items의 0 기반 위치 |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `reason` | string | 필수 |  |
 
 
 ### ErrorResponse

@@ -2,7 +2,10 @@ package com.whatto.bcm.infra.persistence.sweep
 
 import com.whatto.bcm.domain.admin.AdminGovernanceQueryRepository
 import com.whatto.bcm.domain.admin.SweepPolicyHardCeiling
+import com.whatto.bcm.domain.sweep.SweepExecutionGatePort
+import com.whatto.bcm.domain.sweep.SweepRuntimeAttestationRepository
 import com.whatto.bcm.domain.sweep.SweepRuntimePolicyRepository
+import com.whatto.bcm.domain.sweep.attestationEntry
 import com.whatto.bcm.infra.persistence.admin.AdminGovernanceQueryJdbcAdapter
 import com.whatto.bcm.infra.persistence.admin.AdminPolicyJdbcAdapter
 import com.whatto.bcm.infra.persistence.admin.WebhookRecoveryJdbcAdapter
@@ -19,12 +22,17 @@ import java.time.Instant
 @DataJdbcTest
 @Import(
     SweepRuntimePolicyJdbcAdapter::class,
+    SweepExecutionGateJdbcAdapter::class,
     AdminGovernanceQueryJdbcAdapter::class,
     AdminPolicyJdbcAdapter::class,
     WebhookRecoveryJdbcAdapter::class,
 )
 class SweepRuntimePolicyPersistenceTest : PersistenceTestSupport() {
     @Autowired lateinit var policies: SweepRuntimePolicyRepository
+
+    @Autowired lateinit var attestations: SweepRuntimeAttestationRepository
+
+    @Autowired lateinit var executionGates: SweepExecutionGatePort
 
     @Autowired lateinit var governance: AdminGovernanceQueryRepository
 
@@ -59,6 +67,15 @@ class SweepRuntimePolicyPersistenceTest : PersistenceTestSupport() {
         assertThat(found?.contractVersionId).isEqualTo("sweep-runtime-contract-v1")
         assertThat(found?.contractEvidenceId).isEqualTo("sweep-runtime-evidence-valid")
         assertThat(found?.contractAddress).isEqualTo(SWEEP_CONTRACT)
+        assertThat(attestations.findAllActive(OBSERVED_AT))
+            .filteredOn { it.network == NETWORK && it.symbol == SYMBOL }
+            .containsExactly(found)
+        assertThat(governance.findSweepRuntimeAttestationEntries(OBSERVED_AT))
+            .filteredOn { it.scopeKey == "$NETWORK|$SYMBOL" }
+            .containsExactly(requireNotNull(found).attestationEntry())
+        assertThat(governance.findSweepRuntimeAttestationEntries(OBSERVED_AT))
+            .filteredOn { it.scopeKey == "gate:SWEEP|$NETWORK" }
+            .containsExactly(executionGates.findCurrent(NETWORK).attestationEntry())
     }
 
     @Test

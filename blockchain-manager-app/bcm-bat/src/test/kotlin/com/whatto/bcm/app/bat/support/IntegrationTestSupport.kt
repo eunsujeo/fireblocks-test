@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.bat.support
 
+import com.whatto.bcm.testsupport.database.PostgreSqlSchemaInitializer
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.jdbc.core.JdbcTemplate
 import org.testcontainers.postgresql.PostgreSQLContainer
@@ -112,7 +113,10 @@ abstract class IntegrationTestSupport {
         @ServiceConnection
         val postgres: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17-alpine")
-                .apply { start() }
+                .apply {
+                    start()
+                    PostgreSqlSchemaInitializer.initialize(jdbcUrl, username, password)
+                }
     }
 }
 

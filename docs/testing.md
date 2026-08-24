@@ -29,6 +29,8 @@
 
 - **domain 테스트가 최다**여야 한다. 통합 테스트는 세로줄당 소수의 굵은 시나리오만.
 - 컨테이너는 모듈당 싱글턴 재사용 — 테스트마다 새로 띄우지 않는다.
+- PostgreSQL 스키마는 `db/migration/manifest.txt`의 Git 관리 SQL을 Testcontainers 빈 DB에 순서대로 직접 실행한다.
+  Flyway 이력이나 애플리케이션 운영 DDL에 의존하지 않는다.
 
 ## 반드시 테스트로 고정하는 계약 (설계 문서 → 테스트)
 

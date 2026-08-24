@@ -611,8 +611,7 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
                 "--server.port=0",
                 "--management.server.port=0",
                 "--spring.autoconfigure.exclude=" +
-                    "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration," +
-                    "org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration",
+                    "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration",
                 "--bcm.test-support.vendor-mode=STUB",
                 "--bcm.test-support.chain-mode=LOCAL",
                 "--bcm.test-support.fireblocks-base-url=http://127.0.0.1:18080",

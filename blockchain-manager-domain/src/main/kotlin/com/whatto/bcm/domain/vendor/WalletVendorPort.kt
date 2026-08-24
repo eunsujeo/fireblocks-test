@@ -5,6 +5,9 @@ package com.whatto.bcm.domain.vendor
  * 구현은 infra/client (Fireblocks). 벤더 원어(에러·필드)는 이 포트 밖으로 새지 않는다.
  */
 interface WalletVendorPort {
+    /** workspace vault 목록 — Admin 대조 전용이며, cursor가 null이면 첫 페이지다. */
+    fun vaults(cursor: String?): VendorPage<VendorVault> = error("vault listing is not supported")
+
     /** vault 생성 — idempotencyKey 로 벤더 측 재요청 중복을 막는다 (벤더 유효기간 24h). */
     fun createVault(
         name: String,
@@ -27,6 +30,7 @@ interface WalletVendorPort {
 data class VendorVault(
     val vaultId: String,
     val name: String,
+    val walletCount: Int? = null,
 )
 
 data class VendorDepositAddress(

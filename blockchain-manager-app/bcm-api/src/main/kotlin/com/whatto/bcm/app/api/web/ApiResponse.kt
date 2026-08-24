@@ -39,5 +39,14 @@ data class ErrorResponse(
     data class ErrorBody(
         val code: String,
         val message: String,
+        @get:JsonInclude(JsonInclude.Include.NON_NULL)
+        val details: ErrorDetails? = null,
+    )
+
+    data class ErrorDetails(
+        val index: Int,
+        val network: String,
+        val symbol: String,
+        val reason: String,
     )
 }

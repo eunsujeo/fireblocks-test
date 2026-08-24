@@ -4,7 +4,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper
 import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.apache.coyote.AbstractProtocol
 import org.assertj.core.api.Assertions.assertThat
-import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
@@ -33,9 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 class BootstrapIntegrationTest : IntegrationTestSupport() {
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
-
-    @Autowired
-    lateinit var flyway: Flyway
 
     @Autowired
     lateinit var clock: Clock
@@ -87,18 +83,17 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `Flyway 가 컨테이너 DB 에 실행되어 schema history 테이블을 남겼다`() {
+    fun `테스트 DB 는 Git SQL로 초기화되고 Flyway 이력 테이블을 만들지 않는다`() {
         val count =
             jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM information_schema.tables WHERE table_name = 'flyway_schema_history'",
                 Int::class.java,
             )
-        assertThat(count).isEqualTo(1)
-        assertThat(flyway.configuration.locations).isNotEmpty()
+        assertThat(count).isZero()
     }
 
     @Test
-    fun `V1 코어와 V2부터 V12까지의 Admin 원장 41개를 전부 만든다`() {
+    fun `manifest의 V1부터 V13까지 실행해 BCM 테이블 41개를 전부 만든다`() {
         val tables =
             jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'bcm_%'",

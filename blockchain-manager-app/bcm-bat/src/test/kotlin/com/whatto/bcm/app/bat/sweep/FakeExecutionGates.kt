@@ -5,12 +5,22 @@ import com.whatto.bcm.domain.admin.ExecutionGateEvent
 import com.whatto.bcm.domain.admin.ExecutionGateRepository
 import com.whatto.bcm.domain.admin.ExecutionGateStatus
 import com.whatto.bcm.domain.admin.ExecutionGateType
+import com.whatto.bcm.domain.sweep.SweepExecutionGatePort
+import com.whatto.bcm.domain.sweep.SweepExecutionGateSnapshot
 import java.time.Instant
 
 class FakeExecutionGates(
     var stopped: Set<Pair<String, ExecutionGateType>> = emptySet(),
     var resumed: Set<Pair<String, ExecutionGateType>> = emptySet(),
-) : ExecutionGateRepository {
+) : ExecutionGateRepository,
+    SweepExecutionGatePort {
+    override fun findCurrent(network: String): SweepExecutionGateSnapshot =
+        SweepExecutionGateSnapshot(
+            network,
+            if (network to ExecutionGateType.SWEEP in stopped || network to ExecutionGateType.SWEEP in resumed) 1 else 0,
+            if (network to ExecutionGateType.SWEEP in stopped) "STOPPED" else "OPEN",
+        )
+
     override fun findCurrent(
         network: String,
         type: ExecutionGateType,

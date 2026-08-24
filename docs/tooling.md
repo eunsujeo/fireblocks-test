@@ -75,7 +75,7 @@ PLAN #41·2026-09-30 만료로 제한한다.
 | skill 후보 | 내용 | 시점 |
 |---|---|---|
 | `integration-test` | Testcontainers 배선 — 싱글턴 컨테이너 · `@ServiceConnection` · 모듈 단독 실행 | Phase 0~1 |
-| `db-migration` | Flyway 네이밍 · 코어 규약 컬럼(일시 VARCHAR(16) 등) · 감사 4컬럼 절차 | Phase 1 |
+| `db-migration` | Git SQL 순서·코어 규약 컬럼(일시 VARCHAR(16) 등) · 감사 4컬럼 절차 | Phase 1 |
 | `kafka-patterns` | 토픽·파티션 키 규약 · outbox→relay 테스트 레시피 | Phase 3 |
 
 스타일 규칙은 skill 이 아니라 CLAUDE.md + ktlint/detekt(강제)에 둔다.

@@ -120,6 +120,11 @@ data class RegisterAssetMappingRequest(
     val contractAddress: String?,
 )
 
+data class BulkRegisterAssetMappingsRequest(
+    @field:Size(min = 1, max = 20)
+    val items: List<@jakarta.validation.Valid RegisterAssetMappingRequest>,
+)
+
 data class AssetMappingData(
     val network: String,
     val symbol: String,

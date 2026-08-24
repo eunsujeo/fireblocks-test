@@ -133,6 +133,29 @@ class FireblocksClientTest {
     }
 
     @Test
+    fun `vaults — paged endpoint의 after와 vault 이름 및 wallet 수를 매핑한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("https://sandbox-api.fireblocks.test/v1/vault/accounts_paged?limit=200&after=cursor-1"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(headerDoesNotExist("Idempotency-Key"))
+            .andRespond(
+                withSuccess(
+                    """{"accounts":[{"id":"7","name":"acct-ref-1","assets":[{"id":"ETH"},{"id":"USDC"}]}],"paging":{"after":"cursor-2"}}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val page = client.vaults("cursor-1")
+
+        assertThat(page.data.single().vaultId).isEqualTo("7")
+        assertThat(page.data.single().name).isEqualTo("acct-ref-1")
+        assertThat(page.data.single().walletCount).isEqualTo(2)
+        assertThat(page.next).isEqualTo("cursor-2")
+        server.verify()
+    }
+
+    @Test
     fun `createDepositAddress — POST vault wallet 생성, address·tag 매핑 (tag 없으면 null)`() {
         val (client, server) = fixture()
         server

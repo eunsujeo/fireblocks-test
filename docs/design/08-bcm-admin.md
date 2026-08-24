@@ -46,6 +46,7 @@ Admin은 단순 설정 CRUD가 아니라 다음 운영 순서를 한곳에서 �
 | Fireblocks TAP 정책 직접 편집 | [정책 관리](../../정책관리/설계/00-scope.md)와 벤더 거버넌스 |
 | Co-signer 최종 서명·multisig 승인 | 각각의 독립 보안 경계 |
 | 고객 원장·회계·귀속 잔액 | DAW-CORE |
+| 운영 Network·Asset 등록 요청 | DAW-ADMIN — BCM Admin의 로컬 변경 기능은 개발 편의용 예외 |
 | 환율·NAV 정본 | 코어/상품·회계 데이터 공급자 |
 | stablecoin mint·burn | 별도 발행·소각 도메인 |
 
@@ -55,23 +56,28 @@ Admin은 단순 설정 CRUD가 아니라 다음 운영 순서를 한곳에서 �
 
 ```mermaid
 flowchart LR
-    U[운영자 브라우저] --> F[Blockchain Manager Admin Frontend]
-    F --> B[Blockchain Manager Admin BFF]
-    B -->|mTLS + 단기 JWT| M[Blockchain Manager Admin API<br/>private listener]
+    U[운영자 브라우저] --> A[DAW-ADMIN Frontend·BFF]
+    A -->|Network·Asset·정책·컨트랙트 운영 요청| M[Blockchain Manager Admin API<br/>private listener]
+    A -->|고객 원장·업무 데이터| C[DAW-CORE API]
     M --> D[(BCM DB)]
     M --> V[Fireblocks 조회]
     M --> R[온체인 읽기]
-    B -. 별도 호출 .-> P[정책 관리 API]
+    A -. 별도 호출 .-> P[정책 관리 API]
     P --> V
+    L[로컬 Blockchain Manager Admin] -. FUNCTION_TEST + loopback .-> M
 ```
 
 - 브라우저가 블록체인 매니저 API를 직접 호출하지 않는다.
-- Admin Frontend와 BFF는 DAW-CORE와 분리된 매니저 전용 애플리케이션으로 이 저장소에서 함께 운영한다.
+- 공유 환경의 운영 화면과 변경 workflow 소유자는 DAW-ADMIN이다. DAW-ADMIN은 BCM과 DAW-CORE를 각각 호출하며,
+  BCM은 요청값을 Fireblocks 최신 원본과 대조해 검증·저장한다. BCM Admin의 직접 변경 경로는 로컬 기능 테스트 편의를 위한 예외이고
+  공유 환경의 운영 소유권을 대신하지 않는다.
+- 이 저장소의 Blockchain Manager Admin Frontend·BFF는 DAW-ADMIN을 대체하는 운영 제품이 아니라 BCM 단독 로컬 개발·진단 콘솔이다.
+  DAW-CORE 없이 실행할 수 있고, 반대로 공유 환경에서는 이 애플리케이션을 배포하지 않아도 BCM API·Webhook·BAT가 동작해야 한다.
 - T10.2의 첫 용도는 읽기 전용 기능 테스트다. frontend·BFF와 대상 BCM은 기본적으로 loopback에 바인딩하고 BCM 운영 상태 변경 API를 BFF에 노출하지 않는다. 이후 추가한 로컬 Stub 시나리오 실행은 `FUNCTION_TEST+STUB+LOCAL+loopback`에서 고정 실행기만 여는 예외이다. 로컬 자산 매핑 관리를 명시적으로 활성화한 `FUNCTION_TEST+loopback`에서는 네트워크 후보 채택·자산 후보 조회·자산 등록만 추가로 열고, 네트워크·자산 논리 해제와 자산 교체는 열지 않는다. 두 예외 모두 공유 운영 변경 경계를 넓히지 않는다.
-- BFF가 Admin 세션·역할을 확인하고 운영자 식별자를 전달한다.
+- 공유 환경에서는 DAW-ADMIN BFF가 Admin 세션·역할을 확인하고 운영자 식별자를 전달한다.
 - `X-Employee-No`·`X-Branch-Code`는 감사 정보이며 그 자체가 인증 수단은 아니다.
-- 블록체인 매니저 Admin API는 `bcm-api`와 같은 애플리케이션으로 배포하되 일반 업무 API와 분리한 private listener/ingress에 두고 Admin BFF만 접근시킨다.
-- 공유 환경의 BFF→BCM은 mTLS 서비스 신원과 5분 이하의 단기 서명 JWT를 함께 검증한다. JWT는 `aud=bcm-admin-api`, 직원번호, 부점코드, 역할, 세션·요청 ID를 담는다.
+- 블록체인 매니저 Admin API는 `bcm-api`와 같은 애플리케이션으로 배포하되 일반 업무 API와 분리한 private listener/ingress에 두고 DAW-ADMIN BFF만 접근시킨다.
+- 공유 환경의 DAW-ADMIN BFF→BCM은 mTLS 서비스 신원과 5분 이하의 단기 서명 JWT를 함께 검증한다. JWT는 `aud=bcm-admin-api`, 직원번호, 부점코드, 역할, 세션·요청 ID를 담는다.
 - Fireblocks 자격·RPC 자격·multisig 자격은 브라우저에 전달하지 않는다.
 - 사내 인증 제공자의 실제 그룹은 BFF에서 아래 BCM 역할 claim으로 매핑한다. 기능 테스트 profile은 조회 역할만 사용하고 loopback 밖에서 시작하지 않는다. 구체 인증 제품은 이 설계의 경계를 바꾸지 않는다.
 
@@ -112,11 +118,11 @@ flowchart LR
 |---|---|---|
 | 대시보드 | 지금 처리해야 할 항목을 찾는다 | 주의 필요, 승인 대기, 중지·drift 현황 |
 | 통합 검색 | 식별자 하나로 관련 운영 사실을 잇는다 | 거래·sweep·컨트랙트·변경 요청 검색 |
-| 네트워크·자산 | 지원 체인과 벤더 자산 매핑을 관리한다 | 네트워크, 자산 후보, 매핑 |
+| 자산 | 벤더 자산 후보를 찾아 지원 체인의 현재 매핑을 관리한다 | 자산 후보, 선택 목록, 현재 매핑 |
+| Vault | BCM 관리 vault와 Fireblocks workspace vault를 대조한다 | 관리 여부, 유형·ref, 벤더 이름, wallet 수 |
 | 거래 조사 | 제출부터 대사까지 한 거래의 원인을 추적한다 | 거래 목록, 거래 상세 타임라인 |
 | Sweep·Allowance | 배치 실행과 vault 권한을 조사한다 | 실행, 항목, allowance, 회수 |
-| 컨트랙트 | BCM이 호출하는 컨트랙트의 검증·활성 상태를 관리한다 | 레지스트리, 버전 비교, drift |
-| 정책 | 실행 값을 버전·승인 단위로 관리한다 | 정책 목록, diff, 변경 요청 |
+| Sweep 안전장치 | BCM이 호출하는 컨트랙트와 실행 정책을 함께 조사한다 | 컨트랙트 레지스트리, 실행 정책, drift |
 | 밴드S | 핫·콜드 균형 제안을 검토하고 실행을 추적한다 | 현황, simulation, 이동안, 실행 |
 | 승인함 | 내가 요청했거나 승인할 변경을 모은다 | 승인 대기, 승인·거절, 적용 결과 |
 | 비상 운영 | 사고 대응 순서와 진행률을 한곳에 모은다 | 중지, 웹훅 복구, allowance 회수 |
@@ -339,17 +345,34 @@ Webhook 서명·raw payload와 원문 로그는 응답에 포함하지 않는다
 - 네트워크 화면은 연결 상태와 문제를 진단하는 관리 화면이다. 로컬 Fireblocks TESTNET의 Ethereum Sepolia·Base Sepolia는
   시작 스크립트의 고정 지원 목록으로 자동 연결하며 자산 등록 전에 운영자가 BCM 내부 코드를 입력하거나 별도 채택 화면을 거치게 하지 않는다.
   그 밖의 미지원 네트워크는 자산 후보 탐색에는 포함하되 `미지원`으로 표시하고 선택·등록을 막는다. 수동 채택이 필요한 후속 운영 환경은 별도 권한·지원 목록 계약을 먼저 정한다.
+- 일상 작업의 기본 화면과 메뉴는 BCM 지원 네트워크만 보여 준다. Fireblocks 전체 카탈로그, 미지원·폐기 네트워크와 자산 카탈로그
+  동기화 진단은 `Advanced` 상세로 접어 둔다. `READY 2` 같은 집계는 "지원 네트워크 자산 카탈로그 2/2 최신"처럼 대상을 풀어 쓰고,
+  `NEVER_SYNCED` 원천 목록은 오류가 있거나 운영자가 상세를 열었을 때만 표시한다. 자산 등록을 위해 Networks 화면을 먼저 방문하게 하지 않는다.
 - 자산 후보는 모든 Fireblocks 네트워크에서 별도 동기화한 읽기 전용 카탈로그 캐시에서 찾고, 벤더 심볼·표시명과 온체인 컨트랙트 주소를 운영자가 나란히 대조한다. 캐시는 탐색용이며 등록 때 BCM이 지원 네트워크 여부와 Fireblocks 주소를 다시 해소한다.
-- 등록 단계는 자산 검색 → 네트워크별 후보 비교 → 후보 선택 → 주소·Fireblocks assetId 확인 → 영향 확인 → 등록 순서다.
+- 등록 단계는 자산 검색 → 네트워크별 후보 비교 → 하나 이상 후보 선택 → 선택 목록의 주소·Fireblocks assetId 확인 → 영향 확인 → 일괄 등록 순서다.
 - 로컬 등록 UI는 자산 목록 위에 모달로 연다. 통합 검색에 심볼이나 사람이 읽는 이름을 입력하면 지원 네트워크별 후보를
   심볼·표시명·네트워크·지원 여부·testnet·소수 자릿수·컨트랙트 주소·Fireblocks assetId로 보여 준다. exact symbol을 먼저, prefix와
-  표시명 단어 결과를 다음에 배치한다. 각 결과와 화면 상단에 카탈로그 마지막 동기화 시각·미동기화 상태를 표시한다. 후보 하나를
-  선택하고 BCM 심볼을 확인해야 등록 버튼이 활성화된다. 미지원 후보는 비교할 수 있지만 선택할 수 없고 서버가 반환한 등록 불가 이유를 표시한다. Fireblocks assetId는 전체값·복사를 제공하지만 일반 업무 API에는 노출하지 않는다.
-  등록 요청의 assetId·주소·네트워크는 BCM이 Fireblocks에서 다시 조회해 모두 일치할 때만 저장한다.
+  표시명 단어 결과를 다음에 배치한다. 각 결과와 화면 상단에 카탈로그 마지막 동기화 시각·미동기화 상태를 표시한다. 후보를 하나 이상
+  선택하고 각 BCM 심볼을 확인해야 등록 버튼이 활성화된다. 미지원 후보는 비교할 수 있지만 선택할 수 없고 서버가 반환한 등록 불가 이유를 표시한다. Fireblocks assetId는 전체값·복사를 제공하지만 일반 업무 API에는 노출하지 않는다.
+  같은 검색과 이어지는 검색에서 등록 가능한 후보를 최대 20개까지 선택하며, 선택한 행은 결과 아래에 반복하지 않고 별도 검토 목록에
+  compact하게 유지한다. 등록 요청의 assetId·주소·네트워크는 BCM이 Fireblocks에서 다시 조회해 모두 일치할 때만 저장한다.
+  서버는 선택 항목 전체를 먼저 검증하고 한 트랜잭션으로 저장한다. 하나라도 실패하면 부분 등록하지 않고 실패 항목과 이유를 보여 준다.
 - 모달은 포커스를 내부에 두고 `Esc`·닫기·취소를 모두 지원한다. 검색 중·결과 없음·상류 실패·선택·등록 중·중복 등록·완료를 같은 자리에서 구분하고, 완료 뒤 목록을 다시 읽는다. 등록 실패는 BFF가 반환한 구조화 코드·요약·requestId를 보여 주고 성공으로 추측하지 않는다.
 - 로컬 자산 관리 BFF는 명시적 활성화, `FUNCTION_TEST`, loopback target·binding을 서버에서 검증한다. 후보 조회는 전용 비단순 헤더를, 네트워크 채택·자산 등록은 이 헤더와 동일 Origin·JSON body를 모두 확인한다. 브라우저는 BCM·Fireblocks를 직접 호출하거나 감사 헤더를 조립하지 않는다. 공유 환경에서는 mTLS·단기 JWT 경계가 완성될 때까지 route와 버튼을 닫는다.
 - 주소가 발급된 매핑은 해제할 수 없다. 매핑 해제는 주소 발급 요청을 차단하고 진행 중인 요청이 없는 유지보수 시간에만 수행하며, 변경 전후 snapshot을 남긴다.
 - 네트워크 출금 중지는 출금 제출만 막고 입금 감지·주소·잔액 조회는 유지하며 sweep은 미룬다. 이미 제출한 거래에는 적용하지 않는다.
+
+### Vault 대조
+
+- Vault 화면은 읽기 전용이다. 계정·vault 생성은 DAW-CORE의 일반 업무 API가 계속 소유하며 Admin이 새 생성 경로를 만들지 않는다.
+- Fireblocks `GET /v1/vault/accounts_paged`를 끝까지 페이징해 workspace의 vault를 읽고, BCM `bcm_acnt_m`의 현재 매핑과
+  `vendorVaultId`로 대조한다. 응답과 화면은 `MANAGED`(BCM 매핑 있음), `UNMANAGED`(Fireblocks에만 있음),
+  `MISSING_IN_FIREBLOCKS`(BCM에는 있으나 workspace 조회에 없음)를 구분한다.
+- 기본 목록은 BCM 관리 vault를 먼저 보여 주며 account type·ref·BCM accountId·Fireblocks vault id/name·wallet 수·대조 상태를 제공한다.
+  식별자는 전체값 확인과 복사를 지원하고, 검색은 accountId·ref·vault id·name을 받는다. Fireblocks 자산별 잔액·주소는 목록 전체에서
+  선조회하지 않고 vault 상세를 열 때만 조회한다.
+- Fireblocks 페이지 cursor 반복, 상류 실패 또는 로컬 매핑 불일치는 정상 빈 목록으로 숨기지 않는다. 성공적으로 읽은 범위와 실패 원인,
+  requestId, 재시도 행동을 표시하며 raw vendor 응답과 credential은 노출하지 않는다.
 
 ### 거래 조사
 
@@ -372,7 +395,11 @@ Webhook 서명·raw payload와 원문 로그는 응답에 포함하지 않는다
 
 ### Sweep 컨트랙트
 
-Admin은 BCM이 호출할 컨트랙트의 레지스트리와 활성 binding을 관리한다. 배포와 multisig 서명은 하지 않는다.
+Admin은 BCM이 호출할 컨트랙트의 레지스트리와 활성 binding을 관리한다. 배포와 관리자 서명은 하지 않는다.
+
+자산의 ERC-20 컨트랙트 주소와 혼동하지 않도록 화면과 메뉴에서는 `Sweep 안전장치 > Contracts`로 배치하고, "BCM이 실행 시 호출하는
+Sweep 컨트랙트"라고 설명한다. Sweep이 비활성이면 이유와 필요한 선행조건을 먼저 보여 주고, 활성 binding·evidence가 없는 후보 버전은
+기본 목록 아래의 history로 둔다.
 
 - 소스·ABI·재현 빌드는 별도 `blockchain-manager-contracts` 저장소의 서명된 immutable release가 정본이다.
 - release에는 source commit, compiler·optimizer 설정, ABI/artifact SHA-256, 예상 runtime bytecode hash, 배포 manifest를 포함한다.
@@ -384,7 +411,7 @@ Admin은 BCM이 호출할 컨트랙트의 레지스트리와 활성 binding을 �
 |---|---|
 | 식별 | 용도, 네트워크, 버전, 주소 |
 | 배포 | 배포 tx·블록, artifact/ABI hash |
-| 온체인 | runtime bytecode hash, pause, 운영자, 관리자 multisig |
+| 온체인 | runtime bytecode hash, pause, 운영자, Security Admin 주소 |
 | 불변값 | 옴니버스 목적지, 허용 selector와 ABI |
 | 상한 | token allowlist, 최대 M, 건별·배치 총액 |
 | 증적 | 독립 감사, TAP·Callback·Gasless·회수 훈련 결과와 검증 시각 |
@@ -397,6 +424,11 @@ Admin은 BCM이 호출할 컨트랙트의 레지스트리와 활성 binding을 �
 - `verified` 한 값이 아니라 무엇을 누가 언제 어떤 hash로 확인했는지 증적을 보관한다.
 - 활성화 전에 온체인 code hash와 불변값, TAP·Callback 기대 설정, 출시 게이트를 다시 대조한다.
 - 온체인 조회 실패나 drift는 성공으로 간주하지 않는다.
+
+컨트랙트의 관리자 역할은 **Fireblocks Security Admin Vault**의 온체인 주소에 둔다. 별도 온체인 multisig 컨트랙트를 1차 필수조건으로
+두지 않는다. Security Admin Vault는 BCM 거래 제출 vault와 분리하고 BCM 애플리케이션에는 그 자격증명을 주지 않는다. `pause`·`unpause`·
+operator 교체 같은 관리자 호출은 DAW-ADMIN의 변경 요청과 독립 승인 정족수, 전용 TAP rule을 통과해 Security Admin Vault에서 서명한다.
+BCM Admin은 요청·승인·Fireblocks transaction id·tx hash·온체인 최종 상태를 대조할 뿐 서명을 대신하지 않는다.
 
 ### 실행 정책
 
@@ -411,6 +443,11 @@ Admin은 BCM이 호출할 컨트랙트의 레지스트리와 활성 binding을 �
 | 비상 상태 | 네트워크·sweep·approve 중지 | 중지는 신속, 재개는 강화된 승인 |
 
 - 정책 화면은 현재 활성값, 변경안, 영향 대상, 적용 시각, 요청자·승인자, 외부 drift를 보여 준다.
+- 화면과 메뉴에서는 `Sweep 안전장치 > Policies`로 배치한다. 현재 활성 정책을 먼저 보여 주고 `enabled`, `minimumAmount`,
+  `batchSize`, `allowanceCap`, `itemAmountCap`, `batchAmountCap`, `boostAttempts`를 hash만이 아니라 사람이 읽을 수 있는 값으로 표시한다.
+  배포 hard ceiling 통과 여부, 차단 사유, 영향 네트워크·자산을 함께 보여 주며 이전 버전은 history/diff로 접는다.
+- 일반 로컬 기동처럼 `bcm.sweep.enabled=false`이거나 hard ceiling·TAP·Callback·컨트랙트·지원 네트워크 게이트가 닫혀 있으면
+  `Sweep disabled`를 명시하고 "구현 없음"이나 "실행 중"으로 오해하게 하지 않는다. 이 조회가 게이트를 열거나 자동 실행을 시작하지 않는다.
 - 실행은 적용한 정책 버전 또는 snapshot hash를 원장에 남겨 과거 판단을 재현한다.
 - 정책 변경은 이미 선기록된 실행의 의미를 바꾸지 않는다.
 - 프론트가 허용 범위나 금액을 계산하지 않는다. 서버가 검증한 diff와 action만 표시한다.
@@ -596,7 +633,7 @@ CSRF·권한·명령 allowlist·감사 계약을 먼저 설계한다.
 
 | 문서 | 후속 반영 |
 |---|---|
-| [개요](01-infra.md) | 독립 Blockchain Manager Admin Frontend·BFF, 기능 테스트와 공유 환경 경계 |
+| [개요](01-infra.md) | DAW-ADMIN 운영면, 로컬 Blockchain Manager Admin 콘솔과 공유 환경 경계 |
 | [흐름](02-bcm-flow.md) | 네트워크 중지, 정책 활성화, 밴드S 실행·복구의 도메인 흐름 |
 | [DB](03-bcm-db.md) | 컨트랙트·정책·승인·감사 원장과 실행 snapshot의 물리 설계 게이트 |
 | [sweep](06-sweep.md) | 컨트랙트 교체, allowance 회수, DAW-CORE 계산·외부 cold 경계 |
@@ -604,7 +641,7 @@ CSRF·권한·명령 allowlist·감사 계약을 먼저 설계한다.
 
 ## 확정 이력 (2026-08-17)
 
-- 2026-08-17 후속 사용자 결정으로 Admin Frontend·BFF는 DAW-CORE와 분리해 이 저장소의 독립 애플리케이션으로 둔다. 당시 첫 출시 범위는 loopback 읽기 전용 기능 테스트 profile로 확정했으며, 이후 `FUNCTION_TEST+STUB+LOCAL+loopback`에 한해 고정 실행기를 여는 예외를 추가했다. 공유 환경의 BCM Admin API는 private listener/ingress에서 mTLS와 단기 JWT를 함께 검증한다.
+- 2026-08-17 후속 결정으로 이 저장소의 Blockchain Manager Admin Frontend·BFF는 DAW-CORE와 분리된 로컬 개발·진단 콘솔로 둔다. 공유 환경의 운영 화면과 변경 workflow는 BCM과 DAW-CORE를 함께 바라보는 DAW-ADMIN이 소유한다. 로컬 콘솔의 첫 범위는 loopback 읽기 전용 기능 테스트 profile이며, 이후 `FUNCTION_TEST+STUB+LOCAL+loopback`에 한해 고정 실행기를 여는 예외를 추가했다. 공유 환경의 BCM Admin API는 private listener/ingress에서 DAW-ADMIN BFF의 mTLS와 단기 JWT를 함께 검증한다.
 - 역할 claim 5개와 위험 등급별 정족수를 위 표대로 확정했다. 중지는 운영자 1명이 즉시 수행할 수 있고, 재개·보안 변경은 요청자 외 2명과 보안 승인자 1명이 필요하다.
 - 컨트랙트 release·문서 hash·2-RPC 온체인 대조를 증적 정본으로 확정했다.
 - 밴드S는 DAW-CORE가 계산하고 BCM이 실행한다. 옴니버스→TAP 고정 외부 cold를 첫 경로로 사용하며 예약분은 hot에서 한 번만 공제한다.

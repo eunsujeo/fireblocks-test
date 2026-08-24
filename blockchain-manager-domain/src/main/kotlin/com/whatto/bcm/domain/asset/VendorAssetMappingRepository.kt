@@ -26,6 +26,12 @@ interface VendorAssetMappingRepository {
         requestId: String,
     ): VendorAssetMapping = insert(mapping)
 
+    /** 모든 매핑을 한 트랜잭션으로 저장한다. 영속성 구현은 부분 성공을 허용하면 안 된다. */
+    fun saveAll(
+        mappings: List<VendorAssetMapping>,
+        requestId: String,
+    ): List<VendorAssetMapping> = mappings.map { save(it, requestId) }
+
     fun insert(mapping: VendorAssetMapping): VendorAssetMapping
 
     fun deactivate(

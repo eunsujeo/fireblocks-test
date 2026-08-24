@@ -188,7 +188,7 @@ event SweepDone(
 | 긴급 회수 | 승인된 비상 모드에서 vault 별 `approve(sweeper, 0)` 제출·진행 추적 | Admin 이 Fireblocks에서 직접 실행하는 독립 경로도 유지 |
 | TAP | 활성 정책을 전제로 거래를 제출할 뿐 편집하지 않음 | 정책 관리 서비스의 별도 API user + Admin Quorum·Owner 승인 |
 | 서명 | 서명을 요청할 뿐 스스로 승인하지 않음 | 별도 API Co-signer + Callback Handler |
-| 컨트랙트 관리 | 현재 배포 주소·코드 해시를 검증하고 호출 | 보안 관리자 multisig가 pause·운영자 교체. 비업그레이드형이 기본 |
+| 컨트랙트 관리 | 현재 배포 주소·코드 해시를 검증하고 호출 | Fireblocks Security Admin Vault가 pause·운영자 교체. 비업그레이드형이 기본 |
 
 거래 제출 자격과 정책 편집·최종 서명·컨트랙트 관리자 자격을 한 서비스에 모으지 않는다. 블록체인 매니저가 침해돼도 목적지와 함수, 자산·금액 상한을 자기 힘으로 바꾸지 못하게 하는 경계다.
 
@@ -199,7 +199,7 @@ event SweepDone(
 - 고객 vault의 approve는 등록된 네트워크·토큰 컨트랙트, 현재 sweep 컨트랙트, vault·자산별 allowance cap, sweep 전용 initiator에만 허용한다. 그 밖의 고객 vault `APPROVE`·`CONTRACT_CALL`은 차단한다.
 - 긴급 `approve(sweeper, 0)`는 정상 batch 정책을 차단한 뒤에도 실행할 수 있는 별도 revoke rule과 전용 initiator를 둔다. 이 경로는 금액 상향이나 다른 spender 승인을 허용하지 않는다.
 - 운영 계정은 화이트리스트된 sweep 컨트랙트의 `batchSweep`만 호출한다. 다른 전송·컨트랙트 호출은 차단한다.
-- 거래 initiator, API Co-signer, 정책 편집 API user, 보안 관리자 multisig를 서로 분리한다.
+- 거래 initiator, API Co-signer, 정책 편집 API user, Fireblocks Security Admin Vault를 서로 분리한다.
 - 정책·화이트리스트·allowance cap 상향·운영자 변경은 자동화하지 않고 Admin Quorum과 보안 관리자 승인을 거친다.
 
 **Co-signer Callback은 실제 calldata를 fail-closed로 검증**한다.
@@ -216,7 +216,9 @@ Fireblocks의 `APPROVE`·`applyForApprove`·Approve Amount Cap이 `CONTRACT_CALL
 - 옴니버스 목적지는 배포 시 불변 고정하고 함수 인자로 받지 않는다.
 - 등록된 운영자만 호출하고, 토큰 allowlist·배치 최대 M·건별/총액 상한·`executionId` 재사용 방지를 둔다.
 - 임의 외부 호출·`delegatecall`·임의 주소로의 rescue를 두지 않는다.
-- `pause`와 운영자 교체 권한만 보안 관리자 multisig에 둔다. 가능하면 비업그레이드형으로 배포한다.
+- `pause`와 운영자 교체 권한만 Fireblocks Security Admin Vault의 온체인 주소에 둔다. 별도 온체인 multisig 컨트랙트는 1차 필수조건으로
+  두지 않으며, Fireblocks 전용 TAP rule과 DAW-ADMIN 독립 승인 정족수로 관리자 거래를 통제한다. BCM에는 Security Admin Vault 자격증명을
+  주지 않고, 가능하면 컨트랙트는 비업그레이드형으로 배포한다.
 - 토큰 호출은 반환값과 실제 잔액 변화를 확인하고 항목별 결과 이벤트를 남긴다.
 
 ### allowance 운영

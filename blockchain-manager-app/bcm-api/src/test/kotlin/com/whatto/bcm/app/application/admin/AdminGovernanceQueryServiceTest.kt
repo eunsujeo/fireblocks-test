@@ -1,10 +1,13 @@
 package com.whatto.bcm.app.application.admin
 
 import com.whatto.bcm.domain.admin.AdminActor
+import com.whatto.bcm.domain.admin.AdminContractSummary
 import com.whatto.bcm.domain.admin.AdminExecutionGateScope
 import com.whatto.bcm.domain.admin.AdminExternalControlEvidenceSummary
 import com.whatto.bcm.domain.admin.AdminGovernanceQueryRepository
+import com.whatto.bcm.domain.admin.AdminPolicySummary
 import com.whatto.bcm.domain.admin.AdminRole
+import com.whatto.bcm.domain.admin.AdminWebhookRuntimeObservation
 import com.whatto.bcm.domain.admin.EmergencyExternalControlStatus
 import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.admin.WebhookRecoveryCallType
@@ -14,6 +17,13 @@ import com.whatto.bcm.domain.admin.WebhookRecoveryRequest
 import com.whatto.bcm.domain.admin.WebhookRecoveryScope
 import com.whatto.bcm.domain.admin.WebhookRecoveryState
 import com.whatto.bcm.domain.admin.WebhookRecoveryView
+import com.whatto.bcm.domain.job.JobState
+import com.whatto.bcm.domain.job.JobStateRepository
+import com.whatto.bcm.domain.job.OperationalJobNames
+import com.whatto.bcm.domain.job.RuntimeAttestation
+import com.whatto.bcm.domain.job.RuntimeAttestationEntry
+import com.whatto.bcm.domain.sweep.ActiveSweepRuntimeContext
+import com.whatto.bcm.domain.sweep.attestationEntry
 import io.mockk.every
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
@@ -25,7 +35,8 @@ import java.time.ZoneOffset
 
 class AdminGovernanceQueryServiceTest {
     private val governance = mockk<AdminGovernanceQueryRepository>()
-    private val service = AdminGovernanceQueryService(governance, Clock.fixed(NOW, ZoneOffset.UTC))
+    private val jobs = mockk<JobStateRepository>()
+    private val service = AdminGovernanceQueryService(governance, Clock.fixed(NOW, ZoneOffset.UTC), jobs)
 
     @Test
     fun `조회 시각에 만료된 확인 증적은 stale로 내려 완료 처리하지 않는다`() {
@@ -116,13 +127,133 @@ class AdminGovernanceQueryServiceTest {
                 sweepContractVerified = true,
                 batchSubmissionEnabledNetworks = setOf("BASE"),
             )
-        val service = AdminGovernanceQueryService(governance, Clock.fixed(NOW, ZoneOffset.UTC), releaseEnabled)
+        val service = AdminGovernanceQueryService(governance, Clock.fixed(NOW, ZoneOffset.UTC), jobs, releaseEnabled)
 
         val gate = service.executionGates().gates.single()
 
         assertThat(gate.state.name).isEqualTo("OPEN")
         assertThat(gate.newExecutionAllowed).isFalse()
         assertThat(gate.disabledReasons).contains("RELEASE_GATE_NOT_READY")
+    }
+
+    @Test
+    fun `sweep 준비 상태는 BAT heartbeat와 같은 contract에 묶인 ceiling 통과 policy를 모두 확인한다`() {
+        val releaseEnabled =
+            AdminSweepReleaseProperties(
+                batchSubmissionEnabled = true,
+                tapBatchPolicyVerified = true,
+                callbackVerified = true,
+                universalGaslessVerified = true,
+                sweepContractVerified = true,
+                batchSubmissionEnabledNetworks = setOf("BASE"),
+            )
+        val ceilingEnabled =
+            AdminPolicyHardCeilingProperties(
+                executionEnabled = true,
+                maximumBatchSize = 10,
+                maximumAllowance = java.math.BigDecimal.TEN,
+                maximumItemAmount = java.math.BigDecimal.TEN,
+                maximumBatchAmount = java.math.BigDecimal.TEN,
+                maximumBoostAttempts = 1,
+            )
+        every { governance.findContracts(NOW) } returns
+            listOf(
+                AdminContractSummary(
+                    versionId = "contract-v1",
+                    scopeId = "BASE:SWEEP",
+                    network = "BASE",
+                    use = "SWEEP",
+                    version = "v1",
+                    address = "0xabc",
+                    state = "ACTIVE",
+                    runtimeCodeHash = "a".repeat(64),
+                    evidenceStatus = "VALID",
+                    evidenceValidUntil = NOW.plusSeconds(300),
+                    active = true,
+                ),
+            )
+        every { governance.findPolicies(NOW) } returns
+            listOf(
+                AdminPolicySummary(
+                    versionId = "policy-v1",
+                    scopeId = "POLICY:BASE:USDC",
+                    contractVersionId = "contract-v1",
+                    versionNumber = 1,
+                    schemaVersion = "v1",
+                    state = "ACTIVE",
+                    policyHash = "b".repeat(64),
+                    ceilingPassed = true,
+                    active = true,
+                    registeredAt = NOW.minusSeconds(300),
+                ),
+            )
+        every { governance.findExecutionGateScopes(NOW, any(), any()) } returns
+            listOf(
+                AdminExecutionGateScope("BASE", ExecutionGateType.SWEEP, null, releaseContextReady = true),
+            )
+        every { governance.findWebhookRuntimeObservation() } returns
+            AdminWebhookRuntimeObservation(null, 0, 0, 0, 0)
+        every { jobs.find(OperationalJobNames.SWEEP_BATCH_EXECUTION) } returns
+            JobState(OperationalJobNames.SWEEP_BATCH_EXECUTION, "20260818005930", "20260818005930")
+        val context =
+            ActiveSweepRuntimeContext(
+                network = "BASE",
+                symbol = "USDC",
+                policyVersionId = "policy-v1",
+                policySnapshotHash = "c".repeat(64),
+                policy =
+                    com.whatto.bcm.domain.admin.SweepExecutionPolicy(
+                        enabled = true,
+                        minimumAmount = java.math.BigDecimal.ONE,
+                        batchSize = 10,
+                        allowanceCap = java.math.BigDecimal.TEN,
+                        itemAmountCap = java.math.BigDecimal.TEN,
+                        batchAmountCap = java.math.BigDecimal.TEN,
+                        boostAttempts = 1,
+                    ),
+                contractVersionId = "contract-v1",
+                contractEvidenceId = "evidence-v1",
+                contractAddress = "0xabc",
+            )
+        val entries =
+            listOf(
+                context.attestationEntry(),
+                RuntimeAttestationEntry.gate("SWEEP|BASE", 0, "OPEN"),
+            )
+        every { governance.findSweepRuntimeAttestationEntries(NOW) } returns entries
+        val attestationJobName = RuntimeAttestation.jobName("sweep-attestation:", entries)
+        every { jobs.find(attestationJobName) } returns
+            JobState(attestationJobName, "20260818005930", "20260818005930")
+        val service =
+            AdminGovernanceQueryService(
+                governance,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                jobs,
+                releaseEnabled,
+                ceilingEnabled,
+            )
+
+        val readiness = service.runtimeReadiness().sweep
+
+        assertThat(readiness.enabled).isTrue()
+        assertThat(readiness.state).isEqualTo("READY")
+        assertThat(readiness.disabledReasons).isEmpty()
+        assertThat(readiness.executorLastSucceededAt).isEqualTo(NOW.minusSeconds(30))
+
+        val changedGateEntries =
+            listOf(
+                context.attestationEntry(),
+                RuntimeAttestationEntry.gate("SWEEP|BASE", 1, "STOPPED"),
+            )
+        every { governance.findSweepRuntimeAttestationEntries(NOW) } returns changedGateEntries
+        every {
+            jobs.find(RuntimeAttestation.jobName("sweep-attestation:", changedGateEntries))
+        } returns null
+
+        val stoppedReadiness = service.runtimeReadiness().sweep
+
+        assertThat(stoppedReadiness.enabled).isFalse()
+        assertThat(stoppedReadiness.disabledReasons).contains("SWEEP_RUNTIME_NOT_ATTESTED")
     }
 
     private fun confirmedEvidence(validUntil: Instant) =

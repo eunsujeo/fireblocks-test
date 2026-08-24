@@ -19,7 +19,7 @@ blockchain-manager 코드와 설계 문서 사본(`docs/design/`)의 정합을 �
    (`../waas-wiki/blockchain-manager/docs/BC/설계/` 동일 파일명 + `BC/Fireblocks QnA/01-qna.md` = 90-fireblocks-qna.md)을
    diff 한다. 다르면 그 사실을 최우선으로 보고한다 — 뒤 항목의 대조 기준이 낡은 것일 수 있다.
    waas-wiki 가 없으면 "사본 기준 점검"임을 보고에 명시한다.
-1. **스키마** — Flyway 마이그레이션 vs 03-bcm-db.md: 테이블·컬럼명·타입·코어 규약(VARCHAR(16) 일시 등) 일치 여부.
+1. **스키마** — Git 관리 DB SQL과 manifest vs 03-bcm-db.md: 테이블·컬럼명·타입·코어 규약(VARCHAR(16) 일시 등) 일치 여부.
 2. **이벤트 계약** — 코드의 전이 판정 vs 02-bcm-flow.md 허용 전이 표: 행 단위 대조. evt_typ_dvcd/evnt_stcd 값 집합 일치.
 3. **웹훅 동작** — 수신 코드가 97 실측(원문 바이트 검증, 즉시 200, noti_id dedup)과 맞는가.
 4. **토픽·파티션 키** — 01-infra.md 4토픽 표와 producer 설정 대조.

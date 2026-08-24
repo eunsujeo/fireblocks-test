@@ -1149,6 +1149,52 @@ window.OPENAPI = {
         }
       }
     },
+    "/admin/asset-mappings/bulk": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "자산 매핑 일괄 등록",
+        "description": "검색 결과에서 선택한 자산을 최대 20개까지 한 번에 등록한다. 서버는 기존 매핑, 요청 내 중복,\nFireblocks 최신 Asset ID·네트워크·컨트랙트 주소를 모두 먼저 검증한 뒤 현재 매핑과 변경 snapshot을\n한 트랜잭션으로 저장한다. 한 항목이라도 실패하면 아무 항목도 저장하지 않는다. 항목 실패 응답의\n`error.details`는 요청 배열의 `index`, `network`, `symbol`, 수정 판단용 `reason`을 포함한다.\n",
+        "operationId": "registerAssetMappings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmployeeNo"
+          },
+          {
+            "$ref": "#/components/parameters/BranchCode"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkRegisterAssetMappingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "모두 등록됨",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetMappingListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
     "/admin/transaction-investigations/{identifier}": {
       "get": {
         "tags": [
@@ -1182,6 +1228,40 @@ window.OPENAPI = {
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/admin/vaults": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Fireblocks vault와 BCM 계정 대조",
+        "description": "Fireblocks workspace의 vault를 끝까지 페이징하고 BCM 계정 레지스트리와 vendor vault id로 대조한다.\n계정·vault를 생성하지 않는 읽기 전용 진단 API이며, 자산별 잔액과 주소는 목록에서 선조회하지 않는다.\n",
+        "operationId": "adminVaults",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "accountId, ref, Fireblocks vault id 또는 이름 검색"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "vault 대조 목록",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminVaultListResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1280,7 +1360,7 @@ window.OPENAPI = {
           "Admin"
         ],
         "summary": "Admin 로컬 첫 실행·Webhook runtime 준비 상태",
-        "description": "Webhook 인박스·outbox의 안전한 집계와 마지막 수신 시각을 조회한다. 원문 payload·서명·오류 원문은 반환하지 않는다.\n`NEVER_RECEIVED`는 아직 관찰이 없다는 뜻이며 그 사실만으로 장애를 판정하지 않는다. 읽기 전용 상태·복구 진입점만 제공한다.\n",
+        "description": "Webhook 인박스·outbox의 안전한 집계와 마지막 수신 시각, sweep 실행 준비 상태를 조회한다. 원문 payload·서명·오류 원문은 반환하지 않는다.\n`NEVER_RECEIVED`는 아직 관찰이 없다는 뜻이며 그 사실만으로 장애를 판정하지 않는다. 읽기 전용 상태·복구 진입점만 제공한다.\n",
         "operationId": "adminRuntimeReadiness",
         "responses": {
           "200": {
@@ -2695,6 +2775,114 @@ window.OPENAPI = {
           }
         }
       },
+      "AdminVaultListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminVault"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminVault": {
+        "type": "object",
+        "required": [
+          "reconciliationStatus",
+          "accountId",
+          "accountType",
+          "ref",
+          "vendorVaultId",
+          "vendorVaultName",
+          "walletCount",
+          "registeredAt"
+        ],
+        "properties": {
+          "reconciliationStatus": {
+            "type": "string",
+            "enum": [
+              "MANAGED",
+              "UNMANAGED",
+              "MISSING_IN_FIREBLOCKS"
+            ]
+          },
+          "accountId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accountType": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CUSTOMER",
+                  "SYSTEM"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ref": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorVaultId": {
+            "type": "string"
+          },
+          "vendorVaultName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "walletCount": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "registeredAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "AdminContractListResponse": {
         "type": "object",
         "required": [
@@ -3266,7 +3454,8 @@ window.OPENAPI = {
         "type": "object",
         "required": [
           "observedAt",
-          "webhook"
+          "webhook",
+          "sweep"
         ],
         "properties": {
           "observedAt": {
@@ -3275,6 +3464,71 @@ window.OPENAPI = {
           },
           "webhook": {
             "$ref": "#/components/schemas/AdminWebhookRuntime"
+          },
+          "sweep": {
+            "$ref": "#/components/schemas/AdminSweepRuntime"
+          }
+        }
+      },
+      "AdminSweepRuntime": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "state",
+          "activeContractCount",
+          "activePolicyCount",
+          "executorLastRunAt",
+          "executorLastSucceededAt",
+          "disabledReasons"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "DISABLED"
+            ]
+          },
+          "activeContractCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "activePolicyCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "executorLastRunAt": {
+            "description": "bcm-bat sweep 실행기가 마지막 주기를 시작한 UTC 시각. 관찰 이력이 없으면 null이다.",
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executorLastSucceededAt": {
+            "description": "bcm-bat sweep 실행기가 마지막 주기를 성공 완료한 UTC 시각. 시작 시각보다 과거이거나 3분 넘게 오래되면 READY가 아니다.",
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disabledReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -4489,6 +4743,22 @@ window.OPENAPI = {
           }
         }
       },
+      "BulkRegisterAssetMappingsRequest": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/RegisterAssetMappingRequest"
+            }
+          }
+        }
+      },
       "Meta": {
         "type": "object",
         "properties": {
@@ -4533,11 +4803,44 @@ window.OPENAPI = {
             "type": "string",
             "description": "사람이 읽는 설명 — 분기 판단은 `code` 로 한다",
             "example": "account not found"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ErrorDetails"
           }
         },
         "required": [
           "code",
           "message"
+        ]
+      },
+      "ErrorDetails": {
+        "type": "object",
+        "description": "일괄 요청에서 실패한 항목. 단건·일반 오류에서는 생략한다.",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "요청 items의 0 기반 위치",
+            "example": 1
+          },
+          "network": {
+            "type": "string",
+            "example": "BASE"
+          },
+          "symbol": {
+            "type": "string",
+            "example": "USDC"
+          },
+          "reason": {
+            "type": "string",
+            "example": "assetNotFound"
+          }
+        },
+        "required": [
+          "index",
+          "network",
+          "symbol",
+          "reason"
         ]
       },
       "ErrorResponse": {

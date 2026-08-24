@@ -25,6 +25,12 @@ internal class FireblocksVaultStubController(
         @RequestBody request: CreateVaultRequest,
     ): VaultAccountResponse = state.createVault(request.name, idempotencyKey)
 
+    @GetMapping("/v1/vault/accounts_paged")
+    fun vaults(
+        @RequestParam(defaultValue = "200") limit: Int,
+        @RequestParam(required = false) after: String?,
+    ): VaultAccountListResponse = state.vaults(limit, after)
+
     @PostMapping("/v1/vault/accounts/{vaultId}/{assetId}")
     fun createWallet(
         @PathVariable vaultId: String,
@@ -73,9 +79,31 @@ internal class FireblocksVaultState(
             }
             val id = (vaults.size + 1).toString()
             val response = VaultAccountResponse(id = id, name = name)
-            vaults[id] = VaultRecord(id = id, addressIndex = vaults.size)
+            vaults[id] = VaultRecord(id = id, name = name, addressIndex = vaults.size)
             vaultRequests[idempotencyKey] = VaultRequestRecord(name, response)
             response
+        }
+
+    fun vaults(
+        limit: Int,
+        after: String?,
+    ): VaultAccountListResponse =
+        lock.withLock {
+            require(limit in 1..500) { "limit must be between 1 and 500" }
+            val start = after?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+            val page = vaults.values.drop(start).take(limit)
+            val next = (start + page.size).takeIf { it < vaults.size }?.toString()
+            VaultAccountListResponse(
+                accounts =
+                    page.map { vault ->
+                        VaultAccountResponse(
+                            id = vault.id,
+                            name = vault.name,
+                            assets = wallets.keys.filter { it.first == vault.id }.map { VaultAccountAssetResponse(it.second) },
+                        )
+                    },
+                paging = VaultAccountPagingResponse(next),
+            )
         }
 
     fun createWallet(
@@ -161,6 +189,7 @@ internal class FireblocksVaultState(
 
     private data class VaultRecord(
         val id: String,
+        val name: String,
         val addressIndex: Int,
     )
 
@@ -182,6 +211,20 @@ internal data class CreateVaultRequest(
 internal data class VaultAccountResponse(
     val id: String,
     val name: String,
+    val assets: List<VaultAccountAssetResponse> = emptyList(),
+)
+
+internal data class VaultAccountAssetResponse(
+    val id: String,
+)
+
+internal data class VaultAccountListResponse(
+    val accounts: List<VaultAccountResponse>,
+    val paging: VaultAccountPagingResponse,
+)
+
+internal data class VaultAccountPagingResponse(
+    val after: String?,
 )
 
 internal data class CreateVaultAssetResponse(

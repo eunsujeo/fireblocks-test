@@ -4,12 +4,12 @@ import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.account.DepositAddressRepository
-import com.whatto.bcm.domain.admin.ExecutionGateRepository
-import com.whatto.bcm.domain.admin.ExecutionGateStatus
-import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
+import com.whatto.bcm.domain.job.JobStateRepository
+import com.whatto.bcm.domain.job.OperationalJobNames
+import com.whatto.bcm.domain.job.RuntimeAttestation
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.sweep.ActiveSweepRuntimeContext
 import com.whatto.bcm.domain.sweep.SweepBatchCallItem
@@ -17,11 +17,15 @@ import com.whatto.bcm.domain.sweep.SweepBatchContractPort
 import com.whatto.bcm.domain.sweep.SweepExecution
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
 import com.whatto.bcm.domain.sweep.SweepExecutionAlertPort
+import com.whatto.bcm.domain.sweep.SweepExecutionGatePort
+import com.whatto.bcm.domain.sweep.SweepExecutionGateSnapshot
 import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.sweep.SweepExecutionStage
 import com.whatto.bcm.domain.sweep.SweepExecutionStatus
 import com.whatto.bcm.domain.sweep.SweepItem
 import com.whatto.bcm.domain.sweep.SweepItemStatus
+import com.whatto.bcm.domain.sweep.SweepRuntimeAttestationRepository
+import com.whatto.bcm.domain.sweep.attestationEntry
 import com.whatto.bcm.support.submission.SweepBatchHashItem
 import com.whatto.bcm.support.submission.SweepBatchRequestFingerprint
 import com.whatto.bcm.support.submission.SweepBatchRequestHashes
@@ -79,7 +83,7 @@ class SweepBatchExecutionService(
     private val alerts: SweepExecutionAlertPort,
     private val clock: Clock,
     private val properties: SweepProperties,
-    private val executionGates: ExecutionGateRepository,
+    private val executionGates: SweepExecutionGatePort,
     private val runtimeGuard: SweepRuntimeGuard,
 ) : SweepBatchExecutionCommand {
     override fun execute(): SweepBatchExecutionResult = runOnce()
@@ -98,7 +102,7 @@ class SweepBatchExecutionService(
         properties.security.requireBatchSubmissionReady(groupKey.first)
         val runtime = runtimeGuard.requireReady(groupKey.first, groupKey.second)
         val sameAsset = applyRuntimePolicy(selected.filter { it.target.network to it.target.symbol == groupKey }, runtime)
-        if (executionGates.findCurrent(groupKey.first, ExecutionGateType.SWEEP)?.status == ExecutionGateStatus.STOPPED) {
+        if (!executionGates.findCurrent(groupKey.first).open) {
             return SweepBatchExecutionResult.Stopped(groupKey.first)
         }
         val ready = sameAsset.filter(::prepareAllowance)
@@ -324,11 +328,24 @@ class SweepBatchExecutionOnceRunner(
 @Component
 @ConditionalOnProperty(prefix = "bcm.sweep", name = ["enabled"], havingValue = "true")
 class SweepBatchJob(
-    private val service: SweepBatchExecutionService,
+    private val command: SweepBatchExecutionCommand,
+    private val jobs: JobStateRepository,
+    private val clock: Clock,
+    private val attestor: SweepRuntimeAttestationCommand,
 ) {
     @Scheduled(fixedDelayString = "\${bcm.sweep.fixed-delay-millis:60000}")
     fun run() {
-        val result = service.runOnce()
+        val startedAt = CoreDateTimes.now(clock)
+        jobs.markStarted(OperationalJobNames.SWEEP_BATCH_EXECUTION, startedAt)
+        val attestation = attestor.observe(clock.instant())
+        jobs.markValidationStarted(attestation.jobName, startedAt)
+        attestor.requireReady(attestation)
+        val result = command.execute()
+        val succeededAt = CoreDateTimes.now(clock)
+        jobs.markSucceeded(OperationalJobNames.SWEEP_BATCH_EXECUTION, succeededAt)
+        if (result !is SweepBatchExecutionResult.Stopped) {
+            jobs.markSucceeded(attestation.jobName, succeededAt)
+        }
         logger.info("batch sweep cycle completed result={}", result)
     }
 
@@ -336,3 +353,71 @@ class SweepBatchJob(
         val logger = LoggerFactory.getLogger(SweepBatchJob::class.java)
     }
 }
+
+@Service
+class SweepRuntimeAttestor(
+    private val runtimeContexts: SweepRuntimeAttestationRepository,
+    private val runtimeGuard: SweepRuntimeGuard,
+    private val executionGates: SweepExecutionGatePort,
+    private val properties: SweepProperties,
+) : SweepRuntimeAttestationCommand {
+    override fun observe(observedAt: java.time.Instant): SweepRuntimeAttestationObservation {
+        val contexts = runtimeContexts.findAllActive(observedAt)
+        val gates =
+            contexts
+                .map(ActiveSweepRuntimeContext::network)
+                .distinct()
+                .sorted()
+                .map(executionGates::findCurrent)
+        return SweepRuntimeAttestationObservation(
+            RuntimeAttestation.jobName(
+                SWEEP_ATTESTATION_PREFIX,
+                contexts.map(ActiveSweepRuntimeContext::attestationEntry) + gates.map(SweepExecutionGateSnapshot::attestationEntry),
+            ),
+            contexts,
+            gates,
+        )
+    }
+
+    override fun requireReady(observation: SweepRuntimeAttestationObservation) {
+        val contexts = observation.contexts
+        val configuredScopes = properties.thresholds.mapTo(mutableSetOf()) { it.network to it.symbol }
+        check(configuredScopes.isNotEmpty()) { "sweep runtime scope is not configured" }
+        check(contexts.mapTo(mutableSetOf()) { it.network to it.symbol } == configuredScopes) {
+            "active Admin sweep scopes differ from deployment configuration"
+        }
+        val configuredNetworks = configuredScopes.mapTo(mutableSetOf()) { it.first }
+        check(observation.gates.mapTo(mutableSetOf(), SweepExecutionGateSnapshot::network) == configuredNetworks) {
+            "sweep execution gate scopes differ from deployment configuration"
+        }
+        check(observation.gates.all(SweepExecutionGateSnapshot::open)) { "sweep execution gate is stopped" }
+        properties.security.requireBatchSubmissionEnabled()
+        val validatedContexts =
+            configuredScopes.sortedWith(compareBy<Pair<String, String>> { it.first }.thenBy { it.second }).map { (network, symbol) ->
+                properties.security.requireBatchSubmissionReady(network)
+                runtimeGuard.requireReady(network, symbol)
+            }
+        check(validatedContexts == contexts.sortedWith(compareBy(ActiveSweepRuntimeContext::network, ActiveSweepRuntimeContext::symbol))) {
+            "active Admin sweep context changed during runtime attestation"
+        }
+        check(observation.gates.all { executionGates.findCurrent(it.network) == it }) {
+            "sweep execution gate changed during runtime attestation"
+        }
+    }
+
+    private companion object {
+        const val SWEEP_ATTESTATION_PREFIX = "sweep-attestation:"
+    }
+}
+
+interface SweepRuntimeAttestationCommand {
+    fun observe(observedAt: java.time.Instant): SweepRuntimeAttestationObservation
+
+    fun requireReady(observation: SweepRuntimeAttestationObservation)
+}
+
+data class SweepRuntimeAttestationObservation(
+    val jobName: String,
+    val contexts: List<ActiveSweepRuntimeContext>,
+    val gates: List<SweepExecutionGateSnapshot>,
+)

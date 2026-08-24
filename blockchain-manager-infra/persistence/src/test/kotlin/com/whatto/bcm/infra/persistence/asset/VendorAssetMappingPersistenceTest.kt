@@ -4,6 +4,7 @@ import com.whatto.bcm.domain.account.DepositAddress
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.VendorAssetMappingRegistrationConflictException
 import com.whatto.bcm.infra.persistence.account.DepositAddressJdbcAdapter
 import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
 import org.assertj.core.api.Assertions.assertThat
@@ -15,6 +16,8 @@ import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.context.annotation.Import
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 
 @DataJdbcTest
 @Import(VendorAssetMappingJdbcAdapter::class, VendorBlockchainCatalogJdbcAdapter::class, DepositAddressJdbcAdapter::class)
@@ -69,8 +72,31 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
 
         assertThatThrownBy {
             mappings.insert(mapping(network = "BASE", vendorAssetId = "USDC_ERC20"))
-        }.isInstanceOf(ConflictException::class.java)
+        }.isInstanceOf(VendorAssetMappingRegistrationConflictException::class.java)
             .hasRootCauseInstanceOf(java.sql.SQLException::class.java)
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `일괄 저장은 뒤 항목이 실패하면 현재 매핑과 변경 snapshot을 모두 롤백한다`() {
+        try {
+            assertThatThrownBy {
+                mappings.saveAll(
+                    listOf(
+                        mapping(vendorAssetId = "DUPLICATE_ASSET"),
+                        mapping(network = "BASE", vendorAssetId = "DUPLICATE_ASSET"),
+                    ),
+                    "bulk-request",
+                )
+            }.isInstanceOf(VendorAssetMappingRegistrationConflictException::class.java)
+
+            assertThat(mappings.findAll()).isEmpty()
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bcm_vndr_ast_chng_l", Int::class.java)).isZero()
+        } finally {
+            jdbc.update("DELETE FROM bcm_vndr_ast_chng_l")
+            jdbc.update("DELETE FROM bcm_vndr_ast_m")
+            jdbc.update("DELETE FROM bcm_blkc_m")
+        }
     }
 
     @Test
@@ -79,7 +105,7 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
 
         assertThatThrownBy {
             mappings.insert(mapping(vendorAssetId = "OTHER_ASSET"))
-        }.isInstanceOf(ConflictException::class.java)
+        }.isInstanceOf(VendorAssetMappingRegistrationConflictException::class.java)
     }
 
     @Test
@@ -89,7 +115,7 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
         )
         assertThatThrownBy {
             mappings.insert(mapping(network = "POLYGON", vendorAssetId = "USDC_POLYGON"))
-        }.isInstanceOf(ConflictException::class.java)
+        }.isInstanceOf(VendorAssetMappingRegistrationConflictException::class.java)
     }
 
     @Test

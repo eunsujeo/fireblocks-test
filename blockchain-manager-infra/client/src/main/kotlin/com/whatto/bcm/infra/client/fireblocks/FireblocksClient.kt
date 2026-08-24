@@ -66,6 +66,37 @@ class FireblocksClient(
     private val restClient = restClientFactory.create(restClientBuilder, properties)
     private val objectMapper = ObjectMapper()
 
+    override fun vaults(cursor: String?): VendorPage<VendorVault> {
+        val path =
+            UriComponentsBuilder
+                .fromPath("/v1/vault/accounts_paged")
+                .queryParam("limit", VAULT_PAGE_SIZE)
+                .apply { cursor?.let { queryParam("after", it) } }
+                .build()
+                .encode()
+                .toUriString()
+        val response =
+            exchange(
+                operation = "listVaults",
+                method = HttpMethod.GET,
+                path = path,
+                body = null,
+                idempotencyKey = null,
+                responseType = VaultAccountListResponse::class.java,
+            )
+        return VendorPage(
+            data =
+                response.accounts.map { account ->
+                    VendorVault(
+                        vaultId = requireNotNull(account.id) { "listVaults 응답 결손: id" },
+                        name = requireNotNull(account.name) { "listVaults 응답 결손: name" },
+                        walletCount = account.assets.size,
+                    )
+                },
+            next = response.paging?.after,
+        )
+    }
+
     override fun createVault(
         name: String,
         idempotencyKey: String,
@@ -650,6 +681,7 @@ class FireblocksClient(
     }
 
     companion object {
+        private const val VAULT_PAGE_SIZE = 200
         private const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
         private const val BLOCKCHAIN_PAGE_SIZE = 500
         private const val ASSET_PAGE_SIZE = 1000

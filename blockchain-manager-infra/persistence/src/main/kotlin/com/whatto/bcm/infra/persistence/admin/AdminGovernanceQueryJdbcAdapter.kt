@@ -33,6 +33,7 @@ import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.admin.SweepPolicyHardCeiling
 import com.whatto.bcm.domain.admin.WebhookRecoveryRepository
 import com.whatto.bcm.domain.admin.WebhookRecoveryView
+import com.whatto.bcm.domain.job.RuntimeAttestationEntry
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
@@ -91,7 +92,7 @@ class AdminGovernanceQueryJdbcAdapter(
     override fun findPolicies(now: Instant): List<AdminPolicySummary> =
         jdbc.query(
             """
-            SELECT version.plcy_vrsn_id, version.plcy_scope_id, version.vrsn_no,
+            SELECT version.plcy_vrsn_id, version.plcy_scope_id, version.ctrt_vrsn_id, version.vrsn_no,
                    version.plcy_schm_vrsn, version.plcy_hash, version.ceiling_pass_yn,
                    version.reg_dttm,
                    binding.actv_plcy_vrsn_id = version.plcy_vrsn_id AS active,
@@ -142,6 +143,7 @@ class AdminGovernanceQueryJdbcAdapter(
             AdminPolicySummary(
                 versionId = rs.getString("plcy_vrsn_id"),
                 scopeId = rs.getString("plcy_scope_id"),
+                contractVersionId = rs.getString("ctrt_vrsn_id"),
                 versionNumber = rs.getInt("vrsn_no"),
                 schemaVersion = rs.getString("plcy_schm_vrsn"),
                 state = rs.getString("derived_state"),
@@ -151,6 +153,94 @@ class AdminGovernanceQueryJdbcAdapter(
                 registeredAt = rs.getString("reg_dttm").instant(),
             )
         }
+
+    override fun findSweepRuntimeAttestationEntries(now: Instant): List<RuntimeAttestationEntry> {
+        val runtimeEntries =
+            jdbc.query(
+                """
+                SELECT policy_binding.plcy_scope_id, contract.ntwk_cd,
+                       policy.plcy_vrsn_id, policy_binding.bind_snps_hash,
+                       policy.plcy_payload->>'enabled' AS enabled,
+                       policy.plcy_payload->>'minimumAmount' AS minimum_amount,
+                       policy.plcy_payload->>'batchSize' AS batch_size,
+                       policy.plcy_payload->>'allowanceCap' AS allowance_cap,
+                       policy.plcy_payload->>'itemAmountCap' AS item_amount_cap,
+                       policy.plcy_payload->>'batchAmountCap' AS batch_amount_cap,
+                       policy.plcy_payload->>'boostAttempts' AS boost_attempts,
+                       contract.ctrt_vrsn_id, contract.ctrt_addr, evidence.evdc_id
+                  FROM bcm_plcy_bind_m policy_binding
+                  JOIN bcm_plcy_vrsn_l policy ON policy.plcy_vrsn_id = policy_binding.actv_plcy_vrsn_id
+                  JOIN bcm_ctrt_vrsn_l contract ON contract.ctrt_vrsn_id = policy.ctrt_vrsn_id
+                  JOIN bcm_ctrt_bind_m contract_binding
+                    ON contract_binding.ctrt_scope_id = contract.ctrt_scope_id
+                   AND contract_binding.actv_ctrt_vrsn_id = contract.ctrt_vrsn_id
+                  JOIN LATERAL (
+                    SELECT current_evidence.evdc_id
+                      FROM bcm_ctrt_evdc_l current_evidence
+                     WHERE current_evidence.ctrt_vrsn_id = contract.ctrt_vrsn_id
+                     ORDER BY current_evidence.obs_dttm DESC, current_evidence.evdc_id DESC
+                     LIMIT 1
+                  ) evidence ON true
+                 WHERE contract.use_dvcd = 'SWEEP'
+                   AND policy.ceiling_pass_yn = 'Y'
+                   AND policy.plcy_payload->>'enabled' = 'true'
+                   AND EXISTS (
+                     SELECT 1 FROM bcm_ctrt_evdc_l current_evidence
+                      WHERE current_evidence.evdc_id = evidence.evdc_id
+                        AND current_evidence.evdc_stcd = 'VALID'
+                        AND current_evidence.launch_gate_yn = 'Y'
+                        AND current_evidence.vld_until_dttm > :observedAt
+                   )
+                 ORDER BY contract.ntwk_cd, policy_binding.plcy_scope_id
+                """.trimIndent(),
+                mapOf("observedAt" to now.coreDateTime()),
+            ) { rs, _ ->
+                val network = rs.getString("ntwk_cd")
+                val scopeId = rs.getString("plcy_scope_id")
+                val prefix = "POLICY:$network:"
+                check(scopeId.startsWith(prefix)) { "invalid sweep policy scope: $scopeId" }
+                RuntimeAttestationEntry(
+                    scopeKey = "$network|${scopeId.removePrefix(prefix)}",
+                    fingerprint =
+                        listOf(
+                            rs.getString("plcy_vrsn_id"),
+                            rs.getString("bind_snps_hash"),
+                            rs.getBoolean("enabled").toString(),
+                            rs.getBigDecimal("minimum_amount").canonical(),
+                            rs.getInt("batch_size").toString(),
+                            rs.getBigDecimal("allowance_cap").canonical(),
+                            rs.getBigDecimal("item_amount_cap").canonical(),
+                            rs.getBigDecimal("batch_amount_cap").canonical(),
+                            rs.getInt("boost_attempts").toString(),
+                            rs.getString("ctrt_vrsn_id"),
+                            rs.getString("evdc_id"),
+                            rs.getString("ctrt_addr").lowercase(),
+                        ).joinToString("|"),
+                )
+            }
+        val networks = runtimeEntries.map { it.scopeKey.substringBefore('|') }.distinct().sorted()
+        if (networks.isEmpty()) return runtimeEntries
+        val gatesByNetwork =
+            jdbc
+                .query(
+                    """
+                    SELECT DISTINCT ON (ntwk_cd) ntwk_cd, evt_seq, gate_stcd
+                      FROM bcm_exec_gate_evt_l
+                     WHERE gate_dvcd = 'SWEEP'
+                       AND ntwk_cd IN (:networks)
+                     ORDER BY ntwk_cd, evt_seq DESC
+                    """.trimIndent(),
+                    mapOf("networks" to networks),
+                ) { rs, _ ->
+                    rs.getString("ntwk_cd") to (rs.getInt("evt_seq") to rs.getString("gate_stcd"))
+                }.toMap()
+        val gateEntries =
+            networks.map { network ->
+                val gate = gatesByNetwork[network]
+                RuntimeAttestationEntry.gate("SWEEP|$network", gate?.first ?: 0, gate?.second ?: "OPEN")
+            }
+        return runtimeEntries + gateEntries
+    }
 
     override fun findChangeRequest(
         requestId: String,
@@ -1045,4 +1135,6 @@ class AdminGovernanceQueryJdbcAdapter(
     private fun java.sql.Array.strings(): List<String> =
         (array as Array<*>)
             .map(Any?::toString)
+
+    private fun BigDecimal.canonical(): String = stripTrailingZeros().toPlainString()
 }

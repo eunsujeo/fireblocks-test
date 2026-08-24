@@ -8,6 +8,7 @@ import com.whatto.bcm.admin.client.AdminExecutionGateResume
 import com.whatto.bcm.admin.client.AdminExternalControlEvidence
 import com.whatto.bcm.admin.client.AdminNetwork
 import com.whatto.bcm.admin.client.AdminRuntimeReadiness
+import com.whatto.bcm.admin.client.AdminSweepRuntime
 import com.whatto.bcm.admin.client.AdminTransactionInvestigation
 import com.whatto.bcm.admin.client.AdminTransactionInvestigationSummary
 import com.whatto.bcm.admin.client.AdminWebhookRuntime
@@ -470,6 +471,16 @@ class AdminReadServiceTest {
                     pendingOutboxCount = 0,
                     poisonedOutboxCount = 0,
                     statusPath = "/admin/emergency",
+                ),
+            sweep =
+                AdminSweepRuntime(
+                    enabled = false,
+                    state = "DISABLED",
+                    activeContractCount = 0,
+                    activePolicyCount = 0,
+                    executorLastRunAt = null,
+                    executorLastSucceededAt = null,
+                    disabledReasons = listOf("SWEEP_EXECUTOR_NOT_OBSERVED"),
                 ),
         )
 }

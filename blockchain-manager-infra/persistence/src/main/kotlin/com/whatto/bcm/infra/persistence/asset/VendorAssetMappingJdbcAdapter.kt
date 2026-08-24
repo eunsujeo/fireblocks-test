@@ -2,7 +2,7 @@ package com.whatto.bcm.infra.persistence.asset
 
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
-import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.VendorAssetMappingRegistrationConflictException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -110,9 +110,22 @@ class VendorAssetMappingJdbcAdapter(
     override fun save(
         mapping: VendorAssetMapping,
         requestId: String,
+    ): VendorAssetMapping = saveOne(mapping, requestId)
+
+    @Transactional
+    override fun saveAll(
+        mappings: List<VendorAssetMapping>,
+        requestId: String,
+    ): List<VendorAssetMapping> = mappings.map { saveOne(it, requestId) }
+
+    private fun saveOne(
+        mapping: VendorAssetMapping,
+        requestId: String,
     ): VendorAssetMapping {
         val before = findCurrentForUpdate(mapping.network, mapping.symbol)
-        if (before?.active == true) throw ConflictException("assetMapping", "${mapping.network}:${mapping.symbol}")
+        if (before?.active == true) {
+            throw VendorAssetMappingRegistrationConflictException(mapping.network, mapping.symbol)
+        }
         val action =
             when {
                 before == null -> "REGISTER"
@@ -124,9 +137,9 @@ class VendorAssetMappingJdbcAdapter(
             insertChange(before, mapping.copy(active = true), action, requestId, mapping.registeredAt)
         } catch (exception: DataIntegrityViolationException) {
             if (!exception.isConstraintViolation(UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION)) throw exception
-            throw ConflictException(
-                resource = "vendorAssetMapping",
-                key = "${mapping.network}:${mapping.symbol}:${mapping.vendorAssetId}",
+            throw VendorAssetMappingRegistrationConflictException(
+                network = mapping.network,
+                symbol = mapping.symbol,
                 cause = exception,
             )
         }

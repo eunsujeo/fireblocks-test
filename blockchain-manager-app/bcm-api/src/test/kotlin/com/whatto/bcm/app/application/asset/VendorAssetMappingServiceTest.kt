@@ -10,9 +10,11 @@ import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
+import com.whatto.bcm.domain.exception.BulkAssetMappingException
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
+import com.whatto.bcm.domain.exception.VendorAssetMappingRegistrationConflictException
 import com.whatto.bcm.domain.vendor.VendorAsset
 import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.domain.vendor.VendorPage
@@ -23,6 +25,7 @@ import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -152,6 +155,94 @@ class VendorAssetMappingServiceTest {
 
         assertThat(result.vendorAssetId).isEqualTo("native-id")
         assertThat(result.contractAddress).isNull()
+    }
+
+    @Test
+    fun `일괄 등록 — 네트워크별 카탈로그를 한 번만 읽고 전체 검증 후 한 번에 저장한다`() {
+        val baseCommand =
+            command.copy(
+                network = "BASE",
+                fireblocksAssetId = "base-usdc",
+                contractAddress = "0xBASE",
+                requestId = "bulk-request",
+            )
+        every { mappings.find("ETHEREUM", "USDC") } returns null
+        every { mappings.find("BASE", "USDC") } returns null
+        every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
+        every { blockchains.findByNetwork("BASE") } returns
+            blockchain().copy(candidateId = "base-id", network = "BASE", chainId = 8453, displayName = "Base")
+        every { vendorCatalog.assets("ethereum-id", null, null) } returns
+            VendorPage(listOf(vendorAsset("asset-uuid", "0xA0B8")), null)
+        every { vendorCatalog.assets("base-id", null, null) } returns
+            VendorPage(listOf(vendorAsset("base-usdc", "0xBASE").copy(blockchainId = "base-id")), null)
+        every { mappings.saveAll(any(), "bulk-request") } answers { firstArg() }
+
+        val result = service.registerAll(listOf(command.copy(requestId = "bulk-request"), baseCommand))
+
+        assertThat(result).extracting<String> { it.network }.containsExactly("ETHEREUM", "BASE")
+        verify(exactly = 1) { mappings.saveAll(match { it.size == 2 }, "bulk-request") }
+        verify(exactly = 1) { vendorCatalog.assets("ethereum-id", null, null) }
+        verify(exactly = 1) { vendorCatalog.assets("base-id", null, null) }
+    }
+
+    @Test
+    fun `일괄 등록 — 후보 하나라도 유효하지 않으면 아무것도 저장하지 않는다`() {
+        val invalid = command.copy(network = "BASE", fireblocksAssetId = "missing", contractAddress = "0xMISSING")
+        every { mappings.find("ETHEREUM", "USDC") } returns null
+        every { mappings.find("BASE", "USDC") } returns null
+        every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
+        every { blockchains.findByNetwork("BASE") } returns
+            blockchain().copy(candidateId = "base-id", network = "BASE", chainId = 8453, displayName = "Base")
+        every { vendorCatalog.assets("ethereum-id", null, null) } returns
+            VendorPage(listOf(vendorAsset("asset-uuid", "0xA0B8")), null)
+        every { vendorCatalog.assets("base-id", null, null) } returns VendorPage(emptyList(), null)
+
+        val failure = assertThrows<BulkAssetMappingException> { service.registerAll(listOf(command, invalid)) }
+        assertThat(failure.index).isEqualTo(1)
+        assertThat(failure.network).isEqualTo("BASE")
+        assertThat(failure.symbol).isEqualTo("USDC")
+        assertThat(failure.reason).isEqualTo("assetNotFound")
+
+        verify(exactly = 0) { mappings.saveAll(any(), any()) }
+    }
+
+    @Test
+    fun `일괄 등록 — 요청 안의 중복 키는 벤더 조회 전에 거절한다`() {
+        val failure =
+            assertThrows<BulkAssetMappingException> {
+                service.registerAll(listOf(command, command.copy(fireblocksAssetId = "other")))
+            }
+        assertThat(failure.index).isZero()
+        assertThat(failure.reason).isEqualTo("duplicateAssetMapping")
+
+        verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
+        verify(exactly = 0) { mappings.saveAll(any(), any()) }
+    }
+
+    @Test
+    fun `일괄 등록 — symbol prefix가 겹쳐도 영속 충돌 항목을 정확히 표시한다`() {
+        val shortSymbol = command.copy(symbol = "ABC", fireblocksAssetId = "asset-abc", contractAddress = "0xABC")
+        val longSymbol = command.copy(symbol = "ABCD", fireblocksAssetId = "asset-abcd", contractAddress = "0xABCD")
+        every { mappings.find("ETHEREUM", "ABC") } returns null
+        every { mappings.find("ETHEREUM", "ABCD") } returns null
+        every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
+        every { vendorCatalog.assets("ethereum-id", null, null) } returns
+            VendorPage(
+                listOf(
+                    vendorAsset("asset-abc", "0xABC"),
+                    vendorAsset("asset-abcd", "0xABCD"),
+                ),
+                null,
+            )
+        every { mappings.saveAll(any(), any()) } throws
+            VendorAssetMappingRegistrationConflictException("ETHEREUM", "ABCD")
+
+        val failure = assertThrows<BulkAssetMappingException> { service.registerAll(listOf(shortSymbol, longSymbol)) }
+
+        assertThat(failure.index).isEqualTo(1)
+        assertThat(failure.network).isEqualTo("ETHEREUM")
+        assertThat(failure.symbol).isEqualTo("ABCD")
+        assertThat(failure.reason).isEqualTo("concurrentConflict")
     }
 
     @Test

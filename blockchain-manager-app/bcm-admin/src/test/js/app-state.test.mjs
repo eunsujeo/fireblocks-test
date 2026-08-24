@@ -13,6 +13,8 @@ import {
   isGlobalSearchShortcut,
   registeredAssetMapping,
   assetCandidateSelectable,
+  assetSelectionKey,
+  toggleAssetSelection,
   resolveViewState,
   runSingleFlight,
   shouldRefreshTestRun,
@@ -26,6 +28,18 @@ test("미지원 Fireblocks 후보는 등록 선택을 허용하지 않는다", (
   assert.equal(assetCandidateSelectable({ registrationAllowed: true }, { symbol: "USDC" }), false);
 });
 
+test("자산 다중 선택은 후보 조합으로 중복을 제거하고 최대 20개를 넘기지 않는다", () => {
+  const usdc = { network: "BASE", symbol: "USDC", fireblocksAssetId: "USDC_BASE", contractAddress: "0x1" };
+  const krwk = { network: "BASE", symbol: "KRWK", fireblocksAssetId: "KRWK_BASE", contractAddress: "0x2" };
+  assert.equal(assetSelectionKey(usdc), "BASE\u0000USDC\u0000USDC_BASE\u00000x1");
+  let selected = toggleAssetSelection([], usdc);
+  selected = toggleAssetSelection(selected, usdc);
+  assert.deepEqual(selected, []);
+  selected = toggleAssetSelection([], usdc);
+  selected = toggleAssetSelection(selected, krwk, 1);
+  assert.deepEqual(selected, [usdc]);
+});
+
 const staticRoot = new URL("../../main/resources/static/admin/", import.meta.url);
 const shellSource = readFileSync(new URL("index.html", staticRoot), "utf8");
 const appSource = readFileSync(new URL("app.js", staticRoot), "utf8");
@@ -35,6 +49,7 @@ test("밴드S 경로는 독립 운영 원장 화면으로 해석된다", () => {
   assert.equal(adminRouteFromPath("/admin/band-s"), "bandS");
   assert.equal(adminRouteFromPath("/admin/band-s/"), "bandS");
   assert.equal(adminRouteFromPath("/admin/policies"), "policies");
+  assert.equal(adminRouteFromPath("/admin/vaults"), "vaults");
 });
 
 test("비상 운영 경로는 실행 게이트 원장 화면으로 해석된다", () => {
@@ -58,11 +73,11 @@ test("테스트 실행 자동 갱신은 진행 상태에서만 유지한다", ()
 });
 
 test("네트워크 필터는 URL 왕복 뒤에도 보존된다", () => {
-  const initial = new URL("http://localhost/admin/networks?q=base&chainId=8453&adopted=true&testnet=false");
+  const initial = new URL("http://localhost/admin/networks?q=base&chainId=8453&adopted=true&testnet=false&view=all");
   const filters = filtersFromUrl(initial);
 
-  assert.deepEqual(filters, { q: "base", chainId: "8453", adopted: "true", testnet: "false" });
-  assert.equal(filtersToUrl("/admin/networks", filters), "/admin/networks?q=base&chainId=8453&adopted=true&testnet=false");
+  assert.deepEqual(filters, { q: "base", chainId: "8453", adopted: "true", testnet: "false", view: "all" });
+  assert.equal(filtersToUrl("/admin/networks", filters), "/admin/networks?q=base&chainId=8453&adopted=true&testnet=false&view=all");
 });
 
 test("자산 매핑 검색은 검색어와 정확 필터를 URL에 함께 보존한다", () => {
@@ -73,6 +88,8 @@ test("자산 매핑 검색은 검색어와 정확 필터를 URL에 함께 보존
   assert.equal(filtersToUrl("/admin/assets", filters), "/admin/assets?q=0x8335&network=BASE&symbol=USDC");
   assert.match(appSource, /찾을 자산/);
   assert.match(appSource, /<summary>Advanced<\/summary>/);
+  assert.match(appSource, /기본 화면에는 BCM 연결 네트워크만 표시/);
+  assert.match(appSource, /Fireblocks 전체 카탈로그 보기/);
 });
 
 test("일반 검색어에서 안전한 자산 후보 심볼만 찾아낸다", () => {
@@ -212,6 +229,7 @@ test("Admin 메뉴와 기술 라벨은 익숙한 영어 용어를 사용하고 �
   assert.match(shellSource, />Dashboard</);
   assert.match(shellSource, />Networks</);
   assert.match(shellSource, />Assets</);
+  assert.match(shellSource, />Vaults</);
   assert.match(shellSource, />Contracts</);
   assert.match(shellSource, />Policies</);
   assert.match(shellSource, />Transactions</);
@@ -220,6 +238,7 @@ test("Admin 메뉴와 기술 라벨은 익숙한 영어 용어를 사용하고 �
   assert.match(appSource, /<div><dt>Decimals<\/dt>/);
   assert.match(appSource, /<h1>Transaction investigation<\/h1>/);
   assert.match(appSource, /<h1>Contract registry<\/h1>/);
+  assert.match(appSource, /FIREBLOCKS ↔ BCM RECONCILIATION/);
   assert.match(appSource, /<h1>Execution policies<\/h1>/);
   assert.match(appSource, /<h1>Band S ledger<\/h1>/);
   assert.match(appSource, /<h1>Emergency operations<\/h1>/);
@@ -261,11 +280,13 @@ test("자산 등록은 검색·후보 선택·검증 요약을 한 모달에서 
   assert.match(appSource, /networkDisplayName/);
   assert.match(appSource, /Testnet/);
   assert.match(appSource, /Contract address 복사/);
-  assert.match(appSource, /identifier\(selected\.fireblocksAssetId, "Fireblocks Asset ID"\)/);
+  assert.match(appSource, /identifier\(item\.fireblocksAssetId, "Fireblocks Asset ID"\)/);
   assert.match(appSource, /\.\/scripts\/local\.sh sync assets/);
   assert.match(appSource, /method: "POST"/);
   assert.match(appSource, /"X-BCM-Local-Asset-Management": "execute"/);
   assert.match(appSource, /등록할 자산 확인/);
+  assert.match(appSource, /\/bff\/admin\/assets\/bulk/);
+  assert.match(appSource, /최대 20개/);
   assert.match(appSource, /Fireblocks 후보에서 찾기/);
   assert.match(appSource, /이미 BCM에 등록됨/);
   assert.match(appSource, /data-discover-symbol/);

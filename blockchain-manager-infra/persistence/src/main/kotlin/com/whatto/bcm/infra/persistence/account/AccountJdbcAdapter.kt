@@ -42,4 +42,6 @@ class AccountJdbcAdapter(
     ): Account? = crud.findByAcntTypDvcdAndRef(AccountTypeCodes.toCode(accountType), ref)?.toDomain()
 
     override fun findByAccountId(accountId: String): Account? = crud.findByIdOrNull(accountId)?.toDomain()
+
+    override fun findAll(): List<Account> = crud.findAll().map(AccountEntity::toDomain).sortedBy(Account::accountId)
 }

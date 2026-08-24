@@ -40,5 +40,5 @@ description: Testcontainers 통합·슬라이스 테스트 배선 절차. 새 �
 - **Spring Data + Kotlin data class** → `kotlin-reflect` 필요 (`ClassNotFoundException: kotlin.reflect.full.KClasses`).
 - **@Repository 빈 CGLIB 프록시** → Spring 빈 보유 모듈에 kotlin-spring(allopen) 플러그인
   (`Cannot subclass final class`). domain 은 제외 — 무의존 원칙.
-- Flyway 마이그레이션은 persistence 의 main/resources 에 있다 — 테스트 클래스패스에 자동 포함.
+- Git 관리 DB SQL은 persistence 의 main/resources 에 있고, test-support 초기화기가 manifest 순서대로 임시 DB에 직접 적용한다.
 - 검증은 좁게: `./gradlew :모듈:test`, 신선도 의심되면 `--rerun`. 결과는 build/test-results XML 로 확증.

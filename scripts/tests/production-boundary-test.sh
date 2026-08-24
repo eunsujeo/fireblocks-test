@@ -86,7 +86,7 @@ done
 
 for module in ':blockchain-manager-app:bcm-api' ':blockchain-manager-app:bcm-webhook' ':blockchain-manager-app:bcm-bat'; do
     runtime_output="$(./gradlew -PbcmProductionOnly=true "$module:dependencies" --configuration runtimeClasspath)"
-    for excluded in 'bcm-admin' 'blockchain-manager-test-support'; do
+    for excluded in 'bcm-admin' 'blockchain-manager-test-support' 'flyway-core' 'spring-boot-starter-flyway'; do
         if grep -Fq -- "$excluded" <<<"$runtime_output"; then
             echo "$module runtimeClasspath에 제외 모듈이 있습니다: $excluded" >&2
             exit 1
@@ -110,6 +110,19 @@ BCM_LOCAL_POSTGRES_PORT="$postgres_port" \
     BCM_LOCAL_KAFKA_PORT="$kafka_port" \
     docker compose -p "$compose_project" -f config/local-compose.yaml \
     up -d --wait --wait-timeout 120 postgres kafka
+
+schema_state="$(
+    BCM_LOCAL_POSTGRES_PORT="$postgres_port" \
+        BCM_LOCAL_KAFKA_PORT="$kafka_port" \
+        docker compose -p "$compose_project" -f config/local-compose.yaml \
+        exec -T postgres psql -U postgres -d bcm -Atc \
+        "SELECT (to_regclass('public.bcm_acnt_m') IS NOT NULL)::int || '|' ||
+                (to_regclass('public.flyway_schema_history') IS NULL)::int"
+)"
+[ "$schema_state" = "1|1" ] || {
+    echo "Git SQL 직접 초기화 또는 Flyway 미포함 경계가 깨졌습니다: $schema_state" >&2
+    exit 1
+}
 
 common_environment=(
     "SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:$postgres_port/bcm"

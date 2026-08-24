@@ -4,6 +4,37 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 bash -n scripts/local.sh
+bash -n scripts/internal/local-db-init.sh
+
+for contract in \
+    '../blockchain-manager-infra/persistence/src/main/resources/db/migration:/opt/bcm/db/migration:ro' \
+    '../scripts/internal/local-db-init.sh:/docker-entrypoint-initdb.d/10-bcm-schema.sh:ro'; do
+    grep -Fq "$contract" config/local-compose.yaml || {
+        echo "로컬 PostgreSQL 최초 스키마 초기화 mount가 없습니다: $contract" >&2
+        exit 1
+    }
+done
+
+for contract in \
+    '/opt/bcm/db/migration/manifest.txt' \
+    'psql --single-transaction' \
+    'ON_ERROR_STOP=1'; do
+    grep -Fq "$contract" scripts/internal/local-db-init.sh || {
+        echo "로컬 PostgreSQL SQL 실행 계약이 없습니다: $contract" >&2
+        exit 1
+    }
+done
+
+python3 - <<'PY'
+from pathlib import Path
+import re
+
+directory = Path("blockchain-manager-infra/persistence/src/main/resources/db/migration")
+manifest = directory / "manifest.txt"
+entries = [line.strip() for line in manifest.read_text().splitlines() if line.strip() and not line.startswith("#")]
+files = sorted((path.name for path in directory.glob("V*__*.sql")), key=lambda name: int(re.match(r"V(\d+)__", name).group(1)))
+assert entries == files, f"DB SQL manifest가 실제 파일의 버전 순서와 다릅니다: manifest={entries}, files={files}"
+PY
 
 for contract in \
     'API_PORT="${BCM_LOCAL_API_PORT:-38080}"' \

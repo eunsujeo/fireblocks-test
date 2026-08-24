@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.api.web
 
 import com.whatto.bcm.domain.exception.BcmException
+import com.whatto.bcm.domain.exception.BulkAssetMappingException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
@@ -35,6 +36,10 @@ class ApiExceptionHandler {
             errorCode,
             request,
             retryAfterSeconds = (exception as? SubmissionInProgressException)?.retryAfterSeconds,
+            details =
+                (exception as? BulkAssetMappingException)?.let {
+                    ErrorResponse.ErrorDetails(it.index, it.network, it.symbol, it.reason)
+                },
         )
     }
 
@@ -99,13 +104,14 @@ class ApiExceptionHandler {
         errorCode: ErrorCode,
         request: HttpServletRequest,
         retryAfterSeconds: Long? = null,
+        details: ErrorResponse.ErrorDetails? = null,
     ): ResponseEntity<ErrorResponse> {
         val response = ResponseEntity.status(errorCode.status)
         retryAfterSeconds?.let { response.header(HttpHeaders.RETRY_AFTER, it.toString()) }
         return response
             .body(
                 ErrorResponse(
-                    error = ErrorResponse.ErrorBody(code = errorCode.code, message = errorCode.message),
+                    error = ErrorResponse.ErrorBody(code = errorCode.code, message = errorCode.message, details = details),
                     meta = Meta(requestId = RequestIdFilter.requestIdOf(request)),
                 ),
             )

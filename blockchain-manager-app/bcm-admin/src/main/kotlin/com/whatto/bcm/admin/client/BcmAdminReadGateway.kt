@@ -22,6 +22,10 @@ interface BcmAdminReadGateway {
 
     fun registerAssetMapping(command: RegisterAdminAssetMapping): AdminAssetMapping
 
+    fun registerAssetMappings(commands: List<RegisterAdminAssetMapping>): List<AdminAssetMapping>
+
+    fun vaults(query: String?): List<AdminVault>
+
     fun transactionInvestigation(identifier: String): AdminTransactionInvestigation
 
     fun contracts(): List<AdminContract>
@@ -58,4 +62,13 @@ class SourceFailure(
     val status: Int,
     message: String,
     cause: Throwable? = null,
+    val code: String? = null,
+    val details: SourceFailureDetails? = null,
 ) : RuntimeException(message, cause)
+
+data class SourceFailureDetails(
+    val index: Int,
+    val network: String,
+    val symbol: String,
+    val reason: String,
+)

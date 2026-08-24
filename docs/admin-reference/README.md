@@ -5,11 +5,14 @@
 
 ## 1. 배치와 신뢰 경계
 
-- Admin Frontend와 **Admin BFF**는 DAW-CORE와 분리된 Blockchain Manager 전용 애플리케이션으로 이 저장소에서 운영한다.
+- 공유 환경의 운영 화면과 변경 workflow는 **DAW-ADMIN**이 소유한다. DAW-ADMIN은 BCM의 블록체인 설정 API와
+  DAW-CORE의 업무 API를 각각 호출한다.
+- 이 저장소의 Admin Frontend와 **Admin BFF**는 DAW-CORE와 분리된 Blockchain Manager 로컬 개발·진단 콘솔이다.
+  공유 환경의 DAW-ADMIN을 대체하지 않으며 배포하지 않아도 API·Webhook·BAT가 동작한다.
 - 첫 용도는 읽기 전용 기능 테스트다. 기본 profile은 frontend·BFF와 대상 BCM을 loopback에만 바인딩하고 상태 변경 API를 노출하지 않는다.
 - 브라우저는 BFF만 호출한다.
 - BCM Admin API는 `bcm-api`와 같은 애플리케이션으로 배포하되 일반 업무 API와 분리된 private listener/ingress에 둔다.
-- 공유 환경의 BFF→BCM은 mTLS 서비스 신원과 5분 이하의 단기 서명 JWT를 함께 검증한다. JWT는 `aud=bcm-admin-api`,
+- 공유 환경의 DAW-ADMIN BFF→BCM은 mTLS 서비스 신원과 5분 이하의 단기 서명 JWT를 함께 검증한다. JWT는 `aud=bcm-admin-api`,
   직원번호, 부점코드, 역할, 세션/요청 ID를 담는다. 기존 직원번호·부점코드 헤더만으로는 인증하지 않는다.
 - Fireblocks, RPC, 컨트랙트 artifact, multisig 자격은 BFF와 브라우저에 전달하지 않는다.
 
@@ -74,7 +77,7 @@ Band S Simulation 네 화면과 비상 흐름·권한·stale 상태를 포함한
 
 ## 정본 반영 범위
 
-1. waas-wiki `01-infra.md`: 독립 Blockchain Manager Admin BFF, loopback 기능 테스트 경계, 공유 환경 mTLS/JWT 경계
+1. waas-wiki `01-infra.md`: DAW-ADMIN 운영면, 로컬 Blockchain Manager Admin, 공유 환경 mTLS/JWT 경계
 2. `02-bcm-flow.md`: 요청/승인/활성화, 밴드S omnibus 경로, 중지/재개 흐름
 3. `03-bcm-db.md`: immutable policy/contract/evidence/request/approval/audit/snapshot 원장
 4. `06-sweep.md`: DAW-CORE 계산, external cold MVP, omnibus 출구, 예약분 산식

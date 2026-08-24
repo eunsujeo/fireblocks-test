@@ -26,4 +26,15 @@ class JobStatePersistenceTest : PersistenceTestSupport() {
         assertThat(jobs.find("submission-recovery")?.lastRunAt).isEqualTo("20260807130000")
         assertThat(jobs.find("submission-recovery")?.lastSucceededAt).isEqualTo("20260807120010")
     }
+
+    @Test
+    fun `검증 시작은 이전 성공 증적을 즉시 폐기한다`() {
+        jobs.markStarted("sweep-attestation:test", "20260807120000")
+        jobs.markSucceeded("sweep-attestation:test", "20260807120010")
+
+        jobs.markValidationStarted("sweep-attestation:test", "20260807130000")
+
+        assertThat(jobs.find("sweep-attestation:test")?.lastRunAt).isEqualTo("20260807130000")
+        assertThat(jobs.find("sweep-attestation:test")?.lastSucceededAt).isNull()
+    }
 }

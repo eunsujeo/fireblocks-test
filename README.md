@@ -49,7 +49,7 @@ test-support ──HTTP──→ 기존 FireblocksClient 테스트
 | Kotlin | 2.3.x |
 | JDK | 25 (toolchain 자동 프로비저닝 — 로컬 설치 불필요) |
 | Spring Boot | 4.1.x (Spring Framework 7) |
-| 영속성 | Spring Data JDBC + Flyway |
+| 영속성 | Spring Data JDBC + PostgreSQL · Git 관리 SQL |
 | DB / MQ | PostgreSQL / Kafka |
 | 빌드 | Gradle 9.6 · Kotlin DSL · version catalog · dependency locking |
 | 테스트 | JUnit 6 + AssertJ + MockK + Testcontainers 2.0 |
@@ -130,8 +130,10 @@ cp /발급받은/경로/fireblocks-private-key.pem .keys/
 
 Admin은 `http://127.0.0.1:9080/admin/dashboard`, BCM API는 `http://127.0.0.1:38080`, Webhook listener는
 `http://127.0.0.1:38081/webhook`입니다. 일반적인 개발 서버 포트와 겹치지 않도록 로컬 실행기에서만 높은 기본 포트를 사용합니다.
-필요하면 `BCM_LOCAL_API_PORT`·`BCM_LOCAL_WEBHOOK_PORT`로 바꿀 수 있습니다. Blockchain Manager Admin은 DAW-CORE에 의존하지 않으며, 로컬 `bcm-api`와
-Webhook management health만 읽습니다. FUNCTION_TEST에서는 검증된 고정 로컬 시나리오만 저장소 실행기로 시작합니다. 다른 BCM 대상으로 시작할 수 없습니다. 상태형 Fireblocks Stub과
+필요하면 `BCM_LOCAL_API_PORT`·`BCM_LOCAL_WEBHOOK_PORT`로 바꿀 수 있습니다. 이 저장소의 Blockchain Manager Admin은
+DAW-CORE에 의존하지 않는 **로컬 개발·진단 콘솔**이며, 로컬 `bcm-api`와 Webhook management health만 읽습니다. 공유 환경의
+운영 화면과 Network·Asset·정책·컨트랙트 변경 workflow는 BCM과 DAW-CORE를 함께 바라보는 DAW-ADMIN이 소유합니다.
+FUNCTION_TEST에서는 검증된 고정 로컬 시나리오만 저장소 실행기로 시작합니다. 다른 BCM 대상으로 시작할 수 없습니다. 상태형 Fireblocks Stub과
 결정적 Ethereum·Base Anvil 체인은 `up stub`에서 chain→Stub→BCM API→Webhook→Admin 순서로 기동합니다. Ethereum RPC는
 `127.0.0.1:38545`, Base RPC는 `127.0.0.1:38546`을 기본으로 하며 각각 `BCM_LOCAL_ETHEREUM_ANVIL_PORT`와
 `BCM_LOCAL_BASE_ANVIL_PORT`로 바꿀 수 있습니다. Stub callback은 API가 아니라
@@ -174,8 +176,10 @@ Admin 첫 화면의 `처음 설정하는 순서`는 자동으로 읽은 연결·
 outbox, reconciliation, boost, sweep 1:N, allowance와 당시 수수료 견적을 연결해서 확인할 수 있습니다.
 원문 payload·서명·callData는 Admin 응답과 화면에 노출하지 않습니다. 자산 등록 화면에 한해 선택 검증에 필요한 Fireblocks Asset ID를 표시합니다.
 
-자산 매핑 활성 상태와 변경 snapshot은 V11이 기존 DB에 추가하므로 정상적인 로컬 DB는 다음 `up`에서 자동 마이그레이션됩니다.
-Flyway 체크섬 불일치가 있는 오래된 개발 DB는 `repair`로 넘기지 말고 DB를 재생성합니다. 아래 명령은 로컬 컨테이너용입니다.
+로컬 PostgreSQL 볼륨을 처음 만들 때는
+`blockchain-manager-infra/persistence/src/main/resources/db/migration/manifest.txt`의 순서대로 V1~V13 SQL을 직접 실행합니다.
+애플리케이션은 Flyway를 포함하지 않으며 기동 중 DDL을 실행하지 않습니다. 볼륨 생성 뒤 SQL이 추가·변경된 개발 DB는
+자동 갱신하지 않으므로 보존할 데이터가 없는지 확인한 다음 재생성합니다. 아래 명령은 개발자 로컬 컨테이너 전용입니다.
 
 개발자 전용 로컬 DB를 재생성할 때만 `./scripts/local.sh purge` 후 다시 `up` 합니다. `./scripts/local.sh reset`은
 Stub의 vault·wallet·transaction·fault·Webhook 상태와 Anvil snapshot만 복원하며 BCM PostgreSQL·Kafka는 변경하지 않습니다.

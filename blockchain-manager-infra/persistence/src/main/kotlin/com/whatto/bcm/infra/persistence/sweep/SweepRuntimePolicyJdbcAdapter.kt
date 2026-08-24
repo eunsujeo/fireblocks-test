@@ -2,6 +2,7 @@ package com.whatto.bcm.infra.persistence.sweep
 
 import com.whatto.bcm.domain.admin.SweepExecutionPolicy
 import com.whatto.bcm.domain.sweep.ActiveSweepRuntimeContext
+import com.whatto.bcm.domain.sweep.SweepRuntimeAttestationRepository
 import com.whatto.bcm.domain.sweep.SweepRuntimePolicyRepository
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -13,7 +14,8 @@ import java.time.ZoneOffset
 @Repository
 class SweepRuntimePolicyJdbcAdapter(
     private val jdbc: NamedParameterJdbcTemplate,
-) : SweepRuntimePolicyRepository {
+) : SweepRuntimePolicyRepository,
+    SweepRuntimeAttestationRepository {
     override fun findActive(
         network: String,
         symbol: String,
@@ -83,4 +85,69 @@ class SweepRuntimePolicyJdbcAdapter(
                     contractAddress = rs.getString("ctrt_addr"),
                 )
             }.singleOrNull()
+
+    override fun findAllActive(observedAt: Instant): List<ActiveSweepRuntimeContext> =
+        jdbc.query(
+            """
+            SELECT policy_binding.plcy_scope_id, contract.ntwk_cd,
+                   policy.plcy_vrsn_id, policy_binding.bind_snps_hash,
+                   policy.plcy_payload->>'enabled' AS enabled,
+                   policy.plcy_payload->>'minimumAmount' AS minimum_amount,
+                   policy.plcy_payload->>'batchSize' AS batch_size,
+                   policy.plcy_payload->>'allowanceCap' AS allowance_cap,
+                   policy.plcy_payload->>'itemAmountCap' AS item_amount_cap,
+                   policy.plcy_payload->>'batchAmountCap' AS batch_amount_cap,
+                   policy.plcy_payload->>'boostAttempts' AS boost_attempts,
+                   contract.ctrt_vrsn_id, contract.ctrt_addr, evidence.evdc_id
+              FROM bcm_plcy_bind_m policy_binding
+              JOIN bcm_plcy_vrsn_l policy ON policy.plcy_vrsn_id = policy_binding.actv_plcy_vrsn_id
+              JOIN bcm_ctrt_vrsn_l contract ON contract.ctrt_vrsn_id = policy.ctrt_vrsn_id
+              JOIN bcm_ctrt_bind_m contract_binding
+                ON contract_binding.ctrt_scope_id = contract.ctrt_scope_id
+               AND contract_binding.actv_ctrt_vrsn_id = contract.ctrt_vrsn_id
+              JOIN LATERAL (
+                SELECT current_evidence.evdc_id
+                  FROM bcm_ctrt_evdc_l current_evidence
+                 WHERE current_evidence.ctrt_vrsn_id = contract.ctrt_vrsn_id
+                 ORDER BY current_evidence.obs_dttm DESC, current_evidence.evdc_id DESC
+                 LIMIT 1
+              ) evidence ON true
+             WHERE contract.use_dvcd = 'SWEEP'
+               AND policy.ceiling_pass_yn = 'Y'
+               AND policy.plcy_payload->>'enabled' = 'true'
+               AND EXISTS (
+                 SELECT 1 FROM bcm_ctrt_evdc_l current_evidence
+                  WHERE current_evidence.evdc_id = evidence.evdc_id
+                    AND current_evidence.evdc_stcd = 'VALID'
+                    AND current_evidence.launch_gate_yn = 'Y'
+                    AND current_evidence.vld_until_dttm > :observedAt
+               )
+             ORDER BY contract.ntwk_cd, policy_binding.plcy_scope_id
+            """.trimIndent(),
+            mapOf("observedAt" to CoreDateTimes.format(LocalDateTime.ofInstant(observedAt, ZoneOffset.UTC))),
+        ) { rs, _ ->
+            val network = rs.getString("ntwk_cd")
+            val scopeId = rs.getString("plcy_scope_id")
+            val prefix = "POLICY:$network:"
+            check(scopeId.startsWith(prefix)) { "invalid sweep policy scope: $scopeId" }
+            ActiveSweepRuntimeContext(
+                network = network,
+                symbol = scopeId.removePrefix(prefix),
+                policyVersionId = rs.getString("plcy_vrsn_id"),
+                policySnapshotHash = rs.getString("bind_snps_hash"),
+                policy =
+                    SweepExecutionPolicy(
+                        enabled = rs.getBoolean("enabled"),
+                        minimumAmount = rs.getBigDecimal("minimum_amount"),
+                        batchSize = rs.getInt("batch_size"),
+                        allowanceCap = rs.getBigDecimal("allowance_cap"),
+                        itemAmountCap = rs.getBigDecimal("item_amount_cap"),
+                        batchAmountCap = rs.getBigDecimal("batch_amount_cap"),
+                        boostAttempts = rs.getInt("boost_attempts"),
+                    ),
+                contractVersionId = rs.getString("ctrt_vrsn_id"),
+                contractEvidenceId = rs.getString("evdc_id"),
+                contractAddress = rs.getString("ctrt_addr"),
+            )
+        }
 }

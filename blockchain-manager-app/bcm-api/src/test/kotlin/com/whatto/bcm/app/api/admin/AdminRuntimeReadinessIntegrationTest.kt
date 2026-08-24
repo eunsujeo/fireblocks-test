@@ -72,5 +72,8 @@ class AdminRuntimeReadinessIntegrationTest : IntegrationTestSupport() {
             .andExpect(jsonPath("$.data.webhook.statusPath").value("/admin/emergency"))
             .andExpect(jsonPath("$.data.webhook.payload").doesNotExist())
             .andExpect(jsonPath("$.data.webhook.signature").doesNotExist())
+            .andExpect(jsonPath("$.data.sweep.enabled").value(false))
+            .andExpect(jsonPath("$.data.sweep.state").value("DISABLED"))
+            .andExpect(jsonPath("$.data.sweep.disabledReasons").isNotEmpty)
     }
 }

@@ -101,12 +101,53 @@ class HttpBcmAdminReadGateway(
             responseType = BcmAssetMappingResponse::class.java,
         ).data
 
+    override fun registerAssetMappings(commands: List<RegisterAdminAssetMapping>): List<AdminAssetMapping> =
+        send(
+            source = "assetBulkRegistration",
+            request =
+                HttpRequest
+                    .newBuilder(uri("/admin/asset-mappings/bulk", emptyMap()))
+                    .timeout(Duration.ofMillis(properties.readTimeoutMillis))
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .header("X-Employee-No", commands.first().employeeNo)
+                    .header("X-Branch-Code", commands.first().branchCode)
+                    .POST(
+                        HttpRequest.BodyPublishers.ofString(
+                            objectMapper.writeValueAsString(
+                                mapOf(
+                                    "items" to
+                                        commands.map { command ->
+                                            mapOf(
+                                                "network" to command.network,
+                                                "symbol" to command.symbol,
+                                                "fireblocksAssetId" to command.fireblocksAssetId,
+                                                "contractAddress" to command.contractAddress,
+                                            )
+                                        },
+                                ),
+                            ),
+                            StandardCharsets.UTF_8,
+                        ),
+                    ).build(),
+            expectedStatus = 201,
+            responseType = BcmAssetMappingListResponse::class.java,
+        ).data
+
     override fun transactionInvestigation(identifier: String): AdminTransactionInvestigation =
         get(
             source = "transaction",
             path = "/admin/transaction-investigations/${encode(identifier)}",
             query = emptyMap(),
             responseType = BcmAdminTransactionInvestigationResponse::class.java,
+        ).data
+
+    override fun vaults(query: String?): List<AdminVault> =
+        get(
+            source = "vaults",
+            path = "/admin/vaults",
+            query = mapOf("q" to query),
+            responseType = BcmAdminVaultListResponse::class.java,
         ).data
 
     override fun contracts(): List<AdminContract> =
@@ -189,7 +230,14 @@ class HttpBcmAdminReadGateway(
                 throw SourceFailure(source, 502, "BCM Admin source unavailable", exception)
             }
         if (response.statusCode() != expectedStatus) {
-            throw SourceFailure(source, response.statusCode(), "BCM Admin source rejected request")
+            val upstreamError = parseError(response.body())
+            throw SourceFailure(
+                source,
+                response.statusCode(),
+                "BCM Admin source rejected request",
+                code = upstreamError?.code,
+                details = upstreamError?.details,
+            )
         }
         return try {
             objectMapper.readValue(response.body(), responseType)
@@ -214,4 +262,30 @@ class HttpBcmAdminReadGateway(
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
+
+    private fun parseError(body: String): UpstreamError? =
+        runCatching {
+            val root = objectMapper.readTree(body)
+            val error = root.path("error")
+            val details = error.path("details")
+            UpstreamError(
+                code = error.path("code").asString().takeIf { it.isNotBlank() },
+                details =
+                    if (details.isMissingNode || details.isNull) {
+                        null
+                    } else {
+                        SourceFailureDetails(
+                            index = details.path("index").asInt(),
+                            network = details.path("network").asString(),
+                            symbol = details.path("symbol").asString(),
+                            reason = details.path("reason").asString(),
+                        )
+                    },
+            )
+        }.getOrNull()
+
+    private data class UpstreamError(
+        val code: String?,
+        val details: SourceFailureDetails?,
+    )
 }

@@ -66,6 +66,7 @@ class AdminGovernanceController(
 data class AdminRuntimeReadinessData(
     val observedAt: String,
     val webhook: AdminWebhookRuntimeData,
+    val sweep: AdminSweepRuntimeData,
 ) {
     companion object {
         fun from(value: AdminRuntimeReadiness) =
@@ -81,9 +82,29 @@ data class AdminRuntimeReadinessData(
                         poisonedOutboxCount = value.webhook.poisonedOutboxCount,
                         statusPath = "/admin/emergency",
                     ),
+                sweep =
+                    AdminSweepRuntimeData(
+                        enabled = value.sweep.enabled,
+                        state = value.sweep.state,
+                        activeContractCount = value.sweep.activeContractCount,
+                        activePolicyCount = value.sweep.activePolicyCount,
+                        executorLastRunAt = value.sweep.executorLastRunAt?.toString(),
+                        executorLastSucceededAt = value.sweep.executorLastSucceededAt?.toString(),
+                        disabledReasons = value.sweep.disabledReasons,
+                    ),
             )
     }
 }
+
+data class AdminSweepRuntimeData(
+    val enabled: Boolean,
+    val state: String,
+    val activeContractCount: Int,
+    val activePolicyCount: Int,
+    val executorLastRunAt: String?,
+    val executorLastSucceededAt: String?,
+    val disabledReasons: List<String>,
+)
 
 data class AdminWebhookRuntimeData(
     val state: String,

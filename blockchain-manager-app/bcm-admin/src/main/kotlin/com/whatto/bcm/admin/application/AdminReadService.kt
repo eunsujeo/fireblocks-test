@@ -8,7 +8,9 @@ import com.whatto.bcm.admin.client.AdminExecutionGateOverview
 import com.whatto.bcm.admin.client.AdminExternalControlEvidence
 import com.whatto.bcm.admin.client.AdminNetwork
 import com.whatto.bcm.admin.client.AdminPolicy
+import com.whatto.bcm.admin.client.AdminRuntimeReadiness
 import com.whatto.bcm.admin.client.AdminTransactionInvestigation
+import com.whatto.bcm.admin.client.AdminVault
 import com.whatto.bcm.admin.client.AdminWebhookRuntime
 import com.whatto.bcm.admin.client.BcmAdminReadGateway
 import com.whatto.bcm.admin.client.BcmWebhookHealthGateway
@@ -315,7 +317,29 @@ class AdminReadService(
         )
     }
 
+    fun vaults(query: String?): ViewResult<List<AdminVault>> {
+        val data = gateway.vaults(query?.trim()?.takeIf { it.isNotEmpty() })
+        val issues =
+            data
+                .filter { it.reconciliationStatus != "MANAGED" }
+                .map { vault ->
+                    SourceIssue(
+                        source = vault.vendorVaultId,
+                        code = vault.reconciliationStatus,
+                        message =
+                            if (vault.reconciliationStatus == "UNMANAGED") {
+                                "Fireblocks vault에 대응하는 BCM 계정이 없습니다."
+                            } else {
+                                "BCM 계정의 Fireblocks vault를 찾지 못했습니다."
+                            },
+                    )
+                }
+        return ViewResult(data, if (issues.isEmpty()) ViewState.FRESH else ViewState.PARTIAL, issues)
+    }
+
     fun policies(): ViewResult<List<AdminPolicy>> = ViewResult(gateway.policies(), ViewState.FRESH, emptyList())
+
+    fun runtimeReadiness(): ViewResult<AdminRuntimeReadiness> = ViewResult(gateway.runtimeReadiness(), ViewState.FRESH, emptyList())
 
     fun bandS(): ViewResult<List<AdminBandS>> {
         val data = gateway.bandS()

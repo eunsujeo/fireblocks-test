@@ -225,3 +225,22 @@ Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblock
 **A.** 제출 경로와 기록 형태는 **실측 완료 (2026-08-10)** — 위 실측 절 참조. `APPROVE` 로는 제출 불가(400·1401), `CONTRACT_CALL` 로 내면 통하고 기록은 `operation=APPROVE`. 스키마 enum 에 이름이 있는 것과 제출 경로로 쓸 수 있는 것이 다르다.
 
 **남은 미확인은 정책 쪽** — `APPROVE` transactionType·`applyForApprove` 로 승인 대상·토큰을 넘어 **승인 금액 상한**까지 강제할 수 있는가([정책](https://developers.fireblocks.com/reference/configure-transaction-authorization-policy)), Console 의 Approve Amount Cap 이 API 제출에도 적용되는가([Amount Cap](https://developers.fireblocks.com/docs/interact-with-smart-contracts)), CONTRACT_CALL approve 에 Universal Gasless 를 적용할 수 있고 relay 처리량은 얼마인가. 정책 상한이 없어도 유한 allowance 는 calldata 로 지정할 수 있지만 독립적인 오승인 방어선이 약해진다.
+
+## Universal Gasless 유효 창 — 담당자 확답 (2026-08)
+
+원문: `sources/fireblocks/markdown/2026-08-24__fireblocks-csm__universal-gasless-validity-window.txt`
+
+**Q.** Universal Gasless (EIP-7702) 에 ERC-4337 `validUntil` 같은 온체인 유효 창을 적용할 수 있나?
+**A.** 이미 있고, 값은 고정이다. delegate 컨트랙트 (UniversalGaslessDelegate) 가 서명받는 EIP-712 구조체 `AuthorizedExecutions(Execution[] calls, uint256 deadline, bytes32 mode, uint256 nonce, address relayer)` 에 `deadline` 필드가 있고, `execute()` 가 **nonce 를 소비하기 전에** `block.timestamp <= deadline` 을 검사해 늦으면 revert 한다 — `validUntil` 과 같은 의미다. `validAfter` (하한) 와 블록 번호 기반 변형은 없다.
+
+**Q.** deadline 값을 우리가 정할 수 있나?
+**A.** 없다. **서명 시각 + 2시간**으로 enclave 안에서 계산되는 설계 고정값이라, 여기에 닿는 API 필드가 없다.
+
+**Q.** 서명이 유출되면 제3자가 제출할 수 있나?
+**A.** 없다. relayer 주소 (msg.sender) 가 EIP-712 digest 에 포함되어 **지정 relayer 만 그 서명을 제출**할 수 있다 (담당자 표현: ERC-4337 기본에는 이에 상응하는 것이 없다). nonce 도 단회 사용이라 재사용이 안 된다.
+
+**Q.** 브로드캐스트 전 만료 (`configurations.expiresAfterSeconds`) 는 gasless 거래에도 적용되나?
+**A.** 적용된다 — 공유 거래 생성 경로에 있어 gasless 예외가 없다. **기본 비활성**이고 테스트하려면 요청해야 활성화해 준다. 유효 범위는 **10분~24시간**이고 Console 의 워크스페이스 기본값도 같은 한도다. dev 문서의 '300' 은 오기이며 '600'초로 수정 예정이라고 했다. 만료 시 유예 없이 거래가 소멸하고, 지정 서명자에게 발급되는 signing token 도 그에 맞춰 짧아진다 (enclave 강제).
+
+**Q.** 두 메커니즘의 관계는?
+**A.** 독립이고 정렬할 수 없다 — `expiresAfterSeconds` 는 승인·큐 지연 통제 (창 안에 승인·서명 안 되면 전파 전 소멸, 10분 하한), 컨트랙트 `deadline` 은 온체인 유효 창 (서명된 연산이 그 시각 이후 체인에 오르지 못함, 2시간 고정). 오늘 쓸 수 있는 통제는 넷이다: 2시간 온체인 유효 (고정) · relayer-bound 서명 · 단회 nonce · 옵션인 10분~24시간 pre-signature TTL.

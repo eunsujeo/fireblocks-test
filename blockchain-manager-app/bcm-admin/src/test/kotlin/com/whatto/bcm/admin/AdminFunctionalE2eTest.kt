@@ -129,6 +129,19 @@ class AdminFunctionalE2eTest {
     }
 
     @Test
+    fun `Vault 화면은 Fireblocks와 BCM 계정 대조 상태를 읽기 전용으로 보여준다`() {
+        mockMvc.perform(get("/admin/vaults")).andExpect(status().isOk).andExpect(forwardedUrl("/admin/index.html"))
+
+        mockMvc
+            .perform(get("/bff/admin/vaults").param("q", "customer"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.data[0].reconciliationStatus").value("MANAGED"))
+            .andExpect(jsonPath("$.data[0].accountId").value("acct-1"))
+            .andExpect(jsonPath("$.data[0].vendorVaultId").value("7"))
+            .andExpect(jsonPath("$.data[0].walletCount").value(2))
+    }
+
+    @Test
     fun `비상 운영 셸과 BFF는 서버 계산 게이트를 읽기 전용으로 연결한다`() {
         mockMvc
             .perform(get("/admin/emergency"))
@@ -183,6 +196,34 @@ class AdminFunctionalE2eTest {
             ).andExpect(status().isCreated)
             .andExpect(jsonPath("$.data.symbol").value("USDC"))
             .andExpect(jsonPath("$.data.fireblocksAssetId").value("USDC_BASE"))
+
+        mockMvc
+            .perform(
+                post("/bff/admin/assets/bulk")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Origin", "http://localhost")
+                    .header("X-BCM-Local-Asset-Management", "execute")
+                    .content(
+                        """{"items":[{"network":"BASE","symbol":"USDC","fireblocksAssetId":"USDC_BASE","contractAddress":"0x8335"}]}""",
+                    ),
+            ).andExpect(status().isCreated)
+            .andExpect(jsonPath("$.data[0].symbol").value("USDC"))
+
+        mockMvc
+            .perform(
+                post("/bff/admin/assets/bulk")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Origin", "http://localhost")
+                    .header("X-BCM-Local-Asset-Management", "execute")
+                    .content(
+                        """{"items":[{"network":"BASE","symbol":"USDC","fireblocksAssetId":"missing","contractAddress":"0x8335"}]}""",
+                    ),
+            ).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.error.details.index").value(0))
+            .andExpect(jsonPath("$.error.details.network").value("BASE"))
+            .andExpect(jsonPath("$.error.details.symbol").value("USDC"))
+            .andExpect(jsonPath("$.error.details.reason").value("assetNotFound"))
 
         mockMvc
             .perform(
@@ -247,9 +288,19 @@ class AdminFunctionalE2eTest {
                 createContext("/admin/asset-mappings") { exchange ->
                     check(exchange.requestHeaders.getFirst("X-Employee-No") == if (exchange.requestMethod == "POST") "LOCAL" else null)
                     check(exchange.requestHeaders.getFirst("X-Branch-Code") == if (exchange.requestMethod == "POST") "9999" else null)
+                    val bulk = exchange.requestURI.path.endsWith("/bulk")
+                    val body = exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+                    if (bulk && body.contains("\"fireblocksAssetId\":\"missing\"")) {
+                        respond(
+                            exchange,
+                            """{"error":{"code":"VALIDATION_FAILED","message":"request validation failed","details":{"index":0,"network":"BASE","symbol":"USDC","reason":"assetNotFound"}},"meta":{"requestId":"bcm-assets"}}""",
+                            400,
+                        )
+                        return@createContext
+                    }
                     respond(
                         exchange,
-                        """{"data":${if (exchange.requestMethod == "POST") "{\"network\":\"BASE\",\"symbol\":\"USDC\",\"fireblocksAssetId\":\"USDC_BASE\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}" else "[{\"network\":\"BASE\",\"symbol\":\"USDC\",\"fireblocksAssetId\":\"USDC_BASE\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}]"},"meta":{"requestId":"bcm-assets"}}""",
+                        """{"data":${if (exchange.requestMethod == "POST" && !bulk) "{\"network\":\"BASE\",\"symbol\":\"USDC\",\"fireblocksAssetId\":\"USDC_BASE\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}" else "[{\"network\":\"BASE\",\"symbol\":\"USDC\",\"fireblocksAssetId\":\"USDC_BASE\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}]"},"meta":{"requestId":"bcm-assets"}}""",
                         if (exchange.requestMethod == "POST") 201 else 200,
                     )
                 }
@@ -264,6 +315,12 @@ class AdminFunctionalE2eTest {
                 createContext("/actuator/health") { exchange -> respond(exchange, """{"status":"UP"}""") }
                 createContext("/admin/transaction-investigations/tx-root") { exchange ->
                     respond(exchange, transactionInvestigationResponse)
+                }
+                createContext("/admin/vaults") { exchange ->
+                    respond(
+                        exchange,
+                        """{"data":[{"reconciliationStatus":"MANAGED","accountId":"acct-1","accountType":"CUSTOMER","ref":"customer-1","vendorVaultId":"7","vendorVaultName":"customer-vault","walletCount":2,"registeredAt":"20260817080000"}],"meta":{"requestId":"bcm-vaults"}}""",
+                    )
                 }
                 createContext("/admin/contracts") { exchange -> respond(exchange, contractResponse) }
                 createContext("/admin/policies") { exchange -> respond(exchange, policyResponse) }
@@ -338,7 +395,7 @@ class AdminFunctionalE2eTest {
             """.trimIndent()
 
         private val runtimeReadinessResponse =
-            """{"data":{"observedAt":"2026-08-21T01:00:00Z","webhook":{"state":"NEVER_RECEIVED","pendingInboxCount":0,"poisonedInboxCount":0,"pendingOutboxCount":0,"poisonedOutboxCount":0,"statusPath":"/admin/emergency"}},"meta":{"requestId":"runtime-readiness"}}"""
+            """{"data":{"observedAt":"2026-08-21T01:00:00Z","webhook":{"state":"NEVER_RECEIVED","pendingInboxCount":0,"poisonedInboxCount":0,"pendingOutboxCount":0,"poisonedOutboxCount":0,"statusPath":"/admin/emergency"},"sweep":{"enabled":false,"state":"DISABLED","activeContractCount":0,"activePolicyCount":0,"disabledReasons":["SWEEP_PROCESS_DISABLED"]}},"meta":{"requestId":"runtime-readiness"}}"""
 
         private val contractResponse =
             """{"data":[{"versionId":"contract-v1","scopeId":"BASE:SWEEP","network":"BASE","use":"SWEEP","version":"1.0.0","address":"0xcontract","state":"VERIFIED","runtimeCodeHash":"${"a".repeat(

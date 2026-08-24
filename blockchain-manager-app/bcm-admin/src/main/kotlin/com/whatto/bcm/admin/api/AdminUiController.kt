@@ -13,6 +13,7 @@ class AdminUiController {
         "/admin/dashboard",
         "/admin/networks",
         "/admin/assets",
+        "/admin/vaults",
         "/admin/contracts",
         "/admin/policies",
         "/admin/band-s",

@@ -48,6 +48,27 @@ class JobStateJdbcAdapter(
         ) { "job heartbeat does not exist: jobName=$jobName" }
     }
 
+    override fun markValidationStarted(
+        jobName: String,
+        at: String,
+    ) {
+        jdbc.update(
+            """
+            INSERT INTO bcm_job_m
+              (job_nm, last_run_dttm, last_scs_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES
+              (:jobName, :at, NULL, :employeeNo, :branchCode, :employeeNo, :branchCode)
+            ON CONFLICT (job_nm) DO UPDATE
+            SET last_run_dttm = EXCLUDED.last_run_dttm,
+                last_scs_dttm = NULL,
+                last_chng_empno = EXCLUDED.last_chng_empno,
+                last_chng_brcd = EXCLUDED.last_chng_brcd
+            """.trimIndent(),
+            parameters(jobName, at),
+        )
+    }
+
     override fun find(jobName: String): JobState? =
         jdbc
             .query(

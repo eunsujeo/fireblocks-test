@@ -10,6 +10,8 @@ import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSource
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
+import com.whatto.bcm.domain.exception.BulkAssetMappingException
+import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import io.mockk.every
 import io.mockk.verify
 import org.hamcrest.Matchers.hasKey
@@ -140,6 +142,79 @@ class AdminAssetControllerTest {
                     .header("X-Employee-No", "123456")
                     .header("X-Branch-Code", "0001"),
             ).andExpect(status().isNoContent)
+    }
+
+    @Test
+    fun `자산 일괄 등록은 최대 20건을 같은 request id로 서비스에 전달한다`() {
+        every {
+            service.registerAll(
+                match { commands ->
+                    commands.size == 2 &&
+                        commands.map { it.network } == listOf("ETHEREUM", "BASE") &&
+                        commands.map { it.requestId }.distinct().size == 1
+                },
+            )
+        } returns listOf(mapping, mapping.copy(network = "BASE", vendorAssetId = "base-usdc"))
+
+        mockMvc
+            .perform(
+                post("/admin/asset-mappings/bulk")
+                    .header("X-Employee-No", "123456")
+                    .header("X-Branch-Code", "0001")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """{"items":[{"network":"ETHEREUM","symbol":"USDC","fireblocksAssetId":"secret-asset-id","contractAddress":"0xA0b8"},{"network":"BASE","symbol":"USDC","fireblocksAssetId":"base-usdc","contractAddress":"0xBase"}]}""",
+                    ),
+            ).andExpect(status().isCreated)
+            .andExpect(jsonPath("$.data.length()").value(2))
+            .andExpect(jsonPath("$.data[1].network").value("BASE"))
+    }
+
+    @Test
+    fun `자산 일괄 등록은 20건을 넘으면 서비스 호출 전에 400이다`() {
+        val items =
+            (1..21).joinToString(",") { index ->
+                """{"network":"ETHEREUM","symbol":"A$index","fireblocksAssetId":"asset-$index","contractAddress":null}"""
+            }
+
+        mockMvc
+            .perform(
+                post("/admin/asset-mappings/bulk")
+                    .header("X-Employee-No", "123456")
+                    .header("X-Branch-Code", "0001")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"items":[$items]}"""),
+            ).andExpect(status().isBadRequest)
+
+        verify(exactly = 0) { service.registerAll(any()) }
+    }
+
+    @Test
+    fun `자산 일괄 등록 실패는 DAW ADMIN이 수정할 항목과 이유를 구조화해 돌려준다`() {
+        every { service.registerAll(any()) } throws
+            BulkAssetMappingException(
+                index = 1,
+                network = "BASE",
+                symbol = "USDC",
+                reason = "assetNotFound",
+                failure = InvalidAssetMappingException("BASE", "assetNotFound"),
+            )
+
+        mockMvc
+            .perform(
+                post("/admin/asset-mappings/bulk")
+                    .header("X-Employee-No", "123456")
+                    .header("X-Branch-Code", "0001")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """{"items":[{"network":"ETHEREUM","symbol":"USDC","fireblocksAssetId":"eth-usdc","contractAddress":"0xEth"},{"network":"BASE","symbol":"USDC","fireblocksAssetId":"missing","contractAddress":"0xBase"}]}""",
+                    ),
+            ).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.error.details.index").value(1))
+            .andExpect(jsonPath("$.error.details.network").value("BASE"))
+            .andExpect(jsonPath("$.error.details.symbol").value("USDC"))
+            .andExpect(jsonPath("$.error.details.reason").value("assetNotFound"))
     }
 
     @Test

@@ -56,7 +56,10 @@ data class AdminSweepReleaseProperties(
 }
 
 @Configuration
-@EnableConfigurationProperties(AdminPolicyHardCeilingProperties::class, AdminSweepReleaseProperties::class)
+@EnableConfigurationProperties(
+    AdminPolicyHardCeilingProperties::class,
+    AdminSweepReleaseProperties::class,
+)
 class AdminPolicyConfig {
     @Bean
     fun sweepPolicyHardCeiling(properties: AdminPolicyHardCeilingProperties) =

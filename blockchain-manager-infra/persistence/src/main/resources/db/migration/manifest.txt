@@ -1,0 +1,14 @@
+# PostgreSQL 적용 순서. local.sh 최초 DB 생성과 Testcontainers가 같은 목록을 사용한다.
+V1__bcm_core_tables.sql
+V2__admin_policy_ledgers.sql
+V3__band_s_ledgers.sql
+V4__execution_gate_events.sql
+V5__emergency_external_control_evidence.sql
+V6__allowance_revocation_ledgers.sql
+V7__webhook_recovery_ledgers.sql
+V8__execution_gate_resume_ledgers.sql
+V9__sweep_execution_admin_snapshot.sql
+V10__execution_gate_sweep_submission_guards.sql
+V11__asset_mapping_change_snapshots.sql
+V12__vendor_asset_catalog_cache.sql
+V13__blockchain_asset_catalog_sync_time.sql

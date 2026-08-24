@@ -257,7 +257,8 @@ TESTNET의 지원 네트워크 코드는 시작 스크립트의 고정 지원 �
 | `DELETE /admin/networks/{code}` | 채택 논리 해제 — 매핑이 남아 있으면 409 |
 | `GET /admin/asset-candidates` | `q`로 자산 후보를 찾는다 — 심볼·표시명 검색 결과와 네트워크별 카탈로그 동기화 시각이 온다 |
 | `GET /admin/asset-mappings` | 등록된 매핑 목록 |
-| `POST /admin/asset-mappings` | 등록 — 후보에서 고른 `network` · `symbol` · `fireblocksAssetId` · `contractAddress` |
+| `POST /admin/asset-mappings` | 단건 등록 — 후보에서 고른 `network` · `symbol` · `fireblocksAssetId` · `contractAddress` |
+| `POST /admin/asset-mappings/bulk` | 최대 20개 일괄 등록 — 모든 후보를 먼저 재검증하고 한 트랜잭션으로 저장한다 |
 | `DELETE /admin/asset-mappings/{network}/{symbol}` | 논리 해제 — **그 (네트워크, 토큰)으로 발급된 주소가 하나도 없을 때만** 허용, 있으면 409 |
 
 수정 오퍼레이션은 두지 않는다. 주소·현재 매핑·감사 흔적을 물리 삭제하지 않으며, 해제는 `bcm_vndr_ast_m.actv_yn=N`으로 표시한다. 잘못된 매핑은 논리 해제한 뒤 등록 절차를 다시 거쳐 같은 현재 행을 교체한다. 별도 mapping version이나 활성 binding 테이블은 두지 않고, 등록·해제·재활성·교체의 변경 전후 상태를 `bcm_vndr_ast_chng_l`에 추가 전용 snapshot으로 남긴다.
@@ -276,16 +277,23 @@ exact/prefix → `simple` 사전의 단어 prefix → 컨트랙트 주소 exact/
 캐시가 비었거나 오래돼도 임의로 실시간 벤더 조회로 우회하지 않으며 안전한 빈 결과와 `sources` 상태를 보여 준다.
 **등록 POST는 후보 캐시의 값으로 assetId를 결정하지 않고 Fireblocks에서 같은 네트워크의 assetId·주소를 다시 해소해 관문 넷을 항상 수행한다.**
 
+운영자는 한 번의 검색과 이어지는 검색에서 등록 가능한 후보를 여러 개 선택할 수 있다. 선택 목록은
+`network` · `symbol` · `fireblocksAssetId` · `contractAddress` 조합으로 중복을 제거하며, 검색 결과가 바뀌어도 등록 전 검토 영역에
+유지한다. 일괄 등록은 최대 20개다. 서버는 각 항목에 단건 등록과 같은 관문 넷을 적용하고, 기존 매핑·요청 안 중복·벤더 재해소 결과를
+**모두 확인한 뒤** 현재 매핑과 변경 snapshot을 한 트랜잭션으로 기록한다. 한 항목이라도 실패하면 아무 항목도 저장하지 않고,
+응답은 실패한 항목의 index·network·symbol과 구조화된 사유를 돌려 준다. 브라우저가 단건 POST를 여러 번 보내 부분 성공을 만들지 않는다.
+
 **감사 흔적** — 자동 처리 행은 시스템 센티넬(`SYSTEM`/`9999`), **Admin 수동 개입은 실제 직원번호·부점코드**를 남긴다([DB 명명 규약](03-bcm-db.md)).
-직원번호·부점코드 헤더는 인증이 아니라 감사 전달값이다. Blockchain Manager Admin BFF가 검증한 단기 JWT 신원에서 만들고 BCM은 JWT와
+직원번호·부점코드 헤더는 인증이 아니라 감사 전달값이다. 공유 환경에서는 DAW-ADMIN BFF가 검증한 단기 JWT 신원에서 만들고 BCM은 JWT와
 헤더가 다르면 거절한다. 브라우저가 보낸 헤더를 그대로 신뢰하지 않는다.
 
-**이 경로의 호출 주체는 Blockchain Manager Admin BFF 하나다.** `/admin/*`는 같은 `bcm-api` 애플리케이션의 private listener/ingress에
-분리하고 공유 환경에서는 BFF→BCM mTLS와 5분 이하 단기 JWT를 함께 검증한다. 일반 업무 API의 내부망 신뢰와 별도 경계다.
+**공유 환경에서 이 경로의 운영 호출 주체는 DAW-ADMIN BFF 하나다.** DAW-ADMIN은 BCM의 Network·Asset 설정과 DAW-CORE의
+업무 데이터를 각각의 API로 조회·조정한다. `/admin/*`는 같은 `bcm-api` 애플리케이션의 private listener/ingress에 분리하고
+DAW-ADMIN BFF→BCM mTLS와 5분 이하 단기 JWT를 함께 검증한다. 일반 업무 API의 내부망 신뢰와 별도 경계다.
 T10.2 기능 테스트 profile은 loopback에서만 실행한다. 기본은 읽기 전용이나, 로컬 자산 매핑 관리를
 명시적으로 활성화한 경우에만 네트워크 후보 채택·자산 후보 조회·자산 등록을 BFF에 노출한다. 이 예외는
 `FUNCTION_TEST+loopback`에 고정하고, 조회는 단순 form이 만들 수 없는 전용 헤더를, 채택·등록은 이 헤더와 브라우저와 동일한
-Origin·JSON 요청을 모두 확인한다. BFF는 로컬 설정의
+Origin·JSON 요청을 모두 확인한다. 로컬 Blockchain Manager Admin BFF는 로컬 설정의
 감사 actor를 BCM에 전달하며 브라우저가 직원번호·부점코드 헤더를 직접 만들지 않는다. 공유 환경의 등록은 mTLS·단기 JWT
 인증·인가가 완성되기 전에는 계속 닫는다. 네트워크·자산 논리 해제와 자산 교체는 주소 발급과 변경 snapshot 운영 조건을 필요로 하므로
 로컬 UI에서도 열지 않는다.

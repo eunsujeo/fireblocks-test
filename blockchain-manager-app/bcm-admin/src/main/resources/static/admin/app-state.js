@@ -1,4 +1,4 @@
-const FILTER_KEYS = ["q", "chainId", "adopted", "testnet", "network", "symbol"];
+const FILTER_KEYS = ["q", "chainId", "adopted", "testnet", "network", "symbol", "view"];
 
 export function adminRouteFromPath(pathname) {
   const path = pathname.replace(/\/$/, "");
@@ -9,6 +9,7 @@ export function adminRouteFromPath(pathname) {
   if (path.endsWith("/band-s")) return "bandS";
   if (path.endsWith("/emergency")) return "emergency";
   if (path.endsWith("/contracts")) return "contracts";
+  if (path.endsWith("/vaults")) return "vaults";
   if (path.endsWith("/policies")) return "policies";
   if (path.endsWith("/networks")) return "networks";
   if (path.endsWith("/assets")) return "assets";
@@ -82,6 +83,18 @@ export function registeredAssetMapping(candidate, mappings) {
 
 export function assetCandidateSelectable(candidate, mapping) {
   return candidate.registrationAllowed === true && !mapping;
+}
+
+export function assetSelectionKey(candidate) {
+  return [candidate.network, candidate.symbol, candidate.fireblocksAssetId, candidate.contractAddress || ""].join("\u0000");
+}
+
+export function toggleAssetSelection(selected, candidate, limit = 20) {
+  const key = assetSelectionKey(candidate);
+  if (selected.some((item) => assetSelectionKey(item) === key)) {
+    return selected.filter((item) => assetSelectionKey(item) !== key);
+  }
+  return selected.length >= limit ? selected : [...selected, candidate];
 }
 
 export function resolveViewState({ loading = false, status = 200, error = false, state = "FRESH", data = null }) {

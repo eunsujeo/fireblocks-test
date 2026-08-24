@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.persistence.support
 
+import com.whatto.bcm.testsupport.database.PostgreSqlSchemaInitializer
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -134,7 +135,10 @@ abstract class PersistenceTestSupport {
         @ServiceConnection
         val postgres: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17-alpine")
-                .apply { start() }
+                .apply {
+                    start()
+                    PostgreSqlSchemaInitializer.initialize(jdbcUrl, username, password)
+                }
 
         @JvmStatic
         @DynamicPropertySource

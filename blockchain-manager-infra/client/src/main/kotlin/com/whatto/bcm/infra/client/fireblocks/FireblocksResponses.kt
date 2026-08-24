@@ -7,6 +7,16 @@ package com.whatto.bcm.infra.client.fireblocks
 internal data class VaultAccountResponse(
     val id: String? = null,
     val name: String? = null,
+    val assets: List<VaultAssetResponse> = emptyList(),
+)
+
+internal data class VaultAccountListResponse(
+    val accounts: List<VaultAccountResponse> = emptyList(),
+    val paging: VaultAccountPagingResponse? = null,
+)
+
+internal data class VaultAccountPagingResponse(
+    val after: String? = null,
 )
 
 internal data class CreateVaultAssetResponse(
