@@ -21,7 +21,7 @@
 2. **스펙 준수** — 뷰어가 `openapi.yaml`(→`spec.js`)에서 직접 그리므로 스펙과 문서가 항상 일치.
 3. **yaml 추출 / 삽입** — `openapi.yaml` 은 외부 `$ref` 없는 단일 표준 파일이라 어디든 그대로 드롭인된다(Redoc·Swagger UI·Scalar·Postman·codegen). 문서 좌상단 **OpenAPI ↓**로 받는다.
 4. **HTML export** — `api.html` 은 spec.js 를 인라인한 단일 파일이라, 메신저·메일로 파일 하나만 보내도 받는 쪽에서 더블클릭으로 뷰어 그대로 열린다. 문서 좌상단 **HTML ↓** 로 받는다.
-5. **실행 가능한 예시** — named OpenAPI example을 우선 채우고 Base URL·path/query·JSON body를 수정해 요청한다. 응답을 받으면 HTTP 상태·노출된 헤더·본문 원문을 그대로 표시한다. 브라우저가 응답을 받지 못하면 서버 처리 여부를 단정하지 않고 오류 원문과 재현용 curl을 표시한다.
+5. **실행 가능한 예시** — named OpenAPI example을 우선 채우고 Base URL·path/query·JSON body를 수정해 요청한다. 응답을 받으면 HTTP 상태와 읽기 좋게 포맷한 JSON 본문을 먼저 표시하며, 노출된 헤더와 정확한 HTTP 원문도 별도로 펼쳐 확인·복사할 수 있다. 브라우저가 응답을 받지 못하면 서버 처리 여부를 단정하지 않고 오류 원문과 재현용 curl을 표시한다.
 
 뷰어는 `계정·주소`, `잔액`, `거래`, `관리자`, `데이터 타입`을 각각 별도 hash URL로 렌더링한다. 선택하지 않은
 카테고리와 긴 `info.description`은 본문에 펼치지 않으며, 화면에는 해당 카테고리의 OpenAPI operation과 schema만 표시한다.

@@ -15,10 +15,11 @@ group: 운영 설계
 |---|---|
 | 이 자산이 벤더에서 무엇인가 (`vndr_ast_id`) | 매니저 |
 | 어떤 자산을 지원하는가 | 상품 결정 |
-| 소수 자릿수 | 보관하지 않는다 |
+| 소수 자릿수 | 현재 매핑에는 보관하지 않는다. 검색용 벤더 자산 카탈로그에는 벤더 관찰값을 캐시한다 |
 | 컨트랙트 주소 | 등록 때 대조한 근거의 사본으로 보관 |
 
-현재 매핑 표는 매핑만 담는다. **자산은 벤더를 따라 동기화하지 않는다** — 지원하기로 한 자산만 등록하고, 늘어나면 한 줄 더한다. 블록체인 목록은 하루 한 번 받아 둔다(아래 "표 셋").
+현재 매핑 표는 매핑만 담는다. 지원 여부는 여전히 사람이 등록한 현재 매핑으로 정하며, 벤더 자산 카탈로그는 **찾기 위한 캐시**일
+뿐 지원 자산 목록이나 등록 근거가 아니다. 블록체인 목록과 채택한 네트워크의 자산 목록을 하루 한 번 받아 둔다(아래 "표 셋").
 
 **범위 (시작 시점)** — 스테이블코인만, 네트워크는 `ETHEREUM` · `BASE` 둘. 벤더 자산 분류는 NATIVE · FT · FIAT · NFT · SFT · VIRTUAL 로, 스테이블코인이라는 분류는 없다.
 
@@ -33,7 +34,7 @@ group: 운영 설계
 
 심볼은 표시용이다 — 동일성은 chainId 와 컨트랙트 주소로 판단한다.
 
-계약에서 이 값을 부르는 이름은 `symbol` 하나다 (2026-08-06 확정). `token` 은 인증 토큰·ERC-20 토큰과 겹쳐 이름만으로 무엇인지 알 수 없고, DB 컬럼 `tkn_smbl` 과도 어긋난다. **후보 조회의 `symbol` 은 벤더 표기**이고 등록할 때 우리 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다.
+계약에서 이 값을 부르는 이름은 `symbol` 하나다 (2026-08-06 확정). `token` 은 인증 토큰·ERC-20 토큰과 겹쳐 이름만으로 무엇인지 알 수 없고, DB 컬럼 `tkn_smbl` 과도 어긋난다. **후보 결과의 `symbol` 은 벤더 표기**이고 등록할 때 우리 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다.
 
 - **네트워크 코드는 벤더 값을 쓰지 않는다.** 우리 이름을 쓰고 벤더 식별자는 `vndr_blkc_id` 로 따로 들고 대조한다.
 - **테스트넷은 별도 코드로 둔다** — `BASE` 와 `BASE_SEPOLIA` 는 다른 네트워크다.
@@ -42,7 +43,7 @@ group: 운영 설계
 
 ## 표 셋 — 카탈로그·현재 매핑·변경 snapshot
 
-**벤더 블록체인 카탈로그는 동기화하고(체인 135개), 자산 매핑은 손으로 등록한다. 매핑 이력은 별도 version으로 관리하지 않고 변경 전후 snapshot으로 남긴다.**
+**벤더 블록체인 카탈로그와 채택한 네트워크의 자산 카탈로그를 동기화하고, 자산 매핑은 손으로 등록한다. 매핑 이력은 별도 version으로 관리하지 않고 변경 전후 snapshot으로 남긴다.**
 
 ```sql
 -- 벤더 블록체인 카탈로그 — 일 1회 동기화. 고르기 위한 참조 데이터다
@@ -57,6 +58,37 @@ CREATE TABLE bcm_blkc_m (
   -- 감사 4컬럼
   UNIQUE (ntwk_cd)
 );
+
+-- 벤더 자산 카탈로그 캐시 — 채택한 네트워크에서 찾기 위한 참조 데이터다
+CREATE TABLE bcm_vndr_ast_ctlg_m (
+  vndr_ast_id   VARCHAR(64)  PRIMARY KEY,  -- 벤더 assetId
+  vndr_blkc_id  VARCHAR(64)  NOT NULL,     -- 벤더 blockchainId
+  ast_smbl      VARCHAR(64)  NOT NULL,     -- 벤더 표시 심볼
+  dspl_nm       VARCHAR(128) NULL,         -- 벤더 표시명
+  ast_clss      VARCHAR(16)  NULL,         -- NATIVE/FT/FIAT/NFT/SFT/VIRTUAL
+  dcml_cnt      INTEGER      NULL,
+  cntr_addr     VARCHAR(128) NULL,
+  prst_yn       VARCHAR(1)   NOT NULL,     -- 마지막 성공 snapshot에 존재 Y/N
+  sync_dttm     VARCHAR(16)  NOT NULL,     -- 이 네트워크의 마지막 성공 동기화 일시
+  -- 감사 4컬럼
+  FOREIGN KEY (vndr_blkc_id) REFERENCES bcm_blkc_m (vndr_blkc_id)
+);
+
+CREATE INDEX idx_bcm_vndr_ast_ctlg_blkc
+  ON bcm_vndr_ast_ctlg_m (vndr_blkc_id, prst_yn, ast_smbl);
+CREATE INDEX idx_bcm_vndr_ast_ctlg_symbol
+  ON bcm_vndr_ast_ctlg_m (lower(ast_smbl) text_pattern_ops)
+  WHERE prst_yn = 'Y';
+CREATE INDEX idx_bcm_vndr_ast_ctlg_name
+  ON bcm_vndr_ast_ctlg_m (lower(dspl_nm) text_pattern_ops)
+  WHERE prst_yn = 'Y';
+CREATE INDEX idx_bcm_vndr_ast_ctlg_address
+  ON bcm_vndr_ast_ctlg_m (lower(cntr_addr) text_pattern_ops)
+  WHERE prst_yn = 'Y';
+CREATE INDEX idx_bcm_vndr_ast_ctlg_search
+  ON bcm_vndr_ast_ctlg_m USING GIN (
+    to_tsvector('simple', coalesce(ast_smbl, '') || ' ' || coalesce(dspl_nm, ''))
+  ) WHERE prst_yn = 'Y';
 
 -- 자산의 현재 매핑 — 손으로 등록하며 물리 삭제하지 않는다
 CREATE TABLE bcm_vndr_ast_m (
@@ -93,6 +125,7 @@ CREATE TABLE bcm_vndr_ast_chng_l (
 | `UNIQUE (vndr_ast_id)` | 현재 한 벤더 자산이 여러 (네트워크, 토큰)에 붙는 것 |
 | `FOREIGN KEY (ntwk_cd)` | 채택하지 않은 네트워크로 매핑이 생기는 것 |
 | `UNIQUE (ntwk_cd)` (카탈로그) | 우리 이름 하나가 두 벤더 체인을 가리키는 것 |
+| 자산 카탈로그 검색 인덱스 | 심볼·표시명 exact/prefix·단어 검색이 전체 행 순회로 느려지는 것 |
 | 현재 매핑 직접 덮어쓰기 금지 | 검증·snapshot 없이 벤더 자산이나 컨트랙트 주소가 바뀌는 것 |
 | 변경 원장 `UPDATE`·`DELETE` 금지 | 변경 전후 snapshot이 사라지거나 고쳐지는 것 |
 
@@ -102,14 +135,27 @@ CREATE TABLE bcm_vndr_ast_chng_l (
 
 snapshot에는 `network`·`symbol`·`vendorAssetId`·`contractAddress`·`activeYn`을 담는다. 최초 등록은 `before_snps=NULL`, 해제는 변경 전후 값을 모두 남긴다. snapshot은 감사와 장애 대조용이지 현재값을 읽는 테이블이 아니다.
 
-## 동기화 — 하루 한 번, 카탈로그만
+## 동기화 — 하루 한 번, 네트워크와 자산 카탈로그
 
-`GET /v1/blockchains` 를 페이징해 `bcm_blkc_m` 을 갱신한다.
+먼저 `GET /v1/blockchains` 를 페이징해 `bcm_blkc_m` 을 갱신한다.
 
 - **새 체인은 행을 추가**한다. `ntwk_cd` 는 비운다 — 채택은 별도 행위다.
 - **기존 체인은 `dspl_nm`·`test_yn`·`deprc_yn`·`sync_dttm` 을 갱신**한다.
 - **벤더 목록에서 사라진 체인은 지우지 않는다.** 폐기 표시는 `deprc_yn` 으로만 남긴다.
 - **`chain_id` 가 바뀌면 갱신하지 않고 경보**한다.
+
+그 다음 `ntwk_cd IS NOT NULL`인 채택 네트워크마다 `GET /v1/assets?blockchainId=...`를 끝까지 페이징해
+`bcm_vndr_ast_ctlg_m`을 갱신한다.
+
+- 한 네트워크의 모든 페이지를 메모리에 받은 뒤 **한 DB 트랜잭션으로** upsert하고, 이번 성공 snapshot에서 사라진 기존 행은
+  지우지 않고 `prst_yn=N`으로 표시한다.
+- HTTP 오류·잘못된 응답·중간 페이지 실패가 있으면 그 네트워크의 DB를 전혀 바꾸지 않는다. 다른 네트워크의 성공은 독립적으로
+  반영하고, 작업 전체는 일부 실패로 기록·경보한다.
+- 같은 `vndr_ast_id`가 기존과 다른 `vndr_blkc_id`에서 관찰되면 기존 행을 옮기지 않고 그 네트워크 동기화를 실패시킨다.
+- 자동 행의 감사값은 `SYSTEM`/`9999`를 쓰며 최초 감사값은 덮지 않고 마지막 변경 감사값만 갱신한다.
+- BAT 작업 이름은 `VENDOR_ASSET_CATALOG_SYNC`다. 정기 작업과 one-shot은 같은 application service를 사용한다.
+- 새로 채택한 네트워크는 다음 정기 실행을 기다리지 않고 해당 네트워크 자산 동기화를 한 번 요청할 수 있다. 이 동기화가
+  실패해도 채택 자체를 되돌리지는 않으며 후보 화면에 `아직 동기화되지 않음`을 표시한다.
 
 ## 변환은 벤더 경계에서 한 번
 
@@ -117,7 +163,8 @@ snapshot에는 `network`·`symbol`·`vendorAssetId`·`contractAddress`·`activeY
 
 매핑에 없으면 **`ASSET_NOT_SUPPORTED`** 로 거절한다(요청 형식 오류 `VALIDATION_FAILED` 와 구분). 여러 네트워크 발급에서는 네트워크별 실패로 떨어진다.
 
-캐시는 두지 않는다.
+자산 카탈로그 캐시는 후보 검색에만 사용한다. 주소 발급·잔액 조회·출금·sweep의 assetId 변환은 계속
+`bcm_vndr_ast_m`의 활성 현재 매핑만 사용한다.
 
 ## 등록
 
@@ -126,7 +173,7 @@ snapshot에는 `network`·`symbol`·`vendorAssetId`·`contractAddress`·`activeY
 - 자산은 **컨트랙트 주소**로 가리킨다. 네이티브 자산은 주소를 비운다.
 - 채택 전 체인은 목록에서 받은 **손잡이**(`candidateId`)로 가리킨다. Admin 은 해석하지도 보관하지도 않는다.
 - **chainId 로 채택하지 않는다** — 비 EVM 에는 없다. 찾는 데만 쓴다(`GET /admin/networks?chainId=8453`).
-- **자산 후보는 심볼로 찾고 네트워크는 결과로 받는다.** 채택한 네트워크에서만 찾는다.
+- **자산 후보는 자유 검색어로 찾고 네트워크는 결과로 받는다.** 채택한 네트워크에서만 찾는다.
 
 ```mermaid
 sequenceDiagram
@@ -138,12 +185,11 @@ sequenceDiagram
     end
     participant FB as Fireblocks
 
-    Note over ADM,FB: 고르기 — 심볼로 찾는다
-    ADM->>API: GET /admin/asset-candidates — symbol=USDC
-    API->>MDB: 채택한 네트워크의 vndr_blkc_id 조회
-    API->>FB: 각 체인에서 심볼로 자산 조회
-    FB-->>API: 자산 후보
-    API-->>ADM: 네트워크 · 컨트랙트 주소 · 소수 자릿수<br/>운영자가 발행사 문서와 대조
+    Note over ADM,FB: 고르기 — 캐시에서 심볼·이름으로 찾는다
+    ADM->>API: GET /admin/asset-candidates — q=USDC
+    API->>MDB: 채택한 네트워크의 현재 카탈로그 검색
+    MDB-->>API: exact · prefix · 단어 검색 결과
+    API-->>ADM: 네트워크 · 심볼 · 표시명 · 컨트랙트 주소 · 소수 자릿수 · 동기화 시각<br/>운영자가 발행사 문서와 대조
 
     Note over ADM,FB: 등록 — 주소로 자산을 지정한다
     ADM->>API: POST 매핑 등록<br/>network · symbol · contractAddress<br/>직원번호 · 부점코드
@@ -152,7 +198,7 @@ sequenceDiagram
         MDB-->>API: actv_yn=Y인 기존 행
         API-->>ADM: 409 CONFLICT
     else 통과
-        API->>FB: 그 체인에서 주소로 자산 해소
+        API->>FB: 그 체인에서 주소로 자산 재해소 — 캐시를 신뢰하지 않음
         alt 잡힌 자산이 없음
             FB-->>API: 빈 결과
             API-->>ADM: 400 VALIDATION_FAILED
@@ -197,12 +243,23 @@ sequenceDiagram
 | `GET /admin/networks` | 쓸 수 있는 체인 목록. `adopted` 로 채택 전/후를 가르고, `q` · `chainId` 로 좁힌다 |
 | `PUT /admin/networks/{code}` | **네트워크 채택** — 목록에서 고른 후보에 우리 이름을 붙인다 |
 | `DELETE /admin/networks/{code}` | 채택 논리 해제 — 매핑이 남아 있으면 409 |
-| `GET /admin/asset-candidates` | **심볼로** 자산 후보를 찾는다 — 채택한 네트워크마다 잡히는 것이 한 번에 온다 |
+| `GET /admin/asset-candidates` | `q`로 자산 후보를 찾는다 — 심볼·표시명 검색 결과와 네트워크별 카탈로그 동기화 시각이 온다 |
 | `GET /admin/asset-mappings` | 등록된 매핑 목록 |
 | `POST /admin/asset-mappings` | 등록 — `network` · `symbol` · `contractAddress` |
 | `DELETE /admin/asset-mappings/{network}/{symbol}` | 논리 해제 — **그 (네트워크, 토큰)으로 발급된 주소가 하나도 없을 때만** 허용, 있으면 409 |
 
 수정 오퍼레이션은 두지 않는다. 주소·현재 매핑·감사 흔적을 물리 삭제하지 않으며, 해제는 `bcm_vndr_ast_m.actv_yn=N`으로 표시한다. 잘못된 매핑은 논리 해제한 뒤 등록 절차를 다시 거쳐 같은 현재 행을 교체한다. 별도 mapping version이나 활성 binding 테이블은 두지 않고, 등록·해제·재활성·교체의 변경 전후 상태를 `bcm_vndr_ast_chng_l`에 추가 전용 snapshot으로 남긴다.
+
+후보 검색의 `q`는 2~64자이며 대소문자를 가리지 않는다. `prst_yn=Y`만 대상으로 심볼 exact → 심볼 prefix → 표시명
+exact/prefix → `simple` 사전의 단어 prefix → 컨트랙트 주소 exact/prefix 순으로 정렬하고 같은 점수에서는
+네트워크·심볼·컨트랙트 주소 순으로 고정한다. 최대 50건만 반환한다. 응답 `data`는 다음 두 값을 갖는다.
+
+- `items` — `network`·`symbol`·`displayName`·`assetClass`·`decimals`·`contractAddress`·`catalogSyncedAt`. 벤더 id는 싣지 않는다.
+- `sources` — 채택 네트워크마다 `network`·`state`(`READY`/`STALE`/`NEVER_SYNCED`)·`catalogSyncedAt`.
+  마지막 성공이 48시간보다 오래됐으면 `STALE`이다.
+
+캐시가 비었거나 오래돼도 임의로 실시간 벤더 조회로 우회하지 않으며 안전한 빈 결과와 `sources` 상태를 보여 준다.
+**등록 POST는 후보 캐시의 값으로 assetId를 결정하지 않고 기존 주소 기반 Fireblocks 재조회와 관문 넷을 항상 다시 수행한다.**
 
 **감사 흔적** — 자동 처리 행은 시스템 센티넬(`SYSTEM`/`9999`), **Admin 수동 개입은 실제 직원번호·부점코드**를 남긴다([DB 명명 규약](03-bcm-db.md)).
 직원번호·부점코드 헤더는 인증이 아니라 감사 전달값이다. Blockchain Manager Admin BFF가 검증한 단기 JWT 신원에서 만들고 BCM은 JWT와
@@ -239,7 +296,7 @@ Origin·JSON 요청을 모두 확인한다. BFF는 로컬 설정의
 
 ## 확인한 것
 
-Fireblocks `GET /v1/assets` 는 `blockchainId` · `assetClass` · `symbol` 등으로 거를 수 있지만 **컨트랙트 주소 필터는 없다**. 후보 조회는 운영자가 입력한 심볼로 좁히되, 등록 검증은 우리 토큰 심볼과 벤더 표기가 다를 수 있으므로 심볼에 기대지 않는다. 채택한 네트워크의 `blockchainId` 로 자산을 끝까지 페이징하고 응답 `onchain.address` 를 매니저가 대조해 하나로 해소한다. 네이티브 자산은 `assetClass=NATIVE` 로 해소한다.
+Fireblocks `GET /v1/assets` 는 `blockchainId` · `assetClass` · `symbol` 등으로 거를 수 있지만 **컨트랙트 주소 필터는 없다**. 후보 검색은 동기화한 카탈로그를 쓰되, 등록 검증은 캐시와 우리 토큰 심볼에 기대지 않는다. 채택한 네트워크의 `blockchainId` 로 자산을 끝까지 페이징하고 응답 `onchain.address` 를 매니저가 대조해 하나로 해소한다. 네이티브 자산은 `assetClass=NATIVE` 로 해소한다.
 
 ## 참고 — 벤더 조회 API
 

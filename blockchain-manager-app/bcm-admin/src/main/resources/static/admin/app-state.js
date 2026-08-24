@@ -34,6 +34,19 @@ export function filtersToUrl(path, filters) {
   return query ? `${path}?${query}` : path;
 }
 
+export function assetDiscoverySymbol(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return /^[A-Z0-9_]{1,16}$/.test(normalized) && !/^0X[0-9A-F]+$/.test(normalized) ? normalized : null;
+}
+
+export function registeredAssetMapping(candidate, mappings) {
+  return mappings.find((mapping) => mapping.network === candidate.network && (
+    candidate.contractAddress
+      ? mapping.contractAddress?.toLowerCase() === candidate.contractAddress.toLowerCase()
+      : !mapping.contractAddress
+  ));
+}
+
 export function resolveViewState({ loading = false, status = 200, error = false, state = "FRESH", data = null }) {
   if (loading) return "loading";
   if (status === 403) return "forbidden";

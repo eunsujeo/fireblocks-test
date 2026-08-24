@@ -4,6 +4,7 @@ import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.admin.application.AdminAction
 import com.whatto.bcm.admin.application.AdminOverview
 import com.whatto.bcm.admin.application.AdminReadService
+import com.whatto.bcm.admin.application.AssetFilters
 import com.whatto.bcm.admin.application.NetworkFilters
 import com.whatto.bcm.admin.application.SearchKind
 import com.whatto.bcm.admin.application.SearchResult
@@ -83,6 +84,24 @@ class AdminBffControllerTest {
             .andExpect(jsonPath("$.data").isArray)
 
         verify(exactly = 1) { service.networks(filters) }
+    }
+
+    @Test
+    fun `자산 매핑 검색어와 정확 필터를 서비스에 함께 전달한다`() {
+        every { clock.instant() } returns Instant.parse("2026-08-17T09:00:00Z")
+        val filters = AssetFilters(network = "BASE", symbol = "USDC", q = "0x8335")
+        every { service.assets(filters) } returns ViewResult(emptyList(), ViewState.FRESH, emptyList())
+
+        mockMvc
+            .perform(
+                get("/bff/admin/assets")
+                    .param("q", "0x8335")
+                    .param("network", "BASE")
+                    .param("symbol", "USDC"),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.data").isArray)
+
+        verify(exactly = 1) { service.assets(filters) }
     }
 
     @Test

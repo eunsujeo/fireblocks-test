@@ -148,6 +148,21 @@ class AdminReadServiceTest {
     }
 
     @Test
+    fun `자산 매핑 검색은 네트워크 필터 안에서 심볼과 컨트랙트 주소를 부분 검색한다`() {
+        every { gateway.assetMappings("BASE", null) } returns
+            listOf(
+                AdminAssetMapping("BASE", "USDC", "0x8335aBcD", "20260817080000"),
+                AdminAssetMapping("BASE", "KRWK", "0x1234", "20260817080100"),
+            )
+
+        val byAddress = service.assets(AssetFilters(network = "BASE", q = "8335ab"))
+        val bySymbol = service.assets(AssetFilters(network = "BASE", q = "usdc"))
+
+        assertThat(byAddress.data).extracting("symbol").containsExactly("USDC")
+        assertThat(bySymbol.data).extracting("contractAddress").containsExactly("0x8335aBcD")
+    }
+
+    @Test
     fun `통합 검색은 네트워크와 자산을 서버에서 합쳐 action과 금지 사유를 돌려준다`() {
         every { gateway.transactionInvestigation("base") } throws SourceFailure("transaction", 404, "not found")
         every { gateway.networks("base", null, null, null) } returns listOf(network(code = "BASE"))
@@ -161,6 +176,22 @@ class AdminReadServiceTest {
             assertThat(it.action.href).startsWith("/")
             assertThat(it.action.disabledReason).isNull()
         }
+    }
+
+    @Test
+    fun `통합 검색은 컨트랙트 주소로 자산 매핑을 찾고 전체 주소를 근거로 보여준다`() {
+        every { gateway.transactionInvestigation("0x8335") } throws SourceFailure("transaction", 404, "not found")
+        every { gateway.networks("0x8335", null, null, null) } returns emptyList()
+        every { gateway.assetMappings(null, null) } returns
+            listOf(AdminAssetMapping("BASE", "USDC", "0x8335aBcD", "20260817080000"))
+
+        val result = service.search("0x8335")
+        val asset = result.data.single()
+
+        assertThat(result.data).hasSize(1)
+        assertThat(asset.kind).isEqualTo(SearchKind.ASSET)
+        assertThat(asset.secondary).contains("0x8335aBcD")
+        assertThat(asset.action.href).contains("q=0x8335")
     }
 
     @Test

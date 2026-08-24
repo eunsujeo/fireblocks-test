@@ -37,7 +37,9 @@ class VendorBlockchainCatalogJdbcAdapter(
         val predicates = mutableListOf<String>()
         val parameters = mutableMapOf<String, Any>()
         query?.let {
-            predicates += "POSITION(LOWER(:query) IN LOWER(dspl_nm)) > 0"
+            predicates +=
+                "(POSITION(LOWER(:query) IN LOWER(dspl_nm)) > 0 " +
+                "OR POSITION(LOWER(:query) IN LOWER(COALESCE(ntwk_cd, ''))) > 0)"
             parameters["query"] = it
         }
         chainId?.let {

@@ -4,7 +4,7 @@
 ## 현재 위치
 - **Phase 14 완료 후 로컬 개발환경 보강 완료, Phase 15는 사용자 결정으로 보류 (2026-08-21).**
 - API/Webhook/BAT는 Admin·test-support·로컬 체인 없이 동작하며 production boundary가 런타임 의존성 0을 강제한다.
-- OpenAPI 정본과 빌드 포함 실행 포털은 카테고리별 API·schema, 편집 가능한 요청, 실제 HTTP 상태·헤더·본문 원문을 제공한다.
+- OpenAPI 정본과 빌드 포함 실행 포털은 카테고리별 API·schema, 편집 가능한 요청, 포맷된 JSON 본문과 접힌 헤더·HTTP 원문을 제공한다.
 - Admin 로컬 시나리오는 FUNCTION_TEST+STUB+LOCAL+loopback에서만 실행되고 단계·실패 조치·관련 ID를 원장으로 남긴다.
 
 ## 이번 보강
@@ -12,8 +12,8 @@
 - 로컬 자산 관리가 켜진 `FUNCTION_TEST+loopback`에서는 Fireblocks 네트워크 후보를 BCM 코드로 채택하고 자산 후보를 검색·등록한다.
   두 mutation은 전용 헤더+loopback Host+동일 Origin+JSON을 강제하며 공유 환경과 논리 해제·교체는 계속 닫는다.
 - vault·입금 주소 생성은 Admin mutation으로 만들지 않고 DAW-CORE가 사용하는 실행 가능한 공개 API 문서로 연결한다.
-- Admin 자산 매핑에 Fireblocks 참고 흐름의 모달(심볼 검색→네트워크별 후보→주소·decimals 대조→BCM 심볼 확인→등록)을 추가했다.
-- 로컬 자산 관리는 `FUNCTION_TEST+loopback`에서만 열리며 후보 조회는 전용 헤더, 등록은 전용 헤더+same-origin+JSON을 강제한다.
+- Admin 자산 화면과 전역 검색은 `USDC` 같은 심볼 하나를 Fireblocks 네트워크별 후보 목록으로 이어 선택·등록하게 한다.
+- 등록 후보는 Name·Network·Contract address·Decimals와 기존 등록 여부를 보여 주며 `Advanced` 등 기술 라벨은 영어, 설명·action은 한국어로 유지한다.
 - V11은 자산 현재 매핑에 `actv_yn`을 추가하고 등록·논리 해제·재활성·교체의 전후 snapshot을 `bcm_vndr_ast_chng_l`에 추가 전용으로 남긴다.
 - `local.sh up fireblocks`와 `up stub`은 같은 PostgreSQL·Kafka volume을 공유하지 않는다. 상태와 Admin 상단에 vendor·chain·dataset을 표시한다.
 - 분리 전 공용 `bcm-local_postgres-data`·`bcm-local_kafka-data`는 자동 삭제하지 않는다. 새 기동부터 Compose 프로젝트별
@@ -35,8 +35,8 @@
 - system smoke `20260821T060441Z-6c274826` 10/10 PASSED. 전용 volume dataset 정리 회귀도 고정했고 잔존 resource가 없다.
 - `./scripts/ci.sh`는 전체 green. 최종 Compose 프로젝트 격리 변경 뒤 local/production-boundary 테스트도 재통과했다.
 - 자산 모달·로컬 BFF·V11 변경 뒤 Admin/API/persistence/BAT 회귀와 `./scripts/ci.sh` 전체가 다시 green이다.
-- 네트워크 채택·빠른 시작 변경 뒤 Admin Kotlin 전체, 브라우저 상태 19건, 로컬 실행기 계약과 `./scripts/ci.sh`가 통과했다.
-- OpenAPI 생성물 paths 19/schemas 67 fresh, `git diff --check` 통과.
+- 검색·용어 보강 뒤 Admin/API/persistence 테스트, 브라우저 상태 23건과 `ktlintCheck`가 통과했다.
+- OpenAPI 생성물 paths 19/schemas 67 fresh, API portal Node 11건과 `git diff --check` 통과.
 
 ## 다음 작업
 - 사용자가 `up fireblocks`를 실행해 실제 workspace API 인증 preflight 성공을 확인한다. AI 검증에서는 실벤더를 호출하지 않는다.

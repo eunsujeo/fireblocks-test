@@ -71,6 +71,21 @@
     return parts.join(" \\\n  ");
   }
 
+  function responseBody(text, contentType) {
+    const raw = String(text == null ? "" : text);
+    if (!raw) return { kind: "empty", formatted: "(응답 본문 없음)", raw };
+    const type = String(contentType || "").toLowerCase();
+    const mayBeJson = type.includes("json") || /^[\s]*[\[{]/.test(raw);
+    if (mayBeJson) {
+      try {
+        return { kind: "json", formatted: JSON.stringify(JSON.parse(raw), null, 2), raw };
+      } catch (_) {
+        // Content-Type과 실제 응답이 다르면 원문을 그대로 보여 준다.
+      }
+    }
+    return { kind: "text", formatted: raw, raw };
+  }
+
   function categorySlug(value) {
     return String(value || "")
       .trim()
@@ -94,6 +109,7 @@
     localRecoveryCommands,
     requestTarget,
     curlCommand,
+    responseBody,
     categorySlug,
     categoryRoute,
   };

@@ -423,7 +423,7 @@ window.OPENAPI = {
             "schema": {
               "type": "string"
             },
-            "description": "이름 일부로 좁힌다 — 대소문자를 가리지 않는다",
+            "description": "Fireblocks 표시명 또는 채택한 BCM 네트워크 코드 일부로 좁힌다 — 대소문자를 가리지 않는다",
             "example": "base"
           },
           {

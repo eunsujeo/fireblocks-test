@@ -1025,7 +1025,7 @@ _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `q` | query | string | - | base | 이름 일부로 좁힌다 — 대소문자를 가리지 않는다 |
+| `q` | query | string | - | base | Fireblocks 표시명 또는 채택한 BCM 네트워크 코드 일부로 좁힌다 — 대소문자를 가리지 않는다 |
 | `chainId` | query | integer | - | 8453 | EIP-155 chainId 로 정확히 좁힌다 — EVM 이면 한 건이다. 비 EVM 에는 이 값이 없어 이름으로 찾는다 |
 | `adopted` | query | boolean | - |  |  |
 | `testnet` | query | boolean | - |  |  |

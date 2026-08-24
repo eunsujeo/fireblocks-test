@@ -37,6 +37,17 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `네트워크 이름 검색은 Fireblocks 표시명뿐 아니라 BCM 코드도 찾는다`() {
+        val adopted =
+            catalogs.insert(
+                catalog("custom-chain-id", "CUSTOM_MAIN").copy(displayName = "Custom Chain"),
+            )
+
+        assertThat(catalogs.findAll(query = "main")).containsExactly(adopted)
+        assertThat(catalogs.findAll(query = "chain")).containsExactly(adopted)
+    }
+
+    @Test
     fun `채택은 실제 감사값을 남기고 같은 network를 다른 후보에 붙이면 충돌한다`() {
         catalogs.insert(catalog("ethereum-id"))
         catalogs.insert(catalog("base-id"))

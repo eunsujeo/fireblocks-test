@@ -65,6 +65,18 @@ test("현재 실행 값으로 복사 가능한 curl을 만든다", () => {
   );
 });
 
+test("JSON 응답은 원문을 보존하면서 읽기 좋은 들여쓰기로 표시한다", () => {
+  const body = api.responseBody(
+    '{"data":{"network":"BASE","assets":["USDC","KRWK"]}}',
+    "application/json; charset=utf-8",
+  );
+  assert.equal(body.kind, "json");
+  assert.equal(body.formatted, '{\n  "data": {\n    "network": "BASE",\n    "assets": [\n      "USDC",\n      "KRWK"\n    ]\n  }\n}');
+  assert.equal(body.raw, '{"data":{"network":"BASE","assets":["USDC","KRWK"]}}');
+  assert.equal(api.responseBody("upstream unavailable", "text/plain").kind, "text");
+  assert.equal(api.responseBody("", "application/json").kind, "empty");
+});
+
 test("카테고리 이름을 안정적인 문서 경로로 바꾼다", () => {
   assert.equal(api.categorySlug("Accounts"), "accounts");
   assert.equal(api.categorySlug("데이터 타입"), "api");
@@ -91,10 +103,14 @@ test("뷰어는 전체 설명을 펼치지 않고 선택한 API 카테고리만 
   assert.doesNotMatch(viewerSource, /Markdown ↓/);
 });
 
-test("실행 결과는 HTTP 응답 원문과 응답 없는 실패를 구분한다", () => {
+test("실행 결과는 가독성 높은 본문과 HTTP 원문을 함께 제공하고 응답 없는 실패를 구분한다", () => {
   assert.match(viewerSource, /HTTP \$\{response\.status\}/);
   assert.match(viewerSource, /Array\.from\(response\.headers\.entries\(\)\)/);
-  assert.match(viewerSource, /code\.textContent = rawResponse/);
+  assert.match(viewerSource, /tryApi\.responseBody/);
+  assert.match(viewerSource, /response-body/);
+  assert.match(viewerSource, /응답 헤더와 HTTP 원문/);
+  assert.match(viewerSource, /응답 본문 복사/);
+  assert.match(viewerSource, /HTTP 원문 복사/);
   assert.match(viewerSource, /응답 없음 · 실행 여부 확인 불가/);
   assert.match(viewerSource, /브라우저가 HTTP 응답을 받지 못했습니다/);
   assert.match(viewerSource, /LOCAL RECOVERY/);

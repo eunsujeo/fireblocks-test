@@ -22,6 +22,10 @@
         --m-post: #4a90e2;
         --m-put: #fcd535;
         --m-del: #f6465d;
+        --json-key: #79b8ff;
+        --json-string: #9ecbff;
+        --json-number: #f8c555;
+        --json-literal: #ff8b8b;
         --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
       }
@@ -38,6 +42,10 @@
         --code-bg: #f5f6f8;
         --code-ink: #1e2329;
         --link: #a17708;
+        --json-key: #0550ae;
+        --json-string: #0a3069;
+        --json-number: #953800;
+        --json-literal: #cf222e;
       }
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; }
@@ -197,8 +205,32 @@
       }
       .execute:disabled { opacity: .5; cursor: not-allowed; }
       .try-result { margin-top: 12px; }
-      .try-result .result-meta { display: flex; gap: 10px; color: var(--muted2); }
+      .try-result .result-meta { display: flex; gap: 10px; align-items: center; color: var(--muted2); }
       .try-result .result-note { margin: 8px 0 0; color: var(--muted2); }
+      .response-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+      .response-actions button {
+        border: 1px solid var(--hairline); border-radius: 6px; background: var(--elevated); color: var(--muted2);
+        font: 600 12px var(--sans); padding: 6px 10px; cursor: pointer;
+      }
+      .response-actions button:hover { color: var(--strong); border-color: var(--muted); }
+      .response-body, .response-raw {
+        margin-top: 8px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--code-bg); overflow: hidden;
+      }
+      .response-body > summary, .response-raw > summary {
+        display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; cursor: pointer;
+        color: var(--strong); font-weight: 600; list-style-position: inside;
+      }
+      .response-body > summary::marker, .response-raw > summary::marker { color: var(--muted); }
+      .response-format { color: var(--muted); font: 11px var(--mono); text-transform: uppercase; }
+      .response-body pre, .response-raw pre {
+        max-height: 520px; margin: 0; border: 0; border-top: 1px solid var(--hairline); border-radius: 0;
+        overflow: auto; white-space: pre;
+      }
+      .response-raw pre { max-height: 300px; color: var(--muted2); }
+      .json-key { color: var(--json-key); }
+      .json-string { color: var(--json-string); }
+      .json-number { color: var(--json-number); }
+      .json-literal { color: var(--json-literal); }
 
       .group-head { margin-top: 56px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
                     text-transform: uppercase; color: var(--accent); }
@@ -279,6 +311,27 @@
           .replace(/`([^`]+)`/g, "<code>$1</code>")
           .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
           .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+        const copyText = async (value) => {
+          if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(value);
+          else window.prompt("내용을 복사하세요.", value);
+        };
+        const copyControl = (label, value) => {
+          const control = el("button"); control.type = "button"; control.textContent = label;
+          control.addEventListener("click", async () => {
+            await copyText(value);
+            control.textContent = "복사됨 ✓";
+            window.setTimeout(() => { control.textContent = label; }, 1400);
+          });
+          return control;
+        };
+        const jsonMarkup = (value) => esc(value).replace(
+          /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,
+          (token, stringToken, colon) => {
+            if (stringToken) return `<span class="json-${colon ? "key" : "string"}">${stringToken}</span>${colon || ""}`;
+            if (/^(true|false|null)$/.test(token)) return `<span class="json-literal">${token}</span>`;
+            return `<span class="json-number">${token}</span>`;
+          },
+        );
 
         // --- resolve internal $ref ---
         function resolve(obj) {
@@ -520,12 +573,25 @@
               const response = await fetch(request.target, options);
               const elapsed = Math.round(performance.now() - started);
               const text = await response.text();
-              const headers = Array.from(response.headers.entries()).map(([name, value]) => `${name}: ${value}`).join("\n");
+              const headerEntries = Array.from(response.headers.entries());
+              const headers = headerEntries.map(([name, value]) => `${name}: ${value}`).join("\n");
               const rawResponse = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}\n${headers}${headers ? "\n" : ""}\n${text || "(응답 본문 없음)"}`;
+              const body = tryApi.responseBody(text, response.headers.get("content-type"));
               result.replaceChildren();
               const meta = el("div", "result-meta"); meta.innerHTML = `<strong class="status ${response.ok ? "ok" : "err"}">응답 수신 · ${response.status}${response.statusText ? ` ${esc(response.statusText)}` : ""}</strong><span>${elapsed}ms</span>`;
-              const pre = el("pre"); const code = el("code"); code.textContent = rawResponse; pre.appendChild(code);
-              result.append(meta, pre);
+              const responseActions = el("div", "response-actions");
+              responseActions.append(copyControl("응답 본문 복사", body.raw), copyControl("HTTP 원문 복사", rawResponse));
+              const bodyDetails = el("details", "response-body"); bodyDetails.open = true;
+              const bodySummary = el("summary"); bodySummary.innerHTML = `<span>응답 본문</span><span class="response-format">${body.kind === "json" ? "JSON · formatted" : body.kind === "empty" ? "empty" : "text"}</span>`;
+              const bodyPre = el("pre"); const bodyCode = el("code");
+              if (body.kind === "json") bodyCode.innerHTML = jsonMarkup(body.formatted);
+              else bodyCode.textContent = body.formatted;
+              bodyPre.appendChild(bodyCode); bodyDetails.append(bodySummary, bodyPre);
+              const rawDetails = el("details", "response-raw");
+              const rawSummary = el("summary"); rawSummary.innerHTML = `<span>응답 헤더와 HTTP 원문</span><span class="response-format">${headerEntries.length} headers</span>`;
+              const rawPre = el("pre"); const rawCode = el("code"); rawCode.textContent = rawResponse;
+              rawPre.appendChild(rawCode); rawDetails.append(rawSummary, rawPre);
+              result.append(meta, responseActions, bodyDetails, rawDetails);
             } catch (error) {
               const elapsed = Math.round(performance.now() - started);
               const command = tryApi.curlCommand(method, request.target, request.headers, request.body);

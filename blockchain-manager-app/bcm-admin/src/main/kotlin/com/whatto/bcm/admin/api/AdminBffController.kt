@@ -71,10 +71,11 @@ class AdminBffController(
 
     @GetMapping("/bff/admin/assets")
     fun assets(
+        @RequestParam(required = false) @Size(max = 128) q: String?,
         @RequestParam(required = false) @Size(max = 20) network: String?,
         @RequestParam(required = false) @Size(max = 16) symbol: String?,
         request: HttpServletRequest,
-    ) = respond(request, service.assets(AssetFilters(network, symbol)))
+    ) = respond(request, service.assets(AssetFilters(network, symbol, q)))
 
     @GetMapping("/bff/admin/search")
     fun search(

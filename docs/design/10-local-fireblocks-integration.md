@@ -56,7 +56,8 @@ manifest는 별도 런타임 경로에 둔다. 모드 전환은 반대 모드 �
 | `BASE` | `base-local` | `31338` | KRWK | `KRWK_BASE_LOCAL` | 6 |
 
 각 Anvil에는 해당 네트워크의 USDC·KRWK 테스트 컨트랙트를 별도로 배포하고 manifest에 chain id, RPC, 컨트랙트 주소와 code
-hash를 기록한다. `local.sh up stub`은 체인·Stub readiness 뒤 BCM 카탈로그 동기화와 네트워크 채택·자산 매핑을 멱등하게
+hash를 기록한다. `local.sh up stub`은 체인·Stub readiness 뒤 BCM 블록체인 카탈로그 동기화 → 네트워크 채택 → 채택 네트워크의
+자산 카탈로그 동기화 → 자산 매핑을 멱등하게
 완료한 뒤 준비 완료를 출력한다. 일부만 존재하거나 manifest와 DB가 어긋나면 성공처럼 덮어쓰지 않고 어느 네트워크·자산이
 불일치하는지 실패한다. Anvil은 프로세스마다 빈 체인에서 다시 시작하지만 같은 seed로 동일한 컨트랙트 주소를 재현하고 새 manifest의
 code hash를 검증한다. BCM의 유효한 기존 mapping은 중복 생성하지 않고 재사용한다. 고객 vault·입금 주소·테스트 잔액은 기본
@@ -267,7 +268,8 @@ executionId/jobRunId` 순서다. 실제로 생긴 식별자만 기록하며 fixt
 `local.sh up fireblocks`는 로컬 PostgreSQL·Kafka를 준비한 뒤 API·Webhook·Admin을 시작하기 전에 실제 BCM
 `FireblocksClient`로 `GET /v1/blockchains` 읽기를 한 번 수행한다. 이 확인은 `.env`의 API key·PKCS#8 private key·공식 Base URL로
 만든 요청 JWT가 실제 Fireblocks에서 받아들여지는지만 판정하며 거래 생성 권한·TAP·Webhook JWKS까지 검증했다고 해석하지 않는다.
-성공하면 같은 읽기 결과를 로컬 블록체인 카탈로그에 동기화하고 다음 component를 기동한다. 인증·연결·응답 해석 중 하나라도 실패하면
+성공하면 같은 읽기 결과를 로컬 블록체인 카탈로그에 동기화하고 다음 component를 기동한다. 자산 카탈로그는 채택 네트워크별 정기
+BAT가 별도로 동기화하며 preflight 성공만으로 자산 검색 캐시까지 최신이라고 표시하지 않는다. 인증·연결·응답 해석 중 하나라도 실패하면
 성공처럼 계속하지 않고 애플리케이션 기동 전에 중단한다. 콘솔에는 Secret·JWT·벤더 응답 원문을 내보내지 않고 권한이 제한된
 `build/local/fireblocks-preflight.log` 경로와 안전한 다음 조치만 안내한다.
 
@@ -278,7 +280,7 @@ Stub 제어면으로 Anvil 입금을 주입한 뒤 독립 BCM Webhook 수신, `F
 
 같은 상시 개발 환경에서 Admin이 시작하는 `asset-catalog`, `customer-vault`, `deposit-success`는 위 helper와 동일한 공개 API·Stub
 제어 계약을 사용하되 각 실행을 `suite=SCENARIO` 원장으로 남긴다. 자산 카탈로그는 상시 BAT가 자동으로 떠 있다고 표시하지 않는다.
-Admin에서 명시적으로 실행하면 `catalog-sync-once` 프로세스의 시작·성공·실패를 한 단계로 기록하고, 완료 뒤 후보·채택 네트워크·
+Admin에서 명시적으로 실행하면 블록체인과 채택 네트워크 자산 카탈로그의 one-shot 프로세스 시작·성공·실패를 각각 기록하고, 완료 뒤 후보·채택 네트워크·
 mapping을 다시 읽어 결과를 확인한다. 고객 vault는 공개 `POST /accounts`와 `POST /accounts/{accountId}/addresses`로 만들며
 Fireblocks 내부 vault를 Admin 전용 우회 경로로 생성하지 않는다.
 

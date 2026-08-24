@@ -87,6 +87,7 @@ data class NetworkFilters(
 data class AssetFilters(
     val network: String? = null,
     val symbol: String? = null,
+    val q: String? = null,
 )
 
 enum class SearchKind {
@@ -275,8 +276,14 @@ class AdminReadService(
         return ViewResult(data, if (data.any(::isStale)) ViewState.STALE else ViewState.FRESH, emptyList())
     }
 
-    fun assets(filters: AssetFilters): ViewResult<List<AdminAssetMapping>> =
-        ViewResult(gateway.assetMappings(filters.network, filters.symbol), ViewState.FRESH, emptyList())
+    fun assets(filters: AssetFilters): ViewResult<List<AdminAssetMapping>> {
+        val query = filters.q?.trim()?.takeIf(String::isNotEmpty)
+        val data =
+            gateway
+                .assetMappings(filters.network.normalizedCode(), filters.symbol.normalizedCode())
+                .filter { query == null || it.matches(query) }
+        return ViewResult(data, ViewState.FRESH, emptyList())
+    }
 
     fun transaction(identifier: String): ViewResult<AdminTransactionInvestigation> {
         val investigation = gateway.transactionInvestigation(identifier)
@@ -440,14 +447,14 @@ class AdminReadService(
                 }
                 mappings
                     .orEmpty()
-                    .filter { it.network.contains(normalized, true) || it.symbol.contains(normalized, true) }
+                    .filter { it.matches(normalized) }
                     .forEach { mapping ->
                         add(
                             SearchResult(
                                 SearchKind.ASSET,
                                 "${mapping.network} / ${mapping.symbol}",
-                                "자산 매핑",
-                                AdminAction("/admin/assets?network=${encode(mapping.network)}&symbol=${encode(mapping.symbol)}"),
+                                "자산 매핑 · ${mapping.contractAddress ?: "네이티브 자산"}",
+                                AdminAction("/admin/assets?q=${encode(query)}"),
                             ),
                         )
                     }
@@ -481,6 +488,17 @@ class AdminReadService(
                 null
             }
         }
+
+    private fun String?.normalizedCode(): String? =
+        this
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+            ?.uppercase()
+
+    private fun AdminAssetMapping.matches(query: String): Boolean =
+        network.contains(query, ignoreCase = true) ||
+            symbol.contains(query, ignoreCase = true) ||
+            contractAddress?.contains(query, ignoreCase = true) == true
 
     private fun truncationIssues(investigation: AdminTransactionInvestigation): List<SourceIssue> =
         investigation.truncatedSources.map { source ->

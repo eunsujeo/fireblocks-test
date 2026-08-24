@@ -13,31 +13,31 @@
     <header class="topbar">
       <a class="brand" href="/admin/dashboard" data-link aria-label="Blockchain Manager Admin 대시보드">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-lockup"><strong class="brand-name">BCM ADMIN</strong><small>Blockchain Manager 운영 콘솔</small></span>
+        <span class="brand-lockup"><strong class="brand-name">BCM ADMIN</strong><small>Blockchain Manager Console</small></span>
       </a>
       <form id="global-search" class="global-search" role="search">
         <label class="sr-only" for="global-query">통합 검색</label>
         <span class="search-icon" aria-hidden="true"></span>
-        <input id="global-query" name="q" minlength="2" maxlength="100" placeholder="거래 ID, 네트워크, 심볼 검색" autocomplete="off" aria-keyshortcuts="/">
+        <input id="global-query" name="q" minlength="2" maxlength="100" placeholder="Transaction ID, Network, Symbol, Contract address 검색" autocomplete="off" aria-keyshortcuts="/">
         <kbd class="search-shortcut" aria-hidden="true">/</kbd>
         <button type="submit">검색</button>
       </form>
-      <span class="environment" id="runtime-environment">환경 확인 중<strong id="runtime-capability">확인 중</strong></span>
+      <span class="environment" id="runtime-environment">Checking environment<strong id="runtime-capability">Checking</strong></span>
     </header>
     <nav class="sidebar" aria-label="주 메뉴">
-      <p class="nav-label">현황</p>
-      <a class="nav-link" href="/admin/dashboard" data-link data-route="dashboard"><span class="nav-index">01</span><span class="nav-text">대시보드</span></a>
-      <a class="nav-link" href="/admin/search?q=BASE" data-link data-route="search"><span class="nav-index">02</span><span class="nav-text">통합 검색</span></a>
-      <p class="nav-label">자산 · 레지스트리</p>
-      <a class="nav-link" href="/admin/networks" data-link data-route="networks"><span class="nav-index">03</span><span class="nav-text">네트워크</span></a>
-      <a class="nav-link" href="/admin/assets" data-link data-route="assets"><span class="nav-index">04</span><span class="nav-text">자산 매핑</span></a>
-      <a class="nav-link" href="/admin/contracts" data-link data-route="contracts"><span class="nav-index">05</span><span class="nav-text">컨트랙트</span></a>
-      <a class="nav-link" href="/admin/policies" data-link data-route="policies"><span class="nav-index">06</span><span class="nav-text">실행 정책</span></a>
-      <p class="nav-label">운영</p>
-      <a class="nav-link" href="/admin/search?q=tx" data-link data-route="transaction"><span class="nav-index">07</span><span class="nav-text">거래 조사</span></a>
-      <a class="nav-link" href="/admin/band-s" data-link data-route="bandS"><span class="nav-index">08</span><span class="nav-text">밴드S</span></a>
-      <a class="nav-link" href="/admin/emergency" data-link data-route="emergency"><span class="nav-index">09</span><span class="nav-text">비상 운영</span></a>
-      <a class="nav-link" href="/admin/test-runs" data-link data-route="testRuns" data-system-test-nav hidden><span class="nav-index">10</span><span class="nav-text">테스트 실행</span></a>
+      <p class="nav-label">OVERVIEW</p>
+      <a class="nav-link" href="/admin/dashboard" data-link data-route="dashboard"><span class="nav-index">01</span><span class="nav-text">Dashboard</span></a>
+      <a class="nav-link" href="/admin/search?q=BASE" data-link data-route="search"><span class="nav-index">02</span><span class="nav-text">Search</span></a>
+      <p class="nav-label">ASSETS &amp; REGISTRY</p>
+      <a class="nav-link" href="/admin/networks" data-link data-route="networks"><span class="nav-index">03</span><span class="nav-text">Networks</span></a>
+      <a class="nav-link" href="/admin/assets" data-link data-route="assets"><span class="nav-index">04</span><span class="nav-text">Assets</span></a>
+      <a class="nav-link" href="/admin/contracts" data-link data-route="contracts"><span class="nav-index">05</span><span class="nav-text">Contracts</span></a>
+      <a class="nav-link" href="/admin/policies" data-link data-route="policies"><span class="nav-index">06</span><span class="nav-text">Policies</span></a>
+      <p class="nav-label">OPERATIONS</p>
+      <a class="nav-link" href="/admin/search?q=tx" data-link data-route="transaction"><span class="nav-index">07</span><span class="nav-text">Transactions</span></a>
+      <a class="nav-link" href="/admin/band-s" data-link data-route="bandS"><span class="nav-index">08</span><span class="nav-text">Band S</span></a>
+      <a class="nav-link" href="/admin/emergency" data-link data-route="emergency"><span class="nav-index">09</span><span class="nav-text">Emergency</span></a>
+      <a class="nav-link" href="/admin/test-runs" data-link data-route="testRuns" data-system-test-nav hidden><span class="nav-index">10</span><span class="nav-text">Test runs</span></a>
       <p class="scope-note" id="scope-note">현재 로컬 기능 범위를 확인하고 있습니다.</p>
     </nav>
     <main id="app-content" tabindex="-1"><div class="content" aria-live="polite"></div></main>

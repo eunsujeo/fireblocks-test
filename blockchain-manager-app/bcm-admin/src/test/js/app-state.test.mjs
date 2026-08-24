@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   adminRouteFromPath,
+  assetDiscoverySymbol,
   changeRequestIdFromPath,
   filtersFromUrl,
   filtersToUrl,
   formatAdminTime,
   formatCoreTime,
   isGlobalSearchShortcut,
+  registeredAssetMapping,
   resolveViewState,
   runSingleFlight,
   shouldRefreshTestRun,
@@ -53,6 +55,40 @@ test("네트워크 필터는 URL 왕복 뒤에도 보존된다", () => {
 
   assert.deepEqual(filters, { q: "base", chainId: "8453", adopted: "true", testnet: "false" });
   assert.equal(filtersToUrl("/admin/networks", filters), "/admin/networks?q=base&chainId=8453&adopted=true&testnet=false");
+});
+
+test("자산 매핑 검색은 검색어와 정확 필터를 URL에 함께 보존한다", () => {
+  const initial = new URL("http://localhost/admin/assets?q=0x8335&network=BASE&symbol=USDC");
+  const filters = filtersFromUrl(initial);
+
+  assert.deepEqual(filters, { q: "0x8335", network: "BASE", symbol: "USDC" });
+  assert.equal(filtersToUrl("/admin/assets", filters), "/admin/assets?q=0x8335&network=BASE&symbol=USDC");
+  assert.match(appSource, /찾을 자산/);
+  assert.match(appSource, /<summary>Advanced<\/summary>/);
+});
+
+test("일반 검색어에서 안전한 자산 후보 심볼만 찾아낸다", () => {
+  assert.equal(assetDiscoverySymbol("usdc"), "USDC");
+  assert.equal(assetDiscoverySymbol(" KRWK "), "KRWK");
+  assert.equal(assetDiscoverySymbol("USD Coin"), null);
+  assert.equal(assetDiscoverySymbol("0x8335cafe"), null);
+});
+
+test("후보와 같은 네트워크·주소의 기존 등록을 대소문자와 네이티브 여부까지 대조한다", () => {
+  const mappings = [
+    { network: "BASE", symbol: "USDC", contractAddress: "0xAbCd" },
+    { network: "ETHEREUM", symbol: "ETH", contractAddress: null },
+  ];
+
+  assert.equal(
+    registeredAssetMapping({ network: "BASE", contractAddress: "0xabcd" }, mappings)?.symbol,
+    "USDC",
+  );
+  assert.equal(
+    registeredAssetMapping({ network: "ETHEREUM", contractAddress: null }, mappings)?.symbol,
+    "ETH",
+  );
+  assert.equal(registeredAssetMapping({ network: "BASE", contractAddress: "0x9999" }, mappings), undefined);
 });
 
 test("거래 상세 경로는 전체 식별자를 손실 없이 복원한다", () => {
@@ -131,6 +167,24 @@ test("Admin 셸은 키보드와 스크린리더 접근성 경계를 정적으로
   assert.match(styleSource, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
+test("Admin 메뉴와 기술 라벨은 익숙한 영어 용어를 사용하고 설명과 action은 한국어로 유지한다", () => {
+  assert.match(shellSource, />Dashboard</);
+  assert.match(shellSource, />Networks</);
+  assert.match(shellSource, />Assets</);
+  assert.match(shellSource, />Contracts</);
+  assert.match(shellSource, />Policies</);
+  assert.match(shellSource, />Transactions</);
+  assert.match(appSource, /<summary>Advanced<\/summary>/);
+  assert.match(appSource, /<th>Network<\/th><th>Symbol<\/th><th>Contract address<\/th><th>Registered at \(UTC\)<\/th>/);
+  assert.match(appSource, /<div><dt>Decimals<\/dt>/);
+  assert.match(appSource, /<h1>Transaction investigation<\/h1>/);
+  assert.match(appSource, /<h1>Contract registry<\/h1>/);
+  assert.match(appSource, /<h1>Execution policies<\/h1>/);
+  assert.match(appSource, /<h1>Band S ledger<\/h1>/);
+  assert.match(appSource, /<h1>Emergency operations<\/h1>/);
+  assert.doesNotMatch(appSource, /<summary>고급 조건<\/summary>|<div><dt>소수 자릿수<\/dt>|<th>컨트랙트 주소<\/th>/);
+});
+
 test("전역 검색 단축키는 입력 중이 아닐 때만 검색창으로 이동한다", () => {
   const shortcut = { key: "/", ctrlKey: false, metaKey: false, altKey: false, target: { tagName: "MAIN" } };
 
@@ -152,11 +206,15 @@ test("브라우저 번들은 BFF 상대경로만 호출하고 인증정보나 �
 test("자산 등록은 검색·후보 선택·검증 요약을 한 모달에서 완료한다", () => {
   assert.match(appSource, /id="asset-add-dialog"/);
   assert.match(appSource, /role="listbox"/);
-  assert.match(appSource, /자산 심볼 검색/);
+  assert.match(appSource, /어떤 자산을 찾으세요/);
   assert.match(appSource, /\/bff\/admin\/asset-candidates/);
   assert.match(appSource, /method: "POST"/);
   assert.match(appSource, /"X-BCM-Local-Asset-Management": "execute"/);
   assert.match(appSource, /등록할 자산 확인/);
+  assert.match(appSource, /Fireblocks 후보에서 찾기/);
+  assert.match(appSource, /이미 BCM에 등록됨/);
+  assert.match(appSource, /data-discover-symbol/);
+  assert.match(appSource, /<details class="asset-advanced-filters"/);
   assert.match(styleSource, /\.asset-dialog::backdrop/);
 });
 
