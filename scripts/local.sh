@@ -33,6 +33,7 @@ Blockchain Manager 로컬 실행기
 사용법:
   ./scripts/local.sh configure [fireblocks]
   ./scripts/local.sh up [fireblocks|stub]
+  ./scripts/local.sh restart [fireblocks|stub]
   ./scripts/local.sh status
   ./scripts/local.sh sync assets
   ./scripts/local.sh stop [api|webhook|admin]
@@ -749,6 +750,20 @@ down_all() {
     echo "로컬 환경을 종료했습니다. PostgreSQL·Kafka 데이터는 보존됩니다."
 }
 
+restart_local_environment() {
+    local mode="${1:-$(active_local_mode)}"
+    case "$mode" in
+        fireblocks|stub) ;;
+        *) fail "재시작 모드는 fireblocks 또는 stub이어야 합니다." ;;
+    esac
+
+    down_all
+    case "$mode" in
+        fireblocks) up_fireblocks ;;
+        stub) up_stub ;;
+    esac
+}
+
 status_all() {
     local name
     use_active_dataset
@@ -873,6 +888,7 @@ case "$command_name" in
             *) fail "실행 모드는 fireblocks 또는 stub이어야 합니다." ;;
         esac
         ;;
+    restart) restart_local_environment "${1:-}" ;;
     status) status_all ;;
     sync)
         case "${1:-}" in

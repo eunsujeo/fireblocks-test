@@ -110,6 +110,8 @@ cp /발급받은/경로/fireblocks-private-key.pem .keys/
 
 ```sh
 ./scripts/local.sh status          # 프로세스·컨테이너 상태
+./scripts/local.sh restart         # 현재 모드를 종료 후 다시 기동
+./scripts/local.sh restart stub    # 모드를 지정해 종료 후 다시 기동
 ./scripts/local.sh sync assets     # 신규 채택 네트워크의 자산 검색 캐시 즉시 갱신
 ./scripts/local.sh stop webhook    # api|webhook|admin 중 하나만 종료
 ./scripts/local.sh test deposit    # up stub 환경의 입금→Webhook→FINALIZED→Kafka→Admin 점검
@@ -118,6 +120,9 @@ cp /발급받은/경로/fireblocks-private-key.pem .keys/
 ./scripts/local.sh reset           # Stub+Anvil만 기준 snapshot으로 복원
 ./scripts/local.sh purge           # 현재 선택 모드의 DB·Kafka 볼륨만 삭제(확인 필요)
 ```
+
+`restart`는 인자를 생략하면 현재 `fireblocks` 또는 `stub` 모드를 유지합니다. 모드를 바꾸려면
+`restart fireblocks` 또는 `restart stub`으로 명시하면 되며, 잘못된 모드는 기존 환경을 종료하기 전에 거부합니다.
 
 Admin은 `http://127.0.0.1:9080/admin/dashboard`, BCM API는 `http://127.0.0.1:38080`, Webhook listener는
 `http://127.0.0.1:38081/webhook`입니다. 일반적인 개발 서버 포트와 겹치지 않도록 로컬 실행기에서만 높은 기본 포트를 사용합니다.
