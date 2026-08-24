@@ -18,6 +18,7 @@
 - 후보 캐시는 탐색 전용이다. 자산 등록 POST는 기존처럼 Fireblocks 전체 페이지에서 contract address를 다시 해소한다.
 - 로컬 `./scripts/local.sh sync assets`는 현재 fireblocks/stub 데이터셋에서 자산 캐시 one-shot을 실행한다.
   `up fireblocks`는 사용자 결정대로 블록체인 목록 읽기를 통한 API 인증 확인만 자동 수행한다.
+- `./scripts/local.sh restart`는 현재 active mode를 보존해 down→up을 한 명령으로 수행하며 잘못된 mode는 종료 전에 거부한다.
 - `up stub` 초기화와 smoke/full은 블록체인 sync→네트워크 채택→자산 cache sync→USDC/KRWK 매핑 순서를 사용한다.
 - fireblocks/stub PostgreSQL·Kafka volume은 분리되고, Stub은 Ethereum/Base Anvil과 각 USDC·KRWK(6 decimals)를 쓴다.
 - 설계 정본 03·07·08·10은 waas-wiki `26fd5a2`, svc 사본은 byte 동일하며 기존 UX checkpoint `e7da08d`가 push됐다.

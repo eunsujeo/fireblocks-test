@@ -122,6 +122,31 @@ if grep -q 'stub.*T11\.3.*구현 뒤' scripts/local.sh; then
 fi
 
 for contract in \
+    './scripts/local.sh restart [fireblocks|stub]' \
+    'restart_local_environment()' \
+    'mode="${1:-$(active_local_mode)}"'; do
+    grep -Fq "$contract" scripts/local.sh || {
+        echo "현재 모드 재시작 계약이 없습니다: $contract" >&2
+        exit 1
+    }
+done
+
+restart_state="$(mktemp -d)"
+set +e
+restart_output="$(BCM_LOCAL_STATE_DIR="$restart_state" ./scripts/local.sh restart invalid 2>&1)"
+restart_status=$?
+set -e
+rm -rf "$restart_state"
+[ "$restart_status" -ne 0 ] || {
+    echo "잘못된 재시작 모드가 허용됐습니다." >&2
+    exit 1
+}
+case "$restart_output" in
+    *"재시작 모드는 fireblocks 또는 stub이어야 합니다"*) ;;
+    *) echo "잘못된 재시작 모드 안내가 없습니다." >&2; exit 1 ;;
+esac
+
+for contract in \
     'up_stub()' \
     'verify_fireblocks_api_authentication()' \
     'export BCM_JOB=catalog-sync-once' \
