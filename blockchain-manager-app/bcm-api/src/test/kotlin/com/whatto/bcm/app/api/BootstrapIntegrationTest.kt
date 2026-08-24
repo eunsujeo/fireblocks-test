@@ -98,7 +98,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `V1 코어와 V2부터 V11까지의 Admin 원장 40개를 전부 만든다`() {
+    fun `V1 코어와 V2부터 V12까지의 Admin 원장 41개를 전부 만든다`() {
         val tables =
             jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'bcm_%'",
@@ -108,6 +108,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             "bcm_acnt_m",
             "bcm_addr_m",
             "bcm_blkc_m",
+            "bcm_vndr_ast_ctlg_m",
             "bcm_vndr_ast_m",
             "bcm_vndr_ast_chng_l",
             "bcm_whk_l",

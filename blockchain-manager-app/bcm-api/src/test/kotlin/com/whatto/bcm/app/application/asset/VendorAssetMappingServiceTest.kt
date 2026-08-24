@@ -1,6 +1,11 @@
 package com.whatto.bcm.app.application.asset
 
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheRepository
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheState
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSource
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
@@ -26,9 +31,11 @@ class VendorAssetMappingServiceTest {
     private val mappings = mockk<VendorAssetMappingRepository>()
     private val blockchains = mockk<VendorBlockchainCatalogRepository>()
     private val addressQueryService = mockk<DepositAddressQueryService>()
+    private val assetCatalogCache = mockk<VendorAssetCatalogCacheRepository>()
     private val vendorCatalog = mockk<VendorAssetCatalogPort>()
     private val clock = Clock.fixed(Instant.parse("2026-08-06T12:00:00Z"), ZoneId.of("Asia/Seoul"))
-    private val service = VendorAssetMappingService(mappings, blockchains, addressQueryService, vendorCatalog, clock)
+    private val service =
+        VendorAssetMappingService(mappings, blockchains, addressQueryService, assetCatalogCache, vendorCatalog, clock)
 
     private val audit = AuditActor("123456", "0001")
     private val command = RegisterVendorAssetMappingCommand("ETHEREUM", "USDC", "0xA0b8", "123456", "0001")
@@ -129,17 +136,36 @@ class VendorAssetMappingServiceTest {
     }
 
     @Test
-    fun `후보 조회 — network를 내부 후보로 해소하고 벤더 id 없는 중립 필드만 만든다`() {
-        every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
-        every { vendorCatalog.assets("ethereum-id", "USDC", null) } returns
-            VendorPage(listOf(vendorAsset("secret-id", "0xA0B8")), null)
+    fun `후보 조회 — Fireblocks를 호출하지 않고 캐시의 검색 결과와 원천 상태를 반환한다`() {
+        val cached =
+            VendorAssetCatalogSearchResult(
+                items =
+                    listOf(
+                        VendorAssetCatalogCandidate(
+                            "ETHEREUM",
+                            "USDC",
+                            "USD Coin",
+                            "FT",
+                            6,
+                            "0xA0B8",
+                            "20260806110000",
+                        ),
+                    ),
+                sources =
+                    listOf(
+                        VendorAssetCatalogSource(
+                            "ETHEREUM",
+                            VendorAssetCatalogCacheState.READY,
+                            "20260806110000",
+                        ),
+                    ),
+            )
+        every { assetCatalogCache.search("usdc", "ETHEREUM", "20260804120000", 50) } returns cached
 
-        val result = service.assetCandidates("usdc", "ETHEREUM").single()
+        val result = service.assetCandidates("usdc", "ETHEREUM")
 
-        assertThat(result.network).isEqualTo("ETHEREUM")
-        assertThat(result.symbol).isEqualTo("USDC")
-        assertThat(result.contractAddress).isEqualTo("0xA0B8")
-        assertThat(result.native).isFalse()
+        assertThat(result).isEqualTo(cached)
+        verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
     }
 
     @Test

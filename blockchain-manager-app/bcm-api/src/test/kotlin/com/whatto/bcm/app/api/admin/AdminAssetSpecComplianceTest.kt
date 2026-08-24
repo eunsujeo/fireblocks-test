@@ -2,8 +2,11 @@ package com.whatto.bcm.app.api.admin
 
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers.openApi
 import com.ninjasquad.springmockk.MockkBean
-import com.whatto.bcm.app.application.asset.AssetCandidate
 import com.whatto.bcm.app.application.asset.VendorAssetMappingService
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheState
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSource
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import io.mockk.every
 import org.assertj.core.api.Assertions.assertThat
@@ -53,12 +56,15 @@ class AdminAssetSpecComplianceTest {
     }
 
     @Test
-    fun `자산 후보 GET은 symbol 필수이고 결과에 우리 network를 포함한다`() {
+    fun `자산 후보 GET은 q 필수이고 캐시 원천 상태를 포함한다`() {
         every { service.assetCandidates("USDC", null) } returns
-            listOf(AssetCandidate("BASE", "USDC", "USD Coin", 6, "0x8335", false))
+            VendorAssetCatalogSearchResult(
+                listOf(VendorAssetCatalogCandidate("BASE", "USDC", "USD Coin", "FT", 6, "0x8335", "20260824010000")),
+                listOf(VendorAssetCatalogSource("BASE", VendorAssetCatalogCacheState.READY, "20260824010000")),
+            )
 
         mockMvc
-            .perform(get("/admin/asset-candidates").param("symbol", "USDC"))
+            .perform(get("/admin/asset-candidates").param("q", "USDC"))
             .andExpect(status().isOk)
             .andExpect(openApi().isValid(SPEC))
     }

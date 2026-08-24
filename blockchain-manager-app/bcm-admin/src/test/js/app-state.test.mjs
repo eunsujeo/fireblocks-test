@@ -207,7 +207,12 @@ test("자산 등록은 검색·후보 선택·검증 요약을 한 모달에서 
   assert.match(appSource, /id="asset-add-dialog"/);
   assert.match(appSource, /role="listbox"/);
   assert.match(appSource, /어떤 자산을 찾으세요/);
+  assert.match(appSource, /Symbol, asset name 또는 contract address/);
   assert.match(appSource, /\/bff\/admin\/asset-candidates/);
+  assert.match(appSource, /asset-candidates\?q=/);
+  assert.match(appSource, /asset-catalog-sources/);
+  assert.match(appSource, /NEVER_SYNCED/);
+  assert.match(appSource, /\.\/scripts\/local\.sh sync assets/);
   assert.match(appSource, /method: "POST"/);
   assert.match(appSource, /"X-BCM-Local-Asset-Management": "execute"/);
   assert.match(appSource, /등록할 자산 확인/);

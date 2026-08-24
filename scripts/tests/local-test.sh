@@ -101,6 +101,21 @@ case "$deposit_output" in
     *) echo "입금 점검의 실행 모드 안내가 없습니다." >&2; exit 1 ;;
 esac
 
+set +e
+isolated_state="$(mktemp -d)"
+sync_output="$(BCM_LOCAL_STATE_DIR="$isolated_state" ./scripts/local.sh sync assets 2>&1)"
+sync_status=$?
+rm -rf "$isolated_state"
+set -e
+[ "$sync_status" -ne 0 ] || {
+    echo "중지된 환경에서 자산 카탈로그 동기화가 성공했습니다." >&2
+    exit 1
+}
+case "$sync_output" in
+    *"up fireblocks를 먼저 실행하세요"*) ;;
+    *) echo "자산 카탈로그 동기화의 실행 모드 안내가 없습니다." >&2; exit 1 ;;
+esac
+
 if grep -q 'stub.*T11\.3.*구현 뒤' scripts/local.sh; then
     echo "완료된 Stub 모드가 아직 미구현으로 안내됩니다." >&2
     exit 1
@@ -110,6 +125,9 @@ for contract in \
     'up_stub()' \
     'verify_fireblocks_api_authentication()' \
     'export BCM_JOB=catalog-sync-once' \
+    'asset-catalog-sync-once' \
+    'sync_asset_catalog_now()' \
+    '자산 카탈로그 동기화 완료' \
     ':blockchain-manager-app:bcm-bat:bootRun' \
     '실 Fireblocks 자격증명은 공식 API 주소 https://api.fireblocks.io에만 전송할 수 있습니다.' \
     'fireblocks-preflight.log' \

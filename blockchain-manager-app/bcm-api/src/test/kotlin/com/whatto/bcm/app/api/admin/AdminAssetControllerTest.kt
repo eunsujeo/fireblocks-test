@@ -2,9 +2,12 @@ package com.whatto.bcm.app.api.admin
 
 import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.app.application.asset.AdoptNetworkCommand
-import com.whatto.bcm.app.application.asset.AssetCandidate
 import com.whatto.bcm.app.application.asset.AuditActor
 import com.whatto.bcm.app.application.asset.VendorAssetMappingService
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheState
+import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
+import com.whatto.bcm.domain.asset.VendorAssetCatalogSource
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import io.mockk.every
@@ -39,8 +42,7 @@ class AdminAssetControllerTest {
     @Test
     fun `목록 3개 — network를 내부 조회 키로 쓰되 응답에 벤더 id가 없다`() {
         every { service.networks("eth", 1, true, false) } returns listOf(network)
-        every { service.assetCandidates("USDC", "ETHEREUM") } returns
-            listOf(AssetCandidate("ETHEREUM", "USDC", "USD Coin", 6, "0xA0B8", false))
+        every { service.assetCandidates("USDC", "ETHEREUM") } returns candidateSearchResult()
         every { service.mappings("ETHEREUM", "USDC") } returns listOf(mapping)
 
         mockMvc
@@ -56,12 +58,15 @@ class AdminAssetControllerTest {
             .andExpect(jsonPath("$.data[0]", not(hasKey<String>("legacyId"))))
 
         mockMvc
-            .perform(get("/admin/asset-candidates").param("network", "ETHEREUM").param("symbol", "USDC"))
+            .perform(get("/admin/asset-candidates").param("network", "ETHEREUM").param("q", "USDC"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.data[0].network").value("ETHEREUM"))
-            .andExpect(jsonPath("$.data[0].symbol").value("USDC"))
-            .andExpect(jsonPath("$.data[0]", not(hasKey<String>("id"))))
-            .andExpect(jsonPath("$.data[0]", not(hasKey<String>("blockchainId"))))
+            .andExpect(jsonPath("$.data.items[0].network").value("ETHEREUM"))
+            .andExpect(jsonPath("$.data.items[0].symbol").value("USDC"))
+            .andExpect(jsonPath("$.data.items[0].assetClass").value("FT"))
+            .andExpect(jsonPath("$.data.items[0].catalogSyncedAt").value("20260806110000"))
+            .andExpect(jsonPath("$.data.items[0]", not(hasKey<String>("id"))))
+            .andExpect(jsonPath("$.data.items[0]", not(hasKey<String>("blockchainId"))))
+            .andExpect(jsonPath("$.data.sources[0].state").value("READY"))
 
         mockMvc
             .perform(get("/admin/asset-mappings").param("network", "ETHEREUM").param("symbol", "USDC"))
@@ -155,4 +160,10 @@ class AdminAssetControllerTest {
 
         verify(exactly = 0) { service.register(any()) }
     }
+
+    private fun candidateSearchResult() =
+        VendorAssetCatalogSearchResult(
+            listOf(VendorAssetCatalogCandidate("ETHEREUM", "USDC", "USD Coin", "FT", 6, "0xA0B8", "20260806110000")),
+            listOf(VendorAssetCatalogSource("ETHEREUM", VendorAssetCatalogCacheState.READY, "20260806110000")),
+        )
 }

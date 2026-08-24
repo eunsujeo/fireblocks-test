@@ -162,12 +162,13 @@ class AdminFunctionalE2eTest {
         mockMvc
             .perform(
                 get("/bff/admin/asset-candidates")
-                    .param("symbol", "USDC")
+                    .param("q", "USD Coin")
                     .header("Origin", "http://localhost")
                     .header("X-BCM-Local-Asset-Management", "execute"),
             ).andExpect(status().isOk)
-            .andExpect(jsonPath("$.data[0].network").value("BASE"))
-            .andExpect(jsonPath("$.data[0].decimals").value(6))
+            .andExpect(jsonPath("$.data.items[0].network").value("BASE"))
+            .andExpect(jsonPath("$.data.items[0].decimals").value(6))
+            .andExpect(jsonPath("$.data.sources[0].state").value("READY"))
 
         mockMvc
             .perform(
@@ -249,9 +250,10 @@ class AdminFunctionalE2eTest {
                     )
                 }
                 createContext("/admin/asset-candidates") { exchange ->
+                    check(exchange.requestURI.query?.contains("q=USD+Coin") == true)
                     respond(
                         exchange,
-                        """{"data":[{"network":"BASE","symbol":"USDC","displayName":"USD Coin","decimals":6,"contractAddress":"0x8335","native":false}],"meta":{"requestId":"bcm-candidates"}}""",
+                        """{"data":{"items":[{"network":"BASE","symbol":"USDC","displayName":"USD Coin","assetClass":"FT","decimals":6,"contractAddress":"0x8335","catalogSyncedAt":"20260824010000"}],"sources":[{"network":"BASE","state":"READY","catalogSyncedAt":"20260824010000"}]},"meta":{"requestId":"bcm-candidates"}}""",
                     )
                 }
                 createContext("/admin/runtime-readiness") { exchange -> respond(exchange, runtimeReadinessResponse) }
