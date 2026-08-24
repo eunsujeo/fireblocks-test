@@ -1,5 +1,6 @@
 import {
   adminRouteFromPath,
+  assetCandidateEmptyState,
   assetDiscoverySymbol,
   changeRequestIdFromPath,
   filtersFromUrl,
@@ -442,13 +443,13 @@ function bindAssetAddDialog(activeMappings) {
       const mappedCandidates = candidates.map((candidate) => ({ candidate, mapping: registeredAssetMapping(candidate, currentMappings) }));
       const availableCount = mappedCandidates.filter(({ mapping }) => !mapping).length;
       const registeredCount = mappedCandidates.length - availableCount;
-      const neverSynced = catalogSources.filter((source) => source.state === "NEVER_SYNCED").map((source) => source.network);
+      const emptyState = candidates.length ? null : assetCandidateEmptyState(query, catalogSources);
       status.textContent = candidates.length
         ? `${candidates.length}개 후보 · 등록 가능 ${availableCount}개${registeredCount ? ` · 이미 등록 ${registeredCount}개` : ""}`
-        : neverSynced.length
-          ? `${neverSynced.join(", ")} catalog가 아직 동기화되지 않았습니다. ./scripts/local.sh sync assets를 실행하세요.`
-          : `‘${query}’ 후보가 없습니다.`;
-      list.innerHTML = mappedCandidates.map(({ candidate, mapping }, index) => assetCandidateRow(candidate, index, mapping)).join("");
+        : emptyState.message;
+      list.innerHTML = candidates.length
+        ? mappedCandidates.map(({ candidate, mapping }, index) => assetCandidateRow(candidate, index, mapping)).join("")
+        : assetCandidatePrerequisite(emptyState);
       list.querySelectorAll("[data-candidate-index]").forEach((option) => option.addEventListener("click", () => {
         if (option.disabled) return;
         selected = candidates[Number(option.dataset.candidateIndex)];
@@ -489,6 +490,16 @@ function bindAssetAddDialog(activeMappings) {
     showMessage(`${error.code}: ${error.message}${error.requestId ? ` · requestId ${error.requestId}` : ""}`);
   }));
   return openDialog;
+}
+
+function assetCandidatePrerequisite(state) {
+  const action = state.actionHref
+    ? `<a class="button primary" href="${escapeHtml(state.actionHref)}" data-link>${escapeHtml(state.actionLabel)}</a>`
+    : "";
+  const detail = state.kind === "CATALOG_REQUIRED"
+    ? "./scripts/local.sh sync assets를 실행한 뒤 다시 검색하세요."
+    : state.detail;
+  return `<section class="asset-prerequisite" data-asset-prerequisite="${escapeHtml(state.kind)}" role="note"><div><strong>${escapeHtml(state.message)}</strong><p>${escapeHtml(detail)}</p></div>${action}</section>`;
 }
 
 function assetCandidateRow(candidate, index, mapping) {

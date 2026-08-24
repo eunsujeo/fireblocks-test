@@ -39,6 +39,35 @@ export function assetDiscoverySymbol(value) {
   return /^[A-Z0-9_]{1,16}$/.test(normalized) && !/^0X[0-9A-F]+$/.test(normalized) ? normalized : null;
 }
 
+export function assetCandidateEmptyState(query, sources) {
+  if (!sources.length) {
+    return {
+      kind: "NETWORK_REQUIRED",
+      message: "채택한 Network가 없습니다.",
+      detail: "먼저 Fireblocks Network를 선택해 BCM code를 등록하세요.",
+      actionHref: "/admin/networks?adopted=false",
+      actionLabel: "Network 등록",
+    };
+  }
+  const neverSynced = sources.filter((source) => source.state === "NEVER_SYNCED").map((source) => source.network);
+  if (neverSynced.length) {
+    return {
+      kind: "CATALOG_REQUIRED",
+      message: `${neverSynced.join(", ")} catalog가 아직 동기화되지 않았습니다.`,
+      detail: "./scripts/local.sh sync assets를 실행한 뒤 다시 검색하세요.",
+      actionHref: null,
+      actionLabel: null,
+    };
+  }
+  return {
+    kind: "NO_MATCH",
+    message: `‘${query}’ 후보가 없습니다.`,
+    detail: "검색어를 바꾸거나 해당 Network의 Fireblocks asset catalog를 확인하세요.",
+    actionHref: null,
+    actionLabel: null,
+  };
+}
+
 export function registeredAssetMapping(candidate, mappings) {
   return mappings.find((mapping) => mapping.network === candidate.network && (
     candidate.contractAddress

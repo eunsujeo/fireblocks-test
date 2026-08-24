@@ -735,6 +735,13 @@ code {
 .asset-catalog-sources small { grid-column: 1 / -1; color: var(--text-muted); }
 .asset-candidate-list { display: grid; max-height: 320px; overflow-y: auto; border-block: 1px solid var(--line-subtle); }
 .asset-candidate-list:empty { display: none; }
+.asset-prerequisite {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+  padding: var(--space-4); background: var(--warning-bg); color: var(--text-secondary);
+}
+.asset-prerequisite strong { display: block; margin-bottom: 4px; color: var(--text-primary); }
+.asset-prerequisite p { margin: 0; }
+.asset-prerequisite .button { flex: 0 0 auto; }
 .asset-candidate {
   width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) 24px; gap: var(--space-3); align-items: center;
   padding: var(--space-3); border: 0; border-bottom: 1px solid var(--line-subtle);
@@ -896,6 +903,7 @@ code {
   code, .identifier code { max-width: 60vw; }
   .asset-dialog { width: 100vw; max-width: none; height: 100dvh; max-height: none; border: 0; border-radius: 0; }
   .asset-dialog-head, .asset-dialog-body, .asset-dialog-actions { padding-inline: var(--space-4); }
+  .asset-prerequisite { align-items: stretch; flex-direction: column; }
   .asset-selection dl { grid-template-columns: 1fr; }
   .network-candidate-summary { grid-template-columns: 1fr; }
   .network-candidate-summary > div { border-right: 0; }
