@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   adminRouteFromPath,
+  assetCandidateEmptyState,
   assetDiscoverySymbol,
   changeRequestIdFromPath,
   filtersFromUrl,
@@ -89,6 +90,34 @@ test("후보와 같은 네트워크·주소의 기존 등록을 대소문자와 
     "ETH",
   );
   assert.equal(registeredAssetMapping({ network: "BASE", contractAddress: "0x9999" }, mappings), undefined);
+});
+
+test("자산 후보 없음은 Network 미등록과 catalog 미동기화와 실제 검색 결과 없음을 구분한다", () => {
+  assert.deepEqual(assetCandidateEmptyState("USDC", []), {
+    kind: "NETWORK_REQUIRED",
+    message: "채택한 Network가 없습니다.",
+    detail: "먼저 Fireblocks Network를 선택해 BCM code를 등록하세요.",
+    actionHref: "/admin/networks?adopted=false",
+    actionLabel: "Network 등록",
+  });
+  assert.deepEqual(assetCandidateEmptyState("USDC", [
+    { network: "BASE_SEPOLIA", state: "NEVER_SYNCED" },
+  ]), {
+    kind: "CATALOG_REQUIRED",
+    message: "BASE_SEPOLIA catalog가 아직 동기화되지 않았습니다.",
+    detail: "./scripts/local.sh sync assets를 실행한 뒤 다시 검색하세요.",
+    actionHref: null,
+    actionLabel: null,
+  });
+  assert.deepEqual(assetCandidateEmptyState("USDC", [
+    { network: "BASE_SEPOLIA", state: "READY" },
+  ]), {
+    kind: "NO_MATCH",
+    message: "‘USDC’ 후보가 없습니다.",
+    detail: "검색어를 바꾸거나 해당 Network의 Fireblocks asset catalog를 확인하세요.",
+    actionHref: null,
+    actionLabel: null,
+  });
 });
 
 test("거래 상세 경로는 전체 식별자를 손실 없이 복원한다", () => {
@@ -212,6 +241,9 @@ test("자산 등록은 검색·후보 선택·검증 요약을 한 모달에서 
   assert.match(appSource, /asset-candidates\?q=/);
   assert.match(appSource, /asset-catalog-sources/);
   assert.match(appSource, /NEVER_SYNCED/);
+  assert.match(appSource, /assetCandidateEmptyState/);
+  assert.match(appSource, /data-asset-prerequisite/);
+  assert.match(appSource, /\/admin\/networks\?adopted=false/);
   assert.match(appSource, /\.\/scripts\/local\.sh sync assets/);
   assert.match(appSource, /method: "POST"/);
   assert.match(appSource, /"X-BCM-Local-Asset-Management": "execute"/);

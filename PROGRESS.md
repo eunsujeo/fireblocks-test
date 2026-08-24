@@ -8,6 +8,7 @@
 
 ## 최근 완료
 - Admin 자산 화면은 통합 검색·`Advanced` 필터와 Fireblocks형 등록 모달로 심볼·이름·contract address 후보를 비교한다.
+- 자산 후보 빈 상태는 Network 미등록·catalog 미동기화·실제 결과 없음을 구분하고 Network 등록 또는 sync 다음 행동을 제공한다.
 - 자산 목록 검색의 label 내부 보조 문구를 제거해 검색 input·action 버튼의 하단 정렬을 복원했다.
 - V11은 자산 현재 매핑 활성 상태와 등록·논리 해제·재활성·교체의 전후 snapshot 원장을 추가했다.
 - V12 `bcm_vndr_ast_ctlg_m`은 채택 네트워크별 Fireblocks 자산 snapshot을 보관한다. 성공 시 한 트랜잭션으로
