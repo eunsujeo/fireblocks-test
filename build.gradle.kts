@@ -66,7 +66,7 @@ subprojects {
     }
 
     tasks.withType<JacocoReport> {
-        dependsOn(tasks.withType<Test>())
+        dependsOn(tasks.named("test"))
         reports {
             csv.required.set(false)
             html.required.set(true)

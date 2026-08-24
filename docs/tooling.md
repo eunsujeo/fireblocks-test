@@ -12,6 +12,8 @@
 | JDK | **25 LTS** | Spring 권장 LTS · Oracle 지원 2033. Boot 4.1 은 17~26 지원 |
 | Kotlin | **2.3.x** (Boot-managed) | Boot 4.1 관리 버전. CVE-2026-53914의 안전한 2.4.20 GA 대기 중 — PLAN #41의 build cache 차단 유지 |
 | Gradle | **9.6.x** · Kotlin DSL | Boot 4.1 은 8.14+/9.x 지원. version catalog 사용 |
+| Foundry / Anvil | **1.7.1** | T11.2 결정적 EVM 체인. [공식 immutable release](https://github.com/foundry-rs/foundry/releases/tag/v1.7.1), 개발 빌드만 Forge 사용 · 실행 패키지는 Anvil만 사용 |
+| Solidity | **0.8.35** · Prague | 테스트 ERC-20·운영 ABI Sweep artifact compiler. optimizer 200 + via IR + metadata hash 제거 |
 | Spring Kafka | 4.1.0 | Boot 4.1 페어. ★ Boot 4 는 `spring-boot-starter-kafka` 명시 필요 (모듈화된 스타터) |
 | Spring Batch | 6.0.x | Boot 4 페어. 6 은 메이저 개편 (`ChunkOrientedStep` 등) — 5.x 예제 코드 참고 시 주의 |
 

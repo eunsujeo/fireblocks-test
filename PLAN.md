@@ -15,7 +15,8 @@
 - [x] Phase 7 — 막힘 점검 · 자동 boost (2026-08-13)
 - [x] Phase 8 — 배치 3종 — tx 대사 · 원본 보관 · 수수료 시계열 (2026-08-14)
 - [x] Phase 9 — 운영 보강 (2026-08-17)
-- [ ] Phase 10 — Blockchain Manager Admin
+- [x] Phase 10 — Blockchain Manager Admin (2026-08-17)
+- [x] Phase 11 — 로컬 블록체인 + Fireblocks 통합 테스트 환경 (2026-08-20)
 
 ## 작업 규칙 (모든 Phase 공통)
 
@@ -513,7 +514,7 @@ sweep 컨트랙트·실행 정책·밴드S 이동안·비상 조치를 버전·�
   - PostgreSQL+모의 벤더 E2E가 원장 선기록, 제출 멱등, 부분 실패 대사를 검증한다. 같은 실행 예약의 동시 요청은 정책
     바인딩 잠금 뒤 재조회해 단일 실행 ID로 수렴한다. stale·dependency·누락 입력 도메인 계약과 전체 `ktlintCheck check`
     110 task, 설계 02·03 정본/사본 byte 동일, `git diff --check`가 통과했다.
-- [ ] **T10.6 비상 운영** — 네트워크/sweep/approve 중지, 웹훅 구독 복구·`resend_failed`, 컨트랙트 외부 pause 확인,
+- [x] **T10.6 비상 운영** (2026-08-17 완료) — 네트워크/sweep/approve 중지, 웹훅 구독 복구·`resend_failed`, 컨트랙트 외부 pause 확인,
   전체 `approve(0)` 회수와 강화된 재개 승인을 구현한다.
   완료: 중지→회수→외부 상태 재조회→재개 장애 훈련. 근거: 06 비상 회수 · 07 네트워크 장애 · 08
   - [x] **T10.6.0 실행 게이트 원장** — 네트워크별 `WITHDRAWAL/SWEEP/APPROVE` 신규 실행 중지를 append-only로 기록하고,
@@ -600,35 +601,94 @@ Fireblocks 사용 가능 여부와 무관하게 계속 사용하는 BCM 전용 �
 
 ### task (계획 2026-08-18)
 
-- [ ] **T11.0 계약·설계 정본** (2~3인일) — BCM이 실제 사용하는 Vault/Asset/Transaction/Fee/Webhook API, 상태·오류·필드와
-  실제/시뮬레이션/미지원 경계를 표로 고정한다. waas-wiki에 로컬 통합환경 설계를 먼저 작성하고 `docs/design/` 사본은 정본
-  동기화로만 반영한다. 완료: 지원표·배포 조합·키 경계·reset 소유권·실 Fireblocks 계약 테스트 승인 경계 사용자 승인.
-- [ ] **T11.1 테스트 모듈·실행 모드 기반** (3~4인일) — `test-support` 독립 실행 모듈, STUB/FIREBLOCKS와
+- [x] **T11.0 계약·설계 정본** (2026-08-19 완료, waas-wiki `a38d17c`) — BCM이 실제 사용하는
+  Vault/Asset/Transaction/Fee/Webhook API·필드, 상태·오류와 `REAL_LOCAL`·`SIMULATED_VENDOR`·`REAL_FIREBLOCKS_ONLY`·
+  `UNSUPPORTED` 경계를 `10-local-fireblocks-integration.md`에 고정하고 byte-동일 사본을 동기화했다.
+  - 허용 배포 조합 3개, API RSA/Webhook RSA/EVM 키 분리, Stub+Anvil 전용 reset과 폐쇄망 무Docker 파일 배포를 확정했다.
+  - Stub 통과는 실벤더 호환 증명이 아니며, 실제 Fireblocks 읽기·쓰기 계약 테스트는 매 실행 범위·비용·자금 영향을 제시한 뒤
+    사용자 명시 승인을 받는 경계로 승인됐다.
+- [x] **T11.1 테스트 모듈·실행 모드 기반** (2026-08-20 완료) — `test-support` 독립 실행 모듈, STUB/FIREBLOCKS와
   LOCAL/TESTNET/MAINNET 조합 검증, 내부 포트·health check를 만든다. 완료: 잘못된 조합·실 Secret·외부 RPC가 로컬 모드에서
   fail-closed하고 기존 FireblocksClient가 코드 분기 없이 Stub URL을 호출하는 조립 테스트 그린.
-- [ ] **T11.2 결정적 로컬 체인** (4~5인일) — Anvil, 고정 chain ID·계정, 테스트 ERC-20, 운영과 같은 ABI의 Sweep
+  - production 모듈은 test-support에 의존하지 않고, 최소 `/v1/blockchains` endpoint와 별도 management health만 열었다.
+  - 모드·내부 주소·고정 chain id·테스트 키 fingerprint 계약 6건과 실제 HTTP/health 조립 2건을 통과했다.
+- [x] **T11.2 결정적 로컬 체인** (2026-08-20 완료) — Anvil, 고정 chain ID·계정, 테스트 ERC-20, 운영과 같은 ABI의 Sweep
   컨트랙트, 배포 manifest, seed와 snapshot/revert를 만든다. 완료: 같은 seed가 같은 주소·잔액·컨트랙트를 만들고
   approve→batchSweep의 성공·부분 결과 event를 실제 receipt에서 재현한다.
-- [ ] **T11.3 상태형 Fireblocks Stub** (5~7인일) — Vault/주소/잔액, 체인·자산 카탈로그, TRANSFER/CONTRACT_CALL,
+  - Foundry/Anvil 1.7.1·Solidity 0.8.35·Prague·chain ID 31337를 고정하고 runtime seed를 manifest와 Git에서 제외했다.
+  - 운영 ABI의 `SweepLeg`·`SweepDone`, 목적지 불변·operator/token/cap·execution 재사용 방어와 부분 성공을 실제 EVM에서 검증했다.
+  - baseline snapshot/revert 뒤 nonce·allowance·code hash를 재검증하고, 같은 seed의 공개 manifest 동일성을 고정했다.
+- [x] **T11.3 상태형 Fireblocks Stub** (2026-08-20 완료) — Vault/주소/잔액, 체인·자산 카탈로그, TRANSFER/CONTRACT_CALL,
   ID·externalTxId·목록 조회, fee 견적, Webhook 조회/변경/재전송을 현재 BCM 사용 범위만 구현한다. 완료: externalTxId 멱등,
   transaction 상태 머신, 실제 Anvil hash·receipt, 최소 Webhook 서명/JWKS 계약 테스트 그린.
-- [ ] **T11.4 BCM 거래·sweep 세로줄** (4~5인일) — 입출금·내부이체, allowance approve, batch sweep 1:N,
+  - 결정적 secp256k1 키로 raw transaction을 서명하고 native/ERC-20 전송·contract call·cursor 조회를 실제 Anvil에 연결했다.
+  - SUBMITTED→CONFIRMING→COMPLETED/FAILED와 기본/strict API 인증, RS512 Webhook 전달·5xx 실패 큐·재전송을 구현했다.
+  - test-support 전체 25건과 저장소 전체 ktlint가 그린이며 production 모듈의 test-support 의존은 추가하지 않았다.
+- [x] **T11.4 BCM 거래·sweep 세로줄** (2026-08-20 완료) — 입출금·내부이체, allowance approve, batch sweep 1:N,
   network records·`SweepLeg` 대사와 고객 토픽 비발행을 실제 BCM API/BAT 경로로 연결한다. 완료: 정상 및 batch 부분 결과가
   기존 원장·상태·대사 계약과 일치하고 Stub 전용 Domain Adapter가 없음을 아키텍처 테스트로 고정.
-- [ ] **T11.5 실패·복구·초기화** (4~6인일) — HTTP 4xx/429/5xx·timeout·응답 유실, 중복/역순/유실 Webhook,
+  - 실제 외부 ERC-20 입금과 내부이체는 Stub 서명 Webhook→BCM 원장→Kafka까지 수렴하며 production은 test-support에
+    의존하지 않고 test classpath에서도 Stub component를 조립하지 않는다.
+  - 비-Gasless 로컬 batch sweep 부분 성공은 실제 `SweepLeg`·성공분 network records를 만들고 BCM BAT PostgreSQL 대사가
+    `PARTIAL`·항목 성공/실패·target 해제·고객 outbox 0건으로 수렴한다.
+  - BCM 출금·allowance approve·batch 제출의 `useGasless=true` 성공 세로줄은 source native 잔액 0에서 실제 EIP-7702
+    delegation·fee payer 지불·ERC-20 잔액과 allowance 변경·부분 성공 대사까지 T11.7 구현으로 완료했다.
+- [x] **T11.5 실패·복구·초기화** (2026-08-20 완료) — HTTP 4xx/429/5xx·timeout·응답 유실, 중복/역순/유실 Webhook,
   BLOCKED/REJECTED/FAILED·장기 pending, 잔액/gas/allowance/nonce/revert, 동시 제출과 재대사를 시나리오화한다. CI는 매 실행
   폐기하고 원격 reset은 Stub+Anvil만 복원한다. 완료: `REAL_LOCAL`·`SIMULATED_VENDOR`·`REAL_FIREBLOCKS_ONLY` 분류와
   같은 seed의 결정적 재현, 기존 PostgreSQL·Kafka 무변경 검증.
-- [ ] **T11.6 파일 배포·CI·실벤더 계약 검사** (3~5인일) — CPU 아키텍처별 Anvil, 전용 JRE/Stub, artifact와 systemd를
+  - 거래 저장 뒤 HTTP 400을 반환하는 `SIMULATED_VENDOR` 응답 유실을 주입하고, BCM이 externalTxId 조회로 실제 거래를
+    한 번만 회수해 nonce·잔액 중복 변경 없이 수렴하는 세로줄을 검증했다.
+  - 같은 서명 Webhook 중복은 inbox·원장·고객 이벤트 멱등으로 흡수하고, 제출 전 429는 백오프 뒤 단 한 건을 생성하며,
+    온체인 커밋 뒤 500은 REQUESTED claim 만료 후 externalTxId로 기존 거래를 회수한다.
+  - 명시 활성화한 `STUB+LOCAL`에서만 요청을 직렬화한 뒤 Stub 전체 상태와 Anvil 기준 snapshot을 반복 복원한다. 로컬
+    `reset` 명령은 loopback endpoint만 호출하고 BCM PostgreSQL·Kafka에는 접근하지 않는다.
+  - 실제 ERC-20 잔액 부족 receipt는 잔액 무변경·`FAILED`로 수렴하고, 최초 Webhook을 실패 큐에 둔 뒤 후속 상태를 먼저
+    처리해도 늦은 재전달이 `FINALIZED` 원장과 고객 이벤트를 역행·중복시키지 않는다.
+  - 온체인 전 벤더 `BLOCKED`·`REJECTED`는 `SIMULATED_VENDOR`로 주입한다. txHash·nonce·잔액 변경 없이 BCM이 감지용
+    `CONFIRMED`와 `REJECTED`를 순서대로 발행하고 제출 원장에 vendor transaction ID를 보존한다.
+  - 제출 전 실제 HTTP 응답을 Stub에서 지연해 BCM read timeout을 재현한다. 원장은 `REQUESTED`를 유지하고 온체인 변화가
+    없으며, claim 만료 뒤 externalTxId 조회 후 재시도에서만 거래 한 건이 제출되는 것을 검증했다.
+  - 다음 거래를 `PENDING_SIGNATURE`로 고정해 raw transaction 없이 장기 pending을 재현한다. 반복 상태 진행과 동일 요청
+    재시도에도 txHash·nonce·잔액은 변하지 않고 BCM 원장·고객 이벤트는 `SUBMITTED` 한 건으로 유지된다.
+  - source native 잔액 0과 과거 nonce 서명을 Anvil에 실제 제출해 각각 노드 거절을 재현한다. vendor 거래·추가 nonce·토큰
+    이동 없이 BCM 제출 원장은 `REQUESTED`로 남는다. allowance 부족은 실제 부분 성공 batch `SweepLeg`와 BAT 대사로 검증한다.
+  - 같은 externalTxId 동시 제출과 온체인 커밋 뒤 응답 유실을 결합해 HTTP 성공/실패 경쟁에서도 EVM 거래가 한 번만 반영되고,
+    claim 만료 뒤 같은 vendor 거래를 회수함을 검증했다. Webhook 없는 실제 입금도 BAT 재대사가 단건 조회로 `FINALIZED`와
+    고객 입금 이벤트를 복구하며, 기존 PostgreSQL·Kafka는 reset 대상이 아님을 유지했다.
+- [x] **T11.6 파일 배포·CI·실벤더 계약 검사** (3~5인일) — CPU 아키텍처별 Anvil, 전용 JRE/Stub, artifact와 systemd를
   checksum manifest가 있는 tar.gz로 만들고 폐쇄망 반입·설치·롤백 런북을 제공한다. 개발자/CI는 기존 Testcontainers의
   PostgreSQL·Kafka와 로컬 체인을 묶는다. 실제 Sandbox 호출은 사용자 명시 승인과 Secret이 있는 별도 작업에서만 golden
   contract test로 수행한다. 완료: 깨끗한 일반 Linux 서버 설치→기동→reset→재기동 smoke와 오프라인 무다운로드 검증.
-- [ ] **T11.7 Universal Gasless** (14~22인일) — 먼저 Anvil Prague·사용 라이브러리의 EIP-7702 type-4 지원을 spike한다.
+  - `linux-x86_64`·`linux-aarch64` 조립기는 Anvil 1.7.1, JRE 25, Stub Boot JAR, contract artifact, systemd와 내부
+    `SHA256SUMS`를 고정한다. 설치기는 CPU·버전·checksum을 재검증하고 immutable `current`/`previous` 전환과 자동·수동
+    롤백을 제공하며 PostgreSQL·Kafka·Docker를 서버에 설치하거나 초기화하지 않는다.
+  - 네트워크 `none` Linux에서 chain·Stub 기동, reset, 종료·재기동과 결정적 manifest를 검증했다. systemd가 있는 깨끗한
+    Ubuntu에서는 root 전용 `0600` 설정과 런타임 `0700` 권한을 유지한 설치·기동·reset·재기동·두 release 전환·롤백을
+    실검증했다. 제어 명령은 번들 JRE만 사용하며 환경 파일을 직접 읽을 권한이 없는 service user도 systemd 주입값으로 동작한다.
+  - 실 Fireblocks golden contract test는 사용자 승인 ID와 개발자 Secret을 요구하는 별도 read-only 작업이다. 일반
+    `check`·CI에는 포함되지 않으며 blockchains/assets 조회 외 mutation 호출이 들어가면 정적 gate가 실패한다.
+- [x] **T11.7 Universal Gasless** (2026-08-20 완료) — 먼저 Anvil Prague·사용 라이브러리의 EIP-7702 type-4 지원을 spike한다.
   통과하면 테스트 delegation 컨트랙트, Vault authorization/실행 의도, fee payer, replay/nonce/deadline 방어와 가스 대납
   실패를 구현한다. source native 0에서 gasless approve와 확정 batch sweep 경로를 검증하되 Fireblocks 내부 동작은 계약 결과만
   시뮬레이션한다. 완료: 정상·fee payer 부족·만료·재사용·내부 revert와 실제 Fireblocks 전용 미검증 항목의 명시적 구분.
-- [ ] **T11.8 E2E + converge** — 한 명령 또는 systemd로 기동·상태 확인·reset·종료하고, 로컬/CI/원격 폐쇄망 세 경로의
+  - Web3j 6.0.0의 type-4 생성과 Anvil 1.7.1 Prague의 별도 fee payer authorization 수용을 spike로 확인한 뒤, fee payer만
+    호출 가능한 테스트 delegation과 chain/source/target/value/calldata hash/nonce/deadline 서명 의도를 구현했다.
+  - source native 0 정상·delegation 재사용, fee payer 부족, 만료, nonce replay, 내부 revert를 실제 receipt·code marker·잔액·
+    allowance·intent nonce로 검증했다. Stub HTTP 경계의 fee payer 부족은 거래와 위임을 남기지 않는다.
+  - BCM API 출금과 BAT allowance approve→gasless batch sweep 부분 성공을 실제 원장·network records·대사까지 연결했다.
+    이는 `REAL_LOCAL`이며 Fireblocks MPC·TAP·실 relayer·과금은 계속 `REAL_FIREBLOCKS_ONLY`로 분리한다.
+  - 새 delegation artifact를 checksum 배포물의 필수 파일로 고정했고, 네트워크 차단 ARM64 Linux에서 chain·Stub 기동,
+    reset·재기동 smoke와 저장소 전체 `check`를 통과했다.
+- [x] **T11.8 E2E + converge** (2026-08-20 완료) — 한 명령 또는 systemd로 기동·상태 확인·reset·종료하고, 로컬/CI/원격 폐쇄망 세 경로의
   기능·장애·보안 경계를 검증한 뒤 design-sync→code-reviewer를 통과한다. 근거: PLAN 공통 완료 규칙.
+  - 개발자 로컬 Fireblocks/Stub 실행, 네트워크 차단 ARM64 Linux 배포물, reset·재기동과 실벤더 read-only 승인 gate를
+    한 CI 경계로 검증했다. 기존 BCM PostgreSQL·Kafka와 production 모듈은 test-support·Admin·로컬 체인에 의존하지 않는다.
+  - PID 숫자·cwd·wrapper·task·start token을 확인한 프로세스만 종료하고, pre-token 정상 프로세스는 정확한 legacy identity로
+    일회 인계한다. 무관한 live PID는 종료하지 않고 추적 파일도 보존한다.
+  - 실 Fireblocks 공식 origin은 wrapper·Gradle task·client 생성 직전에 강제하며, strict JWT와 systemd 단계별 실패 전파를
+    회귀 테스트로 고정했다. 전체 CI와 offline distribution smoke가 통과했고 독립 design-sync·code-reviewer가
+    `bfc5a10..1bab456`을 Critical 0/Major 0으로 판정했다.
 
 **예상 공수**: 기본 통합 플랫폼 27~38인일 + Universal Gasless 14~22인일 = 총 41~60인일. 1명은 약 9~12주,
 Kotlin 백엔드 1명과 EVM/Solidity 인력 0.5~1명이 병렬 작업하면 약 5~7주다. 운영 Sweep artifact가 없으면 5~10인일,

@@ -27,4 +27,5 @@ include(
     ":blockchain-manager-infra:client",
     ":blockchain-manager-infra:messaging",
     ":blockchain-manager-support",
+    ":blockchain-manager-test-support",
 )

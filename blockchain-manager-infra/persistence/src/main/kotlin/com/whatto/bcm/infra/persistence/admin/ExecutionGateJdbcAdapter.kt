@@ -48,7 +48,7 @@ class ExecutionGateJdbcAdapter(
                 ROW_MAPPER,
             ).firstOrNull()
 
-    @Transactional
+    @Transactional(noRollbackFor = [ConflictException::class])
     override fun insert(event: ExecutionGateEvent): ExecutionGateEvent {
         lock(event.network, event.type)
         val inserted =

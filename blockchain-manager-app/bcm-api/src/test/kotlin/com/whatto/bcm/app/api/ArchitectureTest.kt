@@ -75,6 +75,22 @@ class ArchitectureTest {
     }
 
     @Test
+    fun `production 모듈은 test-support 에 의존하지 않는다`() {
+        noClasses()
+            .that()
+            .resideInAnyPackage(
+                "com.whatto.bcm.app..",
+                "com.whatto.bcm.domain..",
+                "com.whatto.bcm.infra..",
+                "com.whatto.bcm.support..",
+            ).should()
+            .dependOnClassesThat()
+            .resideInAPackage("com.whatto.bcm.testsupport..")
+            .allowEmptyShould(true)
+            .check(classes)
+    }
+
+    @Test
     fun `물리 컬럼 매핑(spring-data-relational)은 infra 한정이다`() {
         noClasses()
             .that()

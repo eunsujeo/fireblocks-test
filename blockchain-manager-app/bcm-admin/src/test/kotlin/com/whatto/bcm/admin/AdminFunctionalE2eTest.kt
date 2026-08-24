@@ -2,6 +2,7 @@ package com.whatto.bcm.admin
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -32,11 +33,16 @@ class AdminFunctionalE2eTest {
             .andExpect(status().isOk)
             .andExpect(forwardedUrl("/admin/index.html"))
 
-        mockMvc
-            .perform(get("/admin/index.html"))
-            .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("BCM ADMIN")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("READ ONLY")))
+        val indexHtml =
+            mockMvc
+                .perform(get("/admin/index.html"))
+                .andExpect(status().isOk)
+                .andReturn()
+                .response
+                .getContentAsString(StandardCharsets.UTF_8)
+        assertThat(indexHtml)
+            .contains("BCM ADMIN")
+            .contains("읽기 전용")
 
         mockMvc
             .perform(get("/bff/admin/overview").header("X-Request-Id", "test-request"))

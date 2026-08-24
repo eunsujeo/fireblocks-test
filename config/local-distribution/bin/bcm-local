@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+INSTALL_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+ENV_FILE="${BCM_LOCAL_ENV_FILE:-/etc/blockchain-manager-local/stub.env}"
+
+fail() {
+    echo "오류: $*" >&2
+    exit 1
+}
+
+if [ -r "$ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090 -- root-owned deployment configuration
+    . "$ENV_FILE"
+    set +a
+fi
+
+case "${1:-help}" in
+    health-chain|health-stub|reset)
+        exec "$INSTALL_ROOT/jre/bin/java" -jar "$INSTALL_ROOT/lib/blockchain-manager-test-support.jar" control "$1"
+        ;;
+    start|stop|restart|status)
+        command -v systemctl >/dev/null 2>&1 || fail "systemctl을 찾을 수 없습니다."
+        systemctl "$1" bcm-local-stub.service bcm-local-anvil.service
+        ;;
+    logs)
+        command -v journalctl >/dev/null 2>&1 || fail "journalctl을 찾을 수 없습니다."
+        exec journalctl -u bcm-local-anvil.service -u bcm-local-stub.service -f
+        ;;
+    help|-h|--help)
+        echo "사용법: bcm-local {health-chain|health-stub|reset|start|stop|restart|status|logs}"
+        ;;
+    *) fail "지원하지 않는 명령입니다: $1" ;;
+esac

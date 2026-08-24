@@ -20,6 +20,7 @@ status: To Do
 | [벤더 자산 매핑](07-asset-master.md) | 우리 (네트워크, 토큰) ↔ 벤더 assetId · 등록 관문 · Admin API |
 | [블록체인 매니저 Admin](08-bcm-admin.md) | 운영 조사·컨트랙트·실행 정책·밴드S·승인·비상 운영과 UI/UX 경계 |
 | [자산 이동 지도](09-asset-map.md) | 시나리오별 vault 간 이동 한 장 — 확정 이동·미정 이동·자산 경계 (조립 문서) |
+| [로컬 블록체인 + Fireblocks Stub](10-local-fireblocks-integration.md) | BCM의 실제 Fireblocks HTTP 계약과 Anvil 결과를 잇는 통합 테스트·폐쇄망 파일 배포 경계 |
 
 ## 구성 요소 — 한 장
 
@@ -102,6 +103,28 @@ flowchart TB
 | Fireblocks 스크리닝 클라이언트 | validate/full 호출 전용 |
 | VerifyVASP Enclave | 상대 VASP 발신을 받아 게이트의 수신 콜백을 내부망으로 호출 |
 | 메시지 큐 | 매니저·게이트가 발행한 이벤트를 DAW-CORE에 전달 |
+
+### 로컬 통합 테스트 배치
+
+Fireblocks 사용 가능 여부와 무관하게 유지하는 BCM 전용 테스트 장치다. 운영 Domain Port를 바꾸지 않고 기존
+`FireblocksClient`의 Base URL과 EVM RPC 설정만 로컬로 돌린다.
+
+```mermaid
+flowchart LR
+  BCM["기존 BCM"] -->|"동일 Fireblocks HTTP 계약"| STUB["상태형 Fireblocks Stub"]
+  STUB -->|"서명한 raw transaction"| ANVIL["Anvil · 실제 EVM 실행"]
+  STUB -->|"RS512 Webhook"| BCM
+
+  classDef ours fill:#dbeafe,stroke:#2563eb
+  classDef local fill:#fef3c7,stroke:#d97706
+  class BCM ours
+  class STUB,ANVIL local
+```
+
+허용 조합은 `STUB+LOCAL`, `FIREBLOCKS+TESTNET`, `FIREBLOCKS+MAINNET`뿐이다. 폐쇄망 일반 Linux 서버에는
+Anvil·Stub·bootstrap을 버전 고정 파일로 배포하며 Docker와 번들 PostgreSQL·Kafka를 요구하지 않는다. 상세 API 지원표,
+실제·시뮬레이션 경계, 키 분리, reset 소유권과 실 Fireblocks 계약 테스트 승인선은
+[로컬 블록체인 + Fireblocks Stub](10-local-fireblocks-integration.md)이 원천이다.
 
 ## 보안 경계
 

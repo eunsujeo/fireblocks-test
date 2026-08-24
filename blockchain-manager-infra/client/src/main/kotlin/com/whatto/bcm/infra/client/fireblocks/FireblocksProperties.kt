@@ -1,6 +1,8 @@
 package com.whatto.bcm.infra.client.fireblocks
 
 import org.springframework.boot.context.properties.ConfigurationProperties
+import java.nio.file.Files
+import java.nio.file.Path
 
 /**
  * 벤더 접속 설정 — 시크릿(apiKey·privateKeyPem)은 env/시크릿 매니저로만 주입한다 (git 커밋 금지 — CLAUDE.md 0절).
@@ -9,10 +11,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties("bcm.fireblocks")
 data class FireblocksProperties(
     /** 호스트만 — 경로는 클라이언트가 /v1 포함해 구성한다 (JWT uri 클레임과 일치 보장) */
-    val baseUrl: String = "https://sandbox-api.fireblocks.io",
+    val baseUrl: String = "https://api.fireblocks.io",
     val apiKey: String = "",
     /** PKCS#8 PEM 본문 */
     val privateKeyPem: String = "",
+    /** PKCS#8 PEM 파일. 로컬·서버 실행 스크립트는 본문 대신 이 경로를 주입한다. */
+    val privateKeyFile: String = "",
     /** 429 재시도 최대 시도 횟수 (첫 호출 포함) */
     val maxAttempts: Int = 3,
     /** Retry-After 헤더 부재 시 지수 백오프 초기값 (attempt 마다 배증) */
@@ -24,7 +28,7 @@ data class FireblocksProperties(
     /** 벤더 API 응답 대기 상한. 제출 소유권(claim) TTL 산정의 실제 근거가 되는 값이다. */
     val readTimeoutMillis: Long = 10_000,
     /** 웹훅 RS512 검증 공개키 카탈로그. 환경별 공식 URL을 외부 설정으로만 주입한다. */
-    val webhookJwksUrl: String = "",
+    val webhookJwksUrl: String = "https://keys.fireblocks.io/.well-known/jwks.json",
     /** CONTRACT_CALL은 체인 native assetId가 필요하다. 벤더 식별자는 이 경계의 환경 설정에만 둔다. */
     val contractCallGasAssetIds: Map<String, String> = emptyMap(),
     /** JWKS connect/read 및 요청 대기 상한. 외부 통신 장애가 수신부를 잠그지 않게 짧게 둔다. */
@@ -33,6 +37,9 @@ data class FireblocksProperties(
     val webhookJwksRefreshCooldownMillis: Long = 30_000,
 ) {
     init {
+        require(privateKeyPem.isBlank() || privateKeyFile.isBlank()) {
+            "privateKeyPem and privateKeyFile cannot be configured together"
+        }
         require(maxAttempts > 0) { "maxAttempts must be positive" }
         require(retryBackoffMillis >= 0) { "retryBackoffMillis must not be negative" }
         require(maxBackoffMillis >= 0) { "maxBackoffMillis must not be negative" }
@@ -40,6 +47,16 @@ data class FireblocksProperties(
         require(readTimeoutMillis > 0) { "readTimeoutMillis must be positive" }
         require(contractCallGasAssetIds.values.all(String::isNotBlank)) { "contractCallGasAssetIds must not be blank" }
         maximumSubmissionFlowMillis
+    }
+
+    internal fun resolvePrivateKeyPem(): String {
+        if (privateKeyPem.isNotBlank()) return privateKeyPem
+        if (privateKeyFile.isBlank()) return ""
+        return try {
+            Files.readString(Path.of(privateKeyFile))
+        } catch (exception: Exception) {
+            throw IllegalStateException("bcm.fireblocks.private-key-file을 읽을 수 없습니다", exception)
+        }
     }
 
     /** 연결·응답·429 백오프를 모두 포함한 벤더 API 한 번의 보수적 최장 시간. */

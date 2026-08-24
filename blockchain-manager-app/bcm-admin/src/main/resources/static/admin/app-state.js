@@ -42,6 +42,12 @@ export function resolveViewState({ loading = false, status = 200, error = false,
   return "completed";
 }
 
+export function isGlobalSearchShortcut(event) {
+  const tagName = event.target?.tagName?.toUpperCase();
+  const editing = ["INPUT", "TEXTAREA", "SELECT"].includes(tagName) || event.target?.isContentEditable;
+  return event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && !editing;
+}
+
 export function formatAdminTime(value, formatLocal = (date) => date.toLocaleString("ko-KR", { hour12: false })) {
   if (!value) return null;
   const date = new Date(value);

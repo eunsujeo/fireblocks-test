@@ -90,7 +90,7 @@ Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다
 
 ## Gasless Relay 과금 — 담당자 확답 (2026-08-18)
 
-Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblocks-support/2026-08-18](../../../sources/fireblocks-support/2026-08-18__gasless-relay-billing-conversation.md), 설계 반영은 [가스대납 — 결정 포인트](../../블록체인매니저/가스대납/05-decision.md).
+Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblocks-support/2026-08-18](../../../sources/fireblocks-support/2026-08-18__gasless-relay-billing-conversation.md), 설계 반영은 [블록체인 매니저 — 가스 대납 적용](../../블록체인매니저/가스대납/00-overview.md).
 
 **Q.** Universal Gasless 는 Boost 를 지원하나? Boost·실패·재시도 비용은 어떻게 처리되나?
 **A.** 자동 boost 없음 — 막힌 거래는 수동 RBF 로 올린다(공개 문서와 일치). 비용은 셋으로 갈린다.

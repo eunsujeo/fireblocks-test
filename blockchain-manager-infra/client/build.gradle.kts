@@ -16,3 +16,39 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
+
+val fireblocksContractTest = sourceSets.create("fireblocksContractTest")
+fireblocksContractTest.compileClasspath += sourceSets.main.get().output
+fireblocksContractTest.runtimeClasspath += sourceSets.main.get().output
+
+configurations[fireblocksContractTest.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[fireblocksContractTest.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
+
+tasks.register<Test>("fireblocksContractTest") {
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    description = "Runs explicitly approved read-only contracts against FIREBLOCKS+TESTNET."
+    testClassesDirs = fireblocksContractTest.output.classesDirs
+    classpath = fireblocksContractTest.runtimeClasspath
+    useJUnitPlatform()
+    doFirst {
+        val officialFireblocksOrigin = "https://api.fireblocks.io"
+        val configuredBaseUrl = System.getenv("BCM_FIREBLOCKS_BASE_URL")?.removeSuffix("/")
+        check(configuredBaseUrl == officialFireblocksOrigin) {
+            "real Fireblocks contract test requires official Fireblocks API origin $officialFireblocksOrigin"
+        }
+        check(System.getenv("BCM_FIREBLOCKS_CONTRACT_TEST_SCOPE") == "READ_ONLY") {
+            "real Fireblocks contract test requires READ_ONLY scope"
+        }
+        check(!System.getenv("BCM_FIREBLOCKS_CONTRACT_TEST_APPROVAL_ID").isNullOrBlank()) {
+            "real Fireblocks contract test requires an execution approval id"
+        }
+        check(System.getenv("BCM_VENDOR_MODE") == "FIREBLOCKS" && System.getenv("BCM_CHAIN_MODE") == "TESTNET") {
+            "real Fireblocks contract test requires FIREBLOCKS+TESTNET"
+        }
+        check(!System.getenv("BCM_FIREBLOCKS_API_KEY").isNullOrBlank()) { "real Fireblocks API key is missing" }
+        check(!System.getenv("BCM_FIREBLOCKS_PRIVATE_KEY_FILE").isNullOrBlank()) { "real Fireblocks private key file is missing" }
+        check(!System.getenv("BCM_FIREBLOCKS_CONTRACT_BLOCKCHAIN_ID").isNullOrBlank()) {
+            "real Fireblocks blockchain id is missing"
+        }
+    }
+}

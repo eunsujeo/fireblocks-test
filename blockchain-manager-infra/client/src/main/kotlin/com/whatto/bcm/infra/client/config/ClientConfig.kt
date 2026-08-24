@@ -19,5 +19,5 @@ class ClientConfig {
     fun fireblocksJwtSigner(
         properties: FireblocksProperties,
         clock: Clock,
-    ): FireblocksJwtSigner = FireblocksJwtSigner(properties.apiKey, properties.privateKeyPem, clock)
+    ): FireblocksJwtSigner = FireblocksJwtSigner(properties.apiKey, properties.resolvePrivateKeyPem(), clock)
 }

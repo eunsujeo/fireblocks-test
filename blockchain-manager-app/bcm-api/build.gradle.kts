@@ -19,6 +19,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation(project(":blockchain-manager-test-support"))
     // 통합 테스트의 JdbcTemplate·Flyway 컴파일 참조용 — 런타임 배선 소관은 infra/persistence
     testImplementation("org.springframework.boot:spring-boot-starter-data-jdbc")
     testImplementation("org.springframework.boot:spring-boot-starter-flyway")
@@ -31,4 +32,18 @@ dependencies {
     testImplementation(libs.testcontainers.kafka)
     testImplementation(libs.testcontainers.junit.jupiter)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    dependsOn(":blockchain-manager-test-support:compileLocalContracts")
+    systemProperty(
+        "bcm.contract-artifacts",
+        project(":blockchain-manager-test-support")
+            .layout
+            .buildDirectory
+            .dir("contracts")
+            .get()
+            .asFile
+            .absolutePath,
+    )
 }

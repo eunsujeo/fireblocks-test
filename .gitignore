@@ -7,3 +7,4 @@ build/
 *.iml
 .kotlin/
 .claude/settings.local.json
+.keys

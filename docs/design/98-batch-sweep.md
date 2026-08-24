@@ -269,7 +269,7 @@ sequenceDiagram
 
 ### Universal Gasless 로 낼 수 있나
 
-받는주소에도 운영 계정에도 ETH 를 두지 않는 설계라, approve M건과 배치 호출 모두 대납 경로가 필요하다. 공식 문서([가스 대납](../../블록체인매니저/가스대납/03-fireblocks-gasless.md)) 기준으로 다섯 가지가 걸린다.
+받는주소에도 운영 계정에도 ETH 를 두지 않는 설계라, approve M건과 배치 호출 모두 대납 경로가 필요하다. [Fireblocks Gasless](../../디지털%20자산/가스대납/03-fireblocks-gasless.md) 기준으로 다섯 가지가 걸린다.
 
 - **제품 범위 자체는 맞는다** — Universal Gasless 는 upgrade 된 vault 의 이더리움 자산에 대해 Transfer·Contract Call·Mint·Burn 을 대납하고, 지원 체인에 Ethereum 과 Base 가 들어 있다. `approve` 와 `batchSweep` 은 둘 다 컨트랙트 호출이라 범위 안이다.
 - **★ gasless 를 쓰면 받는주소가 7702 위임 계정이 된다** — 첫 gasless 거래 때 vault(EOA)가 smart contract wallet 으로 upgrade 되기 때문이다. approve 노선을 골라도 방법 4의 상시 위임이 함께 깔린다는 뜻이라, 9절 비교표의 "approve 는 allowance 까지 · 7702 는 영속 위임" 대비는 대납을 쓰지 않을 때만 성립한다. 이 upgrade 는 건별 전송을 쓰는 현재 설계에도 이미 해당된다.

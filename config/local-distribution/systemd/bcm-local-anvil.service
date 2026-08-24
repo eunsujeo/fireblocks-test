@@ -1,0 +1,20 @@
+[Unit]
+Description=Blockchain Manager deterministic local Anvil chain
+After=network.target
+
+[Service]
+Type=simple
+User=bcm-local
+Group=bcm-local
+EnvironmentFile=/etc/blockchain-manager-local/stub.env
+WorkingDirectory=/var/lib/blockchain-manager-local
+ExecStart=/opt/blockchain-manager-local/current/jre/bin/java -jar /opt/blockchain-manager-local/current/lib/blockchain-manager-test-support.jar chain
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/blockchain-manager-local
+
+[Install]
+WantedBy=multi-user.target

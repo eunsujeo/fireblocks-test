@@ -59,8 +59,8 @@ bcm:
     connect-timeout-millis: ${BCM_VENDOR_CONNECT_TIMEOUT_MILLIS:3000}
     # 제출 소유권(claim) TTL 산정의 실제 근거다.
     read-timeout-millis: ${BCM_TRANSACTION_SUBMIT_TIMEOUT_MILLIS:10000}
-    # 환경별 공식 JWKS URL만 외부에서 주입한다. 코드에 sandbox/production 주소를 하드코딩하지 않는다.
-    webhook-jwks-url: ${FIREBLOCKS_JWKS_URL:}
+    # 일반 API의 공식 JWKS를 기본값으로 쓰며 환경별 주소가 다를 때만 외부에서 덮어쓴다.
+    webhook-jwks-url: ${FIREBLOCKS_JWKS_URL:https://keys.fireblocks.io/.well-known/jwks.json}
     webhook-jwks-timeout-millis: ${FIREBLOCKS_JWKS_TIMEOUT_MILLIS:3000}
     webhook-jwks-refresh-cooldown-millis: ${FIREBLOCKS_JWKS_REFRESH_COOLDOWN_MILLIS:30000}
 

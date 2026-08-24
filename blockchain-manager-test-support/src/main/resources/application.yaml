@@ -1,0 +1,40 @@
+server:
+  address: ${BCM_STUB_ADDRESS:127.0.0.1}
+  port: ${BCM_STUB_PORT:18080}
+
+spring:
+  application:
+    name: blockchain-manager-test-support
+  threads:
+    virtual:
+      enabled: true
+
+management:
+  server:
+    address: ${BCM_STUB_MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${BCM_STUB_MANAGEMENT_PORT:18090}
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+bcm:
+  test-support:
+    vendor-mode: ${BCM_VENDOR_MODE:STUB}
+    chain-mode: ${BCM_CHAIN_MODE:LOCAL}
+    server-address: ${BCM_STUB_ADDRESS:127.0.0.1}
+    management-address: ${BCM_STUB_MANAGEMENT_ADDRESS:127.0.0.1}
+    fireblocks-base-url: ${BCM_FIREBLOCKS_BASE_URL:http://127.0.0.1:18080}
+    fireblocks-api-key: ${BCM_FIREBLOCKS_API_KEY:bcm-local-stub}
+    fireblocks-private-key-pem: ${BCM_FIREBLOCKS_PRIVATE_KEY_PEM:}
+    fireblocks-private-key-file: ${BCM_FIREBLOCKS_PRIVATE_KEY_FILE:}
+    allowed-local-private-key-sha256: ${BCM_LOCAL_TEST_PRIVATE_KEY_SHA256:}
+    webhook-jwks-url: ${FIREBLOCKS_JWKS_URL:http://127.0.0.1:18080/.well-known/jwks.json}
+    evm-rpc-url: ${BCM_EVM_RPC_URL:http://127.0.0.1:8545}
+    evm-chain-id: ${BCM_EVM_CHAIN_ID:31337}
+    local-chain-manifest-file: ${BCM_LOCAL_CHAIN_MANIFEST_FILE:build/local/chain/manifest.json}
+    local-chain-key-file: ${BCM_LOCAL_CHAIN_KEY_FILE:build/local/chain/evm-keys.json}
+    api-authentication-mode: ${BCM_STUB_API_AUTHENTICATION_MODE:BASIC}
+    api-public-key-file: ${BCM_STUB_API_PUBLIC_KEY_FILE:}
+    webhook-delivery-url: ${BCM_STUB_WEBHOOK_DELIVERY_URL:}
+    reset-enabled: ${BCM_STUB_RESET_ENABLED:false}

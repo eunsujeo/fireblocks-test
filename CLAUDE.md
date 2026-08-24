@@ -34,6 +34,7 @@
 | [07-asset-master.md](docs/design/07-asset-master.md) | **블록체인 카탈로그 + 벤더 자산 매핑 2테이블** · 등록 검증 · Admin API · 벤더 경계 변환 |
 | [08-bcm-admin.md](docs/design/08-bcm-admin.md) | **Blockchain Manager Admin** — 운영 조사 · 컨트랙트/실행 정책 · 밴드S · 승인 · 비상 운영 · UI/UX 경계 |
 | [09-asset-map.md](docs/design/09-asset-map.md) | 고객 vault·옴니버스·출금 풀·회사자산·외부 콜드 간 시나리오별 자산 이동 지도 |
+| [10-local-fireblocks-integration.md](docs/design/10-local-fireblocks-integration.md) | **로컬 통합 테스트 계약** — Fireblocks API 지원표 · Stub/Anvil 경계 · 실행 모드 · 키 · reset · 실벤더 승인선 |
 | [93-batch-partial-fail-sample.md](docs/design/93-batch-partial-fail-sample.md) | batch sweep 부분 실패 실측 payload · 항목 결과 판정 근거 |
 | [94-batch-payload-sample.md](docs/design/94-batch-payload-sample.md) | batch sweep network records 실측 payload · 원천 vault 귀속 근거 |
 | [95-approve-pull-poc-result.md](docs/design/95-approve-pull-poc-result.md) | approve + transferFrom PoC 결과 · 제출 operation · 부분 성공 관찰 |
@@ -74,16 +75,19 @@
 blockchain-manager-svc/            (rootProject.name = "blockchain-manager")
 ├── blockchain-manager-app/
 │   ├── bcm-api/                   REST API + 웹훅 수신 + 판단 워커 + relay
+│   ├── bcm-admin/                 독립 Admin Frontend + BFF
 │   └── bcm-bat/                   Spring Batch — sweep 트리거 · tx 대사
 ├── blockchain-manager-domain/     도메인 모델 · 전이 표 · Repository 인터페이스 (순수 Kotlin)
 ├── blockchain-manager-infra/
 │   ├── persistence/               Spring Data JDBC · bcm_ 테이블 매핑
 │   ├── client/                    Fireblocks API 클라이언트 (JWT 서명)
 │   └── messaging/                 Kafka producer (deposit·withdrawal·internal)
-└── blockchain-manager-support/    공통 유틸 · 모니터링
+├── blockchain-manager-support/    공통 유틸 · 모니터링
+└── blockchain-manager-test-support/ 독립 로컬 Fireblocks Stub · 체인 통합 테스트 실행기
 ```
 
 레이어 규칙 요약 — api 는 검증·변환만, application 은 오케스트레이션만, **비즈니스 판단(전이 표 등)은 domain**, 물리 컬럼명은 infra 에서만. domain 은 Spring/JDBC 의존 금지.
+test-support는 기존 BCM 모듈이 의존하지 않는 별도 실행 경계이며, 기존 `FireblocksClient`의 HTTP 설정으로만 연결한다.
 
 ## 5. 프레임워크·보안 정책
 

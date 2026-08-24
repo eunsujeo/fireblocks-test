@@ -4,6 +4,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# 0. 로컬 실행기 구문·명령 계약
+./scripts/local-test.sh
+./scripts/local-distribution-test.sh
+./scripts/fireblocks-contract-test-test.sh
+if [ -n "${BCM_LOCAL_DIST_SMOKE_ARCHIVE:-}" ]; then
+    ./scripts/local-distribution-smoke.sh "$BCM_LOCAL_DIST_SMOKE_ARCHIVE"
+fi
+
 # 1. 빌드 + 전체 테스트 + ktlintCheck (check 에 통합) — dependency lock 은 strict 기본
 ./gradlew --no-build-cache build
 

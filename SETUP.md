@@ -34,7 +34,17 @@ waas-wiki 가 필요한 경우는 둘뿐 — 설계 자체를 고칠 때, 사본
   `PKIX path building failed` 로 실패한다 (2026-08-05 실측). 로컬에 25 가 있으면 foojay 를 호출하지 않는다.
 - **Gradle — 별도 설치 불필요.** wrapper(`./gradlew`)가 저장소에 있다.
 - **의존성 저장소** — Gradle Plugin Portal과 Maven Central만 사용한다.
-- **Docker** — Testcontainers(PostgreSQL·Kafka)가 요구.
+- **Docker** — Testcontainers와 로컬 실행기의 PostgreSQL·Kafka가 요구. Docker Desktop(macOS·Windows) 또는
+  Docker Engine+Compose v2(Linux)를 사용한다. Windows의 로컬 실행기는 Git Bash 또는 WSL2도 필요하다.
+- **Foundry/Anvil 1.7.1** — Phase 11 로컬 EVM 계약 빌드·테스트가 요구한다. macOS·Linux와 Windows WSL2/Git Bash에서
+  공식 설치기 설치 후 고정 버전을 선택한다. `./gradlew build` 첫 실행은 고정 `solc 0.8.35`도 받아 캐시한다.
+  ```sh
+  curl -L https://foundry.paradigm.xyz | bash
+  foundryup -i v1.7.1
+  anvil --version   # 1.7.1
+  forge --version   # 1.7.1
+  ```
+  폐쇄망 서버는 이 설치기를 실행하지 않고 T11.6의 사전 검증된 Anvil 파일 패키지를 사용한다.
 - **강제 장치 도구** (hook 이 사용 — 없으면 각 hook 이 안내/차단한다):
   ```
   brew install gitleaks ktlint
@@ -42,8 +52,12 @@ waas-wiki 가 필요한 경우는 둘뿐 — 설계 자체를 고칠 때, 사본
   ```
 - **IntelliJ 쓰는 경우** — Settings → Tools → MCP Server → Enable → Auto-Configure (Claude Code 연동). brave mode 는 켜지 않는다.
 
-## 4. 시크릿 (절대 커밋 금지)
+## 4. 로컬 실행과 시크릿 (절대 커밋 금지)
 
+- Docker를 실행한 뒤 `./scripts/local.sh up`(Windows: `.\scripts\local.ps1 up`)을 실행한다. 첫 실행 질문에
+  개발자 자신의 Fireblocks 테스트 workspace API Key와 PKCS#8 Private Key 파일 경로를 입력하면 `.env`가 자동 생성된다.
+- Base URL과 JWKS URL은 별도 값이 없으면 일반 API 기본값을 사용한다. Private Key는 `.env`에 복사하지 않고 파일 경로만
+  저장하며, 파일 위치는 저장소 밖을 권장한다.
 - 벤더 API key·DB 접속 정보는 `.env` 또는 환경변수 — `.gitignore` 로 차단돼 있는지 확인.
 - 템플릿은 **`env.example`** (점 없이) — `.env*` 은 Claude 의 Read deny 패턴이라 점으로 시작하면 템플릿까지 못 읽는다.
 - 새 머신에서 처음 받을 때: 시크릿 매니저(또는 담당자)에서 수령. 저장소 히스토리에는 없다.
@@ -53,4 +67,6 @@ waas-wiki 가 필요한 경우는 둘뿐 — 설계 자체를 고칠 때, 사본
 - [ ] `docs/design/` 사본 존재 (waas-wiki 는 설계 수정·동기화 때만)
 - [ ] Claude Code 에서 `/mcp` → fireblocks-docs 연결 확인
 - [ ] `claude` 실행 후 CLAUDE.md 를 읽는지 확인 (첫 응답에서 확정 결정을 아는지)
+- [ ] `./scripts/local.sh up` 후 Admin `http://127.0.0.1:9080/admin/dashboard` 확인
+- [ ] `anvil --version`·`forge --version` 모두 1.7.1
 - [ ] `./gradlew build` 그린 (첫 실행은 toolchain JDK 다운로드로 수 분)

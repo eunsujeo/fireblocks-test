@@ -5,6 +5,7 @@ import {
   filtersToUrl,
   formatAdminTime,
   formatCoreTime,
+  isGlobalSearchShortcut,
   resolveViewState,
   runSingleFlight,
   transactionIdentifierFromPath,
@@ -48,7 +49,7 @@ function setActiveNav(current) {
 
 function skeleton(title) {
   app.innerHTML = `
-    <header class="page-head"><div><p class="eyebrow">Read-only ledger</p><h1>${escapeHtml(title)}</h1></div></header>
+    <header class="page-head"><div><p class="eyebrow">불러오는 중</p><h1>${escapeHtml(title)}</h1></div></header>
     <div class="skeleton-grid" aria-label="데이터를 불러오는 중">
       <div class="skeleton block"></div><div class="skeleton block"></div><div class="skeleton block"></div>
     </div><div class="skeleton table"></div>`;
@@ -89,23 +90,34 @@ async function loadDashboard() {
     const payload = await request("/bff/admin/overview");
     const data = payload.data;
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Functional test console</p><h1>대시보드</h1><p class="subtitle">BCM 네트워크와 자산 매핑의 읽기 상태를 먼저 확인합니다.</p></div><div class="timestamp">기준 시각<br><strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head"><div><p class="eyebrow">읽기 전용 기능 테스트 콘솔</p><h1>대시보드</h1><p class="subtitle">BCM 조회 계약의 응답 상태와 다시 확인해야 할 소스를 먼저 판단합니다.</p></div><div class="timestamp">데이터 기준 시각<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       ${statusBanner(payload)}
-      <section class="metric-grid" aria-label="조회 요약">
-        ${metric("채택 네트워크", data.networkCount, "BCM catalog")}
-        ${metric("Testnet", data.testnetCount, "환경 구분")}
-        ${metric("자산 매핑", data.assetMappingCount, "활성 mapping")}
-        ${metric("조회 상태", data.state, data.issues.length ? `${data.issues.length}개 소스 확인 필요` : "모든 소스 응답")}
+      <section class="figure-strip" aria-label="읽기 계약 요약">
+        ${overviewFigure("채택 네트워크", data.networkCount, "BCM 카탈로그 응답")}
+        ${overviewFigure("Testnet 네트워크", data.testnetCount, "운영 환경과 분리 확인")}
+        ${overviewFigure("자산 매핑", data.assetMappingCount, "활성 매핑 수")}
       </section>
-      <section class="panel next-step"><div><p class="eyebrow">Next check</p><h2>네트워크 → 자산 순서로 계약을 확인하세요</h2><p>채택 체인의 chainId와 동기화 시각을 확인한 뒤 자산 매핑의 컨트랙트 주소를 대조합니다.</p></div><a class="button primary" href="/admin/networks" data-link>네트워크 열기</a></section>`;
+      <section class="panel" aria-labelledby="overview-attention">
+        <div class="section-head"><div><h2 id="overview-attention">확인이 필요한 소스</h2><p class="eyebrow">서버가 계산한 조회 상태와 실패 원인만 표시합니다.</p></div><span>조회 상태 ${escapeHtml(data.state)}</span></div>
+        ${attentionLedger(data.issues)}
+      </section>
+      <section class="panel next-step"><div><h2>네트워크 → 자산 순서로 계약을 확인하세요</h2><p>채택 체인의 chainId와 동기화 시각을 확인한 뒤 자산 매핑의 컨트랙트 주소를 대조합니다.</p></div><a class="button primary" href="/admin/networks" data-link>네트워크 열기</a></section>`;
     announce("대시보드 조회 완료");
   } catch (error) {
     statePanel(error.status === 403 ? "forbidden" : "error", loadDashboard);
   }
 }
 
-function metric(label, value, note) {
-  return `<article class="metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value ?? "—")}</strong><small>${escapeHtml(note)}</small></article>`;
+function overviewFigure(label, value, note) {
+  const missing = value === null || value === undefined;
+  return `<div><span>${escapeHtml(label)}</span><strong class="tabular${missing ? " muted" : ""}">${missing ? "—" : escapeHtml(value)}</strong><small>${escapeHtml(missing ? "소스 응답 없음" : note)}</small></div>`;
+}
+
+function attentionLedger(issues) {
+  if (!issues.length) {
+    return '<ul class="attention-list"><li class="clear"><div><strong>모든 조회 소스가 응답했습니다</strong><small>부분 조회나 오래된 데이터로 표시된 소스가 없습니다.</small></div><span class="attention-meta">FRESH</span></li></ul>';
+  }
+  return `<ul class="attention-list">${issues.map((issue) => `<li><div><strong>${escapeHtml(issue.source)}</strong><small>${escapeHtml(issue.message)}</small></div><span class="attention-meta">${escapeHtml(issue.code)}</span></li>`).join("")}</ul>`;
 }
 
 async function loadNetworks() {
@@ -117,10 +129,10 @@ async function loadNetworks() {
     const viewState = resolveViewState({ state: payload.state, data: payload.data });
     if (viewState === "empty") return statePanel("empty", () => navigate("/admin/networks"));
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Network catalog</p><h1>네트워크</h1><p class="subtitle">채택 여부·chainId·testnet·동기화 시각을 한 계약으로 확인합니다.</p></div><div class="timestamp">${payload.data.length}건<br><strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head"><div><h1>네트워크</h1><p class="subtitle">채택 여부·chainId·testnet·동기화 시각을 한 계약으로 확인합니다.</p></div><div class="timestamp">${payload.data.length}건<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       ${statusBanner(payload)}${networkFilters(filters)}
       <section class="panel table-wrap"><table><thead><tr><th>코드 / 이름</th><th>Chain ID</th><th>환경</th><th>동기화 UTC</th><th>전체 ID</th></tr></thead><tbody>
-        ${payload.data.map((network) => `<tr><td><strong>${escapeHtml(network.code || "미채택")}</strong><small>${escapeHtml(network.displayName)}</small></td><td class="mono tabular">${escapeHtml(network.chainId ?? "—")}</td><td><span class="status ${network.testnet ? "warning" : "success"}">${network.testnet ? "TESTNET" : "MAINNET"}</span>${network.deprecated ? '<small class="danger-text">deprecated</small>' : ""}</td><td class="mono tabular">${coreTime(network.syncedAt)}</td><td><code title="${escapeHtml(network.candidateId)}">${escapeHtml(network.candidateId)}</code><button class="copy" data-copy="${escapeHtml(network.candidateId)}" aria-label="candidate ID 복사">복사</button></td></tr>`).join("")}
+        ${payload.data.map((network) => `<tr><td><strong>${escapeHtml(network.code || "미채택")}</strong><small>${escapeHtml(network.displayName)}</small></td><td class="mono tabular">${escapeHtml(network.chainId ?? "—")}</td><td><span class="status ${network.testnet ? "warning" : "success"}">${network.testnet ? "Testnet" : "Mainnet"}</span>${network.deprecated ? '<small class="danger-text">deprecated</small>' : ""}</td><td class="mono tabular">${coreTime(network.syncedAt)}</td><td><code title="${escapeHtml(network.candidateId)}">${escapeHtml(network.candidateId)}</code><button class="copy" data-copy="${escapeHtml(network.candidateId)}" aria-label="candidate ID 복사">복사</button></td></tr>`).join("")}
       </tbody></table></section>`;
     bindFilter("#network-filter", "/admin/networks");
     bindCopy();
@@ -149,7 +161,7 @@ async function loadAssets() {
     const viewState = resolveViewState({ state: payload.state, data: payload.data });
     if (viewState === "empty") return statePanel("empty", () => navigate("/admin/assets"));
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Asset bindings</p><h1>자산 매핑</h1><p class="subtitle">벤더 식별자를 노출하지 않고 네트워크·심볼·컨트랙트 주소를 대조합니다.</p></div><div class="timestamp">${payload.data.length}건<br><strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head"><div><h1>자산 매핑</h1><p class="subtitle">벤더 식별자를 노출하지 않고 네트워크·심볼·컨트랙트 주소를 대조합니다.</p></div><div class="timestamp">${payload.data.length}건<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       ${statusBanner(payload)}${assetFilters(filters)}
       <section class="panel table-wrap"><table><thead><tr><th>네트워크</th><th>심볼</th><th>컨트랙트 주소</th><th>등록 UTC</th></tr></thead><tbody>
         ${payload.data.map((asset) => `<tr><td><strong>${escapeHtml(asset.network)}</strong></td><td class="mono">${escapeHtml(asset.symbol)}</td><td><code title="${escapeHtml(asset.contractAddress || "native")}">${escapeHtml(asset.contractAddress || "native asset")}</code>${asset.contractAddress ? `<button class="copy" data-copy="${escapeHtml(asset.contractAddress)}" aria-label="컨트랙트 주소 복사">복사</button>` : ""}</td><td class="mono tabular">${coreTime(asset.registeredAt)}</td></tr>`).join("")}
@@ -178,7 +190,7 @@ async function loadSearch() {
     const payload = await request(`/bff/admin/search?q=${encodeURIComponent(query)}`);
     if (!payload.data.length) return statePanel("empty", loadSearch);
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Unified search</p><h1>“${escapeHtml(query)}” 검색</h1><p class="subtitle">거래 식별자, 네트워크와 자산 계약을 한 번에 찾습니다.</p></div><div class="timestamp">${payload.data.length}건<br><strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head"><div><h1>“${escapeHtml(query)}” 검색</h1><p class="subtitle">거래 식별자, 네트워크와 자산 계약을 한 번에 찾습니다.</p></div><div class="timestamp">${payload.data.length}건<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       ${statusBanner(payload)}<section class="panel result-list">${payload.data.map((item) => `<a href="${escapeHtml(item.action.href)}" data-link><span class="result-kind">${escapeHtml(item.kind)}</span><strong>${escapeHtml(item.primary)}</strong><small>${escapeHtml(item.secondary)}</small><span aria-hidden="true">→</span></a>`).join("")}</section>`;
     announce(`검색 결과 ${payload.data.length}건`);
   } catch (error) {
@@ -195,10 +207,10 @@ async function loadTransaction() {
     const data = payload.data;
     const summary = data.summary;
     app.innerHTML = `
-      <header class="page-head transaction-head"><div><p class="eyebrow">Transaction investigation</p><h1>거래 조사</h1><p class="subtitle">원거래와 현재 활성 거래를 분리해 제출·웹훅·정합성 상태를 추적합니다.</p></div><div class="timestamp">기준 시각<br><strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head transaction-head"><div><h1>거래 조사</h1><p class="subtitle">원거래와 현재 활성 거래를 분리해 제출·웹훅·정합성 상태를 추적합니다.</p></div><div class="timestamp">기준 시각<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       ${statusBanner(payload)}
       <section class="panel identity-panel" aria-labelledby="transaction-identity">
-        <div><p class="eyebrow">Root transaction</p><h2 id="transaction-identity">${escapeHtml(summary.rootTransactionId)}</h2></div>
+        <div><p class="eyebrow">원거래</p><h2 id="transaction-identity">${escapeHtml(summary.rootTransactionId)}</h2></div>
         <span class="status ${statusTone(summary.status)}">${escapeHtml(summary.status)}</span>
         <button class="copy" data-copy="${escapeHtml(summary.rootTransactionId)}" aria-label="원거래 ID 복사">전체 ID 복사</button>
       </section>
@@ -238,7 +250,7 @@ async function loadContracts() {
     const payload = await request("/bff/admin/contracts");
     if (!payload.data.length) return statePanel("empty", loadContracts);
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Immutable contract registry</p><h1>컨트랙트 레지스트리</h1><p class="subtitle">활성 binding과 최신 독립 2-RPC evidence를 함께 대조합니다.</p></div><div class="timestamp">${payload.data.length}개 버전<br><strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head"><div><h1>컨트랙트 레지스트리</h1><p class="subtitle">활성 binding과 최신 독립 2-RPC evidence를 함께 대조합니다.</p></div><div class="timestamp">${payload.data.length}개 버전<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       ${statusBanner(payload)}
       <div class="readonly-callout" role="note"><strong>READ ONLY</strong><span>활성화는 mTLS와 단기 JWT 경계가 준비된 공유 환경에서만 허용됩니다.</span></div>
       <section class="panel table-wrap"><table><thead><tr><th>Scope / 버전</th><th>주소</th><th>파생 상태</th><th>Evidence</th><th>유효 시각</th><th>Runtime hash</th></tr></thead><tbody>
@@ -257,7 +269,7 @@ async function loadPolicies() {
     const payload = await request("/bff/admin/policies");
     if (!payload.data.length) return statePanel("empty", loadPolicies);
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Versioned execution policy</p><h1>실행 정책</h1><p class="subtitle">불변 버전과 배포 hard ceiling 통과 여부를 분리해 표시합니다.</p></div><div class="timestamp">${payload.data.length}개 버전<br><strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head"><div><h1>실행 정책</h1><p class="subtitle">불변 버전과 배포 hard ceiling 통과 여부를 분리해 표시합니다.</p></div><div class="timestamp">${payload.data.length}개 버전<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       <div class="readonly-callout" role="note"><strong>SERVER DECISION</strong><span>상태와 hard ceiling은 서버가 계산하며 브라우저가 허용 범위를 재구성하지 않습니다.</span></div>
       <section class="panel table-wrap"><table><thead><tr><th>Scope</th><th>버전</th><th>파생 상태</th><th>Hard ceiling</th><th>등록 시각</th><th>Policy hash</th></tr></thead><tbody>
         ${payload.data.map((policy) => `<tr><td><strong>${escapeHtml(policy.scopeId)}</strong><small>${escapeHtml(policy.versionId)}</small></td><td class="mono tabular">v${escapeHtml(policy.versionNumber)} · ${escapeHtml(policy.schemaVersion)}</td><td><span class="status ${statusTone(policy.state)}">${escapeHtml(policy.state)}</span></td><td><span class="status ${policy.ceilingPassed ? "success" : "danger"}">${policy.ceilingPassed ? "PASS" : "BLOCKED"}</span></td><td>${dualTime(policy.registeredAt)}</td><td>${identifier(policy.policyHash, "정책 hash")}</td></tr>`).join("")}
@@ -278,7 +290,7 @@ async function loadBandS() {
       return;
     }
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Band S control ledger</p><h1>밴드S 운영 원장</h1><p class="subtitle">입력 snapshot, simulation, 이동안, 승인과 항목별 실행을 고정 hash 문맥으로 대조합니다.</p></div><div class="timestamp">최근 ${payload.data.length}건<br><strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head"><div><h1>밴드S 운영 원장</h1><p class="subtitle">입력 snapshot, simulation, 이동안, 승인과 항목별 실행을 고정 hash 문맥으로 대조합니다.</p></div><div class="timestamp">최근 ${payload.data.length}건<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       ${statusBanner(payload)}
       <div class="readonly-callout" role="note"><strong>LOCAL · READ ONLY</strong><span>상태와 금지 사유는 BCM 서버가 계산합니다. mTLS와 단기 JWT 경계 전에는 승인·예약·제출을 이 화면에서 실행하지 않습니다.</span></div>
       <div class="band-ledger">
@@ -311,7 +323,7 @@ function bandSPanel(item) {
       <section><h3>고정 문맥</h3><dl class="detail-list compact-details"><div><dt>Policy version</dt><dd>${identifier(item.policyVersionId, "정책 버전 ID")}</dd></div><div><dt>Snapshot hash</dt><dd>${identifier(item.snapshotHash, "snapshot hash")}</dd></div><div><dt>Input hash</dt><dd>${identifier(item.inputHash, "input hash")}</dd></div><div><dt>Proposal hash</dt><dd>${identifier(item.proposalHash, "proposal hash")}</dd></div></dl></section>
       <section><h3>승인 · 예약 경계</h3><dl class="detail-list compact-details"><div><dt>변경 요청</dt><dd>${requestLink}</dd></div><div><dt>실행 ID</dt><dd>${identifier(item.executionId, "밴드S 실행 ID")}</dd></div><div><dt>예약 시각</dt><dd>${dualTime(item.reservedAt)}</dd></div><div><dt>도메인 예약 조건</dt><dd><span class="status ${item.executionReady ? "success" : "warning"}">${item.executionReady ? "READY" : "NOT READY"}</span></dd></div></dl><div class="reason-list" aria-label="실행 금지 사유">${reasons}</div></section>
     </div>
-    <section class="band-items"><div class="section-head"><div><p class="eyebrow">Immutable movement plan</p><h3>이동 항목</h3></div><span>${item.items.length}건</span></div><div class="table-wrap"><table><thead><tr><th>순번 / 의존</th><th>Leg</th><th>네트워크 / 자산</th><th>출발</th><th>목적지</th><th>수량 / 원화</th><th>최신 실행 상태</th></tr></thead><tbody>${item.items.map((entry) => `<tr><td class="mono">#${escapeHtml(entry.sequence)}<small>${entry.dependsOnSequence ? `after #${escapeHtml(entry.dependsOnSequence)}` : "independent"}</small></td><td>${escapeHtml(entry.legType)}</td><td>${escapeHtml(entry.network)} / ${escapeHtml(entry.tokenSymbol)}</td><td>${identifier(entry.sourceVaultId, "출발 vault ID")}</td><td>${identifier(entry.destinationVaultId || entry.destinationAddress, "목적지 식별자")}</td><td class="mono tabular">${escapeHtml(entry.amount)}<small>${escapeHtml(entry.krwAmount)} KRW · fee ${escapeHtml(entry.expectedFeeAmount)}</small></td><td><span class="status ${statusTone(entry.executionStatus || (entry.executable ? "READY" : "BLOCKED"))}">${escapeHtml(entry.executionStatus || (entry.executable ? "READY" : "BLOCKED"))}</span>${entry.blockReason ? `<small class="danger-text">${escapeHtml(entry.blockReason)}</small>` : ""}</td></tr>`).join("")}</tbody></table></div></section>
+    <section class="band-items"><div class="section-head"><div><p class="eyebrow">불변 이동 계획</p><h3>이동 항목</h3></div><span>${item.items.length}건</span></div><div class="table-wrap"><table><thead><tr><th>순번 / 의존</th><th>Leg</th><th>네트워크 / 자산</th><th>출발</th><th>목적지</th><th>수량 / 원화</th><th>최신 실행 상태</th></tr></thead><tbody>${item.items.map((entry) => `<tr><td class="mono">#${escapeHtml(entry.sequence)}<small>${entry.dependsOnSequence ? `after #${escapeHtml(entry.dependsOnSequence)}` : "independent"}</small></td><td>${escapeHtml(entry.legType)}</td><td>${escapeHtml(entry.network)} / ${escapeHtml(entry.tokenSymbol)}</td><td>${identifier(entry.sourceVaultId, "출발 vault ID")}</td><td>${identifier(entry.destinationVaultId || entry.destinationAddress, "목적지 식별자")}</td><td class="mono tabular">${escapeHtml(entry.amount)}<small>${escapeHtml(entry.krwAmount)} KRW · fee ${escapeHtml(entry.expectedFeeAmount)}</small></td><td><span class="status ${statusTone(entry.executionStatus || (entry.executable ? "READY" : "BLOCKED"))}">${escapeHtml(entry.executionStatus || (entry.executable ? "READY" : "BLOCKED"))}</span>${entry.blockReason ? `<small class="danger-text">${escapeHtml(entry.blockReason)}</small>` : ""}</td></tr>`).join("")}</tbody></table></div></section>
   </article>`;
 }
 
@@ -339,7 +351,7 @@ async function loadEmergency() {
       return result;
     }, new Map());
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Emergency execution ledger</p><h1>비상 운영</h1><p class="subtitle">실행 차단, allowance 회수와 웹훅 수신 복구를 서버 계산 결과로 확인합니다.</p></div><div class="timestamp">관측 시각<br><strong>${dualTime(data.observedAt)}</strong></div></header>
+      <header class="page-head"><div><h1>비상 운영</h1><p class="subtitle">실행 차단, allowance 회수와 웹훅 수신 복구를 서버 계산 결과로 확인합니다.</p></div><div class="timestamp">관측 시각<strong>${dualTime(data.observedAt)}</strong></div></header>
       ${statusBanner(payload)}
       <div class="readonly-callout" role="note"><strong>LOCAL · READ ONLY</strong><span>이 화면은 중지·재개를 실행하지 않습니다. 기존 제출 복구와 비상 approve(0) 허용 여부도 BCM 서버 응답을 그대로 표시합니다.</span></div>
       <section class="gate-summary" aria-label="실행 게이트 요약">
@@ -364,10 +376,10 @@ async function loadEmergency() {
 
 function executionGateResumeLedger(resumes) {
   if (!resumes.length) {
-    return '<section class="panel"><div class="section-head"><div><p class="eyebrow">Reinforced resume ledger</p><h2>강화 재개</h2></div><span>NO REQUEST</span></div><p class="section-empty">접수된 재개 요청이 없습니다. 중지 상태는 자동으로 해제되지 않습니다.</p></section>';
+    return '<section class="panel"><div class="section-head"><div><p class="eyebrow">강화 재개 원장</p><h2>강화 재개</h2></div><span>요청 없음</span></div><p class="section-empty">접수된 재개 요청이 없습니다. 중지 상태는 자동으로 해제되지 않습니다.</p></section>';
   }
   return `<section class="panel" aria-labelledby="resume-ledger-heading">
-    <div class="section-head"><div><p class="eyebrow">Fresh evidence · two-person quorum</p><h2 id="resume-ledger-heading">강화 재개</h2></div><span>${resumes.length}건</span></div>
+    <div class="section-head"><div><p class="eyebrow">최신 증적 · 2인 승인</p><h2 id="resume-ledger-heading">강화 재개</h2></div><span>${resumes.length}건</span></div>
     <div class="revocation-ledger">${resumes.map(executionGateResumeCard).join("")}</div>
   </section>`;
 }
@@ -396,10 +408,10 @@ function executionGateResumeCard(resume) {
 
 function webhookRecoveryLedger(recoveries) {
   if (!recoveries.length) {
-    return '<section class="panel"><div class="section-head"><div><p class="eyebrow">Webhook recovery ledger</p><h2>웹훅 수신 복구</h2></div><span>NO REQUEST</span></div><p class="section-empty">접수된 최근 24시간 실패 알림 복구 요청이 없습니다.</p></section>';
+    return '<section class="panel"><div class="section-head"><div><p class="eyebrow">웹훅 복구 원장</p><h2>웹훅 수신 복구</h2></div><span>요청 없음</span></div><p class="section-empty">접수된 최근 24시간 실패 알림 복구 요청이 없습니다.</p></section>';
   }
   return `<section class="panel" aria-labelledby="webhook-recovery-heading">
-    <div class="section-head"><div><p class="eyebrow">Intent before vendor call</p><h2 id="webhook-recovery-heading">웹훅 수신 복구</h2></div><span>${recoveries.length}건</span></div>
+    <div class="section-head"><div><p class="eyebrow">벤더 호출 전 의도 기록</p><h2 id="webhook-recovery-heading">웹훅 수신 복구</h2></div><span>${recoveries.length}건</span></div>
     <div class="revocation-ledger">${recoveries.map(webhookRecoveryCard).join("")}</div>
   </section>`;
 }
@@ -428,10 +440,10 @@ function webhookRecoveryCard(recovery) {
 
 function allowanceRevocationLedger(revocations) {
   if (!revocations.length) {
-    return '<section class="panel"><div class="section-head"><div><p class="eyebrow">Approved approve(0) execution</p><h2>Allowance 전량 회수</h2></div><span>NO EXECUTION</span></div><p class="section-empty">승인 대상으로 고정된 allowance 회수 snapshot이 아직 없습니다.</p></section>';
+    return '<section class="panel"><div class="section-head"><div><p class="eyebrow">승인된 approve(0) 실행</p><h2>Allowance 전량 회수</h2></div><span>실행 없음</span></div><p class="section-empty">승인 대상으로 고정된 allowance 회수 snapshot이 아직 없습니다.</p></section>';
   }
   return `<section class="panel" aria-labelledby="allowance-revocation-heading">
-    <div class="section-head"><div><p class="eyebrow">Approved approve(0) execution</p><h2 id="allowance-revocation-heading">Allowance 전량 회수</h2></div><span>${revocations.length}건</span></div>
+    <div class="section-head"><div><p class="eyebrow">승인된 approve(0) 실행</p><h2 id="allowance-revocation-heading">Allowance 전량 회수</h2></div><span>${revocations.length}건</span></div>
     <div class="revocation-ledger">${revocations.map(allowanceRevocationCard).join("")}</div>
   </section>`;
 }
@@ -456,10 +468,10 @@ function allowanceRevocationCard(revocation) {
 
 function externalControlLedger(controls) {
   if (!controls.length) {
-    return '<section class="panel"><div class="section-head"><div><p class="eyebrow">External control evidence</p><h2>외부 통제 관찰</h2></div><span>NO EVIDENCE</span></div><p class="section-empty">TAP 차단·컨트랙트 pause·운영자 제거를 재조회한 증적이 아직 없습니다.</p></section>';
+    return '<section class="panel"><div class="section-head"><div><p class="eyebrow">외부 통제 증적</p><h2>외부 통제 관찰</h2></div><span>증적 없음</span></div><p class="section-empty">TAP 차단·컨트랙트 pause·운영자 제거를 재조회한 증적이 아직 없습니다.</p></section>';
   }
   return `<section class="panel" aria-labelledby="external-control-heading">
-    <div class="section-head"><div><p class="eyebrow">External control evidence</p><h2 id="external-control-heading">외부 통제 관찰</h2></div><span>${controls.length}개 네트워크</span></div>
+    <div class="section-head"><div><p class="eyebrow">외부 통제 증적</p><h2 id="external-control-heading">외부 통제 관찰</h2></div><span>${controls.length}개 네트워크</span></div>
     <div class="table-wrap"><table><thead><tr><th>네트워크 / 상태</th><th>TAP batch</th><th>독립 RPC pause</th><th>운영자 집합 hash</th><th>관찰 / 만료</th><th>감사·issue</th></tr></thead><tbody>
       ${controls.map(externalControlRow).join("")}
     </tbody></table></div>
@@ -486,7 +498,7 @@ function externalControlRow(evidence) {
 function executionGateNetwork(network, gates) {
   const blocked = gates.filter((gate) => !gate.newExecutionAllowed).length;
   return `<section class="panel gate-network" aria-labelledby="gate-${escapeHtml(network)}">
-    <div class="section-head"><div><p class="eyebrow">Network execution boundary</p><h2 id="gate-${escapeHtml(network)}">${escapeHtml(network)}</h2></div><span>${blocked ? `${blocked} BLOCKED` : "ALL READY"}</span></div>
+    <div class="section-head"><div><p class="eyebrow">네트워크 실행 경계</p><h2 id="gate-${escapeHtml(network)}">${escapeHtml(network)}</h2></div><span>${blocked ? `${blocked} BLOCKED` : "ALL READY"}</span></div>
     <div class="gate-grid">${gates.map(executionGateCard).join("")}</div>
   </section>`;
 }
@@ -523,15 +535,15 @@ async function loadChangeRequest() {
     const payload = await request(`/bff/admin/change-requests/${encodeURIComponent(requestId)}`);
     const item = payload.data;
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">Policy approval ledger</p><h1>변경 요청</h1><p class="subtitle">요청 snapshot과 승인 판단, 활성화 금지 사유를 같은 원장에서 확인합니다.</p></div><div class="timestamp">만료 시각<br><strong>${dualTime(item.expiresAt)}</strong></div></header>
+      <header class="page-head"><div><h1>변경 요청</h1><p class="subtitle">요청 snapshot과 승인 판단, 활성화 금지 사유를 같은 원장에서 확인합니다.</p></div><div class="timestamp">만료 시각<strong>${dualTime(item.expiresAt)}</strong></div></header>
       <section class="panel identity-panel"><div><p class="eyebrow">${escapeHtml(item.targetType)} · ${escapeHtml(item.risk)}</p><h2>${escapeHtml(item.requestId)}</h2></div><span class="status ${statusTone(item.state)}">${escapeHtml(item.state)}</span>${identifier(item.snapshotHash, "요청 snapshot hash")}</section>
       <div class="readonly-callout" role="note"><strong>LOCAL · READ ONLY</strong><span>${item.disabledReasons.length ? escapeHtml(item.disabledReasons.join(" · ")) : "인증 경계 미구현으로 이 화면에서는 승인·활성화를 실행하지 않습니다."}</span></div>
       <div class="governance-grid">
-        <section class="panel detail-panel"><div class="section-head"><div><p class="eyebrow">Request context</p><h2>요청 정보</h2></div></div><dl class="detail-list"><div><dt>Scope</dt><dd>${escapeHtml(item.scopeId)}</dd></div><div><dt>대상 버전</dt><dd>${identifier(item.targetVersionId, "대상 버전 ID")}</dd></div><div><dt>요청자</dt><dd class="mono">${escapeHtml(item.requesterEmployeeNo)}</dd></div><div><dt>작업 티켓</dt><dd>${escapeHtml(item.workTicket)}</dd></div><div><dt>요청 시각</dt><dd>${dualTime(item.requestedAt)}</dd></div><div><dt>사유</dt><dd>${escapeHtml(item.reason)}</dd></div></dl></section>
-        <section class="panel quorum-panel"><div class="section-head"><div><p class="eyebrow">Quorum</p><h2>승인 진행</h2></div><span class="mono tabular">${escapeHtml(item.approvalCount)} / ${escapeHtml(item.requiredApprovals)}</span></div><div class="quorum-count"><strong>${escapeHtml(item.approvalCount)}</strong><span>독립 승인 완료</span></div><p>${item.securityApprovalRequired ? `보안 승인 ${escapeHtml(item.securityApprovalCount)}건 포함 필요` : "일반 독립 승인 1건 필요"}</p></section>
+        <section class="panel detail-panel"><div class="section-head"><div><p class="eyebrow">요청 문맥</p><h2>요청 정보</h2></div></div><dl class="detail-list"><div><dt>Scope</dt><dd>${escapeHtml(item.scopeId)}</dd></div><div><dt>대상 버전</dt><dd>${identifier(item.targetVersionId, "대상 버전 ID")}</dd></div><div><dt>요청자</dt><dd class="mono">${escapeHtml(item.requesterEmployeeNo)}</dd></div><div><dt>작업 티켓</dt><dd>${escapeHtml(item.workTicket)}</dd></div><div><dt>요청 시각</dt><dd>${dualTime(item.requestedAt)}</dd></div><div><dt>사유</dt><dd>${escapeHtml(item.reason)}</dd></div></dl></section>
+        <section class="panel quorum-panel"><div class="section-head"><div><p class="eyebrow">승인 정족수</p><h2>승인 진행</h2></div><span class="mono tabular">${escapeHtml(item.approvalCount)} / ${escapeHtml(item.requiredApprovals)}</span></div><div class="quorum-count"><strong>${escapeHtml(item.approvalCount)}</strong><span>독립 승인 완료</span></div><p>${item.securityApprovalRequired ? `보안 승인 ${escapeHtml(item.securityApprovalCount)}건 포함 필요` : "일반 독립 승인 1건 필요"}</p></section>
       </div>
-      <section class="panel diff-panel"><div class="section-head"><div><p class="eyebrow">Server snapshot</p><h2>Diff · 영향</h2></div></div><div class="snapshot-grid"><div><h3>변경 diff</h3><pre>${escapeHtml(prettyJson(item.diff))}</pre></div><div><h3>영향 snapshot</h3><pre>${escapeHtml(prettyJson(item.impact))}</pre></div></div></section>
-      <section class="panel related-panel"><div class="section-head"><div><p class="eyebrow">Independent decisions</p><h2>판단 원장</h2></div><span>${item.decisions.length}건</span></div>${item.decisions.length ? `<div class="table-wrap"><table><thead><tr><th>판단자</th><th>역할</th><th>판단</th><th>의견</th><th>시각</th></tr></thead><tbody>${item.decisions.map((decision) => `<tr><td class="mono">${escapeHtml(decision.employeeNo)}</td><td>${escapeHtml(decision.role)}</td><td><span class="status ${statusTone(decision.decision)}">${escapeHtml(decision.decision)}</span></td><td>${escapeHtml(decision.opinion || "—")}</td><td>${dualTime(decision.decidedAt)}</td></tr>`).join("")}</tbody></table></div>` : '<p class="section-empty">아직 기록된 판단이 없습니다.</p>'}</section>`;
+      <section class="panel diff-panel"><div class="section-head"><div><p class="eyebrow">서버 snapshot</p><h2>Diff · 영향</h2></div></div><div class="snapshot-grid"><div><h3>변경 diff</h3><pre>${escapeHtml(prettyJson(item.diff))}</pre></div><div><h3>영향 snapshot</h3><pre>${escapeHtml(prettyJson(item.impact))}</pre></div></div></section>
+      <section class="panel related-panel"><div class="section-head"><div><p class="eyebrow">독립 판단</p><h2>판단 원장</h2></div><span>${item.decisions.length}건</span></div>${item.decisions.length ? `<div class="table-wrap"><table><thead><tr><th>판단자</th><th>역할</th><th>판단</th><th>의견</th><th>시각</th></tr></thead><tbody>${item.decisions.map((decision) => `<tr><td class="mono">${escapeHtml(decision.employeeNo)}</td><td>${escapeHtml(decision.role)}</td><td><span class="status ${statusTone(decision.decision)}">${escapeHtml(decision.decision)}</span></td><td>${escapeHtml(decision.opinion || "—")}</td><td>${dualTime(decision.decidedAt)}</td></tr>`).join("")}</tbody></table></div>` : '<p class="section-empty">아직 기록된 판단이 없습니다.</p>'}</section>`;
     bindCopy();
     announce(`변경 요청 ${item.requestId} 조회 완료`);
   } catch (error) {
@@ -557,7 +569,7 @@ function summaryPanel(summary) {
     ["송신 계정", escapeHtml(summary.senderAccountId || "—")],
     ["수신 대상", `${escapeHtml(summary.receiverType || "—")} · ${escapeHtml(summary.receiverValue || "—")}`],
   ];
-  return `<section class="panel detail-panel" aria-labelledby="transaction-summary"><div class="section-head"><div><p class="eyebrow">Linked identity</p><h2 id="transaction-summary">거래 요약</h2></div></div><dl class="detail-list">${fields.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl></section>`;
+  return `<section class="panel detail-panel" aria-labelledby="transaction-summary"><div class="section-head"><div><p class="eyebrow">연결된 식별자</p><h2 id="transaction-summary">거래 요약</h2></div></div><dl class="detail-list">${fields.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl></section>`;
 }
 
 function diagnosisPanel(summary) {
@@ -572,31 +584,31 @@ function diagnosisPanel(summary) {
     ["정합성 확인", dualTime(summary.reconciliationCheckedAt)],
     ["정합성 중단", dualTime(summary.reconciliationStoppedAt)],
   ];
-  return `<section class="panel detail-panel" aria-labelledby="current-diagnosis"><div class="section-head"><div><p class="eyebrow">Current diagnosis</p><h2 id="current-diagnosis">현재 진단</h2></div></div><dl class="detail-list diagnostic">${fields.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl></section>`;
+  return `<section class="panel detail-panel" aria-labelledby="current-diagnosis"><div class="section-head"><div><p class="eyebrow">현재 진단</p><h2 id="current-diagnosis">현재 진단</h2></div></div><dl class="detail-list diagnostic">${fields.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl></section>`;
 }
 
 function timelinePanel(entries) {
-  return `<section class="panel timeline-panel" aria-labelledby="transaction-timeline"><div class="section-head"><div><p class="eyebrow">Ordered evidence</p><h2 id="transaction-timeline">거래 타임라인</h2></div><span>${entries.length}건</span></div>${entries.length ? `<ol class="timeline">${entries.map((entry) => `<li><div class="timeline-rail" aria-hidden="true"></div><div class="timeline-source">${escapeHtml(entry.source)}</div><div class="timeline-body"><strong>${escapeHtml(entry.code)}</strong>${entry.status ? `<span class="status ${statusTone(entry.status)}">${escapeHtml(entry.status)}</span>` : ""}${entry.identifier ? identifier(entry.identifier, "타임라인 식별자") : ""}</div><time datetime="${escapeHtml(entry.observedAt || "")}">${dualTime(entry.observedAt)}</time></li>`).join("")}</ol>` : '<p class="section-empty">기록된 타임라인이 없습니다.</p>'}</section>`;
+  return `<section class="panel timeline-panel" aria-labelledby="transaction-timeline"><div class="section-head"><div><p class="eyebrow">시간순 증적</p><h2 id="transaction-timeline">거래 타임라인</h2></div><span>${entries.length}건</span></div>${entries.length ? `<ol class="timeline">${entries.map((entry) => `<li><div class="timeline-rail" aria-hidden="true"></div><div class="timeline-source">${escapeHtml(entry.source)}</div><div class="timeline-body"><strong>${escapeHtml(entry.code)}</strong>${entry.status ? `<span class="status ${statusTone(entry.status)}">${escapeHtml(entry.status)}</span>` : ""}${entry.identifier ? identifier(entry.identifier, "타임라인 식별자") : ""}</div><time datetime="${escapeHtml(entry.observedAt || "")}">${dualTime(entry.observedAt)}</time></li>`).join("")}</ol>` : '<p class="section-empty">기록된 타임라인이 없습니다.</p>'}</section>`;
 }
 
 function boostPanel(boosts) {
   if (!boosts.length) return "";
-  return `<section class="panel related-panel" aria-labelledby="boost-attempts"><div class="section-head"><div><p class="eyebrow">Replacement chain</p><h2 id="boost-attempts">부스트 시도</h2></div><span>${boosts.length}건</span></div><div class="table-wrap"><table><thead><tr><th>순번 / 상태</th><th>교체 전</th><th>교체 후</th><th>수수료</th><th>요청 시각</th></tr></thead><tbody>${boosts.map((boost) => `<tr><td><strong>#${escapeHtml(boost.attemptSequence)}</strong><small>${escapeHtml(boost.status)}</small></td><td>${identifier(boost.replacedTransactionId, "교체 전 거래 ID")}</td><td>${identifier(boost.newTransactionId, "교체 후 거래 ID")}</td><td>${escapeHtml(boost.feeLevel)}<small>gasless ${boost.gasless ? "yes" : "no"}</small></td><td>${dualTime(boost.requestedAt)}</td></tr>`).join("")}</tbody></table></div></section>`;
+  return `<section class="panel related-panel" aria-labelledby="boost-attempts"><div class="section-head"><div><p class="eyebrow">교체 체인</p><h2 id="boost-attempts">부스트 시도</h2></div><span>${boosts.length}건</span></div><div class="table-wrap"><table><thead><tr><th>순번 / 상태</th><th>교체 전</th><th>교체 후</th><th>수수료</th><th>요청 시각</th></tr></thead><tbody>${boosts.map((boost) => `<tr><td><strong>#${escapeHtml(boost.attemptSequence)}</strong><small>${escapeHtml(boost.status)}</small></td><td>${identifier(boost.replacedTransactionId, "교체 전 거래 ID")}</td><td>${identifier(boost.newTransactionId, "교체 후 거래 ID")}</td><td>${escapeHtml(boost.feeLevel)}<small>gasless ${boost.gasless ? "yes" : "no"}</small></td><td>${dualTime(boost.requestedAt)}</td></tr>`).join("")}</tbody></table></div></section>`;
 }
 
 function sweepPanel(sweep) {
   if (!sweep) return "";
-  return `<section class="panel related-panel" aria-labelledby="sweep-execution"><div class="section-head"><div><p class="eyebrow">1:N execution</p><h2 id="sweep-execution">스윕 실행</h2></div><span class="status ${statusTone(sweep.status)}">${escapeHtml(sweep.status)}</span></div><dl class="detail-list compact-details"><div><dt>실행 ID</dt><dd>${identifier(sweep.executionId, "스윕 실행 ID")}</dd></div><div><dt>외부 거래 ID</dt><dd>${identifier(sweep.externalTransactionId, "스윕 외부 거래 ID")}</dd></div><div><dt>요청 / 실제 합계</dt><dd class="mono tabular">${escapeHtml(sweep.requestedTotalAmount)} / ${escapeHtml(sweep.actualTotalAmount || "—")}</dd></div><div><dt>요청 시각</dt><dd>${dualTime(sweep.requestedAt)}</dd></div></dl><div class="table-wrap"><table><thead><tr><th>순번</th><th>계정 / 주소</th><th>요청 / 실제</th><th>상태</th></tr></thead><tbody>${sweep.items.map((item) => `<tr><td class="mono">${escapeHtml(item.sequence)}</td><td>${escapeHtml(item.accountId)}<small><code title="${escapeHtml(item.sourceAddress)}">${escapeHtml(item.sourceAddress)}</code></small></td><td class="mono tabular">${escapeHtml(item.requestedAmount)}<small>${escapeHtml(item.actualAmount || "—")}</small></td><td><span class="status ${statusTone(item.status)}">${escapeHtml(item.status)}</span>${item.failureCode ? `<small class="danger-text">${escapeHtml(item.failureCode)}</small>` : ""}</td></tr>`).join("")}</tbody></table></div></section>`;
+  return `<section class="panel related-panel" aria-labelledby="sweep-execution"><div class="section-head"><div><p class="eyebrow">1:N 실행</p><h2 id="sweep-execution">스윕 실행</h2></div><span class="status ${statusTone(sweep.status)}">${escapeHtml(sweep.status)}</span></div><dl class="detail-list compact-details"><div><dt>실행 ID</dt><dd>${identifier(sweep.executionId, "스윕 실행 ID")}</dd></div><div><dt>외부 거래 ID</dt><dd>${identifier(sweep.externalTransactionId, "스윕 외부 거래 ID")}</dd></div><div><dt>요청 / 실제 합계</dt><dd class="mono tabular">${escapeHtml(sweep.requestedTotalAmount)} / ${escapeHtml(sweep.actualTotalAmount || "—")}</dd></div><div><dt>요청 시각</dt><dd>${dualTime(sweep.requestedAt)}</dd></div></dl><div class="table-wrap"><table><thead><tr><th>순번</th><th>계정 / 주소</th><th>요청 / 실제</th><th>상태</th></tr></thead><tbody>${sweep.items.map((item) => `<tr><td class="mono">${escapeHtml(item.sequence)}</td><td>${escapeHtml(item.accountId)}<small><code title="${escapeHtml(item.sourceAddress)}">${escapeHtml(item.sourceAddress)}</code></small></td><td class="mono tabular">${escapeHtml(item.requestedAmount)}<small>${escapeHtml(item.actualAmount || "—")}</small></td><td><span class="status ${statusTone(item.status)}">${escapeHtml(item.status)}</span>${item.failureCode ? `<small class="danger-text">${escapeHtml(item.failureCode)}</small>` : ""}</td></tr>`).join("")}</tbody></table></div></section>`;
 }
 
 function allowancePanel(allowances) {
   if (!allowances.length) return "";
-  return `<section class="panel related-panel" aria-labelledby="allowances"><div class="section-head"><div><p class="eyebrow">Approval evidence</p><h2 id="allowances">Allowance 확인</h2></div><span>${allowances.length}건</span></div><div class="table-wrap"><table><thead><tr><th>계정</th><th>네트워크 / 심볼</th><th>Cap / 관측값</th><th>상태</th><th>확인 시각</th></tr></thead><tbody>${allowances.map((item) => `<tr><td>${escapeHtml(item.accountId)}</td><td>${escapeHtml(item.network)} / ${escapeHtml(item.symbol)}</td><td class="mono tabular">${escapeHtml(item.cap)}<small>${escapeHtml(item.observedAllowance)}</small></td><td><span class="status ${statusTone(item.status)}">${escapeHtml(item.status)}</span></td><td>${dualTime(item.checkedAt)}</td></tr>`).join("")}</tbody></table></div></section>`;
+  return `<section class="panel related-panel" aria-labelledby="allowances"><div class="section-head"><div><p class="eyebrow">승인 증적</p><h2 id="allowances">Allowance 확인</h2></div><span>${allowances.length}건</span></div><div class="table-wrap"><table><thead><tr><th>계정</th><th>네트워크 / 심볼</th><th>Cap / 관측값</th><th>상태</th><th>확인 시각</th></tr></thead><tbody>${allowances.map((item) => `<tr><td>${escapeHtml(item.accountId)}</td><td>${escapeHtml(item.network)} / ${escapeHtml(item.symbol)}</td><td class="mono tabular">${escapeHtml(item.cap)}<small>${escapeHtml(item.observedAllowance)}</small></td><td><span class="status ${statusTone(item.status)}">${escapeHtml(item.status)}</span></td><td>${dualTime(item.checkedAt)}</td></tr>`).join("")}</tbody></table></div></section>`;
 }
 
 function feePanel(quotes) {
   if (!quotes.length) return "";
-  return `<section class="panel related-panel" aria-labelledby="fee-quotes"><div class="section-head"><div><p class="eyebrow">Observed pricing</p><h2 id="fee-quotes">수수료 견적</h2></div><span>${quotes.length}건</span></div><div class="table-wrap"><table><thead><tr><th>맥락 / 레벨</th><th>Network fee</th><th>Gas price</th><th>Base / Priority</th><th>관측 시각</th></tr></thead><tbody>${quotes.map((quote) => `<tr><td>${escapeHtml(quote.context)}<small>${escapeHtml(quote.level)}</small></td><td class="mono tabular">${escapeHtml(quote.networkFee || quote.feePerByte || "—")}</td><td class="mono tabular">${escapeHtml(quote.gasPrice || "—")}</td><td class="mono tabular">${escapeHtml(quote.baseFee || "—")}<small>${escapeHtml(quote.priorityFee || "—")}</small></td><td>${dualTime(quote.observedAt)}</td></tr>`).join("")}</tbody></table></div></section>`;
+  return `<section class="panel related-panel" aria-labelledby="fee-quotes"><div class="section-head"><div><p class="eyebrow">관측 수수료</p><h2 id="fee-quotes">수수료 견적</h2></div><span>${quotes.length}건</span></div><div class="table-wrap"><table><thead><tr><th>맥락 / 레벨</th><th>Network fee</th><th>Gas price</th><th>Base / Priority</th><th>관측 시각</th></tr></thead><tbody>${quotes.map((quote) => `<tr><td>${escapeHtml(quote.context)}<small>${escapeHtml(quote.level)}</small></td><td class="mono tabular">${escapeHtml(quote.networkFee || quote.feePerByte || "—")}</td><td class="mono tabular">${escapeHtml(quote.gasPrice || "—")}</td><td class="mono tabular">${escapeHtml(quote.baseFee || "—")}<small>${escapeHtml(quote.priorityFee || "—")}</small></td><td>${dualTime(quote.observedAt)}</td></tr>`).join("")}</tbody></table></div></section>`;
 }
 
 function options(selected, values) {
@@ -615,7 +627,19 @@ function bindCopy() {
     runSingleFlight(button, async () => {
       await navigator.clipboard.writeText(button.dataset.copy);
       announce("전체 식별자를 복사했습니다");
+      showCopied(button);
     })));
+}
+
+function showCopied(button) {
+  if (!button.dataset.label) button.dataset.label = button.textContent;
+  button.classList.add("copied");
+  button.textContent = "복사됨 ✓";
+  clearTimeout(button.copiedTimer);
+  button.copiedTimer = setTimeout(() => {
+    button.classList.remove("copied");
+    button.textContent = button.dataset.label;
+  }, 1500);
 }
 
 function announce(message) { live.textContent = message; }
@@ -623,6 +647,7 @@ function announce(message) { live.textContent = message; }
 function navigate(href) {
   history.pushState({}, "", href);
   render();
+  document.querySelector("#app-content").focus();
 }
 
 function render() {
@@ -644,5 +669,16 @@ globalSearch.addEventListener("submit", (event) => {
   if (query && query.length >= 2) navigate(`/admin/search?q=${encodeURIComponent(query)}`);
 });
 
-window.addEventListener("popstate", render);
+document.addEventListener("keydown", (event) => {
+  if (!isGlobalSearchShortcut(event)) return;
+  event.preventDefault();
+  const query = globalSearch.querySelector("input");
+  query.focus();
+  query.select();
+});
+
+window.addEventListener("popstate", () => {
+  render();
+  document.querySelector("#app-content").focus();
+});
 render();

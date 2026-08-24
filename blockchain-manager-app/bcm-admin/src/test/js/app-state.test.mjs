@@ -8,6 +8,7 @@ import {
   filtersToUrl,
   formatAdminTime,
   formatCoreTime,
+  isGlobalSearchShortcut,
   resolveViewState,
   runSingleFlight,
   transactionIdentifierFromPath,
@@ -111,6 +112,17 @@ test("Admin 셸은 키보드와 스크린리더 접근성 경계를 정적으로
   assert.match(shellSource, /id="live-region"[^>]*aria-live="polite"/);
   assert.match(styleSource, /:focus-visible/);
   assert.match(styleSource, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+test("전역 검색 단축키는 입력 중이 아닐 때만 검색창으로 이동한다", () => {
+  const shortcut = { key: "/", ctrlKey: false, metaKey: false, altKey: false, target: { tagName: "MAIN" } };
+
+  assert.equal(isGlobalSearchShortcut(shortcut), true);
+  assert.equal(isGlobalSearchShortcut({ ...shortcut, target: { tagName: "INPUT" } }), false);
+  assert.equal(isGlobalSearchShortcut({ ...shortcut, target: { tagName: "TEXTAREA" } }), false);
+  assert.equal(isGlobalSearchShortcut({ ...shortcut, metaKey: true }), false);
+  assert.match(shellSource, /id="global-query"[^>]*aria-keyshortcuts="\/"/);
+  assert.match(shellSource, /<kbd class="search-shortcut"[^>]*>\/</);
 });
 
 test("브라우저 번들은 BFF 상대경로만 호출하고 인증정보나 원문 민감 필드를 담지 않는다", () => {
