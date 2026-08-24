@@ -9,8 +9,11 @@ import com.whatto.bcm.admin.client.AdminExternalControlEvidence
 import com.whatto.bcm.admin.client.AdminNetwork
 import com.whatto.bcm.admin.client.AdminPolicy
 import com.whatto.bcm.admin.client.AdminTransactionInvestigation
+import com.whatto.bcm.admin.client.AdminWebhookRuntime
 import com.whatto.bcm.admin.client.BcmAdminReadGateway
+import com.whatto.bcm.admin.client.BcmWebhookHealthGateway
 import com.whatto.bcm.admin.client.SourceFailure
+import com.whatto.bcm.admin.config.AdminProperties
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.net.URLEncoder
@@ -42,10 +45,36 @@ data class ViewResult<T>(
 data class AdminOverview(
     val generatedAt: String,
     val state: ViewState,
+    val catalogNetworkCount: Int?,
+    val adoptedNetworkCount: Int?,
+    val availableNetworkCount: Int?,
+    val catalogSyncedAt: String?,
     val networkCount: Int?,
     val testnetCount: Int?,
     val assetMappingCount: Int?,
+    val webhook: AdminWebhookRuntime?,
+    val preparationChecks: List<AdminPreparationCheck>,
     val issues: List<SourceIssue>,
+)
+
+enum class PreparationOwner {
+    AUTO,
+    DIRECT,
+}
+
+enum class PreparationStatus {
+    READY,
+    ACTION_REQUIRED,
+    NOT_OBSERVED,
+}
+
+data class AdminPreparationCheck(
+    val key: String,
+    val label: String,
+    val owner: PreparationOwner,
+    val status: PreparationStatus,
+    val detail: String,
+    val action: AdminAction,
 )
 
 data class NetworkFilters(
@@ -81,14 +110,19 @@ data class SearchResult(
 @Service
 class AdminReadService(
     private val gateway: BcmAdminReadGateway,
+    private val webhookHealthGateway: BcmWebhookHealthGateway,
     private val clock: Clock,
     @param:Value("\${bcm.admin.stale-after-seconds:90000}") private val staleAfterSeconds: Long,
+    private val properties: AdminProperties = AdminProperties(),
 ) {
     fun overview(): AdminOverview {
         val issues = mutableListOf<SourceIssue>()
-        val networks = capture("networks", issues) { gateway.networks(null, null, true, null) }
+        val catalog = capture("networks", issues) { gateway.networks(null, null, null, null) }
+        val networks = catalog?.filter { it.code != null }
         val mappings = capture("assets", issues) { gateway.assetMappings(null, null) }
-        if (networks == null && mappings == null) {
+        val runtime = capture("runtimeReadiness", issues) { gateway.runtimeReadiness() }
+        val webhookHealthy = capture("webhookHealth", issues) { webhookHealthGateway.isReady() }
+        if (catalog == null && mappings == null && runtime == null) {
             throw SourceFailure("overview", 502, "all BCM Admin sources unavailable")
         }
         val state =
@@ -100,12 +134,141 @@ class AdminReadService(
         return AdminOverview(
             generatedAt = Instant.now(clock).toString(),
             state = state,
+            catalogNetworkCount = catalog?.size,
+            adoptedNetworkCount = networks?.size,
+            availableNetworkCount = catalog?.count { it.code == null && !it.deprecated },
+            catalogSyncedAt = catalog?.maxOfOrNull(AdminNetwork::syncedAt),
             networkCount = networks?.size,
             testnetCount = networks?.count(AdminNetwork::testnet),
             assetMappingCount = mappings?.size,
+            webhook = runtime?.webhook,
+            preparationChecks = preparationChecks(catalog, networks, mappings, runtime?.webhook, webhookHealthy),
             issues = issues,
         )
     }
+
+    private fun preparationChecks(
+        catalog: List<AdminNetwork>?,
+        networks: List<AdminNetwork>?,
+        mappings: List<AdminAssetMapping>?,
+        webhook: AdminWebhookRuntime?,
+        webhookHealthy: Boolean?,
+    ): List<AdminPreparationCheck> {
+        val localCatalog = properties.vendorMode == "STUB" && properties.chainMode == "LOCAL"
+        val expectedNetworks = setOf("ETHEREUM", "BASE")
+        val expectedMappings = expectedNetworks.flatMap { network -> setOf("USDC", "KRWK").map { network to it } }.toSet()
+        val observedNetworks = networks.orEmpty().mapNotNull(AdminNetwork::code).toSet()
+        val observedMappings = mappings.orEmpty().map { it.network to it.symbol }.toSet()
+        val adoptedNetworkCount = expectedNetworks.count { it in observedNetworks }
+        val assetMappingCount = expectedMappings.count { it in observedMappings }
+        return listOf(
+            bcmWebhookPreparationCheck(catalog, mappings, webhook, webhookHealthy),
+            preparationCheck(
+                key = "NETWORK_CATALOG",
+                label = "네트워크 후보 동기화",
+                owner = PreparationOwner.AUTO,
+                ready = !catalog.isNullOrEmpty(),
+                detail =
+                    if (catalog.isNullOrEmpty()) {
+                        "BAT는 기본 up에 포함되지 않습니다. 로컬 자산 준비 시나리오로 catalog sync를 한 번 실행하세요."
+                    } else {
+                        "BAT catalog sync 결과가 있습니다. 네트워크 화면의 마지막 동기화 시각을 확인하세요."
+                    },
+                href = if (catalog.isNullOrEmpty()) "/admin/test-runs" else "/admin/networks",
+            ),
+            preparationCheck(
+                key = "NETWORK_ADOPTION",
+                label = "네트워크 채택 확인",
+                owner = PreparationOwner.DIRECT,
+                ready = if (localCatalog) adoptedNetworkCount == expectedNetworks.size else !networks.isNullOrEmpty(),
+                detail =
+                    if (localCatalog) {
+                        "로컬 기본 네트워크 채택 $adoptedNetworkCount/${expectedNetworks.size}: ETHEREUM, BASE"
+                    } else {
+                        "chainId와 testnet 여부를 확인해 사용할 네트워크를 채택합니다."
+                    },
+                href = "/admin/networks",
+            ),
+            preparationCheck(
+                key = "ASSET_MAPPING",
+                label = "자산 매핑 확인",
+                owner = PreparationOwner.DIRECT,
+                ready = if (localCatalog) assetMappingCount == expectedMappings.size else !mappings.isNullOrEmpty(),
+                detail =
+                    if (localCatalog) {
+                        "로컬 기본 자산 매핑 $assetMappingCount/${expectedMappings.size}: 각 네트워크의 USDC, KRWK"
+                    } else {
+                        "네트워크·심볼·token contract 주소를 대조합니다."
+                    },
+                href = "/admin/assets",
+            ),
+            AdminPreparationCheck(
+                key = "ACCOUNT_ADDRESS",
+                label = "계정·입금 주소 준비",
+                owner = PreparationOwner.DIRECT,
+                status = PreparationStatus.NOT_OBSERVED,
+                detail = "Admin은 DAW-CORE 입력을 기다리지 않습니다. 계정 API 또는 로컬 입금 점검을 사용하세요.",
+                action = AdminAction("/admin/test-runs"),
+            ),
+        )
+    }
+
+    private fun bcmWebhookPreparationCheck(
+        catalog: List<AdminNetwork>?,
+        mappings: List<AdminAssetMapping>?,
+        webhook: AdminWebhookRuntime?,
+        healthy: Boolean?,
+    ): AdminPreparationCheck {
+        val status =
+            when {
+                catalog == null || mappings == null || webhook == null -> PreparationStatus.ACTION_REQUIRED
+                healthy != true -> PreparationStatus.ACTION_REQUIRED
+                webhook.state == "HEALTHY" -> PreparationStatus.READY
+                webhook.state == "NEVER_RECEIVED" -> PreparationStatus.NOT_OBSERVED
+                else -> PreparationStatus.ACTION_REQUIRED
+            }
+        val detail =
+            when {
+                catalog == null || mappings == null || webhook == null ->
+                    "BCM 읽기 전용 조회가 일부 응답하지 않습니다. API 로그를 확인하세요."
+                healthy != true -> "Webhook 프로세스 health가 응답하지 않습니다. 독립 프로세스와 로그를 확인하세요."
+                webhook.state == "HEALTHY" -> "마지막 수신과 처리 원장이 정상입니다."
+                webhook.state == "BACKLOG" -> "미처리 인박스 또는 미발행 outbox가 있습니다."
+                webhook.state == "POISONED" -> "격리된 Webhook이 있어 원인 확인이 필요합니다."
+                webhook.state == "NEVER_RECEIVED" -> "아직 수신 이력이 없습니다. 첫 입금 점검을 실행하세요."
+                else -> "Webhook runtime 요약을 읽지 못했습니다."
+            }
+        return AdminPreparationCheck(
+            key = "BCM_WEBHOOK",
+            label = "BCM API·Webhook 연결",
+            owner = PreparationOwner.AUTO,
+            status = status,
+            detail = detail,
+            action = AdminAction("/admin/emergency"),
+        )
+    }
+
+    private fun preparationCheck(
+        key: String,
+        label: String,
+        owner: PreparationOwner,
+        ready: Boolean,
+        detail: String,
+        href: String,
+        observed: Boolean = true,
+    ) = AdminPreparationCheck(
+        key = key,
+        label = label,
+        owner = owner,
+        status =
+            when {
+                ready -> PreparationStatus.READY
+                !observed -> PreparationStatus.NOT_OBSERVED
+                else -> PreparationStatus.ACTION_REQUIRED
+            },
+        detail = detail,
+        action = AdminAction(href),
+    )
 
     fun networks(filters: NetworkFilters): ViewResult<List<AdminNetwork>> {
         val data = gateway.networks(filters.q, filters.chainId, filters.adopted, filters.testnet)

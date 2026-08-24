@@ -1,10 +1,35 @@
 # Blockchain Manager API
 
-`v0.7.0`
+`v0.8.0`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
 온체인 상태 변경은 메시지 큐 이벤트로 받는다.
+
+## DAW-CORE 5분 Quickstart
+
+저장소를 clone한 뒤 Docker, Python 3, Foundry 1.7.1(`anvil`·`forge`)을 준비한다. JDK 25는 Gradle toolchain이 내려받으며,
+사내망처럼 자동 다운로드가 막힌 환경에서만 직접 설치한다. 실제 Fireblocks 자격증명 없이
+계약과 온체인 흐름을 확인하려면 저장소 루트에서 다음 한 명령을 실행한다.
+
+```bash
+./scripts/local.sh up stub
+```
+
+준비가 끝나면 이 문서를 `http://127.0.0.1:38080/api-docs/`에서 연다. 상단 Base URL은 자동으로
+`http://127.0.0.1:38080`이 선택된다. 아래 `계정 생성` → `입금 주소 발급` 순서로 예시 값을 수정해 **요청 실행**을 누르면
+실제 BCM과 Fireblocks Stub·Anvil에 같은 계약으로 요청한다. 입금부터 Kafka 이벤트·Admin 조사까지 한 번에 확인하려면
+`./scripts/local.sh test deposit` 또는 Admin의 로컬 시나리오를 사용한다.
+
+DAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.
+
+1. `POST /accounts`의 (`accountType`, `ref`)를 안정적인 업무 키로 유지한다.
+2. `POST /accounts/{accountId}/addresses` 결과를 네트워크별로 저장하고 항목별 실패만 재시도한다.
+3. 출금은 `externalTxId`를 절대 재사용하지 않으며 응답 유실 때 같은 본문으로 재요청한다.
+4. Kafka 이벤트는 `eventId`로 멱등 처리하고 `FINALIZED` 뒤 `FAILED` 전이도 허용한다.
+
+로컬 Kafka bootstrap 주소는 `127.0.0.1:9092`다. 토픽 이름과 파티션 키, `ChainEvent` 실전 payload는 아래
+**이벤트 (메시지 큐)** 절이 계약 정본이며, HTTP 실행 패널과 같은 문서 안에서 함께 확인한다.
 
 아래 규약은 **모든 엔드포인트에 공통** 적용된다.
 
@@ -19,7 +44,7 @@
   "data": {
     "accountType": "CUSTOMER",
     "ref": "000123",
-    "accountId": "acct_01H8X"
+    "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -32,7 +57,7 @@
 ```json
 {
   "data": [
-    { "txId": "tx_9f2a", "status": "FINALIZED", "amount": "1.5" }
+    { "txId": "tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a", "status": "FINALIZED", "amount": "1" }
   ],
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -132,14 +157,14 @@ sequenceDiagram
 {
   "eventId": "0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e0f",
   "type": "WITHDRAWAL",
-  "txId": "tx_9f2a",
-  "txHash": "0x4e1d...ab",
+  "txId": "tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a",
+  "txHash": "0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0",
   "externalTxId": "wd-260713-0042",
   "accountId": "acct_pool_02",
   "network": "ETHEREUM",
   "symbol": "USDC",
-  "to": "0x9f...E2",
-  "from": "0xAb3...C9",
+  "to": "0xdd1b8bb7c9646d21e267bad5f12d011da294af89",
+  "from": "0x0da6aa405415ddc059a28e089309c7b47e0702ec",
   "amount": "100",
   "status": "FINALIZED",
   "numOfConfirmations": 12
@@ -204,7 +229,7 @@ curl -X POST "https://{baseUrl}/blockchain/manage-api/accounts" \
   -H "Content-Type: application/json" \
   -d '{
   "accountType": "CUSTOMER",
-  "ref": "000123"
+  "ref": "daw-local-customer-001"
 }'
 ```
 
@@ -213,7 +238,7 @@ _요청 본문_
 ```json
 {
   "accountType": "CUSTOMER",
-  "ref": "000123"
+  "ref": "daw-local-customer-001"
 }
 ```
 
@@ -231,8 +256,8 @@ _응답_
 {
   "data": {
     "accountType": "CUSTOMER",
-    "ref": "000123",
-    "accountId": "acct_01H8X"
+    "ref": "daw-local-customer-001",
+    "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -279,12 +304,12 @@ _응답_
 - 네트워크 목록은 호출 쪽이 정한다 — 매니저가 토큰만 받아 네트워크를 채우지 않는다.
 
 ```bash
-curl -X POST "https://{baseUrl}/blockchain/manage-api/accounts/acct_01H8X/addresses" \
+curl -X POST "https://{baseUrl}/blockchain/manage-api/accounts/acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890/addresses" \
   -H "Content-Type: application/json" \
   -d '{
-  "symbol": "USDC",
+  "symbol": "TUSD",
   "networks": [
-    "ETHEREUM"
+    "LOCAL"
   ]
 }'
 ```
@@ -293,16 +318,16 @@ _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `accountId` | path | string | 필수 | acct_01H8X | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
 
 
 _요청 본문_
 
 ```json
 {
-  "symbol": "USDC",
+  "symbol": "TUSD",
   "networks": [
-    "ETHEREUM"
+    "LOCAL"
   ]
 }
 ```
@@ -321,14 +346,11 @@ _응답_
 {
   "data": [
     {
-      "network": "ETHEREUM",
-      "symbol": "USDC",
-      "address": "0xAb3...C9",
-      "memoTag": "string",
-      "error": {
-        "code": "ACCOUNT_NOT_FOUND",
-        "message": "account not found"
-      }
+      "network": "LOCAL",
+      "symbol": "TUSD",
+      "address": "0xdd1b8bb7c9646d21e267bad5f12d011da294af89",
+      "memoTag": null,
+      "error": null
     }
   ],
   "meta": {
@@ -348,8 +370,8 @@ _응답_
 ```json
 {
   "error": {
-    "code": "ACCOUNT_NOT_FOUND",
-    "message": "account not found"
+    "code": "ASSET_NOT_SUPPORTED",
+    "message": "unsupported network for symbol: TRON/USDC"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -394,14 +416,14 @@ _응답_
 **미발급은 배열에 담기지 않는다** — 계정은 있는데 주소가 없으면 빈 배열이고, 계정 자체가 없으면 `404` 다. 발급(`POST`)과 경로가 같아 메서드만 다르다.
 
 ```bash
-curl "https://{baseUrl}/blockchain/manage-api/accounts/acct_01H8X/addresses?symbol=USDC&network=BASE"
+curl "https://{baseUrl}/blockchain/manage-api/accounts/acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890/addresses?symbol=USDC&network=BASE"
 ```
 
 _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `accountId` | path | string | 필수 | acct_01H8X | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
 | `symbol` | query | string | - | USDC | 토큰 심볼로 거른다 (선택) |
 | `network` | query | string | - | BASE | 네트워크 코드로 거른다 (선택) |
 
@@ -416,7 +438,7 @@ _응답_
     {
       "network": "BASE",
       "symbol": "USDC",
-      "address": "0xAb3...C9",
+      "address": "0xdd1b8bb7c9646d21e267bad5f12d011da294af89",
       "memoTag": "string"
     }
   ],
@@ -466,14 +488,14 @@ _응답_
 - 자산마다 벤더를 한 번 부른다.
 
 ```bash
-curl "https://{baseUrl}/blockchain/manage-api/accounts/acct_01H8X/balances?network=BASE&symbol=USDC"
+curl "https://{baseUrl}/blockchain/manage-api/accounts/acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890/balances?network=BASE&symbol=USDC"
 ```
 
 _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `accountId` | path | string | 필수 | acct_01H8X | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
 | `network` | query | string | - | BASE | 네트워크 코드로 거른다 (선택) |
 | `symbol` | query | string | - | USDC | 토큰 심볼로 거른다 (선택) |
 
@@ -555,19 +577,19 @@ _응답_
 curl -X POST "https://{baseUrl}/blockchain/manage-api/transactions" \
   -H "Content-Type: application/json" \
   -d '{
-  "externalTxId": "wd-260713-0042",
+  "externalTxId": "daw-local-withdrawal-001",
   "from": {
     "type": "ACCOUNT",
-    "accountId": "acct_pool_02"
+    "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890"
   },
   "to": {
     "type": "ADDRESS",
-    "address": "0x9f...E2"
+    "address": "0x4a1dbedeb87aca726a7c5901b2ca68a2a35deee3"
   },
-  "network": "ETHEREUM",
-  "symbol": "USDC",
-  "amount": "1.5",
-  "note": null,
+  "network": "LOCAL",
+  "symbol": "TUSD",
+  "amount": "1",
+  "note": "DAW-CORE local integration",
   "travelRule": null
 }'
 ```
@@ -576,19 +598,19 @@ _요청 본문_
 
 ```json
 {
-  "externalTxId": "wd-260713-0042",
+  "externalTxId": "daw-local-withdrawal-001",
   "from": {
     "type": "ACCOUNT",
-    "accountId": "acct_pool_02"
+    "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890"
   },
   "to": {
     "type": "ADDRESS",
-    "address": "0x9f...E2"
+    "address": "0x4a1dbedeb87aca726a7c5901b2ca68a2a35deee3"
   },
-  "network": "ETHEREUM",
-  "symbol": "USDC",
-  "amount": "1.5",
-  "note": null,
+  "network": "LOCAL",
+  "symbol": "TUSD",
+  "amount": "1",
+  "note": "DAW-CORE local integration",
   "travelRule": null
 }
 ```
@@ -612,7 +634,7 @@ _응답_
 ```json
 {
   "data": {
-    "txId": "tx_9f2a"
+    "txId": "tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -754,14 +776,14 @@ _응답_
 ```json
 {
   "data": {
-    "txId": "tx_9f2a",
-    "txHash": "0x4e1d...ab",
+    "txId": "tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a",
+    "txHash": "0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0",
     "externalTxId": "wd-260713-0042",
     "network": "ETHEREUM",
     "symbol": "USDC",
     "amount": "1.5",
-    "from": "0xA1...C9",
-    "to": "0x9f...E2",
+    "from": "0x0da6aa405415ddc059a28e089309c7b47e0702ec",
+    "to": "0xdd1b8bb7c9646d21e267bad5f12d011da294af89",
     "status": "FINALIZED",
     "numOfConfirmations": 12,
     "createdAt": "2026-07-13T04:05:06.789Z",
@@ -806,14 +828,14 @@ _응답_
 벤더 tx id(`txId`)로 거래 1건을 조회한다. `txId` 는 출금 제출 응답이나 큐 이벤트에서 얻는다.
 
 ```bash
-curl "https://{baseUrl}/blockchain/manage-api/transactions/tx_9f2a"
+curl "https://{baseUrl}/blockchain/manage-api/transactions/tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a"
 ```
 
 _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `txId` | path | string | 필수 | tx_9f2a | 벤더 tx id |
+| `txId` | path | string | 필수 | tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a | 벤더 tx id |
 
 
 _응답_
@@ -823,14 +845,14 @@ _응답_
 ```json
 {
   "data": {
-    "txId": "tx_9f2a",
-    "txHash": "0x4e1d...ab",
+    "txId": "tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a",
+    "txHash": "0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0",
     "externalTxId": "wd-260713-0042",
     "network": "ETHEREUM",
     "symbol": "USDC",
     "amount": "1.5",
-    "from": "0xA1...C9",
-    "to": "0x9f...E2",
+    "from": "0x0da6aa405415ddc059a28e089309c7b47e0702ec",
+    "to": "0xdd1b8bb7c9646d21e267bad5f12d011da294af89",
     "status": "FINALIZED",
     "numOfConfirmations": 12,
     "createdAt": "2026-07-13T04:05:06.789Z",
@@ -884,14 +906,14 @@ _응답_
 빠뜨린 건은 조용히 버리지 않고 운영 알림으로 올린다(등록 누락이면 고쳐야 할 설정이다).
 
 ```bash
-curl "https://{baseUrl}/blockchain/manage-api/accounts/acct_01H8X/transactions?after=2026-07-01T00:00:00.000Z&before=2026-07-13T00:00:00.000Z&order=desc&status=FINALIZED&limit=200&cursor=eyJsYXN0IjoxNzUxMzM2MDAwMDAwfQ"
+curl "https://{baseUrl}/blockchain/manage-api/accounts/acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890/transactions?after=2026-07-01T00:00:00.000Z&before=2026-07-13T00:00:00.000Z&order=desc&status=FINALIZED&limit=200&cursor=eyJsYXN0IjoxNzUxMzM2MDAwMDAwfQ"
 ```
 
 _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `accountId` | path | string | 필수 | acct_01H8X | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
 | `after` | query | string (ISO 8601) | - | 2026-07-01T00:00:00.000Z | 시작 시각 — 거래 시각(createdAt) 기준 (ISO 8601 UTC). **첫 요청(`cursor` 없음)에는 필수**고, 없으면 `400 VALIDATION_FAILED` 다. `cursor` 가 있으면 조회 조건이 토큰에 들어 있어 이 값은 무시되므로 생략한다.  |
 | `before` | query | string (ISO 8601) | - | 2026-07-13T00:00:00.000Z | 종료 시각 — 거래 시각(createdAt) 기준 (ISO 8601 UTC). 생략하면 상한 없음 — 증분 폴링(`order=asc`) 조회는 생략한다. |
 | `order` | query | string | - | desc | 정렬 방향 — 거래 시각(createdAt) 기준. 기본 desc(최신순). 마지막 커서를 보관해 새 내역을 이어받는 증분 폴링은 `asc` 조회에서만 성립한다. |
@@ -908,14 +930,14 @@ _응답_
 {
   "data": [
     {
-      "txId": "tx_9f2a",
-      "txHash": "0x4e1d...ab",
+      "txId": "tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a",
+      "txHash": "0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0",
       "externalTxId": "wd-260713-0042",
       "network": "ETHEREUM",
       "symbol": "USDC",
       "amount": "1.5",
-      "from": "0xA1...C9",
-      "to": "0x9f...E2",
+      "from": "0x0da6aa405415ddc059a28e089309c7b47e0702ec",
+      "to": "0xdd1b8bb7c9646d21e267bad5f12d011da294af89",
       "status": "FINALIZED",
       "numOfConfirmations": 12,
       "createdAt": "2026-07-13T04:05:06.789Z",
@@ -1023,7 +1045,7 @@ _응답_
       "chainId": 8453,
       "testnet": false,
       "deprecated": false,
-      "syncedAt": "202608060310"
+      "syncedAt": "20260806031045"
     }
   ],
   "meta": {
@@ -1089,7 +1111,7 @@ _응답_
     "chainId": 8453,
     "testnet": false,
     "deprecated": false,
-    "syncedAt": "202608060310"
+    "syncedAt": "20260806031045"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -1289,7 +1311,7 @@ _응답_
 
 - **채택한 네트워크만** — 이름을 붙이지 않은 네트워크로는 등록할 수 없다 (`400`).
 - **주소로 자산이 하나만 잡혀야 한다** — 그 네트워크에 그 컨트랙트 주소가 없으면 `400`, 둘 이상이면 `409` 다. 잘못된 주소는 여기서 그냥 아무것도 찾지 못한다.
-- **덮어쓰지 않는다** — 이미 등록된 (네트워크, 토큰) 은 `409` 다. 고치려면 지우고 다시 넣는다.
+- **활성 매핑을 덮어쓰지 않는다** — 이미 활인 (네트워크, 토큰) 매핑은 `409` 다. 논리 해제된 행은 검증을 다시 통과한 뒤 재활성 또는 교체하고 전후 snapshot을 남긴다.
 - **한 자산은 한 매핑** — 다른 (네트워크, 토큰) 이 이미 그 자산이면 `409` 다.
 
 네이티브 자산(ETH 등)은 컨트랙트 주소가 없으므로 `contractAddress` 를 `null` 로 보낸다 — 그 네트워크의 네이티브 자산으로 해석한다.
@@ -1339,7 +1361,7 @@ _응답_
     "network": "BASE",
     "symbol": "USDC",
     "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "registeredAt": "202608060310"
+    "registeredAt": "20260806031045"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -1397,7 +1419,7 @@ _응답_
 
 **자산 매핑 목록**
 
-등록된 (네트워크, 토큰) 을 읽는다. `network` · `symbol` 으로 거른다.
+현재 활성인 (네트워크, 토큰) 매핑을 읽는다. `network` · `symbol` 으로 거른다.
 
 ```bash
 curl "https://{baseUrl}/blockchain/manage-api/admin/asset-mappings"
@@ -1422,7 +1444,7 @@ _응답_
       "network": "BASE",
       "symbol": "USDC",
       "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "registeredAt": "202608060310"
+      "registeredAt": "20260806031045"
     }
   ],
   "meta": {
@@ -1439,9 +1461,9 @@ _응답_
 
 #### `DELETE` https://{baseUrl}/blockchain/manage-api/admin/asset-mappings/{network}/{symbol}
 
-**자산 매핑 삭제**
+**자산 매핑 논리 해제**
 
-잘못 등록한 것을 되돌린다. **그 (네트워크, 토큰) 으로 발급된 주소가 하나도 없을 때만** 허용하고, 있으면 `409` 다 — 주소가 이미 나갔다면 매핑 수정이 아니라 사고 처리다.
+잘못 등록한 것을 논리 해제하고 변경 전후 snapshot을 남긴다. **그 (네트워크, 토큰) 으로 발급된 주소가 하나도 없을 때만** 허용하고, 있으면 `409` 다 — 주소가 이미 나갔다면 매핑 수정이 아니라 사고 처리다.
 
 수정 오퍼레이션은 두지 않는다. 가리키는 자산을 바꾸면 이미 나간 주소와 앞으로 나갈 주소가 서로 다른 자산이 되기 때문이다.
 
@@ -2028,6 +2050,47 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/runtime-readiness
+
+**Admin 로컬 첫 실행·Webhook runtime 준비 상태**
+
+Webhook 인박스·outbox의 안전한 집계와 마지막 수신 시각을 조회한다. 원문 payload·서명·오류 원문은 반환하지 않는다.
+`NEVER_RECEIVED`는 아직 관찰이 없다는 뜻이며 그 사실만으로 장애를 판정하지 않는다. 읽기 전용 상태·복구 진입점만 제공한다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/runtime-readiness"
+```
+
+_응답_
+
+`200` — 서버 계산 runtime 준비 상태
+
+```json
+{
+  "data": {
+    "observedAt": "2026-07-13T04:05:06.789Z",
+    "webhook": {
+      "state": "NEVER_RECEIVED",
+      "lastReceivedAt": "2026-07-13T04:05:06.789Z",
+      "pendingInboxCount": 0,
+      "poisonedInboxCount": 0,
+      "pendingOutboxCount": 0,
+      "poisonedOutboxCount": 0,
+      "statusPath": "/admin/emergency"
+    }
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminRuntimeReadiness | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
 #### `GET` https://{baseUrl}/blockchain/manage-api/admin/change-requests/{requestId}
 
 **Admin 변경 요청 상세 조회**
@@ -2469,6 +2532,35 @@ _응답_
 |---|---|---|---|
 | `data` | AdminExecutionGateOverview | 필수 |  |
 | `meta` | Meta | 필수 |  |
+
+
+### AdminRuntimeReadinessResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminRuntimeReadiness | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminRuntimeReadiness
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `observedAt` | string (ISO 8601) | 필수 |  |
+| `webhook` | AdminWebhookRuntime | 필수 |  |
+
+
+### AdminWebhookRuntime
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `state` | string | 필수 | `NEVER_RECEIVED` `HEALTHY` `BACKLOG` `POISONED` |
+| `lastReceivedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `pendingInboxCount` | integer | 필수 |  |
+| `poisonedInboxCount` | integer | 필수 |  |
+| `pendingOutboxCount` | integer | 필수 |  |
+| `poisonedOutboxCount` | integer | 필수 |  |
+| `statusPath` | string | 필수 | `/admin/emergency` |
 
 
 ### AdminExecutionGateOverview

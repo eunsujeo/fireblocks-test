@@ -39,6 +39,7 @@ data class TestSupportProperties(
     val evmChainId: Long = LOCAL_CHAIN_ID,
     val localChainManifestFile: String = "build/local/chain/manifest.json",
     val localChainKeyFile: String = "build/local/chain/evm-keys.json",
+    val localChainClusterManifestFile: String = "",
     val apiAuthenticationMode: ApiAuthenticationMode = ApiAuthenticationMode.BASIC,
     val apiPublicKeyFile: String = "",
     val webhookDeliveryUrl: String = "",
@@ -71,14 +72,19 @@ class RuntimeModeBoundary(
     private fun validateLocalBoundary() {
         requireInternalAddress("server address", properties.serverAddress)
         requireInternalAddress("management address", properties.managementAddress)
-        requireInternalEndpoint("Fireblocks Base URL", properties.fireblocksBaseUrl)
-        requireInternalEndpoint("Webhook JWKS URL", properties.webhookJwksUrl)
-        requireInternalEndpoint("EVM RPC URL", properties.evmRpcUrl)
+        requireInternalLocalEndpoint("Fireblocks Base URL", properties.fireblocksBaseUrl)
+        requireInternalLocalEndpoint("Webhook JWKS URL", properties.webhookJwksUrl)
+        requireInternalLocalEndpoint("EVM RPC URL", properties.evmRpcUrl)
         if (properties.webhookDeliveryUrl.isNotBlank()) {
-            requireInternalEndpoint("Webhook delivery URL", properties.webhookDeliveryUrl)
+            requireInternalLocalEndpoint("Webhook delivery URL", properties.webhookDeliveryUrl)
         }
         check(properties.evmChainId == TestSupportProperties.LOCAL_CHAIN_ID) {
             "STUB+LOCAL requires the fixed local chain id"
+        }
+        if (properties.localChainClusterManifestFile.isNotBlank()) {
+            check(Files.isRegularFile(Path.of(properties.localChainClusterManifestFile))) {
+                "STUB+LOCAL chain cluster manifest is not readable"
+            }
         }
         check(properties.fireblocksApiKey == TestSupportProperties.LOCAL_STUB_API_KEY) {
             "STUB+LOCAL requires the local API key marker"
@@ -117,39 +123,11 @@ class RuntimeModeBoundary(
         }
     }
 
-    private fun requireInternalEndpoint(
-        label: String,
-        value: String,
-    ) {
-        val uri =
-            try {
-                URI.create(value)
-            } catch (exception: IllegalArgumentException) {
-                throw IllegalStateException("STUB+LOCAL $label must be an internal HTTP endpoint", exception)
-            }
-        check(uri.scheme in HTTP_SCHEMES && uri.host?.isInternalAddress() == true && uri.userInfo == null) {
-            "STUB+LOCAL $label must be an internal HTTP endpoint"
-        }
-    }
-
     private fun requireInternalAddress(
         label: String,
         value: String,
     ) {
         check(value.isInternalAddress()) { "STUB+LOCAL $label must be internal" }
-    }
-
-    private fun String.isInternalAddress(): Boolean {
-        val normalized = lowercase().removePrefix("[").removeSuffix("]")
-        if (normalized in LOOPBACK_NAMES) return true
-        val octets = normalized.split('.').mapNotNull(String::toIntOrNull)
-        if (octets.size == 4 && octets.all { it in 0..255 }) {
-            return octets[0] == 127 ||
-                octets[0] == 10 ||
-                (octets[0] == 172 && octets[1] in 16..31) ||
-                (octets[0] == 192 && octets[1] == 168)
-        }
-        return ':' in normalized && (normalized.startsWith("fc") || normalized.startsWith("fd"))
     }
 
     private fun sha256Hex(value: ByteArray): String =
@@ -165,8 +143,34 @@ class RuntimeModeBoundary(
                 VendorMode.FIREBLOCKS to ChainMode.TESTNET,
                 VendorMode.FIREBLOCKS to ChainMode.MAINNET,
             )
-        private val HTTP_SCHEMES = setOf("http", "https")
         private val HEX_SHA256 = Regex("[0-9a-f]{64}")
-        private val LOOPBACK_NAMES = setOf("localhost", "::1", "0:0:0:0:0:0:0:1")
     }
+}
+
+internal fun requireInternalLocalEndpoint(
+    label: String,
+    value: String,
+) {
+    val uri =
+        try {
+            URI.create(value)
+        } catch (exception: IllegalArgumentException) {
+            throw IllegalStateException("STUB+LOCAL $label must be an internal HTTP endpoint", exception)
+        }
+    check(uri.scheme in setOf("http", "https") && uri.host?.isInternalAddress() == true && uri.userInfo == null) {
+        "STUB+LOCAL $label must be an internal HTTP endpoint"
+    }
+}
+
+private fun String.isInternalAddress(): Boolean {
+    val normalized = lowercase().removePrefix("[").removeSuffix("]")
+    if (normalized in setOf("localhost", "::1", "0:0:0:0:0:0:0:1")) return true
+    val octets = normalized.split('.').mapNotNull(String::toIntOrNull)
+    if (octets.size == 4 && octets.all { it in 0..255 }) {
+        return octets[0] == 127 ||
+            octets[0] == 10 ||
+            (octets[0] == 172 && octets[1] in 16..31) ||
+            (octets[0] == 192 && octets[1] == 168)
+    }
+    return ':' in normalized && (normalized.startsWith("fc") || normalized.startsWith("fd"))
 }

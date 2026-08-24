@@ -338,4 +338,35 @@ interface AdminGovernanceQueryRepository {
         now: Instant,
         limit: Int,
     ): List<AdminExecutionGateResumeSummary>
+
+    fun findWebhookRuntimeObservation(): AdminWebhookRuntimeObservation
 }
+
+enum class AdminWebhookRuntimeState {
+    NEVER_RECEIVED,
+    HEALTHY,
+    BACKLOG,
+    POISONED,
+}
+
+data class AdminWebhookRuntimeObservation(
+    val lastReceivedAt: Instant?,
+    val pendingInboxCount: Long,
+    val poisonedInboxCount: Long,
+    val pendingOutboxCount: Long,
+    val poisonedOutboxCount: Long,
+) {
+    val state: AdminWebhookRuntimeState
+        get() =
+            when {
+                poisonedInboxCount > 0 || poisonedOutboxCount > 0 -> AdminWebhookRuntimeState.POISONED
+                pendingInboxCount > 0 || pendingOutboxCount > 0 -> AdminWebhookRuntimeState.BACKLOG
+                lastReceivedAt == null -> AdminWebhookRuntimeState.NEVER_RECEIVED
+                else -> AdminWebhookRuntimeState.HEALTHY
+            }
+}
+
+data class AdminRuntimeReadiness(
+    val observedAt: Instant,
+    val webhook: AdminWebhookRuntimeObservation,
+)

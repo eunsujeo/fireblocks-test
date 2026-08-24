@@ -3,7 +3,6 @@ package com.whatto.bcm.app.api.admin
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers.openApi
 import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.app.application.asset.AssetCandidate
-import com.whatto.bcm.app.application.asset.RegisterVendorAssetMappingCommand
 import com.whatto.bcm.app.application.asset.VendorAssetMappingService
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import io.mockk.every
@@ -30,7 +29,16 @@ class AdminAssetSpecComplianceTest {
     @Test
     fun `자산 매핑 POST 요청과 응답이 벤더 id 없는 0_3_0 계약과 일치한다`() {
         every {
-            service.register(RegisterVendorAssetMappingCommand("BASE", "USDC", "0x8335", "123456", "0001"))
+            service.register(
+                match {
+                    it.network == "BASE" &&
+                        it.symbol == "USDC" &&
+                        it.contractAddress == "0x8335" &&
+                        it.employeeNo == "123456" &&
+                        it.branchCode == "0001" &&
+                        it.requestId.isNotBlank()
+                },
+            )
         } returns VendorAssetMapping("BASE", "USDC", "internal-secret", "0x8335", "20260806120000", "123456", "0001")
 
         mockMvc

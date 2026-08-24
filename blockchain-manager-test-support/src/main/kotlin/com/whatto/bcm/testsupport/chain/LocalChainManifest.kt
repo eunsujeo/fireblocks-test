@@ -22,6 +22,20 @@ data class LocalChainManifest(
     val maximumItems: Int,
     val maximumItemAmount: String,
     val maximumTotalAmount: String,
+    val blockchainId: String = "local-evm",
+    val networkCode: String = "LOCAL",
+    val displayName: String = "Local EVM",
+    val assets: List<LocalChainAssetManifest> =
+        listOf(
+            LocalChainAssetManifest(
+                id = "TUSD_LOCAL",
+                symbol = tokenSymbol,
+                displayName = "Local $tokenSymbol",
+                decimals = tokenDecimals,
+                contractAddress = tokenContractAddress,
+                codeHash = tokenCodeHash,
+            ),
+        ),
 ) {
     fun toJson(): String = ObjectMapper().writeValueAsString(this)
 
@@ -29,3 +43,12 @@ data class LocalChainManifest(
         const val LOCAL_CHAIN_ID = 31337L
     }
 }
+
+data class LocalChainAssetManifest(
+    val id: String,
+    val symbol: String,
+    val displayName: String,
+    val decimals: Int,
+    val contractAddress: String,
+    val codeHash: String,
+)

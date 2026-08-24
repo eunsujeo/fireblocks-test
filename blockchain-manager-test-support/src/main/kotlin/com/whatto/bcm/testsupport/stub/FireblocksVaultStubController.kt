@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import java.util.concurrent.locks.ReentrantLock
@@ -36,6 +37,16 @@ internal class FireblocksVaultStubController(
         @PathVariable vaultId: String,
         @PathVariable assetId: String,
     ): VaultAssetResponse = state.balance(vaultId, assetId)
+
+    @GetMapping("/__stub/vaults/by-address/{assetId}")
+    fun vaultByAddress(
+        @PathVariable assetId: String,
+        @RequestParam address: String,
+    ): StubVaultLookupResponse =
+        state
+            .vaultIdByAddress(address, assetId)
+            ?.let(::StubVaultLookupResponse)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "vault wallet does not exist")
 }
 
 @Component
@@ -74,7 +85,7 @@ internal class FireblocksVaultState(
     ): CreateVaultAssetResponse =
         lock.withLock {
             val vault = vault(vaultId)
-            chain.asset(assetId) ?: notFound("local asset does not exist")
+            val asset = chain.asset(assetId) ?: notFound("local asset does not exist")
             val requestKey = vaultId to assetId
             walletRequests[idempotencyKey]?.let { previous ->
                 if (previous.requestKey != requestKey) conflict("idempotency key was already used for another wallet request")
@@ -84,7 +95,7 @@ internal class FireblocksVaultState(
                 wallets.getOrPut(requestKey) {
                     CreateVaultAssetResponse(
                         id = assetId,
-                        address = chain.vaultAddress(vault.addressIndex),
+                        address = chain.vaultAddress(vault.addressIndex, asset),
                     )
                 }
             walletRequests[idempotencyKey] = WalletRequestRecord(requestKey, response)
@@ -186,4 +197,8 @@ internal data class VaultAssetResponse(
     val pending: String,
     val frozen: String,
     val lockedAmount: String,
+)
+
+internal data class StubVaultLookupResponse(
+    val vaultId: String,
 )

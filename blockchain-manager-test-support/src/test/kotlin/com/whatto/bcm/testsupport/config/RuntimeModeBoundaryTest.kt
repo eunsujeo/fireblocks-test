@@ -66,6 +66,18 @@ class RuntimeModeBoundaryTest {
     }
 
     @Test
+    fun `cluster manifest의 각 RPC도 내부 주소만 허용한다`() {
+        assertThatCode { requireInternalLocalEndpoint("cluster EVM RPC URL", "http://127.0.0.1:38545") }
+            .doesNotThrowAnyException()
+
+        listOf("https://rpc.example.com", "http://127.0.0.1:38545@evil.example").forEach { endpoint ->
+            assertThatThrownBy { requireInternalLocalEndpoint("cluster EVM RPC URL", endpoint) }
+                .isInstanceOf(IllegalStateException::class.java)
+                .hasMessageContaining("STUB+LOCAL")
+        }
+    }
+
+    @Test
     fun `STUB LOCAL은 실 Fireblocks 자격으로 볼 수 있는 입력을 거부한다`() {
         val keyFile = temporaryDirectory.resolve("fireblocks.key")
         Files.writeString(keyFile, "local-test-key")

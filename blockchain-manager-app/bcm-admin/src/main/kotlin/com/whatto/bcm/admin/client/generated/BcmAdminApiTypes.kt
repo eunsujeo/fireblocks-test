@@ -23,6 +23,16 @@ data class AdminAssetMapping(
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminAssetCandidate(
+    val network: String,
+    val symbol: String,
+    val displayName: String? = null,
+    val decimals: Int? = null,
+    val contractAddress: String? = null,
+    val native: Boolean,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class BcmMeta(
     val requestId: String,
 )
@@ -34,8 +44,26 @@ data class BcmNetworkListResponse(
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmNetworkResponse(
+    val data: AdminNetwork,
+    val meta: BcmMeta,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class BcmAssetMappingListResponse(
     val data: List<AdminAssetMapping>,
+    val meta: BcmMeta,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmAssetCandidateListResponse(
+    val data: List<AdminAssetCandidate>,
+    val meta: BcmMeta,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmAssetMappingResponse(
+    val data: AdminAssetMapping,
     val meta: BcmMeta,
 )
 
@@ -419,6 +447,29 @@ data class AdminExecutionGateOverview(
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class BcmAdminExecutionGateOverviewResponse(
     val data: AdminExecutionGateOverview,
+    val meta: BcmMeta,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminWebhookRuntime(
+    val state: String,
+    val lastReceivedAt: String? = null,
+    val pendingInboxCount: Long,
+    val poisonedInboxCount: Long,
+    val pendingOutboxCount: Long,
+    val poisonedOutboxCount: Long,
+    val statusPath: String,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminRuntimeReadiness(
+    val observedAt: String,
+    val webhook: AdminWebhookRuntime,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmAdminRuntimeReadinessResponse(
+    val data: AdminRuntimeReadiness,
     val meta: BcmMeta,
 )
 

@@ -3,7 +3,6 @@ package com.whatto.bcm.app.application.admin
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers.openApi
 import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.app.api.BcmApiApplication
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.admin.AdminActor
 import com.whatto.bcm.domain.admin.AdminChangeRequest
@@ -24,6 +23,7 @@ import com.whatto.bcm.domain.vendor.VendorTransactionDestination
 import com.whatto.bcm.domain.vendor.VendorTransactionRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
 import com.whatto.bcm.infra.client.fireblocks.FireblocksClient
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import io.mockk.every
 import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat

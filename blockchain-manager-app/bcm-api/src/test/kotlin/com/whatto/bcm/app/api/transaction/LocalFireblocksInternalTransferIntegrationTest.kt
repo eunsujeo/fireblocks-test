@@ -1,10 +1,10 @@
 package com.whatto.bcm.app.api.transaction
 
 import com.whatto.bcm.app.api.BcmApiApplication
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
 import com.whatto.bcm.app.application.event.OutboxRelayProcessor
 import com.whatto.bcm.app.application.webhook.WebhookDecisionOutcome
 import com.whatto.bcm.app.application.webhook.WebhookDecisionProcessor
+import com.whatto.bcm.app.webhook.BcmWebhookApplication
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
@@ -14,6 +14,7 @@ import com.whatto.bcm.domain.vendor.WalletVendorPort
 import com.whatto.bcm.testsupport.TestSupportApplication
 import com.whatto.bcm.testsupport.chain.LocalChainConfiguration
 import com.whatto.bcm.testsupport.chain.LocalChainEnvironment
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.serialization.StringDeserializer
@@ -70,11 +71,11 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
     @Autowired
     lateinit var accounts: AccountRepository
 
-    @Autowired
-    lateinit var webhookProcessor: WebhookDecisionProcessor
+    private val webhookProcessor: WebhookDecisionProcessor
+        get() = webhook.getBean(WebhookDecisionProcessor::class.java)
 
-    @Autowired
-    lateinit var relayProcessor: OutboxRelayProcessor
+    private val relayProcessor: OutboxRelayProcessor
+        get() = webhook.getBean(OutboxRelayProcessor::class.java)
 
     @Autowired
     lateinit var jdbc: JdbcTemplate
@@ -983,14 +984,15 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
         private const val DISPLAY_AMOUNT = "2.5"
         private val RAW_AMOUNT = BigInteger("2500000")
         private val http: HttpClient = HttpClient.newHttpClient()
-        private val runtimeDirectory: Path = Files.createTempDirectory("bcm-api-local-fireblocks-")
+        private val runtimeDirectory: Path = Files.createTempDirectory("bcm-api-webhook-local-fireblocks-")
         private val bcmPort: Int = availablePort()
+        private val webhookPort: Int = availablePort()
         private val stubPort: Int = availablePort()
         private val privateKeyFile: Path = writePrivateKey(runtimeDirectory.resolve("fireblocks-api.key"))
         private val chain =
             LocalChainEnvironment.start(
                 LocalChainConfiguration(
-                    seed = "bcm-api-local-fireblocks-internal-e2e-seed",
+                    seed = "bcm-api-webhook-local-fireblocks-internal-e2e-seed",
                     runtimeDirectory = runtimeDirectory,
                     contractArtifactDirectory = Path.of(requireNotNull(System.getProperty("bcm.contract-artifacts"))),
                 ),
@@ -1016,7 +1018,27 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
                     "--bcm.test-support.evm-chain-id=31337",
                     "--bcm.test-support.local-chain-manifest-file=${runtimeDirectory.resolve("manifest.json")}",
                     "--bcm.test-support.local-chain-key-file=${runtimeDirectory.resolve("evm-keys.json")}",
-                    "--bcm.test-support.webhook-delivery-url=http://127.0.0.1:$bcmPort/webhook",
+                    "--bcm.test-support.webhook-delivery-url=http://127.0.0.1:$webhookPort/webhook",
+                )
+        private val webhook =
+            SpringApplicationBuilder(BcmWebhookApplication::class.java)
+                .run(
+                    "--server.address=127.0.0.1",
+                    "--server.port=$webhookPort",
+                    "--management.server.address=127.0.0.1",
+                    "--management.server.port=0",
+                    "--spring.datasource.url=${postgres.jdbcUrl}",
+                    "--spring.datasource.username=${postgres.username}",
+                    "--spring.datasource.password=${postgres.password}",
+                    "--spring.datasource.hikari.maximum-pool-size=2",
+                    "--spring.kafka.bootstrap-servers=${kafka.bootstrapServers}",
+                    "--bcm.webhook-worker.enabled=false",
+                    "--bcm.outbox-relay.enabled=false",
+                    "--bcm.fireblocks.base-url=http://127.0.0.1:$stubPort",
+                    "--bcm.fireblocks.api-key=bcm-local-stub",
+                    "--bcm.fireblocks.private-key-file=$privateKeyFile",
+                    "--bcm.fireblocks.webhook-jwks-url=http://127.0.0.1:$stubPort/.well-known/jwks.json",
+                    "--bcm.fireblocks.webhook-jwks-refresh-cooldown-millis=0",
                 )
 
         @JvmStatic
@@ -1038,6 +1060,7 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
         @JvmStatic
         @AfterAll
         fun closeEnvironment() {
+            webhook.close()
             stub.close()
             chain.close()
             runtimeDirectory.toFile().deleteRecursively()

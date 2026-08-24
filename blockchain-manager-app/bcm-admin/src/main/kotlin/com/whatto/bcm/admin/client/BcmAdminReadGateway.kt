@@ -13,6 +13,15 @@ interface BcmAdminReadGateway {
         symbol: String?,
     ): List<AdminAssetMapping>
 
+    fun assetCandidates(
+        symbol: String,
+        network: String?,
+    ): List<AdminAssetCandidate>
+
+    fun adoptNetwork(command: AdoptAdminNetwork): AdminNetwork
+
+    fun registerAssetMapping(command: RegisterAdminAssetMapping): AdminAssetMapping
+
     fun transactionInvestigation(identifier: String): AdminTransactionInvestigation
 
     fun contracts(): List<AdminContract>
@@ -23,8 +32,25 @@ interface BcmAdminReadGateway {
 
     fun executionGates(): AdminExecutionGateOverview
 
+    fun runtimeReadiness(): AdminRuntimeReadiness
+
     fun changeRequest(requestId: String): AdminChangeRequest
 }
+
+data class RegisterAdminAssetMapping(
+    val network: String,
+    val symbol: String,
+    val contractAddress: String?,
+    val employeeNo: String,
+    val branchCode: String,
+)
+
+data class AdoptAdminNetwork(
+    val code: String,
+    val candidateId: String,
+    val employeeNo: String,
+    val branchCode: String,
+)
 
 class SourceFailure(
     val source: String,

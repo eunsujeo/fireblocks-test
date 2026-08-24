@@ -27,7 +27,10 @@ import com.whatto.bcm.support.submission.SweepBatchRequestFingerprint
 import com.whatto.bcm.support.submission.SweepBatchRequestHashes
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
+import org.springframework.boot.ApplicationArguments
+import org.springframework.boot.ApplicationRunner
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
@@ -57,6 +60,10 @@ sealed interface SweepBatchExecutionResult {
     ) : SweepBatchExecutionResult
 }
 
+fun interface SweepBatchExecutionCommand {
+    fun execute(): SweepBatchExecutionResult
+}
+
 @Service
 class SweepBatchExecutionService(
     private val candidates: SweepCandidateSelector,
@@ -74,7 +81,9 @@ class SweepBatchExecutionService(
     private val properties: SweepProperties,
     private val executionGates: ExecutionGateRepository,
     private val runtimeGuard: SweepRuntimeGuard,
-) {
+) : SweepBatchExecutionCommand {
+    override fun execute(): SweepBatchExecutionResult = runOnce()
+
     fun runOnce(): SweepBatchExecutionResult {
         properties.security.requireBatchSubmissionEnabled()
         val operator = requiredOperator()
@@ -293,6 +302,23 @@ class SweepBatchExecutionService(
         val execution: SweepExecution,
         val items: List<SweepItem>,
     )
+}
+
+/** 시스템 통합 테스트와 수동 점검이 스케줄 경쟁 없이 sweep 제출을 정확히 한 번 실행할 때 사용한다. */
+@Component
+@ConditionalOnProperty(prefix = "bcm", name = ["job"], havingValue = "sweep-execution-once")
+class SweepBatchExecutionOnceRunner(
+    private val command: SweepBatchExecutionCommand,
+    private val context: ConfigurableApplicationContext,
+) : ApplicationRunner {
+    override fun run(args: ApplicationArguments) {
+        logger.info("one-shot batch sweep execution completed result={}", command.execute())
+        context.close()
+    }
+
+    private companion object {
+        val logger = LoggerFactory.getLogger(SweepBatchExecutionOnceRunner::class.java)
+    }
 }
 
 @Component

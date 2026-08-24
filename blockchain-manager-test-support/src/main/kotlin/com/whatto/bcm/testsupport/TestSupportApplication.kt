@@ -1,5 +1,6 @@
 package com.whatto.bcm.testsupport
 
+import com.whatto.bcm.testsupport.chain.LocalChainClusterCommand
 import com.whatto.bcm.testsupport.chain.LocalChainCommand
 import com.whatto.bcm.testsupport.chain.LocalControlCommand
 import org.springframework.boot.autoconfigure.SpringBootApplication
@@ -16,6 +17,11 @@ class TestSupportApplication {
 }
 
 fun main(args: Array<String>) {
+    if (args.firstOrNull() == "chain-cluster") {
+        require(LocalChainClusterCommand.requested(args)) { "chain-cluster command does not accept arguments" }
+        LocalChainClusterCommand.run()
+        return
+    }
     if (args.firstOrNull() == "chain") {
         require(LocalChainCommand.requested(args)) { "chain command does not accept arguments" }
         LocalChainCommand.run()

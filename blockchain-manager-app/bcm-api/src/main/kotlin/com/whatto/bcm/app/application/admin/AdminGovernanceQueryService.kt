@@ -7,6 +7,7 @@ import com.whatto.bcm.domain.admin.AdminExecutionGateOverview
 import com.whatto.bcm.domain.admin.AdminExecutionGateSummary
 import com.whatto.bcm.domain.admin.AdminGovernanceQueryRepository
 import com.whatto.bcm.domain.admin.AdminPolicySummary
+import com.whatto.bcm.domain.admin.AdminRuntimeReadiness
 import com.whatto.bcm.domain.admin.ExecutionGatePolicy
 import com.whatto.bcm.domain.admin.toAdminSummary
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
@@ -30,6 +31,12 @@ class AdminGovernanceQueryService(
             ?: throw ResourceNotFoundException("policyChangeRequest", requestId)
 
     fun bandS(): List<AdminBandSSummary> = governance.findBandS(clock.instant())
+
+    fun runtimeReadiness(): AdminRuntimeReadiness =
+        AdminRuntimeReadiness(
+            observedAt = clock.instant(),
+            webhook = governance.findWebhookRuntimeObservation(),
+        )
 
     fun executionGates(): AdminExecutionGateOverview {
         val observedAt = clock.instant()

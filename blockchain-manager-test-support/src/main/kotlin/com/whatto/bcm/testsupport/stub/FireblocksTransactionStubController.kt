@@ -16,10 +16,20 @@ import org.springframework.web.server.ResponseStatusException
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.time.Clock
 import java.util.Base64
+import java.util.HexFormat
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+
+internal fun localDeterministicId(
+    prefix: String,
+    source: String,
+): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(source.toByteArray(StandardCharsets.UTF_8))
+    return "$prefix${HexFormat.of().formatHex(digest).take(48)}"
+}
 
 @RestController
 @ConditionalOnProperty(prefix = "bcm.test-support", name = ["vendor-mode"], havingValue = "STUB", matchIfMissing = true)
@@ -198,6 +208,7 @@ internal class FireblocksTransactionState(
                 if (simulatedVendorState == null) {
                     if (prepared.useGasless) {
                         chain.submitGaslessTransaction(
+                            asset = prepared.asset,
                             sourceAddress = prepared.sourceAddress,
                             destinationAddress = prepared.onchainDestination,
                             rawAmount = prepared.rawAmount,
@@ -205,6 +216,7 @@ internal class FireblocksTransactionState(
                         )
                     } else {
                         chain.submitRawTransaction(
+                            asset = prepared.asset,
                             sourceAddress = prepared.sourceAddress,
                             destinationAddress = prepared.onchainDestination,
                             rawAmount = prepared.rawAmount,
@@ -216,7 +228,7 @@ internal class FireblocksTransactionState(
                     null
                 }
             val now = clock.millis()
-            val transactionId = "tx-local-${(transactionsById.size + 1).toString().padStart(6, '0')}"
+            val transactionId = localDeterministicId("tx-local-", prepared.externalTransactionId)
             val response =
                 TransactionResponse(
                     id = transactionId,
@@ -280,7 +292,7 @@ internal class FireblocksTransactionState(
 
             val result = chain.submitExternalTransfer(destinationAddress, asset, amount.raw)
             val now = clock.millis()
-            val transactionId = "tx-local-${(transactionsById.size + 1).toString().padStart(6, '0')}"
+            val transactionId = localDeterministicId("tx-local-", request.externalTxId)
             val response =
                 TransactionResponse(
                     id = transactionId,
@@ -289,7 +301,7 @@ internal class FireblocksTransactionState(
                     txHash = result.transactionHash,
                     assetId = asset.id,
                     source = TransactionPeerResponse(type = "UNKNOWN", id = null),
-                    sourceAddress = chain.externalSourceAddress(),
+                    sourceAddress = chain.externalSourceAddress(asset),
                     destination = TransactionPeerResponse(type = "VAULT_ACCOUNT", id = request.destinationVaultId),
                     destinationAddress = destinationAddress,
                     amountInfo = TransactionAmountInfoResponse(amount.display),
@@ -332,7 +344,7 @@ internal class FireblocksTransactionState(
                             previous.copy(
                                 status = "CONFIRMING",
                                 lastUpdated = nextUpdatedAt(previous.lastUpdated),
-                                numOfConfirmations = confirmationCount(transaction.receiptBlockNumber),
+                                numOfConfirmations = confirmationCount(previous.assetId, transaction.receiptBlockNumber),
                             )
                         } else {
                             previous.copy(
@@ -343,8 +355,8 @@ internal class FireblocksTransactionState(
                     }
 
                     "CONFIRMING" -> {
-                        chain.mineBlock()
-                        val confirmations = confirmationCount(transaction.receiptBlockNumber)
+                        chain.mineBlock(previous.assetId)
+                        val confirmations = confirmationCount(previous.assetId, transaction.receiptBlockNumber)
                         val completed = confirmations >= FINALITY_CONFIRMATIONS
                         previous.copy(
                             status = if (completed) "COMPLETED" else "CONFIRMING",
@@ -386,7 +398,7 @@ internal class FireblocksTransactionState(
 
             "CONTRACT_CALL" -> {
                 val transactionHash = checkNotNull(transaction.txHash) { "completed contract call has no transaction hash" }
-                chain.tokenTransfers(transactionHash).map { transfer ->
+                chain.tokenTransfers(transactionHash, transaction.assetId).map { transfer ->
                     val sourceVaultId = vaults.vaultIdByAddress(transfer.sourceAddress, transfer.assetId)
                     val destinationVaultId = vaults.vaultIdByAddress(transfer.destinationAddress, transfer.assetId)
                     TransactionNetworkRecordResponse(
@@ -469,8 +481,10 @@ internal class FireblocksTransactionState(
         }
     }
 
-    private fun confirmationCount(receiptBlockNumber: BigInteger): Int =
-        (chain.blockNumber() - receiptBlockNumber + BigInteger.ONE).intValueExact()
+    private fun confirmationCount(
+        assetId: String,
+        receiptBlockNumber: BigInteger,
+    ): Int = (chain.blockNumber(assetId) - receiptBlockNumber + BigInteger.ONE).intValueExact()
 
     private fun nextUpdatedAt(previous: Long): Long = maxOf(clock.millis(), previous + 1)
 

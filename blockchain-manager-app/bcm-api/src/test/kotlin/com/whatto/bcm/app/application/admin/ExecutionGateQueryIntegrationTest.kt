@@ -2,9 +2,9 @@ package com.whatto.bcm.app.application.admin
 
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers.openApi
 import com.whatto.bcm.app.api.BcmApiApplication
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
 import com.whatto.bcm.domain.admin.AdminActor
 import com.whatto.bcm.domain.admin.AdminRole
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.hamcrest.Matchers.hasSize
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test

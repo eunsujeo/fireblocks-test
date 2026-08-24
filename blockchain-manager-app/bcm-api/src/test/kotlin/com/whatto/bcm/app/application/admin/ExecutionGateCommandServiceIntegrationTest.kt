@@ -1,11 +1,11 @@
 package com.whatto.bcm.app.application.admin
 
 import com.whatto.bcm.app.api.BcmApiApplication
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
 import com.whatto.bcm.domain.admin.AdminActor
 import com.whatto.bcm.domain.admin.AdminRole
 import com.whatto.bcm.domain.admin.ExecutionGateEvent
 import com.whatto.bcm.domain.admin.ExecutionGateType
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach

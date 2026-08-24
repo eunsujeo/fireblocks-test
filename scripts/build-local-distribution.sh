@@ -121,5 +121,10 @@ EOF
 
 mkdir -p "$(dirname "$output")"
 output="$(cd "$(dirname "$output")" && pwd -P)/$(basename "$output")"
-COPYFILE_DISABLE=1 tar --no-xattrs -czf "$output" -C "$work_dir" "$root_name"
+if tar --version 2>/dev/null | grep -q '^bsdtar '; then
+    owner_options=(--uid 0 --gid 0)
+else
+    owner_options=(--owner=0 --group=0 --numeric-owner)
+fi
+COPYFILE_DISABLE=1 tar --no-xattrs "${owner_options[@]}" -czf "$output" -C "$work_dir" "$root_name"
 echo "$output"

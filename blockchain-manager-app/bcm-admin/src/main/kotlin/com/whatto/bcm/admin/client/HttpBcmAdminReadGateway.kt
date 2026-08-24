@@ -41,6 +41,65 @@ class HttpBcmAdminReadGateway(
             responseType = BcmAssetMappingListResponse::class.java,
         ).data
 
+    override fun assetCandidates(
+        symbol: String,
+        network: String?,
+    ): List<AdminAssetCandidate> =
+        get(
+            source = "assetCandidates",
+            path = "/admin/asset-candidates",
+            query = mapOf("symbol" to symbol, "network" to network),
+            responseType = BcmAssetCandidateListResponse::class.java,
+        ).data
+
+    override fun adoptNetwork(command: AdoptAdminNetwork): AdminNetwork =
+        send(
+            source = "networkAdoption",
+            request =
+                HttpRequest
+                    .newBuilder(uri("/admin/networks/${encode(command.code)}", emptyMap()))
+                    .timeout(Duration.ofMillis(properties.readTimeoutMillis))
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .header("X-Employee-No", command.employeeNo)
+                    .header("X-Branch-Code", command.branchCode)
+                    .PUT(
+                        HttpRequest.BodyPublishers.ofString(
+                            objectMapper.writeValueAsString(mapOf("candidateId" to command.candidateId)),
+                            StandardCharsets.UTF_8,
+                        ),
+                    ).build(),
+            expectedStatus = 200,
+            responseType = BcmNetworkResponse::class.java,
+        ).data
+
+    override fun registerAssetMapping(command: RegisterAdminAssetMapping): AdminAssetMapping =
+        send(
+            source = "assetRegistration",
+            request =
+                HttpRequest
+                    .newBuilder(uri("/admin/asset-mappings", emptyMap()))
+                    .timeout(Duration.ofMillis(properties.readTimeoutMillis))
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .header("X-Employee-No", command.employeeNo)
+                    .header("X-Branch-Code", command.branchCode)
+                    .POST(
+                        HttpRequest.BodyPublishers.ofString(
+                            objectMapper.writeValueAsString(
+                                mapOf(
+                                    "network" to command.network,
+                                    "symbol" to command.symbol,
+                                    "contractAddress" to command.contractAddress,
+                                ),
+                            ),
+                            StandardCharsets.UTF_8,
+                        ),
+                    ).build(),
+            expectedStatus = 201,
+            responseType = BcmAssetMappingResponse::class.java,
+        ).data
+
     override fun transactionInvestigation(identifier: String): AdminTransactionInvestigation =
         get(
             source = "transaction",
@@ -81,6 +140,14 @@ class HttpBcmAdminReadGateway(
             responseType = BcmAdminExecutionGateOverviewResponse::class.java,
         ).data
 
+    override fun runtimeReadiness(): AdminRuntimeReadiness =
+        get(
+            source = "runtimeReadiness",
+            path = "/admin/runtime-readiness",
+            query = emptyMap(),
+            responseType = BcmAdminRuntimeReadinessResponse::class.java,
+        ).data
+
     override fun changeRequest(requestId: String): AdminChangeRequest =
         get(
             source = "changeRequest",
@@ -102,6 +169,15 @@ class HttpBcmAdminReadGateway(
                 .header("Accept", "application/json")
                 .GET()
                 .build()
+        return send(source, request, 200, responseType)
+    }
+
+    private fun <T> send(
+        source: String,
+        request: HttpRequest,
+        expectedStatus: Int,
+        responseType: Class<T>,
+    ): T {
         val response =
             try {
                 httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
@@ -111,7 +187,7 @@ class HttpBcmAdminReadGateway(
             } catch (exception: Exception) {
                 throw SourceFailure(source, 502, "BCM Admin source unavailable", exception)
             }
-        if (response.statusCode() != 200) {
+        if (response.statusCode() != expectedStatus) {
             throw SourceFailure(source, response.statusCode(), "BCM Admin source rejected request")
         }
         return try {

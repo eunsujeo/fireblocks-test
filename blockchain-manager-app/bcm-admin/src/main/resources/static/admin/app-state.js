@@ -2,6 +2,8 @@ const FILTER_KEYS = ["q", "chainId", "adopted", "testnet", "network", "symbol"];
 
 export function adminRouteFromPath(pathname) {
   const path = pathname.replace(/\/$/, "");
+  if (path.includes("/test-runs/")) return "testRun";
+  if (path.endsWith("/test-runs")) return "testRuns";
   if (path.includes("/change-requests/")) return "changeRequest";
   if (path.includes("/transactions/")) return "transaction";
   if (path.endsWith("/band-s")) return "bandS";
@@ -95,4 +97,18 @@ export function changeRequestIdFromPath(pathname) {
   } catch {
     return null;
   }
+}
+
+export function testRunIdFromPath(pathname) {
+  const match = pathname.match(/\/admin\/test-runs\/([^/]+)\/?$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+export function shouldRefreshTestRun(state) {
+  return state === "PENDING" || state === "RUNNING";
 }

@@ -21,6 +21,7 @@ status: To Do
 | [블록체인 매니저 Admin](08-bcm-admin.md) | 운영 조사·컨트랙트·실행 정책·밴드S·승인·비상 운영과 UI/UX 경계 |
 | [자산 이동 지도](09-asset-map.md) | 시나리오별 vault 간 이동 한 장 — 확정 이동·미정 이동·자산 경계 (조립 문서) |
 | [로컬 블록체인 + Fireblocks Stub](10-local-fireblocks-integration.md) | BCM의 실제 Fireblocks HTTP 계약과 Anvil 결과를 잇는 통합 테스트·폐쇄망 파일 배포 경계 |
+| [운영 로그 포맷·수집·보존 정책](11-operational-log-policy.md) | BCM 운영 JSON 로그 계약, 중앙 수집 책임, 민감정보와 보존·삭제 경계 |
 
 ## 구성 요소 — 한 장
 
@@ -36,7 +37,8 @@ flowchart TB
       subgraph BMZ["블록체인 매니저 — 자산 이동"]
         direction LR
         COS["API Co-signer (SGX/TEE)<br/>+ Callback Handler"]
-        BM["API · 웹훅 수신"]
+        API["BCM API<br/>업무 · Admin API"]
+        WH["BCM Webhook<br/>PUBLIC HTTPS · 판단 · relay"]
       end
       subgraph TRZ["컴플라이언스 게이트"]
         direction LR
@@ -58,9 +60,9 @@ flowchart TB
     TRNET["트래블룰 솔루션 중앙<br/>VerifyVASP · CODE · Notabene"]
   end
 
-  CORE -->|API| BM
-  AB -->|private listener<br/>mTLS + 단기 JWT| BM
-  BM -.->|publish| MQ
+  CORE -->|API| API
+  AB -->|private listener<br/>mTLS + 단기 JWT| API
+  WH -.->|publish| MQ
   GATE -.->|settled 발행| MQ
   MQ -.->|consume| CORE
   CORE <-->|확인 요청 · 주소 귀속 질의| GATE
@@ -70,7 +72,8 @@ flowchart TB
   GATE -->|validate/full 요청| FBCLI
   GATE -->|VerifyVASP 아웃바운드| EN
   EN -->|수신 콜백| GATE
-  BM <-->|제출·조회 · 웹훅 수신 · 카탈로그 일 1회| FB
+  API -->|제출·조회 · 카탈로그 일 1회| FB
+  FB -->|서명 Webhook push| WH
   COS -->|서명 요청 폴링 · MPC share| FB
   FBCLI -->|JWT 서명 · validate/full| FB
   FB --> EVM
@@ -82,7 +85,7 @@ flowchart TB
   classDef mq fill:#fef9c3,stroke:#ca8a04;
   classDef vendor fill:#f5f5f7,stroke:#86868b;
   classDef chain fill:#eef2ff,stroke:#818cf8;
-  class CORE,AF,AB,BM,GATE,FBCLI,PADM ours
+  class CORE,AF,AB,API,WH,GATE,FBCLI,PADM ours
   class COS,EN selfhost
   class MQ mq
   class FB,TRNET vendor
@@ -96,7 +99,8 @@ flowchart TB
 |---|---|
 | DAW-CORE Service | 고객 원장·업무 유스케이스 |
 | Blockchain Manager Admin Frontend·BFF | 매니저 저장소의 독립 운영·기능 테스트 콘솔. 브라우저 요청을 BCM Admin API 계약으로 중계 |
-| 블록체인 매니저 | 온체인 자산 이동의 단일 창구. 벤더 원어를 공통 상태(TxStatus)로 번역 |
+| BCM API | 계정·주소·거래 제출·조회와 private Admin API. 외부 Webhook endpoint와 상시 판단·발행 작업을 소유하지 않음 |
+| BCM Webhook | Fireblocks PUBLIC HTTPS 수신, 서명 검증·인박스 적재, 판단 워커와 outbox relay. BCM API와 DB·Kafka 계약만 공유하는 독립 BootJar·프로세스 |
 | API Co-signer + Callback Handler | MPC 공동서명. 서명 직전 검증(승인·거부) |
 | 정책 관리 | 벤더 정책(TAP) 편집·게시 대행 |
 | 컴플라이언스 게이트 | 규제 확인의 솔루션 연동 창구. 솔루션 원어를 공통 verdict(TrVerdict)로 번역 |
@@ -111,13 +115,15 @@ Fireblocks 사용 가능 여부와 무관하게 유지하는 BCM 전용 테스�
 
 ```mermaid
 flowchart LR
-  BCM["기존 BCM"] -->|"동일 Fireblocks HTTP 계약"| STUB["상태형 Fireblocks Stub"]
+  API["BCM API"] -->|"동일 Fireblocks HTTP 계약"| STUB["상태형 Fireblocks Stub"]
   STUB -->|"서명한 raw transaction"| ANVIL["Anvil · 실제 EVM 실행"]
-  STUB -->|"RS512 Webhook"| BCM
+  STUB -->|"RS512 Webhook"| WH["BCM Webhook"]
+  WH -->|"같은 DB · Kafka"| DATA["PostgreSQL · Kafka"]
+  API -->|"같은 DB"| DATA
 
   classDef ours fill:#dbeafe,stroke:#2563eb
   classDef local fill:#fef3c7,stroke:#d97706
-  class BCM ours
+  class API,WH,DATA ours
   class STUB,ANVIL local
 ```
 
@@ -128,7 +134,7 @@ Anvil·Stub·bootstrap을 버전 고정 파일로 배포하며 Docker와 번들 
 
 ## 보안 경계
 
-- **PUBLIC 인바운드는 둘** — VerifyVASP Enclave(상대 VASP 발신), 블록체인 매니저 웹훅 수신(Fireblocks 발신 · 서명 검증). 밖으로 여는 인바운드는 이 둘뿐이고, 나머지 구성 요소는 아웃바운드만 연다.
+- **PUBLIC 인바운드는 둘** — VerifyVASP Enclave(상대 VASP 발신), BCM Webhook(Fireblocks 발신 · 서명 검증). 밖으로 여는 인바운드는 이 둘뿐이다. BCM API는 PUBLIC Webhook 경로를 노출하지 않으며, 두 프로세스는 독립 배포·기동·health·로그·수평 확장 단위다.
 - **벤더 API user 는 셋으로 분리** — 블록체인 매니저(거래 제출) · 정책 관리(정책 편집) · 스크리닝 클라이언트(validate/full).
 - **서명은 벤더 단독으로 되지 않는다** — MPC share 하나는 API Co-signer(SGX/TEE)에 있고, 서명 직전에 Callback Handler 가 승인·거부를 판단한다.
 - **일반 내부 API는 내부망 경계를 신뢰한다** — DAW-CORE Service↔매니저·게이트의 일반 업무 API에는 애플리케이션 인증을 추가하지 않는다.
@@ -185,7 +191,8 @@ sequenceDiagram
     participant CP as 컴플라이언스 게이트
     participant MQC as 큐<br/>compliance
     box rgb(224,242,254) 블록체인 매니저
-    participant BM as 매니저<br/>API · 웹훅 수신
+    participant API as BCM API
+    participant WH as BCM Webhook
     end
     participant MQ as 큐<br/>withdrawal-events
     participant FB as Fireblocks
@@ -196,12 +203,12 @@ sequenceDiagram
     CP-->>MQC: withdrawal-check.settled 발행 — verdict · travelRuleMessage
     MQC-->>BE: consume
     alt APPROVED · NOT_REQUIRED
-        BE->>BM: POST /transactions — externalTxId · travelRule(값 있으면)
-        BM->>FB: 제출 — TAP 정책 → Co-signer 서명 → 전파
-        BM-->>BE: 접수 — 벤더 txId
+        BE->>API: POST /transactions — externalTxId · travelRule(값 있으면)
+        API->>FB: 제출 — TAP 정책 → Co-signer 서명 → 전파
+        API-->>BE: 접수 — 벤더 txId
         loop 상태 변경마다
-            FB->>BM: 웹훅 push
-            BM-->>MQ: publish — SUBMITTED → CONFIRMED → FINALIZED
+            FB->>WH: 웹훅 push
+            WH-->>MQ: publish — SUBMITTED → CONFIRMED → FINALIZED
         end
         MQ-->>BE: consume — externalTxId 로 출금 건 대응 · txHash 는 전파 후 이벤트에 실려 온다
         BE->>CP: POST /compliance/travel-rule/withdrawal-checks/{checkId}/report — tx hash (확보 후 1회)
@@ -225,7 +232,7 @@ sequenceDiagram
     participant CH as 온체인
     participant FB as Fireblocks
     box rgb(224,242,254) 블록체인 매니저
-    participant BM as 매니저<br/>웹훅 수신
+    participant WH as BCM Webhook
     end
     participant MQ as 큐<br/>deposit-events
     box rgb(224,242,254) DAW-CORE
@@ -241,14 +248,14 @@ sequenceDiagram
         CP-->>NET: 응답 회신
     end
     CH->>FB: 입금 — vault 주소로 도착
-    FB->>BM: 웹훅 — 상태 변경 push
-    BM-->>MQ: publish — CONFIRMED → 확정 임계 도달 시 FINALIZED
+    FB->>WH: 웹훅 — 상태 변경 push
+    WH-->>MQ: publish — CONFIRMED → 확정 임계 도달 시 FINALIZED
     MQ-->>BE: consume
     BE->>BE: 귀속(주소↔계정) 판단
     BE->>CP: POST /compliance/travel-rule/deposit-checks (Create Deposit Check) — 사전 검증 대조
     CP-->>BE: 대조 결과 (senderVerified)
     BE->>BE: 가용 전이 또는 입금대기·동결
-    Note over BM: 입금 확정 = sweep 대상 마킹 · 주기 작업이 allowance 준비 후 approve + transferFrom 배치 제출 (블록체인 매니저 — 흐름)
+    Note over WH: 입금 확정 = sweep 대상 마킹 · 주기 작업이 allowance 준비 후 approve + transferFrom 배치 제출 (블록체인 매니저 — 흐름)
 ```
 
 ## 미확정

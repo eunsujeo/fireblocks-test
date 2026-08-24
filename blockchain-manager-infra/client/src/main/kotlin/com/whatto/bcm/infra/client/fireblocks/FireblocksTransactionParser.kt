@@ -6,35 +6,18 @@ import com.whatto.bcm.domain.vendor.VendorStatusObservation
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.webhook.WebhookPayloadException
+import com.whatto.bcm.domain.webhook.WebhookTransaction
+import com.whatto.bcm.domain.webhook.WebhookTransactionParser
 import org.springframework.stereotype.Component
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
-
-data class FireblocksTransaction(
-    val vendorTransactionId: String,
-    val vendorAssetId: String,
-    val managedVaultSource: Boolean,
-    val sourceAddress: String?,
-    /** 체인에 오르기 전 알림에는 비어 있을 수 있다 (02-bcm-flow 미확정 — 제출 직후 조회의 빈 필드). */
-    val destinationAddress: String?,
-    val amount: String,
-    internal val rawStatus: String,
-    val subStatus: String?,
-    val networkStatus: String?,
-    val transactionHash: String?,
-    val externalTransactionId: String?,
-    val confirmationCount: Int,
-    val createdAtEpochMillis: Long,
-) {
-    fun statusObservation() = VendorStatusObservation(rawStatus, subStatus, confirmationCount)
-}
 
 /** Fireblocks 원문 JSON을 워커가 소비할 검증된 관찰값으로 변환한다. */
 @Component
 class FireblocksTransactionParser(
     private val objectMapper: ObjectMapper,
-) {
-    fun parse(payload: String): FireblocksTransaction {
+) : WebhookTransactionParser {
+    override fun parse(payload: String): WebhookTransaction {
         val data =
             try {
                 objectMapper.readTree(payload).path("data")
@@ -57,7 +40,7 @@ class FireblocksTransactionParser(
             throw WebhookPayloadException("invalid data.createdAt")
         }
 
-        return FireblocksTransaction(
+        return WebhookTransaction(
             vendorTransactionId = requiredText(data.path("id").asString(), "data.id"),
             vendorAssetId = requiredText(data.path("assetId").asString(), "data.assetId"),
             managedVaultSource =
@@ -65,12 +48,15 @@ class FireblocksTransactionParser(
             sourceAddress = optionalText(data.path("sourceAddress").asString()),
             destinationAddress = optionalText(data.path("destinationAddress").asString()),
             amount = requiredText(data.path("amountInfo").path("amount").asString(), "data.amountInfo.amount"),
-            rawStatus = requiredText(data.path("status").asString(), "data.status"),
-            subStatus = optionalText(data.path("subStatus").asString()),
+            statusObservation =
+                VendorStatusObservation(
+                    rawStatus = requiredText(data.path("status").asString(), "data.status"),
+                    subStatus = optionalText(data.path("subStatus").asString()),
+                    confirmationCount = confirmationsNode.asInt(),
+                ),
             networkStatus = optionalText(data.path("networkStatus").asString()),
             transactionHash = optionalText(data.path("txHash").asString()),
             externalTransactionId = optionalText(data.path("externalTxId").asString()),
-            confirmationCount = confirmationsNode.asInt(),
             createdAtEpochMillis = createdAtNode.asLong(),
         )
     }
@@ -117,11 +103,6 @@ class FireblocksStatusTranslator(
             else -> null
         }
     }
-
-    fun translate(
-        transaction: FireblocksTransaction,
-        network: String,
-    ): TxStatus = translate(transaction.statusObservation(), network)
 
     fun translate(
         transaction: VendorTransaction,

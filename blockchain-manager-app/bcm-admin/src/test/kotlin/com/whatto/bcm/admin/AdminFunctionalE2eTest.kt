@@ -8,11 +8,13 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.http.MediaType
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -42,13 +44,31 @@ class AdminFunctionalE2eTest {
                 .getContentAsString(StandardCharsets.UTF_8)
         assertThat(indexHtml)
             .contains("BCM ADMIN")
-            .contains("읽기 전용")
+            .contains("runtime-capability")
+
+        val appScript =
+            mockMvc
+                .perform(get("/admin/app.js"))
+                .andExpect(status().isOk)
+                .andReturn()
+                .response
+                .getContentAsString(StandardCharsets.UTF_8)
+        assertThat(appScript)
+            .contains("처음 설정하는 순서")
+            .contains("Webhook 처리 상태")
+            .doesNotContain("rawPayload")
+            .doesNotContain("signature")
 
         mockMvc
             .perform(get("/bff/admin/overview").header("X-Request-Id", "test-request"))
             .andExpect(status().isOk)
+            .andExpect(jsonPath("$.data.catalogNetworkCount").value(2))
+            .andExpect(jsonPath("$.data.adoptedNetworkCount").value(2))
             .andExpect(jsonPath("$.data.networkCount").value(2))
             .andExpect(jsonPath("$.data.assetMappingCount").value(1))
+            .andExpect(jsonPath("$.data.webhook.state").value("NEVER_RECEIVED"))
+            .andExpect(jsonPath("$.data.preparationChecks[0].owner").value("AUTO"))
+            .andExpect(jsonPath("$.data.preparationChecks[4].owner").value("DIRECT"))
             .andExpect(jsonPath("$.state").value("FRESH"))
             .andExpect(jsonPath("$.meta.requestId").value("test-request"))
     }
@@ -138,27 +158,104 @@ class AdminFunctionalE2eTest {
     }
 
     @Test
-    fun `BFF는 상태 변경 경로를 노출하지 않는다`() {
+    fun `로컬 자산 등록은 동일 Origin과 전용 헤더를 모두 확인한다`() {
         mockMvc
-            .perform(post("/bff/admin/assets"))
-            .andExpect(status().isMethodNotAllowed)
+            .perform(
+                get("/bff/admin/asset-candidates")
+                    .param("symbol", "USDC")
+                    .header("Origin", "http://localhost")
+                    .header("X-BCM-Local-Asset-Management", "execute"),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.data[0].network").value("BASE"))
+            .andExpect(jsonPath("$.data[0].decimals").value(6))
+
+        mockMvc
+            .perform(
+                post("/bff/admin/assets")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Origin", "http://localhost")
+                    .header("X-BCM-Local-Asset-Management", "execute")
+                    .content("""{"network":"BASE","symbol":"USDC","contractAddress":"0x8335"}"""),
+            ).andExpect(status().isCreated)
+            .andExpect(jsonPath("$.data.symbol").value("USDC"))
+
+        mockMvc
+            .perform(
+                post("/bff/admin/assets")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"network":"BASE","symbol":"USDC","contractAddress":"0x8335"}"""),
+            ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `로컬 네트워크 채택은 동일 Origin과 전용 헤더를 모두 확인한다`() {
+        mockMvc
+            .perform(
+                put("/bff/admin/networks/ETHEREUM")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Origin", "http://localhost")
+                    .header("X-BCM-Local-Asset-Management", "execute")
+                    .content("""{"candidateId":"ethereum-candidate"}"""),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.data.code").value("ETHEREUM"))
+
+        mockMvc
+            .perform(
+                put("/bff/admin/networks/ETHEREUM")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"candidateId":"ethereum-candidate"}"""),
+            ).andExpect(status().isForbidden)
+
+        mockMvc
+            .perform(
+                put("/bff/admin/networks/ETHEREUM")
+                    .with { request -> request.also { it.serverName = "evil.example" } }
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Origin", "http://evil.example")
+                    .header("X-BCM-Local-Asset-Management", "execute")
+                    .content("""{"candidateId":"ethereum-candidate"}"""),
+            ).andExpect(status().isForbidden)
     }
 
     companion object {
         private val server: HttpServer =
             HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
                 createContext("/admin/networks") { exchange ->
+                    if (exchange.requestMethod == "PUT") {
+                        check(exchange.requestHeaders.getFirst("X-Employee-No") == "LOCAL")
+                        check(exchange.requestHeaders.getFirst("X-Branch-Code") == "9999")
+                        check(
+                            exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8) ==
+                                """{"candidateId":"ethereum-candidate"}""",
+                        )
+                        respond(
+                            exchange,
+                            """{"data":{"candidateId":"ethereum-candidate","code":"ETHEREUM","displayName":"Ethereum","chainId":1,"testnet":false,"deprecated":false,"syncedAt":"20260817080000"},"meta":{"requestId":"bcm-network-adopt"}}""",
+                        )
+                        return@createContext
+                    }
                     respond(
                         exchange,
                         """{"data":[{"candidateId":"base-candidate","code":"BASE","displayName":"Base","chainId":8453,"testnet":false,"deprecated":false,"syncedAt":"20260817080000"},{"candidateId":"sepolia-candidate","code":"SEPOLIA","displayName":"Sepolia","chainId":11155111,"testnet":true,"deprecated":false,"syncedAt":"20260817080000"}],"meta":{"requestId":"bcm-networks"}}""",
                     )
                 }
                 createContext("/admin/asset-mappings") { exchange ->
+                    check(exchange.requestHeaders.getFirst("X-Employee-No") == if (exchange.requestMethod == "POST") "LOCAL" else null)
+                    check(exchange.requestHeaders.getFirst("X-Branch-Code") == if (exchange.requestMethod == "POST") "9999" else null)
                     respond(
                         exchange,
-                        """{"data":[{"network":"BASE","symbol":"USDC","contractAddress":"0x8335","registeredAt":"20260817080000"}],"meta":{"requestId":"bcm-assets"}}""",
+                        """{"data":${if (exchange.requestMethod == "POST") "{\"network\":\"BASE\",\"symbol\":\"USDC\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}" else "[{\"network\":\"BASE\",\"symbol\":\"USDC\",\"contractAddress\":\"0x8335\",\"registeredAt\":\"20260817080000\"}]"},"meta":{"requestId":"bcm-assets"}}""",
+                        if (exchange.requestMethod == "POST") 201 else 200,
                     )
                 }
+                createContext("/admin/asset-candidates") { exchange ->
+                    respond(
+                        exchange,
+                        """{"data":[{"network":"BASE","symbol":"USDC","displayName":"USD Coin","decimals":6,"contractAddress":"0x8335","native":false}],"meta":{"requestId":"bcm-candidates"}}""",
+                    )
+                }
+                createContext("/admin/runtime-readiness") { exchange -> respond(exchange, runtimeReadinessResponse) }
+                createContext("/actuator/health") { exchange -> respond(exchange, """{"status":"UP"}""") }
                 createContext("/admin/transaction-investigations/tx-root") { exchange ->
                     respond(exchange, transactionInvestigationResponse)
                 }
@@ -174,7 +271,11 @@ class AdminFunctionalE2eTest {
         @DynamicPropertySource
         fun adminProperties(registry: DynamicPropertyRegistry) {
             registry.add("bcm.admin.target-base-url") { "http://127.0.0.1:${server.address.port}" }
+            registry.add("bcm.admin.webhook-management-base-url") { "http://127.0.0.1:${server.address.port}" }
             registry.add("bcm.admin.stale-after-seconds") { "31536000" }
+            registry.add("bcm.admin.local-asset-management.enabled") { "true" }
+            registry.add("bcm.admin.local-asset-management.employee-no") { "LOCAL" }
+            registry.add("bcm.admin.local-asset-management.branch-code") { "9999" }
         }
 
         @JvmStatic
@@ -186,10 +287,11 @@ class AdminFunctionalE2eTest {
         private fun respond(
             exchange: HttpExchange,
             body: String,
+            status: Int = 200,
         ) {
             val bytes = body.toByteArray(StandardCharsets.UTF_8)
             exchange.responseHeaders.add("Content-Type", "application/json")
-            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.sendResponseHeaders(status, bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }
         }
 
@@ -228,6 +330,9 @@ class AdminFunctionalE2eTest {
               "meta": {"requestId": "bcm-investigation"}
             }
             """.trimIndent()
+
+        private val runtimeReadinessResponse =
+            """{"data":{"observedAt":"2026-08-21T01:00:00Z","webhook":{"state":"NEVER_RECEIVED","pendingInboxCount":0,"poisonedInboxCount":0,"pendingOutboxCount":0,"poisonedOutboxCount":0,"statusPath":"/admin/emergency"}},"meta":{"requestId":"runtime-readiness"}}"""
 
         private val contractResponse =
             """{"data":[{"versionId":"contract-v1","scopeId":"BASE:SWEEP","network":"BASE","use":"SWEEP","version":"1.0.0","address":"0xcontract","state":"VERIFIED","runtimeCodeHash":"${"a".repeat(

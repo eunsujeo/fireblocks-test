@@ -2,10 +2,10 @@ package com.whatto.bcm.app.application.admin
 
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers.openApi
 import com.whatto.bcm.app.api.BcmApiApplication
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
 import com.whatto.bcm.domain.admin.AdminActor
 import com.whatto.bcm.domain.admin.AdminRole
 import com.whatto.bcm.domain.admin.ContractEvidenceStatus
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired

@@ -10,6 +10,10 @@ import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.domain.vendor.VendorBlockchain
 import com.whatto.bcm.domain.vendor.VendorBlockchainCatalogAlertPort
 import com.whatto.bcm.support.time.CoreDateTimes
+import org.springframework.boot.ApplicationArguments
+import org.springframework.boot.ApplicationRunner
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
@@ -26,14 +30,31 @@ class VendorBlockchainCatalogSyncJob(
     }
 }
 
+/** 로컬 통합 테스트가 카탈로그 동기화를 명시적으로 한 번 실행할 때 사용한다. */
+@Component
+@ConditionalOnProperty(prefix = "bcm", name = ["job"], havingValue = "catalog-sync-once")
+class VendorBlockchainCatalogSyncOnceRunner(
+    private val command: VendorBlockchainCatalogSyncCommand,
+    private val context: ConfigurableApplicationContext,
+) : ApplicationRunner {
+    override fun run(args: ApplicationArguments) {
+        command.sync()
+        context.close()
+    }
+}
+
+fun interface VendorBlockchainCatalogSyncCommand {
+    fun sync()
+}
+
 @Service
 class VendorBlockchainCatalogSyncService(
     private val vendorCatalog: VendorAssetCatalogPort,
     private val repository: VendorBlockchainCatalogRepository,
     private val alertPort: VendorBlockchainCatalogAlertPort,
     private val clock: Clock,
-) {
-    fun sync() {
+) : VendorBlockchainCatalogSyncCommand {
+    override fun sync() {
         val syncedAt = CoreDateTimes.now(clock)
         allVendorBlockchains().forEach { vendor ->
             val snapshot = vendor.toCatalog(syncedAt)

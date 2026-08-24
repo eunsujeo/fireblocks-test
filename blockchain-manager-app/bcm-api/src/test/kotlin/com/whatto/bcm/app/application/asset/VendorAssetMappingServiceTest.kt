@@ -42,7 +42,7 @@ class VendorAssetMappingServiceTest {
         every { vendorCatalog.assets("ethereum-id", null, "next-1") } returns
             VendorPage(listOf(vendorAsset("asset-uuid", "0xA0B8")), null)
         val inserted = slot<VendorAssetMapping>()
-        every { mappings.insert(capture(inserted)) } answers { inserted.captured }
+        every { mappings.save(capture(inserted), any()) } answers { inserted.captured }
 
         val result = service.register(command)
 
@@ -59,7 +59,7 @@ class VendorAssetMappingServiceTest {
 
         assertThatThrownBy { service.register(command) }.isInstanceOf(ConflictException::class.java)
         verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
-        verify(exactly = 0) { mappings.insert(any()) }
+        verify(exactly = 0) { mappings.save(any(), any()) }
     }
 
     @Test
@@ -69,7 +69,7 @@ class VendorAssetMappingServiceTest {
 
         assertThatThrownBy { service.register(command) }.isInstanceOf(InvalidAssetMappingException::class.java)
         verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
-        verify(exactly = 0) { mappings.insert(any()) }
+        verify(exactly = 0) { mappings.save(any(), any()) }
     }
 
     @Test
@@ -81,7 +81,7 @@ class VendorAssetMappingServiceTest {
 
         assertThatThrownBy { service.register(command) }.isInstanceOf(InvalidAssetMappingException::class.java)
         verify(exactly = 1) { vendorCatalog.assets("ethereum-id", null, null) }
-        verify(exactly = 0) { mappings.insert(any()) }
+        verify(exactly = 0) { mappings.save(any(), any()) }
     }
 
     @Test
@@ -92,7 +92,7 @@ class VendorAssetMappingServiceTest {
             VendorPage(listOf(vendorAsset("one", "0xA0B8"), vendorAsset("two", "0xa0b8")), null)
 
         assertThatThrownBy { service.register(command) }.isInstanceOf(ConflictException::class.java)
-        verify(exactly = 0) { mappings.insert(any()) }
+        verify(exactly = 0) { mappings.save(any(), any()) }
     }
 
     @Test
@@ -103,7 +103,7 @@ class VendorAssetMappingServiceTest {
             VendorPage(listOf(vendorAsset("wrong-chain", "0xA0B8").copy(blockchainId = "base-id")), null)
 
         assertThatThrownBy { service.register(command) }.isInstanceOf(InvalidAssetMappingException::class.java)
-        verify(exactly = 0) { mappings.insert(any()) }
+        verify(exactly = 0) { mappings.save(any(), any()) }
     }
 
     @Test
@@ -120,7 +120,7 @@ class VendorAssetMappingServiceTest {
                 null,
             )
         val inserted = slot<VendorAssetMapping>()
-        every { mappings.insert(capture(inserted)) } answers { inserted.captured }
+        every { mappings.save(capture(inserted), any()) } answers { inserted.captured }
 
         val result = service.register(nativeCommand)
 
@@ -147,12 +147,12 @@ class VendorAssetMappingServiceTest {
         every { mappings.find("ETHEREUM", "USDC") } returns mapping()
         every { addressQueryService.existsByAsset("ETHEREUM", "USDC") } returns true
         assertThatThrownBy { service.delete("ETHEREUM", "USDC", audit) }.isInstanceOf(ConflictException::class.java)
-        verify(exactly = 0) { mappings.delete(any(), any()) }
+        verify(exactly = 0) { mappings.deactivate(any(), any(), any(), any(), any(), any()) }
 
         every { addressQueryService.existsByAsset("ETHEREUM", "USDC") } returns false
-        every { mappings.delete("ETHEREUM", "USDC") } returns Unit
+        every { mappings.deactivate("ETHEREUM", "USDC", "123456", "0001", any(), any()) } returns Unit
         service.delete("ETHEREUM", "USDC", audit)
-        verify(exactly = 1) { mappings.delete("ETHEREUM", "USDC") }
+        verify(exactly = 1) { mappings.deactivate("ETHEREUM", "USDC", "123456", "0001", any(), any()) }
 
         every { mappings.find("BASE", "USDC") } returns null
         assertThatThrownBy { service.delete("BASE", "USDC", audit) }.isInstanceOf(ResourceNotFoundException::class.java)

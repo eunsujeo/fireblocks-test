@@ -45,7 +45,7 @@ internal class AnvilNode private constructor(
                     "--port",
                     port.toString(),
                     "--chain-id",
-                    LocalChainManifest.LOCAL_CHAIN_ID.toString(),
+                    configuration.chainId.toString(),
                     "--accounts",
                     LOCAL_ACCOUNT_COUNT.toString(),
                     "--balance",
@@ -65,7 +65,7 @@ internal class AnvilNode private constructor(
             val rpc = EvmJsonRpcClient("http://127.0.0.1:$port")
             return try {
                 rpc.awaitReady()
-                check(rpc.chainId() == LocalChainManifest.LOCAL_CHAIN_ID) { "Anvil chain id mismatch" }
+                check(rpc.chainId() == configuration.chainId) { "Anvil chain id mismatch" }
                 check(rpc.accounts() == keyring.accounts.map(LocalEvmKey::address)) { "derived EVM keyring does not match Anvil" }
                 AnvilNode(process, rpc, keyring)
             } catch (exception: Exception) {

@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.spring)
 }
 
+val productionOnly = providers.gradleProperty("bcmProductionOnly").map(String::toBoolean).getOrElse(false)
+
 dependencies {
     implementation(platform(libs.spring.boot.bom))
     implementation(project(":blockchain-manager-domain"))
@@ -16,7 +18,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-restclient")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
-    testImplementation(project(":blockchain-manager-test-support"))
+    if (!productionOnly) {
+        testImplementation(project(":blockchain-manager-test-support"))
+    }
     testImplementation("org.springframework.boot:spring-boot-starter-data-jdbc")
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.testcontainers.junit.jupiter)
@@ -24,15 +28,19 @@ dependencies {
 }
 
 tasks.test {
-    dependsOn(":blockchain-manager-test-support:compileLocalContracts")
-    systemProperty(
-        "bcm.contract-artifacts",
-        project(":blockchain-manager-test-support")
-            .layout
-            .buildDirectory
-            .dir("contracts")
-            .get()
-            .asFile
-            .absolutePath,
-    )
+    if (productionOnly) {
+        enabled = false
+    } else {
+        dependsOn(":blockchain-manager-test-support:compileLocalContracts")
+        systemProperty(
+            "bcm.contract-artifacts",
+            project(":blockchain-manager-test-support")
+                .layout
+                .buildDirectory
+                .dir("contracts")
+                .get()
+                .asFile
+                .absolutePath,
+        )
+    }
 }

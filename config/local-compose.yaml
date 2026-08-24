@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:17-alpine
     ports:
-      - "15432:5432"
+      - "127.0.0.1:${BCM_LOCAL_POSTGRES_PORT:-15432}:5432"
     environment:
       POSTGRES_DB: bcm
       POSTGRES_USER: postgres
@@ -13,22 +13,36 @@ services:
       timeout: 3s
       retries: 30
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ${BCM_LOCAL_DATASET:-fireblocks}-postgres-data:/var/lib/postgresql/data
 
   kafka:
     image: apache/kafka-native:3.9.1
     # named volume은 최초 생성 시 root 소유다. 로컬 데이터 초기화와 재사용을 위해 쓰기 권한을 보장한다.
     user: "0:0"
     ports:
-      - "9092:9092"
+      - "127.0.0.1:${BCM_LOCAL_KAFKA_PORT:-9092}:${BCM_LOCAL_KAFKA_PORT:-9092}"
+    environment:
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_NODE_ID: "1"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:${BCM_LOCAL_KAFKA_PORT:-9092},CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://127.0.0.1:${BCM_LOCAL_KAFKA_PORT:-9092},CONTROLLER://localhost:9093"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9092'"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/${BCM_LOCAL_KAFKA_PORT:-9092}'"]
       interval: 3s
       timeout: 5s
       retries: 40
     volumes:
-      - kafka-data:/tmp/kraft-combined-logs
+      - ${BCM_LOCAL_DATASET:-fireblocks}-kafka-data:/tmp/kraft-combined-logs
 
 volumes:
-  postgres-data:
-  kafka-data:
+  fireblocks-postgres-data:
+  fireblocks-kafka-data:
+  stub-postgres-data:
+  stub-kafka-data:

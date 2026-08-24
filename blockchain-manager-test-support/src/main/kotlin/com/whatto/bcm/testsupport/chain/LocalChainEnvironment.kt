@@ -12,7 +12,32 @@ data class LocalChainConfiguration(
     val contractArtifactDirectory: Path,
     val anvilBinary: String = "anvil",
     val rpcPort: Int = 0,
+    val chainId: Long = LocalChainManifest.LOCAL_CHAIN_ID,
+    val blockchainId: String = "local-evm",
+    val networkCode: String = "LOCAL",
+    val displayName: String = "Local EVM",
+    val tokenDefinitions: List<LocalTokenDefinition> = listOf(LocalTokenDefinition.legacy()),
 )
+
+data class LocalTokenDefinition(
+    val id: String,
+    val symbol: String,
+    val displayName: String,
+    val sourceName: String,
+    val contractName: String,
+    val decimals: Int = 6,
+) {
+    companion object {
+        fun legacy(): LocalTokenDefinition =
+            LocalTokenDefinition(
+                id = "TUSD_LOCAL",
+                symbol = "TUSD",
+                displayName = "Local TUSD",
+                sourceName = "TestToken",
+                contractName = "TestToken",
+            )
+    }
+}
 
 data class LocalSweepItem(
     val ownerAddress: String,
@@ -159,7 +184,9 @@ class LocalChainEnvironment private constructor(
 
     private fun verifyManifest() {
         check(rpc.chainId() == manifest.chainId) { "local chain id changed after reset" }
-        check(rpc.codeHash(manifest.tokenContractAddress) == manifest.tokenCodeHash) { "token code hash changed after reset" }
+        manifest.assets.forEach { asset ->
+            check(rpc.codeHash(asset.contractAddress) == asset.codeHash) { "token code hash changed after reset: ${asset.id}" }
+        }
         check(rpc.codeHash(manifest.sweepContractAddress) == manifest.sweepCodeHash) { "sweep code hash changed after reset" }
         check(rpc.codeHash(manifest.gaslessDelegationContractAddress) == manifest.gaslessDelegationCodeHash) {
             "gasless delegation code hash changed after reset"
@@ -189,8 +216,28 @@ class LocalChainEnvironment private constructor(
             val omnibus = accounts[2]
             val customers = accounts.subList(3, 5)
             val gaslessFeePayer = accounts[5]
-            val tokenArtifact = ContractArtifact.load(configuration.contractArtifactDirectory, "TestToken", "TestToken")
-            val tokenAddress = checkNotNull(rpc.deploy(deployer, tokenArtifact.creationBytecode).contractAddress)
+            require(configuration.tokenDefinitions.isNotEmpty()) { "local chain requires at least one test token" }
+            val deployedAssets =
+                configuration.tokenDefinitions.map { definition ->
+                    require(definition.decimals == TOKEN_DECIMALS) { "local catalog tokens must use 6 decimals" }
+                    val artifact =
+                        ContractArtifact.load(
+                            configuration.contractArtifactDirectory,
+                            definition.sourceName,
+                            definition.contractName,
+                        )
+                    val address = checkNotNull(rpc.deploy(deployer, artifact.creationBytecode).contractAddress)
+                    LocalChainAssetManifest(
+                        id = definition.id,
+                        symbol = definition.symbol,
+                        displayName = definition.displayName,
+                        decimals = definition.decimals,
+                        contractAddress = address,
+                        codeHash = rpc.codeHash(address),
+                    )
+                }
+            val primaryAsset = deployedAssets.first()
+            val tokenAddress = primaryAsset.contractAddress
             val sweepArtifact = ContractArtifact.load(configuration.contractArtifactDirectory, "BcmSweep", "BcmSweep")
             val sweepConstructor =
                 addressWord(operator) +
@@ -209,10 +256,12 @@ class LocalChainEnvironment private constructor(
                 )
             val gaslessDelegationAddress =
                 checkNotNull(gaslessDeployment.contractAddress)
-            (listOf(deployer) + customers).forEach { fundedAddress ->
-                val mintData = MINT_SELECTOR + addressWord(fundedAddress) + uintWord(CUSTOMER_TOKEN_BALANCE)
-                val receipt = rpc.waitForReceipt(rpc.sendTransaction(deployer, tokenAddress, mintData))
-                check(receipt.successful) { "test token mint failed" }
+            deployedAssets.forEach { asset ->
+                (listOf(deployer) + customers).forEach { fundedAddress ->
+                    val mintData = MINT_SELECTOR + addressWord(fundedAddress) + uintWord(CUSTOMER_TOKEN_BALANCE)
+                    val receipt = rpc.waitForReceipt(rpc.sendTransaction(deployer, asset.contractAddress, mintData))
+                    check(receipt.successful) { "test token mint failed: ${asset.id}" }
+                }
             }
             val manifest =
                 LocalChainManifest(
@@ -224,9 +273,9 @@ class LocalChainEnvironment private constructor(
                     gaslessFeePayerAddress = gaslessFeePayer,
                     customerAddresses = customers,
                     tokenContractAddress = tokenAddress,
-                    tokenCodeHash = rpc.codeHash(tokenAddress),
-                    tokenSymbol = "TUSD",
-                    tokenDecimals = TOKEN_DECIMALS,
+                    tokenCodeHash = primaryAsset.codeHash,
+                    tokenSymbol = primaryAsset.symbol,
+                    tokenDecimals = primaryAsset.decimals,
                     sweepContractAddress = sweepAddress,
                     sweepCodeHash = rpc.codeHash(sweepAddress),
                     gaslessDelegationContractAddress = gaslessDelegationAddress,
@@ -234,6 +283,10 @@ class LocalChainEnvironment private constructor(
                     maximumItems = MAXIMUM_ITEMS,
                     maximumItemAmount = MAXIMUM_ITEM_AMOUNT.toString(),
                     maximumTotalAmount = MAXIMUM_TOTAL_AMOUNT.toString(),
+                    blockchainId = configuration.blockchainId,
+                    networkCode = configuration.networkCode,
+                    displayName = configuration.displayName,
+                    assets = deployedAssets,
                 )
             Files.writeString(configuration.runtimeDirectory.resolve("manifest.json"), manifest.toJson())
             node.keyring.write(configuration.runtimeDirectory.resolve("evm-keys.json"))

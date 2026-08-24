@@ -122,7 +122,41 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
         addresses.insert(DepositAddress("acct_1", "ETHEREUM", "USDC", "0xABC", "20260806120000"))
         assertThat(addresses.existsByAsset("ETHEREUM", "USDC")).isTrue()
 
-        mappings.delete("ETHEREUM", "USDC")
+        mappings.deactivate("ETHEREUM", "USDC", "123456", "0001", "request-1", "20260806130000")
         assertThat(mappings.find("ETHEREUM", "USDC")).isNull()
+        assertThat(mappings.findCurrent("ETHEREUM", "USDC")?.active).isFalse()
+        assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM bcm_vndr_ast_chng_l WHERE ntwk_cd = 'ETHEREUM' AND tkn_smbl = 'USDC'",
+                Int::class.java,
+            ),
+        ).isEqualTo(2)
+    }
+
+    @Test
+    fun `논리 해제 뒤 다른 자산을 등록하면 현재 행을 교체하고 전후 snapshot을 남긴다`() {
+        mappings.insert(mapping())
+        mappings.deactivate("ETHEREUM", "USDC", "123456", "0001", "request-off", "20260806130000")
+
+        val replaced = mappings.save(mapping(vendorAssetId = "USDC_V2"), "request-replace")
+
+        assertThat(replaced.active).isTrue()
+        assertThat(mappings.find("ETHEREUM", "USDC")?.vendorAssetId).isEqualTo("USDC_V2")
+        val actions =
+            jdbc.queryForList(
+                "SELECT actn_dvcd FROM bcm_vndr_ast_chng_l WHERE ntwk_cd = 'ETHEREUM' AND tkn_smbl = 'USDC'",
+                String::class.java,
+            )
+        assertThat(actions).containsExactlyInAnyOrder("REGISTER", "DEACTIVATE", "REPLACE")
+        val replace =
+            jdbc.queryForMap(
+                """
+                SELECT before_snps ->> 'vendorAssetId' AS before_id,
+                       after_snps ->> 'vendorAssetId' AS after_id
+                  FROM bcm_vndr_ast_chng_l
+                 WHERE ntwk_cd = 'ETHEREUM' AND tkn_smbl = 'USDC' AND actn_dvcd = 'REPLACE'
+                """.trimIndent(),
+            )
+        assertThat(replace).containsEntry("before_id", "USDC_ERC20").containsEntry("after_id", "USDC_V2")
     }
 }

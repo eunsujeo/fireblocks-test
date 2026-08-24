@@ -1,12 +1,37 @@
 openapi: 3.1.0
 info:
   title: Blockchain Manager API
-  version: "0.7.0"
+  version: "0.8.0"
   x-curl: true
   description: |
     블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
     호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
     온체인 상태 변경은 메시지 큐 이벤트로 받는다.
+
+    ## DAW-CORE 5분 Quickstart
+
+    저장소를 clone한 뒤 Docker, Python 3, Foundry 1.7.1(`anvil`·`forge`)을 준비한다. JDK 25는 Gradle toolchain이 내려받으며,
+    사내망처럼 자동 다운로드가 막힌 환경에서만 직접 설치한다. 실제 Fireblocks 자격증명 없이
+    계약과 온체인 흐름을 확인하려면 저장소 루트에서 다음 한 명령을 실행한다.
+
+    ```bash
+    ./scripts/local.sh up stub
+    ```
+
+    준비가 끝나면 이 문서를 `http://127.0.0.1:38080/api-docs/`에서 연다. 상단 Base URL은 자동으로
+    `http://127.0.0.1:38080`이 선택된다. 아래 `계정 생성` → `입금 주소 발급` 순서로 예시 값을 수정해 **요청 실행**을 누르면
+    실제 BCM과 Fireblocks Stub·Anvil에 같은 계약으로 요청한다. 입금부터 Kafka 이벤트·Admin 조사까지 한 번에 확인하려면
+    `./scripts/local.sh test deposit` 또는 Admin의 로컬 시나리오를 사용한다.
+
+    DAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.
+
+    1. `POST /accounts`의 (`accountType`, `ref`)를 안정적인 업무 키로 유지한다.
+    2. `POST /accounts/{accountId}/addresses` 결과를 네트워크별로 저장하고 항목별 실패만 재시도한다.
+    3. 출금은 `externalTxId`를 절대 재사용하지 않으며 응답 유실 때 같은 본문으로 재요청한다.
+    4. Kafka 이벤트는 `eventId`로 멱등 처리하고 `FINALIZED` 뒤 `FAILED` 전이도 허용한다.
+
+    로컬 Kafka bootstrap 주소는 `127.0.0.1:9092`다. 토픽 이름과 파티션 키, `ChainEvent` 실전 payload는 아래
+    **이벤트 (메시지 큐)** 절이 계약 정본이며, HTTP 실행 패널과 같은 문서 안에서 함께 확인한다.
 
     아래 규약은 **모든 엔드포인트에 공통** 적용된다.
 
@@ -21,7 +46,7 @@ info:
       "data": {
         "accountType": "CUSTOMER",
         "ref": "000123",
-        "accountId": "acct_01H8X"
+        "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890"
       },
       "meta": {
         "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -34,7 +59,7 @@ info:
     ```json
     {
       "data": [
-        { "txId": "tx_9f2a", "status": "FINALIZED", "amount": "1.5" }
+        { "txId": "tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a", "status": "FINALIZED", "amount": "1" }
       ],
       "meta": {
         "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -133,14 +158,14 @@ info:
     {
       "eventId": "0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e0f",
       "type": "WITHDRAWAL",
-      "txId": "tx_9f2a",
-      "txHash": "0x4e1d...ab",
+      "txId": "tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a",
+      "txHash": "0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0",
       "externalTxId": "wd-260713-0042",
       "accountId": "acct_pool_02",
       "network": "ETHEREUM",
       "symbol": "USDC",
-      "to": "0x9f...E2",
-      "from": "0xAb3...C9",
+      "to": "0xdd1b8bb7c9646d21e267bad5f12d011da294af89",
+      "from": "0x0da6aa405415ddc059a28e089309c7b47e0702ec",
       "amount": "100",
       "status": "FINALIZED",
       "numOfConfirmations": 12
@@ -192,12 +217,16 @@ servers:
         default: api.example.com
 tags:
   - name: Accounts
+    x-displayName: 계정·주소
     description: 계정과 입금 주소
   - name: Balances
+    x-displayName: 잔액
     description: 잔액 조회
   - name: Transactions
+    x-displayName: 거래
     description: 수수료 견적·출금 제출·거래 조회
   - name: Admin
+    x-displayName: 관리자
     description: |
       운영자 도구 — 네트워크 채택과 자산 매핑. 호출 주체를 Admin 백엔드로 한정하는 **망 수준 제한이 별도로 필요하다**
       (경로를 나눈 것만으로는 경계가 생기지 않는다).
@@ -220,12 +249,22 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/CreateAccountRequest' }
+            examples:
+              로컬_고객:
+                summary: STUB+LOCAL에서 바로 실행할 고객 account
+                value: { accountType: CUSTOMER, ref: daw-local-customer-001 }
       responses:
         '201':
           description: 생성됨(또는 멱등 재요청)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AccountResponse' }
+              examples:
+                생성_결과:
+                  summary: accountId는 실행마다 달라지며 다음 주소 발급에 사용한다
+                  value:
+                    data: { accountType: CUSTOMER, ref: daw-local-customer-001, accountId: acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 }
+                    meta: { requestId: 3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f }
         '400': { $ref: '#/components/responses/ValidationFailed' }
 
   /accounts/{accountId}/addresses:
@@ -249,6 +288,9 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/CreateAddressesRequest' }
             examples:
+              로컬_TUSD:
+                summary: STUB+LOCAL 입금 주소
+                value: { symbol: TUSD, networks: [LOCAL] }
               두_네트워크:
                 summary: 최초 요청
                 value: { symbol: USDC, networks: [ETHEREUM, BASE] }
@@ -262,19 +304,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DepositAddressResultListResponse' }
               examples:
+                로컬_성공:
+                  summary: 로컬 Anvil에서 실제 생성된 형태
+                  value:
+                    data:
+                      - network: LOCAL
+                        symbol: TUSD
+                        address: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89"
+                        memoTag: null
+                        error: null
+                    meta: { requestId: 3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f }
                 전체_성공:
                   summary: 전체 성공
                   value:
                     data:
-                      - { network: ETHEREUM, symbol: USDC, address: "0xAb3...C9", memoTag: null, error: null }
-                      - { network: BASE, symbol: USDC, address: "0x9f4...E2", memoTag: null, error: null }
+                      - { network: ETHEREUM, symbol: USDC, address: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89", memoTag: null, error: null }
+                      - { network: BASE, symbol: USDC, address: "0x4a1dbedeb87aca726a7c5901b2ca68a2a35deee3", memoTag: null, error: null }
                     meta: { requestId: 3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f }
                 부분_실패:
                   summary: 부분 실패 — 성공분은 그대로 남는다
                   description: 같은 요청을 재시도하면 ETHEREUM 은 같은 주소가 그대로 오고 BASE 만 다시 시도된다.
                   value:
                     data:
-                      - { network: ETHEREUM, symbol: USDC, address: "0xAb3...C9", memoTag: null, error: null }
+                      - { network: ETHEREUM, symbol: USDC, address: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89", memoTag: null, error: null }
                       - network: BASE
                         symbol: USDC
                         address: null
@@ -502,7 +554,7 @@ paths:
     get:
       tags: [Admin]
       summary: 자산 매핑 목록
-      description: 등록된 (네트워크, 토큰) 을 읽는다. `network` · `symbol` 으로 거른다.
+      description: 현재 활성인 (네트워크, 토큰) 매핑을 읽는다. `network` · `symbol` 으로 거른다.
       operationId: assetMappingsOf
       parameters:
         - name: network
@@ -527,7 +579,7 @@ paths:
 
         - **채택한 네트워크만** — 이름을 붙이지 않은 네트워크로는 등록할 수 없다 (`400`).
         - **주소로 자산이 하나만 잡혀야 한다** — 그 네트워크에 그 컨트랙트 주소가 없으면 `400`, 둘 이상이면 `409` 다. 잘못된 주소는 여기서 그냥 아무것도 찾지 못한다.
-        - **덮어쓰지 않는다** — 이미 등록된 (네트워크, 토큰) 은 `409` 다. 고치려면 지우고 다시 넣는다.
+        - **활성 매핑을 덮어쓰지 않는다** — 이미 활인 (네트워크, 토큰) 매핑은 `409` 다. 논리 해제된 행은 검증을 다시 통과한 뒤 재활성 또는 교체하고 전후 snapshot을 남긴다.
         - **한 자산은 한 매핑** — 다른 (네트워크, 토큰) 이 이미 그 자산이면 `409` 다.
 
         네이티브 자산(ETH 등)은 컨트랙트 주소가 없으므로 `contractAddress` 를 `null` 로 보낸다 — 그 네트워크의 네이티브 자산으로 해석한다.
@@ -561,9 +613,9 @@ paths:
         schema: { type: string }
     delete:
       tags: [Admin]
-      summary: 자산 매핑 삭제
+      summary: 자산 매핑 논리 해제
       description: |
-        잘못 등록한 것을 되돌린다. **그 (네트워크, 토큰) 으로 발급된 주소가 하나도 없을 때만** 허용하고, 있으면 `409` 다 — 주소가 이미 나갔다면 매핑 수정이 아니라 사고 처리다.
+        잘못 등록한 것을 논리 해제하고 변경 전후 snapshot을 남긴다. **그 (네트워크, 토큰) 으로 발급된 주소가 하나도 없을 때만** 허용하고, 있으면 `409` 다 — 주소가 이미 나갔다면 매핑 수정이 아니라 사고 처리다.
 
         수정 오퍼레이션은 두지 않는다. 가리키는 자산을 바꾸면 이미 나간 주소와 앞으로 나갈 주소가 서로 다른 자산이 되기 때문이다.
       operationId: deleteAssetMapping
@@ -657,6 +709,21 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AdminExecutionGateOverviewResponse' }
 
+  /admin/runtime-readiness:
+    get:
+      tags: [Admin]
+      summary: Admin 로컬 첫 실행·Webhook runtime 준비 상태
+      description: |
+        Webhook 인박스·outbox의 안전한 집계와 마지막 수신 시각을 조회한다. 원문 payload·서명·오류 원문은 반환하지 않는다.
+        `NEVER_RECEIVED`는 아직 관찰이 없다는 뜻이며 그 사실만으로 장애를 판정하지 않는다. 읽기 전용 상태·복구 진입점만 제공한다.
+      operationId: adminRuntimeReadiness
+      responses:
+        '200':
+          description: 서버 계산 runtime 준비 상태
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminRuntimeReadinessResponse' }
+
   /admin/change-requests/{requestId}:
     get:
       tags: [Admin]
@@ -705,12 +772,29 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/TransactionRequest' }
+            examples:
+              로컬_전송:
+                summary: accountId를 실제 생성 결과로 바꾼 실행한다
+                value:
+                  externalTxId: daw-local-withdrawal-001
+                  from: { type: ACCOUNT, accountId: acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 }
+                  to: { type: ADDRESS, address: "0x4a1dbedeb87aca726a7c5901b2ca68a2a35deee3" }
+                  network: LOCAL
+                  symbol: TUSD
+                  amount: "1"
+                  note: DAW-CORE local integration
+                  travelRule: null
       responses:
         '202':
           description: 접수됨(제출)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SubmitResponse' }
+              examples:
+                로컬_접수:
+                  value:
+                    data: { txId: tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a }
+                    meta: { requestId: 3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f }
         '400': { $ref: '#/components/responses/ValidationFailed' }
         '404': { $ref: '#/components/responses/AccountNotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -753,7 +837,7 @@ paths:
           required: true
           schema: { type: string }
           description: 벤더 tx id
-          example: tx_9f2a
+          example: tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a
       responses:
         '200':
           description: 거래
@@ -851,7 +935,7 @@ components:
       required: true
       schema: { type: string, maxLength: 64 }
       description: 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId)
-      example: acct_01H8X
+      example: acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890
 
   schemas:
     Network:
@@ -878,7 +962,7 @@ components:
         syncedAt:
           type: string
           description: 이 행을 마지막으로 동기화한 시각
-          example: "202608060310"
+          example: "20260806031045"
     NetworkListResponse:
       type: object
       required: [data, meta]
@@ -945,7 +1029,7 @@ components:
           oneOf: [{ type: string }, { type: 'null' }]
           description: 네이티브 자산은 null
           example: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-        registeredAt: { type: string, example: "202608060310" }
+        registeredAt: { type: string, example: "20260806031045" }
     AssetMappingListResponse:
       type: object
       required: [data, meta]
@@ -1236,6 +1320,29 @@ components:
       properties:
         data: { $ref: '#/components/schemas/AdminExecutionGateOverview' }
         meta: { $ref: '#/components/schemas/Meta' }
+    AdminRuntimeReadinessResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/AdminRuntimeReadiness' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    AdminRuntimeReadiness:
+      type: object
+      required: [observedAt, webhook]
+      properties:
+        observedAt: { type: string, format: date-time }
+        webhook: { $ref: '#/components/schemas/AdminWebhookRuntime' }
+    AdminWebhookRuntime:
+      type: object
+      required: [state, lastReceivedAt, pendingInboxCount, poisonedInboxCount, pendingOutboxCount, poisonedOutboxCount, statusPath]
+      properties:
+        state: { type: string, enum: [NEVER_RECEIVED, HEALTHY, BACKLOG, POISONED] }
+        lastReceivedAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        pendingInboxCount: { type: integer, format: int64, minimum: 0 }
+        poisonedInboxCount: { type: integer, format: int64, minimum: 0 }
+        pendingOutboxCount: { type: integer, format: int64, minimum: 0 }
+        poisonedOutboxCount: { type: integer, format: int64, minimum: 0 }
+        statusPath: { type: string, enum: [/admin/emergency] }
     AdminExecutionGateOverview:
       type: object
       required: [observedAt, truncated, gates, externalControls, allowanceRevocations, webhookRecoveries, resumes]
@@ -1547,7 +1654,7 @@ components:
       properties:
         accountType: { $ref: '#/components/schemas/AccountType' }
         ref: { type: string, maxLength: 64, description: "우리 참조 키 — 호출 쪽 계정 ID 그대로. 접두사는 붙지 않는다", example: "000123" }
-        accountId: { type: string, description: "매니저가 돌려주는 vault 핸들 (DB ext_acnt_id = vaultAccountId)", example: acct_01H8X }
+        accountId: { type: string, description: "매니저가 돌려주는 vault 핸들 (DB ext_acnt_id = vaultAccountId)", example: acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 }
       required: [accountType, ref, accountId]
 
     Transfer:
@@ -1581,14 +1688,14 @@ components:
         lastUpdated: { type: string, format: date-time, description: 마지막 상태 변경 시각 }
       required: [txId, network, symbol, amount, from, to, status, numOfConfirmations, createdAt, lastUpdated]
       example:
-        txId: tx_9f2a
-        txHash: "0x4e1d...ab"
+        txId: tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a
+        txHash: "0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0"
         externalTxId: wd-260713-0042
         network: ETHEREUM
         symbol: USDC
         amount: "1.5"
-        from: "0xA1...C9"
-        to: "0x9f...E2"
+        from: "0x0da6aa405415ddc059a28e089309c7b47e0702ec"
+        to: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89"
         status: FINALIZED
         numOfConfirmations: 12
         createdAt: "2026-07-13T04:05:06.789Z"
@@ -1612,11 +1719,11 @@ components:
         to:
           oneOf: [{ type: string }, { type: 'null' }]
           description: 목적지 주소 — 입금 판별. **입금은 항상 채워진다.** 출금·내부이체의 `SUBMITTED` 이벤트는 아직 체인에 오르기 전이라 비어 있을 수 있다
-          example: "0x9f...E2"
+          example: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89"
         from:
           oneOf: [{ type: string }, { type: 'null' }]
           description: 발신 주소 — 입금은 항상 채워진다. 호출 쪽이 입금 판별을 의뢰할 때 쓴다
-          example: "0xC05A...0f7C"
+          example: "0x0da6aa405415ddc059a28e089309c7b47e0702ec"
         amount:
           type: string
           description: 이동 금액 — 그 자산 단위의 **문자열 decimal**. 입금은 `externalTxId` 가 없어 이 값이 금액의 유일한 출처다. 숫자가 아니라 문자열인 것은 정밀도 때문이다
@@ -1627,14 +1734,14 @@ components:
       example:
         eventId: 0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e0f
         type: WITHDRAWAL
-        txId: tx_9f2a
-        txHash: "0x4e1d...ab"
+        txId: tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a
+        txHash: "0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0"
         externalTxId: wd-260713-0042
         accountId: acct_pool_02
         network: ETHEREUM
         symbol: USDC
-        to: "0x9f...E2"
-        from: "0xAb3...C9"
+        to: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89"
+        from: "0x0da6aa405415ddc059a28e089309c7b47e0702ec"
         amount: "100"
         status: FINALIZED
         numOfConfirmations: 12
@@ -1671,7 +1778,7 @@ components:
     SubmitResult:
       type: object
       properties:
-        txId: { type: string, description: 벤더 tx id, example: tx_9f2a }
+        txId: { type: string, description: 벤더 tx id, example: tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a }
       required: [txId]
 
     CreateAccountRequest:
@@ -1724,7 +1831,7 @@ components:
       example:
         externalTxId: wd-260713-0042
         from: { type: ACCOUNT, accountId: acct_pool_02 }
-        to: { type: ADDRESS, address: "0x9f...E2" }
+        to: { type: ADDRESS, address: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89" }
         network: ETHEREUM
         symbol: USDC
         amount: "1.5"
@@ -1820,7 +1927,7 @@ components:
       properties:
         network: { type: string, example: BASE }
         symbol: { type: string, example: USDC }
-        address: { type: string, description: 온체인 입금 주소, example: "0xAb3...C9" }
+        address: { type: string, description: 온체인 입금 주소, example: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89" }
         memoTag:
           oneOf:
             - { type: string }
@@ -1849,7 +1956,7 @@ components:
             - { type: string }
             - { type: "null" }
           description: 발급된 주소 — 실패 시 null
-          example: "0xAb3...C9"
+          example: "0xdd1b8bb7c9646d21e267bad5f12d011da294af89"
         memoTag:
           oneOf:
             - { type: string }

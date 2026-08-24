@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.api
 
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.apache.coyote.AbstractProtocol
 import org.assertj.core.api.Assertions.assertThat
 import org.flywaydb.core.Flyway
@@ -13,6 +14,8 @@ import org.springframework.boot.web.server.servlet.context.ServletWebServerAppli
 import org.springframework.core.env.Environment
 import org.springframework.core.task.AsyncTaskExecutor
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
+import java.io.File
 import java.time.Clock
 import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
@@ -47,10 +50,40 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     @Autowired
     lateinit var webServerApplicationContext: ServletWebServerApplicationContext
 
+    @Autowired
+    lateinit var requestMappingHandlerMapping: RequestMappingHandlerMapping
+
     @Test
     fun `컨텍스트가 뜨고 DataSource 가 컨테이너 PostgreSQL 에 연결된다`() {
         val one = jdbcTemplate.queryForObject("SELECT 1", Int::class.java)
         assertThat(one).isEqualTo(1)
+    }
+
+    @Test
+    fun `BCM controller 경로와 메서드는 실행 문서 OpenAPI에 빠짐없이 대응한다`() {
+        val implementation =
+            requestMappingHandlerMapping.handlerMethods
+                .filterValues { it.beanType.packageName.startsWith("com.whatto.bcm.app.api") }
+                .flatMap { (mapping, _) ->
+                    mapping.patternValues.filterNot { it.startsWith("/api-docs") || it.startsWith("/test-") }.flatMap { path ->
+                        mapping.methodsCondition.methods.map { method -> method.name to path }
+                    }
+                }.toSet()
+        val openApi = YAMLMapper().readTree(File("../../docs/api/openapi.yaml"))
+        val contract =
+            openApi
+                .required("paths")
+                .properties()
+                .asSequence()
+                .flatMap { path ->
+                    path.value
+                        .properties()
+                        .asSequence()
+                        .filter { it.key.uppercase() in HTTP_METHODS }
+                        .map { operation -> operation.key.uppercase() to path.key }
+                }.toSet()
+
+        assertThat(implementation).isEqualTo(contract)
     }
 
     @Test
@@ -65,7 +98,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `V1 코어와 V2부터 V8까지의 Admin 원장 39개를 전부 만든다`() {
+    fun `V1 코어와 V2부터 V11까지의 Admin 원장 40개를 전부 만든다`() {
         val tables =
             jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'bcm_%'",
@@ -76,6 +109,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             "bcm_addr_m",
             "bcm_blkc_m",
             "bcm_vndr_ast_m",
+            "bcm_vndr_ast_chng_l",
             "bcm_whk_l",
             "bcm_tx_l",
             "bcm_sbmt_l",
@@ -134,12 +168,17 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             "bcm_addr_m:acnt_id,ntwk_cd,tkn_smbl",
             "bcm_blkc_m:ntwk_cd",
             "bcm_vndr_ast_m:ntwk_cd,tkn_smbl",
-            "bcm_vndr_ast_m:vndr_ast_id",
             "bcm_tx_l:ext_tx_id", // 출금 재제출 중복 차단
             "bcm_sbmt_l:ext_tx_id", // 벤더 호출 전 제출 멱등 판정
             "bcm_whk_l:noti_id", // 웹훅 중복 수신 방어
             "bcm_outbox_l:evnt_id", // 컨슈머 dedup 키
         )
+        val activeVendorIndex =
+            jdbcTemplate.queryForObject(
+                "SELECT indexdef FROM pg_indexes WHERE indexname = 'uk_bcm_vndr_ast_active_vendor'",
+                String::class.java,
+            )
+        assertThat(activeVendorIndex).contains("(vndr_ast_id)").contains("WHERE").contains("actv_yn")
     }
 
     @Test
@@ -249,5 +288,9 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
         assertThat(protocolHandler.executor.javaClass.simpleName).contains("VirtualThreadExecutor")
         assertThat(taskCompleted.await(5, TimeUnit.SECONDS)).isTrue()
         assertThat(taskRanOnVirtualThread).isTrue()
+    }
+
+    companion object {
+        private val HTTP_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE")
     }
 }

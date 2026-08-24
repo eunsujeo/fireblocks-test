@@ -14,14 +14,14 @@
 
 | 사본 | waas-wiki 원본 |
 |---|---|
-| 01-infra.md ~ 99-detection-detail.md (`09-asset-map.md` 포함) | `blockchain-manager/docs/BC/설계/` 동일 파일명 |
+| 01-infra.md ~ 99-detection-detail.md (`09-asset-map.md`·`11-operational-log-policy.md` 포함) | `blockchain-manager/docs/BC/설계/` 동일 파일명 |
 | 90-fireblocks-qna.md | `blockchain-manager/docs/BC/Fireblocks QnA/01-qna.md` |
 
 ## 동기화 (waas-wiki 있는 머신에서)
 
 ```bash
 cd ../waas-wiki/blockchain-manager/docs/BC
-cp 설계/{01-infra,02-bcm-flow,03-bcm-db,06-sweep,07-asset-master,08-bcm-admin,09-asset-map,96-payload-sample,97-webhook-poc-result,98-batch-sweep,99-detection-detail}.md \
+cp 설계/{01-infra,02-bcm-flow,03-bcm-db,06-sweep,07-asset-master,08-bcm-admin,09-asset-map,10-local-fireblocks-integration,11-operational-log-policy,96-payload-sample,97-webhook-poc-result,98-batch-sweep,99-detection-detail}.md \
    ../../../../blockchain-manager-svc/docs/design/
 cp "Fireblocks QnA/01-qna.md" ../../../../blockchain-manager-svc/docs/design/90-fireblocks-qna.md
 ```

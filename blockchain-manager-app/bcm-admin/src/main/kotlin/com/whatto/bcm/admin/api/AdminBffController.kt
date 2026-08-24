@@ -120,7 +120,7 @@ class AdminBffController(
     ) = BffMeta(request.getHeader("X-Request-Id")?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString(), generatedAt)
 }
 
-@RestControllerAdvice(assignableTypes = [AdminBffController::class])
+@RestControllerAdvice(assignableTypes = [AdminBffController::class, LocalAssetManagementBffController::class])
 class AdminBffExceptionHandler(
     private val clock: Clock,
 ) {
@@ -141,6 +141,8 @@ class AdminBffExceptionHandler(
                 when {
                     forbidden -> HttpStatus.FORBIDDEN
                     notFound -> HttpStatus.NOT_FOUND
+                    failure.status == 400 -> HttpStatus.BAD_REQUEST
+                    failure.status == 409 -> HttpStatus.CONFLICT
                     else -> HttpStatus.BAD_GATEWAY
                 },
             ).body(
@@ -149,11 +151,15 @@ class AdminBffExceptionHandler(
                         when {
                             forbidden -> "FORBIDDEN"
                             notFound -> "NOT_FOUND"
+                            failure.status == 400 -> "VALIDATION_FAILED"
+                            failure.status == 409 -> "CONFLICT"
                             else -> "UPSTREAM_UNAVAILABLE"
                         },
                         when {
                             forbidden -> "조회 권한이 없습니다."
                             notFound -> "거래를 찾을 수 없습니다."
+                            failure.status == 400 -> "자산 후보와 등록 값이 일치하지 않습니다."
+                            failure.status == 409 -> "이미 등록되었거나 다른 매핑과 충돌합니다."
                             else -> "BCM 조회 소스를 사용할 수 없습니다."
                         },
                     ),
@@ -164,6 +170,20 @@ class AdminBffExceptionHandler(
                 ),
             )
     }
+
+    @ExceptionHandler(LocalAssetManagementRequestForbidden::class)
+    fun localAssetForbidden(request: HttpServletRequest): ResponseEntity<BffErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.FORBIDDEN)
+            .body(
+                BffErrorResponse(
+                    BffError("FORBIDDEN", "로컬 자산 등록 요청 출처를 확인할 수 없습니다."),
+                    BffMeta(
+                        request.getHeader("X-Request-Id")?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString(),
+                        Instant.now(clock).toString(),
+                    ),
+                ),
+            )
 
     companion object {
         private val log = LoggerFactory.getLogger(AdminBffExceptionHandler::class.java)

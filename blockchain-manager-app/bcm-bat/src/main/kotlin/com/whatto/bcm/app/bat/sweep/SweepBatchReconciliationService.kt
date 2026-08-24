@@ -27,7 +27,10 @@ import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.domain.vendor.WalletVendorPort
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
+import org.springframework.boot.ApplicationArguments
+import org.springframework.boot.ApplicationRunner
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
@@ -39,6 +42,10 @@ data class SweepReconciliationCycleResult(
     val pending: Int,
     val failed: Int,
 )
+
+fun interface SweepBatchReconciliationCommand {
+    fun reconcile(): SweepReconciliationCycleResult
+}
 
 @Service
 class SweepBatchReconciliationService(
@@ -55,8 +62,8 @@ class SweepBatchReconciliationService(
     private val alerts: SweepExecutionAlertPort,
     private val clock: Clock,
     private val properties: SweepProperties,
-) {
-    fun runOnce(): SweepReconciliationCycleResult {
+) : SweepBatchReconciliationCommand {
+    override fun reconcile(): SweepReconciliationCycleResult {
         var completed = 0
         var pending = 0
         var failed = 0
@@ -79,6 +86,8 @@ class SweepBatchReconciliationService(
         }
         return SweepReconciliationCycleResult(completed, pending, failed)
     }
+
+    fun runOnce(): SweepReconciliationCycleResult = reconcile()
 
     private fun reconcile(execution: SweepExecution): ReconciliationResult {
         val vendorTransactionId = checkNotNull(execution.vendorTransactionId) { "reconciling sweep has no vendor transaction id" }
@@ -287,6 +296,23 @@ class SweepBatchReconciliationService(
     private companion object {
         val FAILED_VENDOR_STATUSES = setOf("FAILED", "REJECTED", "BLOCKED")
         val ZERO_FAILURE_CODE = "0".repeat(64)
+    }
+}
+
+/** 시스템 통합 테스트와 수동 점검이 스케줄 경쟁 없이 sweep 대사를 정확히 한 번 실행할 때 사용한다. */
+@Component
+@ConditionalOnProperty(prefix = "bcm", name = ["job"], havingValue = "sweep-reconciliation-once")
+class SweepBatchReconciliationOnceRunner(
+    private val command: SweepBatchReconciliationCommand,
+    private val context: ConfigurableApplicationContext,
+) : ApplicationRunner {
+    override fun run(args: ApplicationArguments) {
+        logger.info("one-shot batch sweep reconciliation completed result={}", command.reconcile())
+        context.close()
+    }
+
+    private companion object {
+        val logger = LoggerFactory.getLogger(SweepBatchReconciliationOnceRunner::class.java)
     }
 }
 

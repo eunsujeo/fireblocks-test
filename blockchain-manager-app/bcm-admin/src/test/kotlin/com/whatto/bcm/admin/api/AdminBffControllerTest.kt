@@ -44,15 +44,23 @@ class AdminBffControllerTest {
             AdminOverview(
                 generatedAt = "2026-08-17T09:00:00Z",
                 state = ViewState.FRESH,
+                catalogNetworkCount = 3,
+                adoptedNetworkCount = 2,
+                availableNetworkCount = 1,
+                catalogSyncedAt = "20260817080000",
                 networkCount = 2,
                 testnetCount = 1,
                 assetMappingCount = 3,
+                webhook = null,
+                preparationChecks = emptyList(),
                 issues = emptyList(),
             )
 
         mockMvc
             .perform(get("/bff/admin/overview"))
             .andExpect(status().isOk)
+            .andExpect(jsonPath("$.data.catalogNetworkCount").value(3))
+            .andExpect(jsonPath("$.data.adoptedNetworkCount").value(2))
             .andExpect(jsonPath("$.data.networkCount").value(2))
             .andExpect(jsonPath("$.data.state").value("FRESH"))
             .andExpect(jsonPath("$.meta.generatedAt").value("2026-08-17T09:00:00Z"))

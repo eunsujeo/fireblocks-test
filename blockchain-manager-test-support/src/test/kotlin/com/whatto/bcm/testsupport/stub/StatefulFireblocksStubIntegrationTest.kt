@@ -183,6 +183,35 @@ class StatefulFireblocksStubIntegrationTest {
     }
 
     @Test
+    fun `시스템 테스트 제어면은 공개 API로 만든 주소의 vault를 찾고 Webhook을 활성화한다`() {
+        val client = client()
+        val vault = client.createVault(VAULT_NAME, VAULT_IDEMPOTENCY_KEY)
+        val wallet = client.createDepositAddress(vault.vaultId, TOKEN_ASSET_ID, TOKEN_WALLET_KEY)
+
+        val lookup =
+            ObjectMapper().readTree(
+                get(
+                    "http://127.0.0.1:$serverPort/__stub/vaults/by-address/$TOKEN_ASSET_ID" +
+                        "?address=${wallet.address}",
+                ),
+            )
+        val activated =
+            ObjectMapper().readTree(
+                postNoBody("http://127.0.0.1:$serverPort/__stub/webhooks/$LOCAL_WEBHOOK_ID/activate"),
+            )
+        val resent =
+            ObjectMapper().readTree(
+                postNoBody("http://127.0.0.1:$serverPort/__stub/webhooks/$LOCAL_WEBHOOK_ID/resend-failed"),
+            )
+
+        assertThat(lookup.required("vaultId").asString()).isEqualTo(vault.vaultId)
+        assertThat(activated.required("id").asString()).isEqualTo(LOCAL_WEBHOOK_ID)
+        assertThat(activated.required("status").asString()).isEqualTo("ENABLED")
+        assertThat(resent.required("total").asInt()).isZero()
+        assertThat(client.webhook(LOCAL_WEBHOOK_ID).status.name).isEqualTo("ENABLED")
+    }
+
+    @Test
     fun `Stub JWKS 공개키는 원문 byte의 RS512 detached JWS를 검증한다`() {
         val payload = "{\"id\":\"event-local-1\",\"eventType\":\"transaction.created\"}".toByteArray()
         val signatureDocument =
@@ -722,16 +751,32 @@ class StatefulFireblocksStubIntegrationTest {
             ) as VendorTransactionSubmission.Accepted
 
         assertThat(first.transactionId).isNotBlank()
-        assertThat(recoveredSequence.transactionId).isEqualTo("tx-local-000001")
+        assertThat(recoveredSequence.transactionId).isEqualTo(first.transactionId)
         assertThat(restoredSource.vaultId).isEqualTo("1")
         assertThat(restoredWallet.address).isEqualTo(sourceWallet.address)
 
         resetStubAndChain()
 
         val repeatedSource = client.createVault(VAULT_NAME, VAULT_IDEMPOTENCY_KEY)
+        val repeatedDestination = client.createVault(DESTINATION_VAULT_NAME, DESTINATION_VAULT_KEY)
         client.createDepositAddress(repeatedSource.vaultId, TOKEN_ASSET_ID, TOKEN_WALLET_KEY)
+        client.createDepositAddress(repeatedDestination.vaultId, TOKEN_ASSET_ID, DESTINATION_TOKEN_WALLET_KEY)
         assertThat(client.balanceOf(repeatedSource.vaultId, TOKEN_ASSET_ID).total).isEqualTo(restoredBalance)
         assertThat(client.transactionByExternalTransactionId(RESET_EXTERNAL_ID)).isNull()
+        val distinctAfterReset =
+            client.submitTransaction(
+                VendorTransactionRequest(
+                    externalTransactionId = "$RESET_EXTERNAL_ID-distinct",
+                    vendorAssetId = TOKEN_ASSET_ID,
+                    sourceVaultId = repeatedSource.vaultId,
+                    destination = VendorTransactionDestination.Account(repeatedDestination.vaultId),
+                    amount = "1",
+                    note = "reset collision contract",
+                    travelRuleMessage = null,
+                    useGasless = false,
+                ),
+            ) as VendorTransactionSubmission.Accepted
+        assertThat(distinctAfterReset.transactionId).isNotEqualTo(first.transactionId)
     }
 
     private fun client(): FireblocksClient {
@@ -786,6 +831,18 @@ class StatefulFireblocksStubIntegrationTest {
                     .build(),
                 HttpResponse.BodyHandlers.ofString(),
             ).body()
+
+    private fun postNoBody(url: String): String =
+        HttpClient
+            .newHttpClient()
+            .send(
+                HttpRequest
+                    .newBuilder(URI.create(url))
+                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .build(),
+                HttpResponse.BodyHandlers.ofString(),
+            ).also { response -> assertThat(response.statusCode()).isEqualTo(200) }
+            .body()
 
     private fun postJson(
         url: String,

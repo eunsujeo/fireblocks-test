@@ -18,14 +18,23 @@ dependencyResolutionManagement {
 
 rootProject.name = "blockchain-manager"
 
+val productionOnly = providers.gradleProperty("bcmProductionOnly").map(String::toBoolean).getOrElse(false)
+
 include(
     ":blockchain-manager-app:bcm-api",
-    ":blockchain-manager-app:bcm-admin",
     ":blockchain-manager-app:bcm-bat",
+    ":blockchain-manager-app:bcm-webhook",
+    ":blockchain-manager-application",
     ":blockchain-manager-domain",
     ":blockchain-manager-infra:persistence",
     ":blockchain-manager-infra:client",
     ":blockchain-manager-infra:messaging",
     ":blockchain-manager-support",
-    ":blockchain-manager-test-support",
 )
+
+if (!productionOnly) {
+    include(
+        ":blockchain-manager-app:bcm-admin",
+        ":blockchain-manager-test-support",
+    )
+}

@@ -35,6 +35,7 @@ Admin은 단순 설정 CRUD가 아니라 다음 운영 순서를 한곳에서 �
 | 밴드S | 입력 snapshot·계산 결과·이동 제안·승인·제출·대사 상태 |
 | 비상 운영 | 출금/sweep/approve 중지, 웹훅 복구, allowance 전량 회수, 재개 승인 |
 | 감사 | 변경 요청·승인·실행·외부 상태 대조 이력 |
+| 로컬 테스트 진단 | 전체 통합 테스트 실행·단계·component 상태와 연관 업무 식별자 조회 |
 
 ### 제외
 
@@ -66,7 +67,7 @@ flowchart LR
 
 - 브라우저가 블록체인 매니저 API를 직접 호출하지 않는다.
 - Admin Frontend와 BFF는 DAW-CORE와 분리된 매니저 전용 애플리케이션으로 이 저장소에서 함께 운영한다.
-- T10.2의 첫 용도는 읽기 전용 기능 테스트다. frontend·BFF와 대상 BCM은 기본적으로 loopback에 바인딩하고 상태 변경 API를 BFF에 노출하지 않는다.
+- T10.2의 첫 용도는 읽기 전용 기능 테스트다. frontend·BFF와 대상 BCM은 기본적으로 loopback에 바인딩하고 BCM 운영 상태 변경 API를 BFF에 노출하지 않는다. 이후 추가한 로컬 Stub 시나리오 실행은 `FUNCTION_TEST+STUB+LOCAL+loopback`에서 고정 실행기만 여는 예외이다. 로컬 자산 매핑 관리를 명시적으로 활성화한 `FUNCTION_TEST+loopback`에서는 네트워크 후보 채택·자산 후보 조회·자산 등록만 추가로 열고, 네트워크·자산 논리 해제와 자산 교체는 열지 않는다. 두 예외 모두 공유 운영 변경 경계를 넓히지 않는다.
 - BFF가 Admin 세션·역할을 확인하고 운영자 식별자를 전달한다.
 - `X-Employee-No`·`X-Branch-Code`는 감사 정보이며 그 자체가 인증 수단은 아니다.
 - 블록체인 매니저 Admin API는 `bcm-api`와 같은 애플리케이션으로 배포하되 일반 업무 API와 분리한 private listener/ingress에 두고 Admin BFF만 접근시킨다.
@@ -120,6 +121,7 @@ flowchart LR
 | 승인함 | 내가 요청했거나 승인할 변경을 모은다 | 승인 대기, 승인·거절, 적용 결과 |
 | 비상 운영 | 사고 대응 순서와 진행률을 한곳에 모은다 | 중지, 웹훅 복구, allowance 회수 |
 | 감사 | 상태 변경의 전 과정을 재현한다 | 요청·승인·실행·외부 대조 이력 |
+| 테스트 실행 | 로컬 전체 통합 테스트의 진행·실패를 찾는다 | 실행 목록, 단계, component, 연관 거래 |
 
 ## 핵심 화면 와이어프레임
 
@@ -166,6 +168,56 @@ flowchart LR
 - 모든 카드의 숫자는 대응 목록으로 이동한다.
 - 조치 필요 항목은 위험도만 보여 주지 않고 원인·관찰 시각·다음 행동을 한 행에 둔다.
 - 전역 환경과 데이터 갱신 시각은 스크롤해도 잃지 않는다.
+
+#### 로컬 첫 실행 준비 안내
+
+`FUNCTION_TEST`의 대시보드는 빈 숫자만 보여 주지 않고 개발자가 다음 점검을 판단할 수 있는 읽기 전용 준비 카드를 먼저 둔다.
+항목은 소유권을 `자동 준비`와 `직접 확인`으로 나누며, 완료 여부와 다음 행동은 서버 응답으로 표시한다.
+
+| 구분 | 준비 항목 | 완료 근거 | 다음 행동 |
+|---|---|---|---|
+| 자동 준비 | BCM API·Webhook 연결 | 두 BFF 조회 성공 + Webhook 프로세스 health 응답 + runtime 요약 조회 | 실패 component의 `local.sh logs` 확인 (10장) |
+| 자동 준비 | 기본 Stub 카탈로그 | `STUB+LOCAL`에서 ETHEREUM·BASE 채택과 USDC·KRWK 4개 mapping 존재 | 누락이면 `up stub` bootstrap 단계와 catalog sync 로그 확인 |
+| 직접 확인 | 네트워크 채택 | ETHEREUM `31337`, BASE `31338`가 각각 testnet으로 채택 | 네트워크 화면에서 chainId·모드 확인 |
+| 직접 확인 | 자산 매핑 | 두 네트워크의 USDC·KRWK mapping과 6자리 decimals 존재 | 자산 화면에서 네트워크별 token contract 대조 |
+| 직접 확인 | 계정·입금 주소 | 업무 API에서 생성하며 Admin이 DAW-CORE 입력을 전제로 안내하지 않음 | 로컬 입금 helper 또는 계정 API 사용 |
+
+상단 환경 표시는 `FIREBLOCKS+TESTNET`과 `STUB+LOCAL`을 명시적으로 구분하고 현재 BCM 데이터셋도 함께 표시한다. Fireblocks
+모드에서 Stub 데이터셋의 `LOCAL` 네트워크·테스트 거래를 보여 주거나 반대로 Stub 모드에서 Fireblocks 테스트 workspace 데이터를
+보여 주면 준비 완료로 판정하지 않는다. 로컬 실행 스크립트의 모드별 PostgreSQL·Kafka 격리는 10장이 정본이다.
+
+Webhook runtime 요약은 BCM DB의 안전한 집계만 반환한다. `NEVER_RECEIVED/HEALTHY/BACKLOG/POISONED` 상태, 마지막 수신 UTC,
+미처리·격리 인박스 수, 미발행·격리 outbox 수와 관찰 시각을 제공하고 raw payload·서명·오류 원문은 반환하지 않는다. 상태는 집계값에서
+유도한다 — 인박스나 outbox 격리 수가 1 이상이면 `POISONED`, 격리 없이 미처리 인박스나 미발행 outbox 가 남아 있으면 `BACKLOG`, 수신 이력이 없으면
+`NEVER_RECEIVED`, 나머지가 `HEALTHY` 다. `BACKLOG`와 `POISONED`는 완료로 표시하지 않으며 비상 운영의 읽기 전용 Webhook 복구
+현황으로 연결한다.
+
+연결 완료 판단은 이 집계만으로 하지 않는다. BCM Webhook 은 독립 프로세스이므로 (01장) BFF 가 Webhook 프로세스의 health 를 함께
+확인하고, health 실패면 과거 집계가 `HEALTHY` 라도 연결 항목을 완료로 표시하지 않는다. `NEVER_RECEIVED` 는 health 정상에 수신
+이력만 없는 상태다 — 프로세스 중지와 구분되며, 장애 단정 대신 첫 입금 점검 안내로 잇는다. 이 값들은 준비 판단용 스냅샷 요약이고,
+원시 메트릭 수집과 경보 판단은 그대로 외부 모니터링 소관이다 (아래 운영 원칙).
+
+#### 로컬 Stub 시나리오 실행
+
+`FUNCTION_TEST`이면서 `STUB+LOCAL`로 기동한 경우에만 테스트 실행 화면에서 결정적 시나리오를 시작할 수 있다. 브라우저는 Stub
+제어면이나 BCM을 직접 호출하지 않고 Admin BFF에 시나리오 ID와 검증된 입력만 보낸다. BFF는 저장소에 고정된 실행기만 인자 배열로
+기동하며 임의 명령·임의 URL·shell 문자열을 받지 않는다. 실행 결과는 아래 전체 시스템 실행 원장(10장)과 같은 runId·단계·분류·
+안전한 실패 요약으로 표시한다. 실제 Fireblocks 모드와 공유 Admin에서는 route와 버튼을 모두 닫는다. 실행 POST는 JSON 본문과
+브라우저가 단순 form으로 만들 수 없는 전용 헤더를 모두 요구하고, 요청 `Origin`이 현재 loopback Admin origin과 정확히 같을 때만
+받는다. 외부 웹 페이지의 form·fetch가 로컬 시나리오를 시작할 수 없게 서버에서 거부하며 이 검증은 프론트 표시 여부에 의존하지 않는다.
+
+초기 제공 시나리오는 다음과 같다.
+
+| 시나리오 | 하는 일 | 결과 |
+|---|---|---|
+| 자산 카탈로그 준비 | BAT `catalog-sync-once` → LOCAL 네트워크 채택 → Stub 자산 매핑 | batch 단계·마지막 동기화와 등록 mapping |
+| 고객 vault·주소 생성 | 공개 계정 API로 CUSTOMER 계정(vault) 생성 → 선택 자산의 LOCAL 주소 발급 | `accountId`·입금 주소 |
+| 입금 성공 | 자산 준비 → 고객 vault·주소 → Anvil 입금 → 서명 Webhook → FINALIZED·Kafka·Admin 조사 | `accountId`·vendorTxId·txHash·eventId |
+| smoke / full | 전용 포트·DB·Kafka까지 새로 조립하는 전체 suite | 독립 환경의 전체 단계와 업무 식별자 |
+
+로컬 입력은 `ref` 최대 64자, 허용된 자산 심볼과 금액 등 시나리오별 allowlist로 제한한다. 생성된 벤더 private key, API key,
+Webhook 서명·raw payload와 원문 로그는 응답에 포함하지 않는다. 고객 vault 생성은 DAW-CORE가 호출할 공개 API를 실제로 연습하는
+기능이며 운영 vault를 Admin 전용 API로 직접 편집하는 기능이 아니다.
 
 ### 거래 상세
 
@@ -284,9 +336,13 @@ flowchart LR
 기존 [자산 매핑](07-asset-master.md)의 Admin API를 기본으로 한다.
 
 - 채택/미채택, testnet, chainId, 동기화 시각으로 네트워크를 찾는다.
+- 로컬 네트워크 채택 UI는 Fireblocks에서 동기화한 미채택 후보의 표시명·chainId·testnet을 보여 주고 운영자가 BCM 네트워크 코드를 확인한 뒤 등록한다. opaque 후보 id는 요청에 그대로 사용하되 사람이 입력하거나 해석하지 않는다.
 - 자산 후보의 벤더 심볼과 온체인 컨트랙트 주소를 운영자가 나란히 대조한다.
 - 등록 단계는 네트워크 선택 → 후보 검색 → 주소 비교 → 영향 확인 → 사유 확인 → 등록 순서다.
-- 주소가 발급된 매핑은 삭제할 수 없다. 물리 삭제 감사 유실과 주소 발급 경합 문제는 실제 자산 운영 전에 해결한다.
+- 로컬 등록 UI는 자산 목록 위에 모달로 연다. 통합 검색에 벤더 심볼을 입력하면 채택한 네트워크별 후보를 심볼·표시명·네트워크·소수 자릿수·컨트랙트 주소로 보여 준다. 후보 하나를 선택하고 BCM 심볼을 확인해야 등록 버튼이 활성화된다. 후보의 벤더 id는 화면과 BFF 응답에 노출하지 않는다.
+- 모달은 포커스를 내부에 두고 `Esc`·닫기·취소를 모두 지원한다. 검색 중·결과 없음·상류 실패·선택·등록 중·중복 등록·완료를 같은 자리에서 구분하고, 완료 뒤 목록을 다시 읽는다. 등록 실패는 BFF가 반환한 구조화 코드·요약·requestId를 보여 주고 성공으로 추측하지 않는다.
+- 로컬 자산 관리 BFF는 명시적 활성화, `FUNCTION_TEST`, loopback target·binding을 서버에서 검증한다. 후보 조회는 전용 비단순 헤더를, 네트워크 채택·자산 등록은 이 헤더와 동일 Origin·JSON body를 모두 확인한다. 브라우저는 BCM·Fireblocks를 직접 호출하거나 감사 헤더를 조립하지 않는다. 공유 환경에서는 mTLS·단기 JWT 경계가 완성될 때까지 route와 버튼을 닫는다.
+- 주소가 발급된 매핑은 해제할 수 없다. 매핑 해제는 주소 발급 요청을 차단하고 진행 중인 요청이 없는 유지보수 시간에만 수행하며, 변경 전후 snapshot을 남긴다.
 - 네트워크 출금 중지는 출금 제출만 막고 입금 감지·주소·잔액 조회는 유지하며 sweep은 미룬다. 이미 제출한 거래에는 적용하지 않는다.
 
 ### 거래 조사
@@ -456,6 +512,45 @@ multisig 서명을 만들지 않고, 인증 경계가 없는 기능 테스트 �
 
 감사 원장은 추가 전용이며 물리 삭제 없이 영구 보존한다. 외부 감사 보관소 합류가 확정되면 검증된 archive migration으로만
 보존 정책을 바꾼다. RPC credential·시크릿·raw payload는 저장하지 않고 논리 endpoint ID와 구조화된 관찰값만 남긴다.
+일반 장애 분석용 JSON 로그와 중앙 수집·만료 삭제는 [운영 로그 정책](11-operational-log-policy.md)을 따르며 감사 원장의 대체물이 아니다.
+
+### 로컬 통합 테스트 진단
+
+테스트 실행 화면은 운영 감사 원장을 대체하지 않는다. 개발자 PC·CI의 `STUB+LOCAL` 전체 시스템 테스트가 남긴 구조화 artifact를
+같은 `runId`로 찾아 실패 위치와 BCM 업무 사실을 연결하는 로컬 진단 화면이다.
+
+- `/admin/test-runs`와 대응 BFF는 `FUNCTION_TEST` profile, loopback binding, 명시적 진단 활성화가 모두 맞을 때만 연다.
+  그 밖의 profile·공유 환경·비활성 상태에서는 메뉴와 route를 숨기고 BFF는 404를 반환한다.
+- 브라우저는 파일시스템, Stub 제어 endpoint, Anvil RPC, BCM API를 직접 호출하지 않는다. Admin BFF의 전용 읽기 adapter가
+  허용된 artifact root 아래의 실행 원장만 읽고 정규화한 응답을 반환한다. 시나리오 시작은 위 로컬 Stub 경계에서 고정 ID와 검증된
+  입력만 받아 저장소의 고정 실행기로 전달하며, 임의 명령·URL·shell 문자열을 허용하지 않는다.
+- artifact root는 canonical path로 고정하고 symlink 탈출, `..`, 절대경로가 섞인 runId를 거부한다. runId는 ASCII
+  영숫자·`-`·`_`만 허용하는 불투명 식별자이며 최대 64자다.
+
+목록은 최근 완료·진행 실행 최대 20건을 시작 시각 역순으로 보여 준다. 상세는 다음 서버 계산값을 사용한다.
+
+| 구분 | 표시 값 |
+|---|---|
+| 실행 | runId, `SMOKE/FULL/SCENARIO`, `PENDING/RUNNING/PASSED/FAILED/ABORTED`, 시작·갱신·완료 UTC |
+| 진행 | 현재/전체 단계, 정수 percent, 현재 단계, 마지막 성공 단계, 경과 시간 |
+| component | PostgreSQL, Kafka, Anvil, Stub, BCM API, BCM Webhook, BCM BAT, Admin의 `STARTING/UP/DOWN/FAILED`와 마지막 관찰 시각 |
+| 실패 | 안전한 오류 코드·요약, 실패 단계, 재시도 가능 여부, 서버가 판정한 다음 조치 |
+| 연관 ID | requestId, externalTxId, submissionId, vendorTxId, txHash, eventId, executionId, jobRunId, 로컬 `SCENARIO`의 accountId·address |
+| 검증 분류 | `REAL_LOCAL`, `SIMULATED_VENDOR`. 실 Fireblocks 검증으로 오인할 수 없는 설명 |
+
+진행률·현재 상태·가능한 다음 행동은 BFF가 실행 원장의 step 상태를 검증해 계산한다. 프론트는 단계 수를 재계산하거나 누락·깨진
+artifact를 성공으로 추정하지 않는다. 원장이 불완전하거나 갱신 시각이 허용 범위를 넘으면 `FAILED` 또는 읽기 오류와 복구 안내를
+표시하고 이전 값을 최신처럼 보이지 않는다.
+
+식별자는 기존 거래·sweep 조사 route로 연결한다. 연결 순서는 `runId/stepId → requestId → externalTxId/submissionId →
+vendorTxId → txHash → eventId → executionId/jobRunId`이며, 로컬 `SCENARIO`에서 실제 생성된 accountId·address는 결과 확인용으로만
+표시한다. 없는 값은 만들지 않는다. Secret, API key, JWT, PEM·key 내용,
+Webhook 서명·raw payload, HTTP 원문 body와 component 원문 로그는 API·화면에 반환하지 않는다. 화면은 안전한 구조화 event와
+로컬 artifact 경로만 보여 주고, 원문 로그는 개발자가 로컬 실행 스크립트의 `logs` 명령으로 확인한다.
+
+이 화면은 허용된 로컬 Stub 시나리오와 독립 `smoke/full` 실행을 시작하고 진행 상황을 관찰한다. 실행 중지·환경 reset·임의 명령 실행은
+화면의 책임이 아니며 로컬 스크립트 경계에 남긴다. 실행 기능을 `FUNCTION_TEST+STUB+LOCAL+loopback` 밖으로 넓히려면 별도
+CSRF·권한·명령 allowlist·감사 계약을 먼저 설계한다.
 
 ## API 계약 원칙
 
@@ -476,6 +571,7 @@ multisig 서명을 만들지 않고, 인증 경계가 없는 기능 테스트 �
 4. **밴드S** — 현황·simulation을 먼저 열고 수동 승인 실행을 뒤에 붙인다.
 5. **비상 운영** — 중지, 웹훅 복구, allowance 회수, 재개 승인과 훈련을 붙인다.
 6. **제한 자동화** — 네트워크별 PoC·감사·회수 훈련을 통과한 기능만 단계적으로 활성화한다.
+7. **로컬 전체 테스트 진단** — 기능 테스트 profile에서만 고정된 Stub 시나리오와 `smoke/full` 실행, 실행 목록·진행·실패·연관 식별자 조회를 붙인다.
 
 ## 완료 기준
 
@@ -486,6 +582,8 @@ multisig 서명을 만들지 않고, 인증 경계가 없는 기능 테스트 �
 - 중지·회수·복구·재개의 실제 상태를 재조회로 확인하고 장애 훈련으로 검증한다.
 - 빈 상태·권한 없음·stale data·부분 실패·동시 변경·중복 클릭을 프론트와 API 테스트로 고정한다.
 - 접근성, UTC 표시, 식별자 복사, URL 필터 보존과 위험 작업 diff를 사용자 흐름 테스트로 확인한다.
+- 허용된 로컬 테스트를 고정 실행기로 시작하고, 실패를 runId로 찾아 실패 단계·component·다음 조치와 기존 거래/sweep 상세까지 연결한다.
+- 테스트 진단 route가 shared·운영 profile에서 404이고 Secret·raw payload·원문 로그를 반환하지 않음을 검증한다.
 - 설계 사본·OpenAPI 생성물 신선도, design-sync·code-reviewer를 통과한다.
 
 ## 기존 문서 반영점
@@ -500,7 +598,7 @@ multisig 서명을 만들지 않고, 인증 경계가 없는 기능 테스트 �
 
 ## 확정 이력 (2026-08-17)
 
-- 2026-08-17 후속 사용자 결정으로 Admin Frontend·BFF는 DAW-CORE와 분리해 이 저장소의 독립 애플리케이션으로 둔다. 첫 출시는 loopback 읽기 전용 기능 테스트 profile이며, 공유 환경의 BCM Admin API는 private listener/ingress에서 mTLS와 단기 JWT를 함께 검증한다.
+- 2026-08-17 후속 사용자 결정으로 Admin Frontend·BFF는 DAW-CORE와 분리해 이 저장소의 독립 애플리케이션으로 둔다. 당시 첫 출시 범위는 loopback 읽기 전용 기능 테스트 profile로 확정했으며, 이후 `FUNCTION_TEST+STUB+LOCAL+loopback`에 한해 고정 실행기를 여는 예외를 추가했다. 공유 환경의 BCM Admin API는 private listener/ingress에서 mTLS와 단기 JWT를 함께 검증한다.
 - 역할 claim 5개와 위험 등급별 정족수를 위 표대로 확정했다. 중지는 운영자 1명이 즉시 수행할 수 있고, 재개·보안 변경은 요청자 외 2명과 보안 승인자 1명이 필요하다.
 - 컨트랙트 release·문서 hash·2-RPC 온체인 대조를 증적 정본으로 확정했다.
 - 밴드S는 DAW-CORE가 계산하고 BCM이 실행한다. 옴니버스→TAP 고정 외부 cold를 첫 경로로 사용하며 예약분은 hot에서 한 번만 공제한다.

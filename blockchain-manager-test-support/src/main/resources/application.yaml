@@ -34,6 +34,7 @@ bcm:
     evm-chain-id: ${BCM_EVM_CHAIN_ID:31337}
     local-chain-manifest-file: ${BCM_LOCAL_CHAIN_MANIFEST_FILE:build/local/chain/manifest.json}
     local-chain-key-file: ${BCM_LOCAL_CHAIN_KEY_FILE:build/local/chain/evm-keys.json}
+    local-chain-cluster-manifest-file: ${BCM_LOCAL_CHAIN_CLUSTER_MANIFEST_FILE:}
     api-authentication-mode: ${BCM_STUB_API_AUTHENTICATION_MODE:BASIC}
     api-public-key-file: ${BCM_STUB_API_PUBLIC_KEY_FILE:}
     webhook-delivery-url: ${BCM_STUB_WEBHOOK_DELIVERY_URL:}

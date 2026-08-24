@@ -14,6 +14,7 @@ import com.whatto.bcm.domain.admin.AdminGovernanceQueryRepository
 import com.whatto.bcm.domain.admin.AdminPolicyRepository
 import com.whatto.bcm.domain.admin.AdminPolicySummary
 import com.whatto.bcm.domain.admin.AdminRole
+import com.whatto.bcm.domain.admin.AdminWebhookRuntimeObservation
 import com.whatto.bcm.domain.admin.AllowanceRevocationEventStatus
 import com.whatto.bcm.domain.admin.AllowanceRevocationExecutionStatus
 import com.whatto.bcm.domain.admin.AllowanceRevocationLifecycle
@@ -469,6 +470,32 @@ class AdminGovernanceQueryJdbcAdapter(
             """.trimIndent(),
             mapOf("now" to now.coreDateTime(), "limit" to limit),
         ) { rs, _ -> rs.toExecutionGateResumeSummary(now) }
+
+    override fun findWebhookRuntimeObservation(): AdminWebhookRuntimeObservation =
+        checkNotNull(
+            jdbc.queryForObject(
+                """
+                SELECT GREATEST(
+                         (SELECT MAX(rcv_dttm) FROM bcm_whk_l WHERE prcs_stcd = 'P'),
+                         (SELECT MAX(rcv_dttm) FROM bcm_whk_l WHERE prcs_stcd = 'S'),
+                         (SELECT MAX(rcv_dttm) FROM bcm_whk_l WHERE prcs_stcd = 'F')
+                       ) AS last_received_at,
+                       (SELECT count(*) FROM bcm_whk_l WHERE prcs_stcd = 'P') AS pending_inbox_count,
+                       (SELECT count(*) FROM bcm_whk_l WHERE prcs_stcd = 'F') AS poisoned_inbox_count,
+                       (SELECT count(*) FROM bcm_outbox_l WHERE evnt_stcd = 'P') AS pending_outbox_count,
+                       (SELECT count(*) FROM bcm_outbox_l WHERE evnt_stcd = 'F') AS poisoned_outbox_count
+                """.trimIndent(),
+                emptyMap<String, Any>(),
+            ) { rs, _ ->
+                AdminWebhookRuntimeObservation(
+                    lastReceivedAt = rs.getString("last_received_at")?.instant(),
+                    pendingInboxCount = rs.getLong("pending_inbox_count"),
+                    poisonedInboxCount = rs.getLong("poisoned_inbox_count"),
+                    pendingOutboxCount = rs.getLong("pending_outbox_count"),
+                    poisonedOutboxCount = rs.getLong("poisoned_outbox_count"),
+                )
+            },
+        )
 
     private fun actionSucceeded(
         requestId: String,

@@ -102,7 +102,7 @@ class VendorAssetMappingService(
         }
 
         val vendorAsset = matches.single()
-        return mappingRepository.insert(
+        val mapping =
             VendorAssetMapping(
                 network = command.network,
                 symbol = command.symbol,
@@ -111,8 +111,8 @@ class VendorAssetMappingService(
                 registeredAt = CoreDateTimes.now(clock),
                 registeredByEmployeeNo = command.employeeNo,
                 registeredByBranchCode = command.branchCode,
-            ),
-        )
+            )
+        return mappingRepository.save(mapping, command.requestId)
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -126,7 +126,14 @@ class VendorAssetMappingService(
         if (depositAddressQueryService.existsByAsset(network, symbol)) {
             throw ConflictException("assetMappingInUse", "$network:$symbol")
         }
-        mappingRepository.delete(network, symbol)
+        mappingRepository.deactivate(
+            network,
+            symbol,
+            audit.employeeNo,
+            audit.branchCode,
+            audit.requestId,
+            CoreDateTimes.now(clock),
+        )
     }
 
     private fun adoptedBlockchain(network: String): VendorBlockchainCatalog =
@@ -159,6 +166,7 @@ class VendorAssetMappingService(
 data class AuditActor(
     val employeeNo: String,
     val branchCode: String,
+    val requestId: String = "UNSPECIFIED",
 )
 
 data class AdoptNetworkCommand(
@@ -174,6 +182,7 @@ data class RegisterVendorAssetMappingCommand(
     val contractAddress: String?,
     val employeeNo: String,
     val branchCode: String,
+    val requestId: String = "UNSPECIFIED",
 )
 
 data class AssetCandidate(

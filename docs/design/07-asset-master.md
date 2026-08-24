@@ -18,7 +18,7 @@ group: 운영 설계
 | 소수 자릿수 | 보관하지 않는다 |
 | 컨트랙트 주소 | 등록 때 대조한 근거의 사본으로 보관 |
 
-매핑 표는 매핑만 담는다. **자산은 벤더를 따라 동기화하지 않는다** — 지원하기로 한 자산만 등록하고, 늘어나면 한 줄 더한다. 블록체인 목록은 하루 한 번 받아 둔다(아래 "표 둘").
+현재 매핑 표는 매핑만 담는다. **자산은 벤더를 따라 동기화하지 않는다** — 지원하기로 한 자산만 등록하고, 늘어나면 한 줄 더한다. 블록체인 목록은 하루 한 번 받아 둔다(아래 "표 셋").
 
 **범위 (시작 시점)** — 스테이블코인만, 네트워크는 `ETHEREUM` · `BASE` 둘. 벤더 자산 분류는 NATIVE · FT · FIAT · NFT · SFT · VIRTUAL 로, 스테이블코인이라는 분류는 없다.
 
@@ -40,9 +40,9 @@ group: 운영 설계
 - **CAIP-2 / CAIP-19** 는 `eip155:` + chainId 로 조립할 수 있어 저장하지 않는다.
 - **ISO 24165 (DTI/DLI)** 는 지금 도입하지 않는다. chainId 와 컨트랙트 주소가 있으면 나중에 매핑할 수 있다.
 
-## 표 둘 — 카탈로그와 매핑
+## 표 셋 — 카탈로그·현재 매핑·변경 snapshot
 
-**벤더 블록체인 카탈로그는 동기화하고(체인 135개), 자산 매핑은 손으로 등록한다.**
+**벤더 블록체인 카탈로그는 동기화하고(체인 135개), 자산 매핑은 손으로 등록한다. 매핑 이력은 별도 version으로 관리하지 않고 변경 전후 snapshot으로 남긴다.**
 
 ```sql
 -- 벤더 블록체인 카탈로그 — 일 1회 동기화. 고르기 위한 참조 데이터다
@@ -58,31 +58,49 @@ CREATE TABLE bcm_blkc_m (
   UNIQUE (ntwk_cd)
 );
 
--- 자산 매핑 — 손으로 등록한다
+-- 자산의 현재 매핑 — 손으로 등록하며 물리 삭제하지 않는다
 CREATE TABLE bcm_vndr_ast_m (
   ntwk_cd       VARCHAR(20)  NOT NULL,   -- 우리 네트워크 코드
   tkn_smbl      VARCHAR(16)  NOT NULL,   -- 토큰 심볼 (표시용)
   vndr_ast_id   VARCHAR(64)  NOT NULL,   -- 벤더 assetId — 벤더 호출에만 쓴다
   cntr_addr     VARCHAR(128) NULL,       -- 등록 때 대조한 컨트랙트 주소 (네이티브는 NULL)
+  actv_yn       VARCHAR(1)   NOT NULL,   -- 현재 지원 여부 Y/N
   reg_dttm      VARCHAR(16)  NOT NULL,
   -- 감사 4컬럼
   PRIMARY KEY (ntwk_cd, tkn_smbl),
   UNIQUE (vndr_ast_id),
   FOREIGN KEY (ntwk_cd) REFERENCES bcm_blkc_m (ntwk_cd)
 );
+
+-- 매핑 변경 원장 — 변경 전후 상태를 추가 전용으로 보관한다
+CREATE TABLE bcm_vndr_ast_chng_l (
+  chng_id          VARCHAR(36)  PRIMARY KEY,
+  ntwk_cd          VARCHAR(20)  NOT NULL,
+  tkn_smbl         VARCHAR(16)  NOT NULL,
+  actn_dvcd        VARCHAR(16)  NOT NULL, -- REGISTER/DEACTIVATE/REACTIVATE/REPLACE
+  before_snps      JSONB        NULL,     -- 변경 전 현재 매핑 snapshot
+  after_snps       JSONB        NULL,     -- 변경 후 현재 매핑 snapshot
+  req_id           VARCHAR(64)  NOT NULL, -- Admin 요청 추적 id
+  chng_dttm        VARCHAR(16)  NOT NULL,
+  -- 감사 4컬럼
+  FOREIGN KEY (ntwk_cd, tkn_smbl) REFERENCES bcm_vndr_ast_m (ntwk_cd, tkn_smbl)
+);
 ```
 
 | 제약 | 무엇을 막나 |
 |---|---|
 | `PRIMARY KEY (ntwk_cd, tkn_smbl)` | 같은 자산이 두 줄로 갈라지는 것 |
-| `UNIQUE (vndr_ast_id)` | 한 벤더 자산이 여러 (네트워크, 토큰)에 붙는 것 |
+| `UNIQUE (vndr_ast_id)` | 현재 한 벤더 자산이 여러 (네트워크, 토큰)에 붙는 것 |
 | `FOREIGN KEY (ntwk_cd)` | 채택하지 않은 네트워크로 매핑이 생기는 것 |
 | `UNIQUE (ntwk_cd)` (카탈로그) | 우리 이름 하나가 두 벤더 체인을 가리키는 것 |
-| `vndr_ast_id` 는 **set-once** | 발급된 주소와 새 주소가 서로 다른 체인이 되는 것 |
+| 현재 매핑 직접 덮어쓰기 금지 | 검증·snapshot 없이 벤더 자산이나 컨트랙트 주소가 바뀌는 것 |
+| 변경 원장 `UPDATE`·`DELETE` 금지 | 변경 전후 snapshot이 사라지거나 고쳐지는 것 |
 
 **네트워크 채택은 카탈로그 행에 `ntwk_cd` 를 붙이는 것**이다. `chain_id` 와 `dspl_nm` 은 동기화가 채운다.
 
-매핑 행 하나가 곧 "이 자산은 벤더로 보낼 수 있다"는 뜻이다. 별도의 사용 여부 플래그는 두지 않는다.
+`bcm_vndr_ast_m`은 (네트워크, 토큰)별 현재값 하나만 보관한다. `actv_yn=Y`인 행만 "이 자산은 벤더로 보낼 수 있다"는 뜻이며 일반 조회와 업무 요청도 활성 매핑만 사용한다. 등록·해제·재활성·교체 때는 현재 행 변경과 `bcm_vndr_ast_chng_l` 추가를 한 DB 트랜잭션으로 묶는다.
+
+snapshot에는 `network`·`symbol`·`vendorAssetId`·`contractAddress`·`activeYn`을 담는다. 최초 등록은 `before_snps=NULL`, 해제는 변경 전후 값을 모두 남긴다. snapshot은 감사와 장애 대조용이지 현재값을 읽는 테이블이 아니다.
 
 ## 동기화 — 하루 한 번, 카탈로그만
 
@@ -129,9 +147,9 @@ sequenceDiagram
 
     Note over ADM,FB: 등록 — 주소로 자산을 지정한다
     ADM->>API: POST 매핑 등록<br/>network · symbol · contractAddress<br/>직원번호 · 부점코드
-    API->>MDB: (network, symbol) 조회
-    alt 이미 등록됨
-        MDB-->>API: 기존 행
+    API->>MDB: (network, symbol) 현재 행 조회
+    alt 활성 매핑이 이미 있음
+        MDB-->>API: actv_yn=Y인 기존 행
         API-->>ADM: 409 CONFLICT
     else 통과
         API->>FB: 그 체인에서 주소로 자산 해소
@@ -143,7 +161,7 @@ sequenceDiagram
             API-->>ADM: 409 CONFLICT
         else 하나만 잡힘
             FB-->>API: assetId · 컨트랙트 주소 · 소수 자릿수
-            API->>MDB: INSERT — ntwk_cd FK · 감사 4컬럼 = 실제 직원·부점
+            API->>MDB: 현재 행 등록·재활성·교체 + 변경 전후 snapshot<br/>감사 4컬럼 = 실제 직원·부점
             alt vndr_ast_id UNIQUE 위반
                 MDB-->>API: 제약 위반
                 API-->>ADM: 409 CONFLICT
@@ -163,8 +181,10 @@ sequenceDiagram
 
 - **채택한 네트워크만** — FK 가 막는다.
 - **주소로 자산이 하나만 잡혀야 한다** — 없으면 400, 둘 이상이면 409.
-- **중복 등록 차단** — 이미 등록된 (network, symbol) 은 덮어쓰지 않는다. PK 가 막는다.
+- **중복 등록 차단** — 활성 (network, symbol)이 있으면 409다. 비활성 행은 같은 매핑이면 재활성하고, 다른 매핑이면 다시 검증한 뒤 교체한다.
 - **한 자산은 한 매핑** — 해소된 assetId 를 이미 쓰는 행이 있으면 DB 가 막는다.
+
+등록·재활성·교체는 현재 행을 바로 덮어쓰는 일반 수정이 아니다. 위 관문을 모두 다시 통과한 뒤 현재 행과 변경 전후 snapshot을 한 트랜잭션으로 기록한다.
 
 사람이 판단하는 지점은 둘이다 — **네트워크 채택 때 올바른 체인에 이름을 붙이는 것**, **토큰마다 발행사 문서에서 컨트랙트 주소를 확인하는 것**.
 
@@ -182,8 +202,7 @@ sequenceDiagram
 | `POST /admin/asset-mappings` | 등록 — `network` · `symbol` · `contractAddress` |
 | `DELETE /admin/asset-mappings/{network}/{symbol}` | 논리 해제 — **그 (네트워크, 토큰)으로 발급된 주소가 하나도 없을 때만** 허용, 있으면 409 |
 
-수정 오퍼레이션은 두지 않는다. 주소·벤더 매핑·감사 흔적을 물리 삭제하지 않으며, 잘못된 매핑은 논리 해제 뒤 새 불변 mapping
-version을 등록한다. 기존 `bcm_vndr_ast_m` 단일 행 모델은 이 version·활성 binding을 보존하도록 T10.2 구현 전에 03에서 개정한다.
+수정 오퍼레이션은 두지 않는다. 주소·현재 매핑·감사 흔적을 물리 삭제하지 않으며, 해제는 `bcm_vndr_ast_m.actv_yn=N`으로 표시한다. 잘못된 매핑은 논리 해제한 뒤 등록 절차를 다시 거쳐 같은 현재 행을 교체한다. 별도 mapping version이나 활성 binding 테이블은 두지 않고, 등록·해제·재활성·교체의 변경 전후 상태를 `bcm_vndr_ast_chng_l`에 추가 전용 snapshot으로 남긴다.
 
 **감사 흔적** — 자동 처리 행은 시스템 센티넬(`SYSTEM`/`9999`), **Admin 수동 개입은 실제 직원번호·부점코드**를 남긴다([DB 명명 규약](03-bcm-db.md)).
 직원번호·부점코드 헤더는 인증이 아니라 감사 전달값이다. Blockchain Manager Admin BFF가 검증한 단기 JWT 신원에서 만들고 BCM은 JWT와
@@ -191,14 +210,20 @@ version을 등록한다. 기존 `bcm_vndr_ast_m` 단일 행 모델은 이 versio
 
 **이 경로의 호출 주체는 Blockchain Manager Admin BFF 하나다.** `/admin/*`는 같은 `bcm-api` 애플리케이션의 private listener/ingress에
 분리하고 공유 환경에서는 BFF→BCM mTLS와 5분 이하 단기 JWT를 함께 검증한다. 일반 업무 API의 내부망 신뢰와 별도 경계다.
-T10.2 읽기 전용 기능 테스트 profile은 loopback에서만 실행하고 이 절의 변경 API를 BFF에 노출하지 않는다.
+T10.2 기능 테스트 profile은 loopback에서만 실행한다. 기본은 읽기 전용이나, 로컬 자산 매핑 관리를
+명시적으로 활성화한 경우에만 네트워크 후보 채택·자산 후보 조회·자산 등록을 BFF에 노출한다. 이 예외는
+`FUNCTION_TEST+loopback`에 고정하고, 조회는 단순 form이 만들 수 없는 전용 헤더를, 채택·등록은 이 헤더와 브라우저와 동일한
+Origin·JSON 요청을 모두 확인한다. BFF는 로컬 설정의
+감사 actor를 BCM에 전달하며 브라우저가 직원번호·부점코드 헤더를 직접 만들지 않는다. 공유 환경의 등록은 mTLS·단기 JWT
+인증·인가가 완성되기 전에는 계속 닫는다. 네트워크·자산 논리 해제와 자산 교체는 주소 발급과 변경 snapshot 운영 조건을 필요로 하므로
+로컬 UI에서도 열지 않는다.
 
-### 해제와 주소 발급의 동시성
+### 해제 운영 조건
 
-- mapping·network 해제와 주소 발급은 같은 활성 binding 행을 잠그고 한 트랜잭션에서 판정한다.
-- 해제는 주소 존재 여부를 잠금 뒤 다시 확인하고 활성 binding만 내린다. 주소 발급은 활성 binding 잠금·확인 뒤에만 벤더를 호출한다.
-- 벤더 호출 중 동시 해제로 주소만 생성되는 경합을 막기 위해 주소 발급 intent를 먼저 기록한다. 진행 intent가 있으면 해제를 409로 거절한다.
-- 논리 해제된 version과 감사 이력은 조회 가능하게 남기고 일반 등록 목록은 활성 binding을 기본으로 반환한다.
+- mapping·network 해제는 서비스 운영 중 수행하는 무중단 기능이 아니라 유지보수 작업이다. 해제 전에 주소 발급 요청 유입을 차단하고 진행 중인 요청이 없음을 확인한다.
+- 해제 시 해당 자산으로 발급된 주소가 없는지 다시 확인한다. 주소가 하나라도 있으면 409로 거절하고, 없을 때만 `actv_yn=N` 변경과 전후 snapshot을 한 트랜잭션으로 기록한다.
+- 이 전제를 적용하므로 주소 발급 intent나 해제와 발급 사이의 온라인 경합 제어는 두지 않는다. 운영 중 해제가 필요해지면 그때 별도 설계한다.
+- 논리 해제된 현재 행과 변경 snapshot은 조회 가능하게 남기고 일반 등록 목록은 활성 매핑을 기본으로 반환한다.
 
 ## 뒤로 미룬 것 — 네트워크 장애 대응
 

@@ -1,6 +1,5 @@
 package com.whatto.bcm.testsupport.stub
 
-import com.whatto.bcm.testsupport.config.TestSupportProperties
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -10,7 +9,6 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @ConditionalOnProperty(prefix = "bcm.test-support", name = ["vendor-mode"], havingValue = "STUB", matchIfMissing = true)
 internal class FireblocksCatalogStubController(
-    private val properties: TestSupportProperties,
     private val chain: LocalStubChainState,
 ) {
     @GetMapping("/v1/blockchains")
@@ -22,20 +20,20 @@ internal class FireblocksCatalogStubController(
         check(pageCursor == null) { "bootstrap catalog has no next page" }
         return BlockchainListResponse(
             data =
-                listOf(
+                chain.blockchains().map { blockchain ->
                     BlockchainResponse(
-                        id = LOCAL_BLOCKCHAIN_ID,
-                        displayName = "Local EVM",
+                        id = blockchain.id,
+                        displayName = blockchain.displayName,
                         metadata = BlockchainMetadataResponse(deprecated = false),
                         onchain =
                             BlockchainOnchainResponse(
                                 protocol = "EVM",
-                                chainId = properties.evmChainId.toString(),
+                                chainId = blockchain.chainId.toString(),
                                 test = true,
                                 signingAlgo = "MPC_ECDSA_SECP256K1",
                             ),
-                    ),
-                ),
+                    )
+                },
         )
     }
 
@@ -46,11 +44,11 @@ internal class FireblocksCatalogStubController(
         @RequestParam(required = false) symbol: String?,
         @RequestParam(required = false) pageCursor: String?,
     ): AssetListResponse {
-        check(blockchainId == LocalStubChainState.LOCAL_BLOCKCHAIN_ID) { "unsupported blockchain id" }
+        check(chain.blockchains().any { it.id == blockchainId }) { "unsupported blockchain id" }
         check(pageSize == FIREBLOCKS_ASSET_PAGE_SIZE) { "unsupported asset page size" }
         check(pageCursor == null) { "local asset catalog has no next page" }
         val assets =
-            chain.assets().filter { asset ->
+            chain.assets(blockchainId).filter { asset ->
                 symbol == null ||
                     asset.displaySymbol.equals(symbol, ignoreCase = true) ||
                     asset.id.equals(symbol, ignoreCase = true)
@@ -60,7 +58,7 @@ internal class FireblocksCatalogStubController(
                 assets.map { asset ->
                     AssetResponse(
                         id = asset.id,
-                        blockchainId = LocalStubChainState.LOCAL_BLOCKCHAIN_ID,
+                        blockchainId = asset.blockchainId,
                         displayName = asset.displayName,
                         displaySymbol = asset.displaySymbol,
                         decimals = asset.decimals,
@@ -74,7 +72,6 @@ internal class FireblocksCatalogStubController(
     companion object {
         private const val FIREBLOCKS_PAGE_SIZE = 500
         private const val FIREBLOCKS_ASSET_PAGE_SIZE = 1000
-        private const val LOCAL_BLOCKCHAIN_ID = LocalStubChainState.LOCAL_BLOCKCHAIN_ID
     }
 }
 

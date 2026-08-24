@@ -179,7 +179,7 @@ class TransactionalStallTerminalObservationHandler(
                     topic = eventType.topic,
                     payload = eventSerializer.serialize(event),
                     maxRetryCount = outboxMaxAttempts,
-                    traceId = "stall-check:${stateChange.record.vendorTxId}",
+                    traceId = "stall:${stateChange.record.vendorTxId}",
                 )
             }
         outbox.insertAll(events)

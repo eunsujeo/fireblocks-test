@@ -44,6 +44,10 @@ sequenceDiagram
 
 온체인 상태 변경은 Fireblocks 웹훅으로 받는다. 매니저가 계열을 가려 세 토픽으로 publish 하고, 백엔드는 토픽별 컨슈머로 consume 한다. 감지용 상시 폴링은 없다 — 놓친 웹훅은 tx 대사(10분 주기 목록 대조)가 복구한다.
 
+수신·판단·발행은 업무 REST API와 분리된 **BCM Webhook BootJar·프로세스**가 소유한다. `bcm-api`는 `/webhook`을
+노출하거나 판단 워커·outbox relay를 실행하지 않는다. 두 프로세스는 같은 PostgreSQL 스키마와 Kafka 계약을 사용하되 어느 한쪽의
+기동·재시작·수평 확장이 다른 쪽 프로세스 수명에 종속되지 않는다. 외부 ingress는 BCM Webhook으로만 라우팅한다.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -342,7 +346,8 @@ sequenceDiagram
     participant MQ as withdrawal-events
     end
     box rgb(220,252,231) 블록체인 매니저
-    participant BM as 매니저 API · 웹훅 수신
+    participant API as BCM API
+    participant WH as BCM Webhook
     end
     box rgb(254,226,226) 보안 존 SGX/TEE
     participant COS as API Co-signer
@@ -352,10 +357,10 @@ sequenceDiagram
     participant RL as 지정 relay
     participant CH as 온체인
 
-    BE->>BM: POST /transactions — externalTxId · from=출금 풀 vault · gasless
-    BM->>FB: createTransaction
-    FB-->>BM: 벤더 txId
-    BM-->>BE: 접수 — txId
+    BE->>API: POST /transactions — externalTxId · from=출금 풀 vault · gasless
+    API->>FB: createTransaction
+    FB-->>API: 벤더 txId
+    API-->>BE: 접수 — txId
     FB->>COS: 서명 요청 — 목적지·금액 원문 동반
     COS->>CB: 승인 질의 — 서명 직전 검증 (아래 표)
     CB-->>COS: approve / deny
@@ -363,8 +368,8 @@ sequenceDiagram
     FB->>RL: gas 부담 위임 — relay 거절이면 거래 실패
     RL->>CH: 전파 — relay 가 발신자로 제출하고 gas 를 낸다
     CH-->>FB: 블록 누적 → 확정
-    FB->>BM: 웹훅 — 상태 변경 push
-    BM-->>MQ: publish — SUBMITTED → CONFIRMED → FINALIZED
+    FB->>WH: 웹훅 — 상태 변경 push
+    WH-->>MQ: publish — SUBMITTED → CONFIRMED → FINALIZED
     MQ-->>QC: consume
     QC->>QC: externalTxId 로 출금 건 대응 · 상태 갱신 · 오프셋 커밋
 ```

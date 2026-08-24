@@ -10,10 +10,25 @@ spring:
 bcm:
   admin:
     mode: FUNCTION_TEST
+    vendor-mode: ${BCM_VENDOR_MODE:FIREBLOCKS}
+    chain-mode: ${BCM_CHAIN_MODE:TESTNET}
+    data-set: ${BCM_LOCAL_DATASET:fireblocks}
     target-base-url: ${BCM_ADMIN_TARGET_BASE_URL:http://127.0.0.1:8080}
+    webhook-management-base-url: ${BCM_ADMIN_WEBHOOK_MANAGEMENT_BASE_URL:http://127.0.0.1:9091}
     connect-timeout-millis: ${BCM_ADMIN_CONNECT_TIMEOUT_MILLIS:1000}
     read-timeout-millis: ${BCM_ADMIN_READ_TIMEOUT_MILLIS:3000}
     stale-after-seconds: ${BCM_ADMIN_STALE_AFTER_SECONDS:90000}
+    system-test:
+      enabled: ${BCM_ADMIN_SYSTEM_TEST_ENABLED:false}
+      state-directory: ${BCM_ADMIN_SYSTEM_TEST_STATE_DIRECTORY:}
+      stale-after-seconds: ${BCM_ADMIN_SYSTEM_TEST_STALE_AFTER_SECONDS:900}
+    local-scenario:
+      enabled: ${BCM_ADMIN_LOCAL_SCENARIO_ENABLED:false}
+      repository-directory: ${BCM_ADMIN_LOCAL_SCENARIO_REPOSITORY:}
+    local-asset-management:
+      enabled: ${BCM_ADMIN_LOCAL_ASSET_MANAGEMENT_ENABLED:false}
+      employee-no: ${BCM_ADMIN_LOCAL_ASSET_EMPLOYEE_NO:LOCAL}
+      branch-code: ${BCM_ADMIN_LOCAL_ASSET_BRANCH_CODE:9999}
 
 management:
   endpoints:

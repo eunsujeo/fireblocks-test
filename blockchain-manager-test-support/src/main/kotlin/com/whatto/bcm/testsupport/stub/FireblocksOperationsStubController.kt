@@ -21,6 +21,8 @@ import java.security.MessageDigest
 import java.security.Signature
 import java.security.interfaces.RSAPublicKey
 import java.util.Base64
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -64,6 +66,16 @@ internal class FireblocksOperationsStubController(
     fun redeliverLastNotification() {
         delivery.redeliverLast()
     }
+
+    @PostMapping("/__stub/webhooks/{webhookId}/activate")
+    fun activateWebhook(
+        @PathVariable webhookId: String,
+    ): WebhookResponse = webhooks.update(webhookId, true)
+
+    @PostMapping("/__stub/webhooks/{webhookId}/resend-failed")
+    fun resendFailedWebhookNotifications(
+        @PathVariable webhookId: String,
+    ): ResendFailedNotificationsResponse = delivery.resendFailed(webhookId)
 
     @PostMapping("/__stub/faults/webhooks/next-delivery")
     fun failNextWebhookDelivery() {
@@ -155,14 +167,18 @@ internal class LocalWebhookDeliveryService(
     private val signer: LocalWebhookSigner,
     private val objectMapper: ObjectMapper,
 ) {
+    private val notificationInstanceId =
+        UUID
+            .randomUUID()
+            .toString()
+            .replace("-", "")
+            .take(12)
+    private val notificationSequence = AtomicLong()
     private val client =
         java.net.http.HttpClient
             .newBuilder()
             .connectTimeout(DELIVERY_TIMEOUT)
             .build()
-    private val eventSequence =
-        java.util.concurrent.atomic
-            .AtomicLong()
     private val lastPayload =
         java.util.concurrent.atomic
             .AtomicReference<ByteArray?>()
@@ -178,7 +194,7 @@ internal class LocalWebhookDeliveryService(
         val payload =
             objectMapper.writeValueAsBytes(
                 linkedMapOf(
-                    "id" to "event-local-${eventSequence.incrementAndGet().toString().padStart(8, '0')}",
+                    "id" to nextNotificationId(),
                     "eventType" to eventType,
                     "data" to transaction,
                 ),
@@ -206,10 +222,12 @@ internal class LocalWebhookDeliveryService(
     }
 
     fun reset() {
-        eventSequence.set(0)
         lastPayload.set(null)
         failNextDelivery.set(false)
     }
+
+    private fun nextNotificationId(): String =
+        "event-local-$notificationInstanceId-${notificationSequence.incrementAndGet().toString().padStart(12, '0')}"
 
     fun resendFailed(webhookId: String): ResendFailedNotificationsResponse {
         val failures = webhooks.drainFailures(webhookId)

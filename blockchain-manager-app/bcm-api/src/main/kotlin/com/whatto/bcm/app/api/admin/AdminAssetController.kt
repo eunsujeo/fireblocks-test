@@ -108,6 +108,7 @@ class AdminAssetController(
                     contractAddress = request.contractAddress,
                     employeeNo = employeeNo,
                     branchCode = branchCode,
+                    requestId = RequestIdFilter.requestIdOf(httpRequest),
                 ),
             )
         return ApiResponse.of(AssetMappingData.from(mapping), RequestIdFilter.requestIdOf(httpRequest))
@@ -120,8 +121,9 @@ class AdminAssetController(
         @PathVariable @Pattern(regexp = SYMBOL_PATTERN) symbol: String,
         @RequestHeader(EMPLOYEE_HEADER) @NotBlank @Size(max = 6) employeeNo: String,
         @RequestHeader(BRANCH_HEADER) @NotBlank @Size(max = 4) branchCode: String,
+        httpRequest: HttpServletRequest,
     ) {
-        service.delete(network, symbol, AuditActor(employeeNo, branchCode))
+        service.delete(network, symbol, AuditActor(employeeNo, branchCode, RequestIdFilter.requestIdOf(httpRequest)))
     }
 
     companion object {

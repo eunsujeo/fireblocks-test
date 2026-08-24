@@ -2,7 +2,6 @@ package com.whatto.bcm.app.application.admin
 
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers.openApi
 import com.whatto.bcm.app.api.BcmApiApplication
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
 import com.whatto.bcm.domain.admin.AdminActor
 import com.whatto.bcm.domain.admin.AdminRole
 import com.whatto.bcm.domain.admin.ChangeDecision
@@ -13,6 +12,7 @@ import com.whatto.bcm.domain.admin.ExecutionGateState
 import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.admin.TapBatchObservation
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach

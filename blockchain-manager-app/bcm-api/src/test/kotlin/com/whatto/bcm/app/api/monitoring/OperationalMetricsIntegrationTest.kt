@@ -1,6 +1,5 @@
 package com.whatto.bcm.app.api.monitoring
 
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
 import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventRepository
 import com.whatto.bcm.domain.event.OutboxEventType
@@ -14,6 +13,7 @@ import com.whatto.bcm.domain.webhook.WebhookNotification
 import com.whatto.bcm.support.id.UuidV7Generator
 import com.whatto.bcm.support.monitoring.OperationalAlertProperties
 import com.whatto.bcm.support.monitoring.OperationalMetricsPublisher
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach

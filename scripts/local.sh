@@ -6,11 +6,25 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 ENV_FILE="${BCM_LOCAL_ENV_FILE:-$REPO_ROOT/.env}"
 STATE_DIR="${BCM_LOCAL_STATE_DIR:-$REPO_ROOT/build/local}"
+ACTIVE_MODE_FILE="$STATE_DIR/active-mode"
 COMPOSE_FILE="$REPO_ROOT/config/local-compose.yaml"
-COMPOSE_PROJECT="bcm-local"
+COMPOSE_PROJECT="${BCM_LOCAL_COMPOSE_PROJECT:-bcm-local}"
+POSTGRES_PORT="${BCM_LOCAL_POSTGRES_PORT:-15432}"
+KAFKA_PORT="${BCM_LOCAL_KAFKA_PORT:-9092}"
+CHAIN_PROFILE="${BCM_LOCAL_CHAIN_PROFILE:-catalog}"
+ANVIL_PORT="${BCM_LOCAL_ANVIL_PORT:-8545}"
+ETHEREUM_ANVIL_PORT="${BCM_LOCAL_ETHEREUM_ANVIL_PORT:-38545}"
+BASE_ANVIL_PORT="${BCM_LOCAL_BASE_ANVIL_PORT:-38546}"
+STUB_PORT="${BCM_LOCAL_STUB_PORT:-18080}"
+STUB_MANAGEMENT_PORT="${BCM_LOCAL_STUB_MANAGEMENT_PORT:-18090}"
+API_PORT="${BCM_LOCAL_API_PORT:-38080}"
+API_MANAGEMENT_PORT="${BCM_LOCAL_API_MANAGEMENT_PORT:-9090}"
+WEBHOOK_PORT="${BCM_LOCAL_WEBHOOK_PORT:-38081}"
+WEBHOOK_MANAGEMENT_PORT="${BCM_LOCAL_WEBHOOK_MANAGEMENT_PORT:-9091}"
+ADMIN_PORT="${BCM_LOCAL_ADMIN_PORT:-9080}"
 DEFAULT_BASE_URL="https://api.fireblocks.io"
 DEFAULT_JWKS_URL="https://keys.fireblocks.io/.well-known/jwks.json"
-DEFAULT_LOCAL_STUB_BASE_URL="http://127.0.0.1:18080"
+DEFAULT_LOCAL_STUB_BASE_URL="http://127.0.0.1:$STUB_PORT"
 
 usage() {
     cat <<'EOF'
@@ -20,7 +34,9 @@ Blockchain Manager 로컬 실행기
   ./scripts/local.sh configure [fireblocks]
   ./scripts/local.sh up [fireblocks|stub]
   ./scripts/local.sh status
-  ./scripts/local.sh logs [api|bat|admin|infra]
+  ./scripts/local.sh stop [api|webhook|admin]
+  ./scripts/local.sh test deposit
+  ./scripts/local.sh logs [api|webhook|admin|chain|stub|infra]
   ./scripts/local.sh down
   ./scripts/local.sh reset
   ./scripts/local.sh purge
@@ -34,12 +50,69 @@ fail() {
     exit 1
 }
 
+component_display_name() {
+    case "$1" in
+        chain) printf '%s' '로컬 블록체인 (Anvil)' ;;
+        stub) printf '%s' 'Fireblocks 로컬 Stub' ;;
+        api) printf '%s' 'Blockchain Manager API' ;;
+        webhook) printf '%s' 'Blockchain Manager Webhook' ;;
+        admin) printf '%s' 'Blockchain Manager Admin' ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+[[ "$COMPOSE_PROJECT" =~ ^[a-z0-9][a-z0-9_-]{0,62}$ ]] ||
+    fail "안전하지 않은 Docker Compose 프로젝트 이름입니다: $COMPOSE_PROJECT"
+for local_port in \
+    "$POSTGRES_PORT" "$KAFKA_PORT" "$ANVIL_PORT" "$ETHEREUM_ANVIL_PORT" "$BASE_ANVIL_PORT" "$STUB_PORT" \
+    "$STUB_MANAGEMENT_PORT" "$API_PORT" "$API_MANAGEMENT_PORT" \
+    "$WEBHOOK_PORT" "$WEBHOOK_MANAGEMENT_PORT" "$ADMIN_PORT"; do
+    [[ "$local_port" =~ ^[0-9]{1,5}$ ]] && ((10#$local_port >= 1 && 10#$local_port <= 65535)) ||
+        fail "안전하지 않은 로컬 포트입니다: $local_port"
+done
+
 require_command() {
     command -v "$1" >/dev/null 2>&1 || fail "$1 명령을 찾을 수 없습니다."
 }
 
 compose() {
     docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" "$@"
+}
+
+active_local_mode() {
+    if [ -f "$ACTIVE_MODE_FILE" ]; then
+        tr -d '\r\n' < "$ACTIVE_MODE_FILE"
+    else
+        printf '%s' 'fireblocks'
+    fi
+}
+
+use_active_dataset() {
+    local active_mode
+    active_mode="$(active_local_mode)"
+    case "$active_mode" in
+        fireblocks|stub) export BCM_LOCAL_DATASET="$active_mode" ;;
+        *) fail "알 수 없는 로컬 실행 모드가 기록되어 있습니다: $active_mode" ;;
+    esac
+}
+
+select_local_mode() {
+    local requested_mode="$1"
+    local active_mode
+    case "$requested_mode" in
+        fireblocks|stub) ;;
+        *) fail "실행 모드는 fireblocks 또는 stub이어야 합니다." ;;
+    esac
+    active_mode="$(active_local_mode)"
+    if [ "$active_mode" != "$requested_mode" ] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+        export BCM_LOCAL_DATASET="$active_mode"
+        if [ -n "$(compose ps -q 2>/dev/null || true)" ]; then
+            fail "$active_mode 모드의 PostgreSQL·Kafka가 남아 있습니다. down 후 $requested_mode 모드로 전환하세요."
+        fi
+    fi
+    mkdir -p "$STATE_DIR"
+    printf '%s\n' "$requested_mode" > "$ACTIVE_MODE_FILE"
+    export BCM_LOCAL_DATASET="$requested_mode"
 }
 
 env_value() {
@@ -108,10 +181,10 @@ write_env() {
     mkdir -p "$(dirname "$ENV_FILE")"
     {
         echo "# scripts/local.sh가 생성한 로컬 설정 — Git 커밋 금지"
-        echo "SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:15432/bcm"
+        echo "SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
         echo "SPRING_DATASOURCE_USERNAME=postgres"
         echo "SPRING_DATASOURCE_PASSWORD=bcm"
-        echo "KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092"
+        echo "KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:$KAFKA_PORT"
         echo "BCM_HTTP_MAX_CONNECTIONS=100"
         echo "BCM_FIREBLOCKS_BASE_URL=$base_url"
         echo "BCM_FIREBLOCKS_API_KEY=$api_key"
@@ -156,6 +229,10 @@ ensure_fireblocks_config() {
         load_env
     fi
     [ -r "$BCM_FIREBLOCKS_PRIVATE_KEY_FILE" ] || fail "Private Key 파일을 읽을 수 없습니다: $BCM_FIREBLOCKS_PRIVATE_KEY_FILE"
+    case "${BCM_FIREBLOCKS_BASE_URL%/}" in
+        https://api.fireblocks.io) export BCM_FIREBLOCKS_BASE_URL=https://api.fireblocks.io ;;
+        *) fail "실 Fireblocks 자격증명은 공식 API 주소 https://api.fireblocks.io에만 전송할 수 있습니다." ;;
+    esac
 }
 
 pid_file() {
@@ -179,6 +256,7 @@ expected_gradle_task() {
     case "$1" in
         chain|stub) printf '%s' ':blockchain-manager-test-support:bootRun' ;;
         api) printf '%s' ':blockchain-manager-app:bcm-api:bootRun' ;;
+        webhook) printf '%s' ':blockchain-manager-app:bcm-webhook:bootRun' ;;
         admin) printf '%s' ':blockchain-manager-app:bcm-admin:bootRun' ;;
         *) return 1 ;;
     esac
@@ -208,7 +286,7 @@ process_identity_matches() {
     [[ "$command" == *"$REPO_ROOT/gradle/wrapper/gradle-wrapper.jar"* ]] || return 1
     [[ "$command" == *"$task"* ]] || return 1
     if [ "$name" = chain ]; then
-        [[ "$command" == *'--args=chain'* ]] || return 1
+        [[ "$command" == *'--args=chain'* || "$command" == *'--args=chain-cluster'* ]] || return 1
     fi
     if [ "$name" = stub ]; then
         [[ "$command" != *'--args=chain'* ]] || return 1
@@ -245,6 +323,16 @@ running() {
     managed_process "$1" || legacy_managed_process "$1"
 }
 
+# wrapper shell이 Java Gradle client로 exec 되기 전의 짧은 구간에는 command identity가 아직 완성되지 않는다.
+# 이 함수는 readiness 대기 유예에만 쓰고, 종료 신호를 보낼 근거로는 사용하지 않는다.
+starting_process_alive() {
+    local file pid
+    file="$(pid_file "$1")"
+    [ -f "$file" ] && [ ! -L "$file" ] || return 1
+    pid="$(cat "$file")"
+    valid_pid "$pid" && kill -0 "$pid" 2>/dev/null
+}
+
 assert_port_free() {
     local port="$1"
     local owner="$2"
@@ -259,16 +347,16 @@ start_gradle_process() {
     local token
     shift 2
     if running "$name"; then
-        echo "$name은 이미 실행 중입니다."
+        echo "$(component_display_name "$name"): 이미 실행 중입니다."
         return 0
     fi
     mkdir -p "$STATE_DIR"
     token="$name-$$-$(date +%s)-$RANDOM$RANDOM"
     printf '%s\n' "$token" > "$(pid_token_file "$name")"
-    echo "$name 시작 중..."
+    echo "$(component_display_name "$name") 시작 중..."
     (
         cd "$REPO_ROOT"
-        nohup ./gradlew --no-daemon "-Dbcm.local.process.token=$token" "$task" "$@" > "$(log_file "$name")" 2>&1 < /dev/null &
+        nohup python3 "$SCRIPT_DIR/internal/local-process-launcher.py" ./gradlew --no-daemon "-Dbcm.local.process.token=$token" "$task" "$@" > "$(log_file "$name")" 2>&1 < /dev/null &
         echo $! > "$(pid_file "$name")"
     )
 }
@@ -276,22 +364,33 @@ start_gradle_process() {
 wait_chain() {
     local attempt=0
     while [ "$attempt" -lt 120 ]; do
-        if curl -fsS \
-            -H 'Content-Type: application/json' \
-            --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
-            http://127.0.0.1:8545 2>/dev/null | grep -q '"result":"0x7a69"'; then
-            echo "local chain 준비 완료"
+        if [ "$CHAIN_PROFILE" = legacy ]; then
+            if chain_id_ready "$ANVIL_PORT" '0x7a69'; then
+                echo "로컬 블록체인 (Anvil) 준비 완료"
+                return 0
+            fi
+        elif chain_id_ready "$ETHEREUM_ANVIL_PORT" '0x7a69' && chain_id_ready "$BASE_ANVIL_PORT" '0x7a6a'; then
+            echo "로컬 블록체인 (Ethereum·Base Anvil) 준비 완료"
             return 0
         fi
-        if ! running chain; then
+        if ! running chain && { [ "$attempt" -ge 10 ] || ! starting_process_alive chain; }; then
             tail -n 40 "$(log_file chain)" >&2 || true
-            fail "local chain 프로세스가 기동 중 종료됐습니다."
+            fail "로컬 블록체인 (Anvil) 프로세스가 기동 중 종료됐습니다."
         fi
         attempt=$((attempt + 1))
         sleep 1
     done
     tail -n 40 "$(log_file chain)" >&2 || true
-    fail "local chain health check 시간이 초과됐습니다."
+    fail "로컬 블록체인 (Anvil) health check 시간이 초과됐습니다."
+}
+
+chain_id_ready() {
+    local port="$1"
+    local expected="$2"
+    curl -fsS \
+        -H 'Content-Type: application/json' \
+        --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
+        "http://127.0.0.1:$port" 2>/dev/null | grep -q "\"result\":\"$expected\""
 }
 
 prepare_local_api_key() {
@@ -311,18 +410,37 @@ wait_http() {
     local attempt=0
     while [ "$attempt" -lt 120 ]; do
         if curl -fsS "$url" >/dev/null 2>&1; then
-            echo "$name 준비 완료"
+            echo "$(component_display_name "$name") 준비 완료"
             return 0
         fi
-        if ! running "$name"; then
+        if ! running "$name" && { [ "$attempt" -ge 10 ] || ! starting_process_alive "$name"; }; then
             tail -n 40 "$(log_file "$name")" >&2 || true
-            fail "$name 프로세스가 기동 중 종료됐습니다."
+            fail "$(component_display_name "$name") 프로세스가 기동 중 종료됐습니다."
         fi
         attempt=$((attempt + 1))
         sleep 1
     done
     tail -n 40 "$(log_file "$name")" >&2 || true
-    fail "$name health check 시간이 초과됐습니다: $url"
+    fail "$(component_display_name "$name") health check 시간이 초과됐습니다: $url"
+}
+
+verify_fireblocks_api_authentication() {
+    local preflight_log="$STATE_DIR/fireblocks-preflight.log"
+    mkdir -p "$STATE_DIR"
+    : > "$preflight_log"
+    chmod 600 "$preflight_log"
+
+    echo "Fireblocks API 인증 확인 중..."
+    if ! (
+        cd "$REPO_ROOT"
+        unset BCM_FIREBLOCKS_PRIVATE_KEY_PEM
+        export BCM_JOB=catalog-sync-once
+        ./gradlew --no-daemon :blockchain-manager-app:bcm-bat:bootRun
+    ) > "$preflight_log" 2>&1; then
+        echo "상세 로그: $preflight_log" >&2
+        fail "Fireblocks API 인증 또는 연결 확인에 실패했습니다. API Key, Private Key 파일, Base URL과 로컬 시각을 확인하세요."
+    fi
+    echo "Fireblocks API 인증 성공 — 블록체인 목록 읽기 완료"
 }
 
 stop_tree() {
@@ -337,6 +455,23 @@ stop_tree() {
     kill "$pid" 2>/dev/null || true
 }
 
+stop_managed_group() {
+    local pid="$1"
+    local process_group
+    process_group="$(ps -p "$pid" -o pgid= 2>/dev/null | tr -d ' ')"
+    if valid_pid "$process_group" && [ "$process_group" = "$pid" ]; then
+        kill -TERM "-$process_group" 2>/dev/null || true
+        local attempt=0
+        while kill -0 "-$process_group" 2>/dev/null && [ "$attempt" -lt 20 ]; do
+            attempt=$((attempt + 1))
+            sleep 0.25
+        done
+        kill -KILL "-$process_group" 2>/dev/null || true
+    else
+        stop_tree "$pid"
+    fi
+}
+
 stop_process() {
     local name="$1"
     local file token_file
@@ -346,8 +481,8 @@ stop_process() {
     [ -f "$file" ] || return 0
     pid="$(cat "$file")"
     if managed_process "$name" || legacy_managed_process "$name"; then
-        echo "$name 종료 중..."
-        stop_tree "$pid"
+        echo "$(component_display_name "$name") 종료 중..."
+        stop_managed_group "$pid"
         local attempt=0
         while kill -0 "$pid" 2>/dev/null && [ "$attempt" -lt 20 ]; do
             attempt=$((attempt + 1))
@@ -355,7 +490,7 @@ stop_process() {
         done
         kill -9 "$pid" 2>/dev/null || true
     elif valid_pid "$pid" && kill -0 "$pid" 2>/dev/null; then
-        echo "$name PID 파일이 현재 프로세스와 일치하지 않아 종료 신호를 보내지 않습니다: $pid" >&2
+        echo "$(component_display_name "$name") PID 파일이 현재 프로세스와 일치하지 않아 종료 신호를 보내지 않습니다: $pid" >&2
         return 0
     fi
     unlink "$file" 2>/dev/null || true
@@ -372,29 +507,52 @@ up_fireblocks() {
         fail "Stub 로컬 환경이 실행 중입니다. down 후 Fireblocks 모드로 전환하세요."
     fi
 
+    select_local_mode fireblocks
+
     mkdir -p "$STATE_DIR"
     echo "PostgreSQL·Kafka 시작 중..."
     compose up -d --wait --wait-timeout 120
+    verify_fireblocks_api_authentication
 
     if ! running api; then
-        assert_port_free 8080 "BCM API"
-        assert_port_free 9090 "BCM management"
+        assert_port_free "$API_PORT" "BCM API"
+        assert_port_free "$API_MANAGEMENT_PORT" "BCM management"
     fi
     export BCM_ADMIN_API_ACCESS_MODE=FUNCTION_TEST
-    export BCM_ADMIN_TARGET_BASE_URL=http://127.0.0.1:8080
+    export BCM_API_PORT="$API_PORT"
+    export BCM_MANAGEMENT_PORT="$API_MANAGEMENT_PORT"
+    export BCM_ADMIN_PORT="$ADMIN_PORT"
+    export BCM_ADMIN_TARGET_BASE_URL="http://127.0.0.1:$API_PORT"
+    export BCM_ADMIN_WEBHOOK_MANAGEMENT_BASE_URL="http://127.0.0.1:$WEBHOOK_MANAGEMENT_PORT"
+    mkdir -p "$REPO_ROOT/build/system-test"
+    export BCM_ADMIN_SYSTEM_TEST_ENABLED=true
+    export BCM_ADMIN_SYSTEM_TEST_STATE_DIRECTORY="${BCM_SYSTEM_TEST_ROOT:-$REPO_ROOT/build/system-test}"
+    export BCM_ADMIN_LOCAL_SCENARIO_ENABLED=false
+    export BCM_ADMIN_LOCAL_SCENARIO_REPOSITORY="$REPO_ROOT"
+    export BCM_ADMIN_LOCAL_ASSET_MANAGEMENT_ENABLED=true
 
     start_gradle_process api ":blockchain-manager-app:bcm-api:bootRun"
-    wait_http api "http://127.0.0.1:9090/actuator/health"
+    wait_http api "http://127.0.0.1:$API_MANAGEMENT_PORT/actuator/health"
+    if ! running webhook; then
+        assert_port_free "$WEBHOOK_PORT" "BCM Webhook"
+        assert_port_free "$WEBHOOK_MANAGEMENT_PORT" "BCM Webhook management"
+    fi
+    export BCM_WEBHOOK_PORT="$WEBHOOK_PORT"
+    export BCM_WEBHOOK_MANAGEMENT_PORT="$WEBHOOK_MANAGEMENT_PORT"
+    start_gradle_process webhook ":blockchain-manager-app:bcm-webhook:bootRun"
+    wait_http webhook "http://127.0.0.1:$WEBHOOK_MANAGEMENT_PORT/actuator/health"
     if ! running admin; then
-        assert_port_free 9080 "BCM Admin"
+        assert_port_free "$ADMIN_PORT" "BCM Admin"
     fi
     start_gradle_process admin ":blockchain-manager-app:bcm-admin:bootRun"
-    wait_http admin "http://127.0.0.1:9080/actuator/health"
+    wait_http admin "http://127.0.0.1:$ADMIN_PORT/actuator/health"
 
     echo ""
     echo "Blockchain Manager 로컬 환경이 준비됐습니다."
-    echo "Admin: http://127.0.0.1:9080/admin/dashboard"
-    echo "BCM:   http://127.0.0.1:8080"
+    echo "Admin: http://127.0.0.1:$ADMIN_PORT/admin/dashboard"
+    echo "BCM:   http://127.0.0.1:$API_PORT"
+    echo "API 문서: http://127.0.0.1:$API_PORT/api-docs/"
+    echo "Webhook: http://127.0.0.1:$WEBHOOK_PORT/webhook"
 }
 
 up_stub() {
@@ -405,9 +563,12 @@ up_stub() {
     require_command openssl
     docker info >/dev/null 2>&1 || fail "Docker가 실행 중이지 않습니다."
     docker compose version >/dev/null 2>&1 || fail "Docker Compose v2가 필요합니다."
-    if { running api || running admin; } && { ! running chain || ! running stub; }; then
+    if { running api || running webhook || running admin; } && { ! running chain || ! running stub; }; then
         fail "Fireblocks 로컬 환경이 실행 중입니다. down 후 Stub 모드로 전환하세요."
     fi
+
+    select_local_mode stub
+    export BCM_LOCAL_CHAIN_PROFILE="$CHAIN_PROFILE"
 
     mkdir -p "$STATE_DIR/stub"
     echo "PostgreSQL·Kafka 시작 중..."
@@ -415,69 +576,123 @@ up_stub() {
     echo "로컬 컨트랙트 준비 중..."
     (cd "$REPO_ROOT" && ./gradlew --no-daemon :blockchain-manager-test-support:compileLocalContracts >/dev/null)
 
-    if ! running chain; then
-        assert_port_free 8545 "Anvil"
-    fi
+    case "$CHAIN_PROFILE" in
+        legacy)
+            if ! running chain; then
+                assert_port_free "$ANVIL_PORT" "Anvil"
+            fi
+            ;;
+        catalog)
+            if ! running chain; then
+                assert_port_free "$ETHEREUM_ANVIL_PORT" "Ethereum Anvil"
+                assert_port_free "$BASE_ANVIL_PORT" "Base Anvil"
+            fi
+            ;;
+        *) fail "BCM_LOCAL_CHAIN_PROFILE은 catalog 또는 legacy여야 합니다." ;;
+    esac
     export BCM_LOCAL_CHAIN_SEED_FILE="$STATE_DIR/stub/chain.seed"
     export BCM_LOCAL_CHAIN_RUNTIME_DIR="$STATE_DIR/stub/chain"
     export BCM_LOCAL_CONTRACT_ARTIFACT_DIR="$REPO_ROOT/blockchain-manager-test-support/build/contracts"
     export BCM_LOCAL_ANVIL_BINARY="$(command -v anvil)"
-    export BCM_LOCAL_ANVIL_PORT=8545
-    start_gradle_process chain ":blockchain-manager-test-support:bootRun" "--args=chain"
+    if [ "$CHAIN_PROFILE" = legacy ]; then
+        export BCM_LOCAL_ANVIL_PORT="$ANVIL_PORT"
+        start_gradle_process chain ":blockchain-manager-test-support:bootRun" "--args=chain"
+    else
+        export BCM_LOCAL_ETHEREUM_ANVIL_PORT="$ETHEREUM_ANVIL_PORT"
+        export BCM_LOCAL_BASE_ANVIL_PORT="$BASE_ANVIL_PORT"
+        start_gradle_process chain ":blockchain-manager-test-support:bootRun" "--args=chain-cluster"
+    fi
     wait_chain
 
     if ! running stub; then
-        assert_port_free 18080 "Fireblocks Stub"
-        assert_port_free 18090 "Stub management"
+        assert_port_free "$STUB_PORT" "Fireblocks Stub"
+        assert_port_free "$STUB_MANAGEMENT_PORT" "Stub management"
     fi
     export BCM_VENDOR_MODE=STUB
     export BCM_CHAIN_MODE=LOCAL
-    export SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:15432/bcm
+    export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
     export SPRING_DATASOURCE_USERNAME=postgres
     export SPRING_DATASOURCE_PASSWORD=bcm
-    export KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
+    export KAFKA_BOOTSTRAP_SERVERS="127.0.0.1:$KAFKA_PORT"
     export BCM_HTTP_MAX_CONNECTIONS=100
     export BCM_STUB_ADDRESS=127.0.0.1
-    export BCM_STUB_PORT=18080
+    export BCM_STUB_PORT="$STUB_PORT"
     export BCM_STUB_MANAGEMENT_ADDRESS=127.0.0.1
-    export BCM_STUB_MANAGEMENT_PORT=18090
-    export BCM_FIREBLOCKS_BASE_URL=http://127.0.0.1:18080
+    export BCM_STUB_MANAGEMENT_PORT="$STUB_MANAGEMENT_PORT"
+    export BCM_FIREBLOCKS_BASE_URL="http://127.0.0.1:$STUB_PORT"
     export BCM_FIREBLOCKS_API_KEY=bcm-local-stub
-    export FIREBLOCKS_JWKS_URL=http://127.0.0.1:18080/.well-known/jwks.json
-    export BCM_EVM_RPC_URL=http://127.0.0.1:8545
+    export FIREBLOCKS_JWKS_URL="http://127.0.0.1:$STUB_PORT/.well-known/jwks.json"
+    if [ "$CHAIN_PROFILE" = legacy ]; then
+        export BCM_EVM_RPC_URL="http://127.0.0.1:$ANVIL_PORT"
+        export BCM_LOCAL_CHAIN_MANIFEST_FILE="$STATE_DIR/stub/chain/manifest.json"
+        export BCM_LOCAL_CHAIN_KEY_FILE="$STATE_DIR/stub/chain/evm-keys.json"
+        unset BCM_LOCAL_CHAIN_CLUSTER_MANIFEST_FILE
+    else
+        export BCM_EVM_RPC_URL="http://127.0.0.1:$ETHEREUM_ANVIL_PORT"
+        export BCM_LOCAL_CHAIN_MANIFEST_FILE="$STATE_DIR/stub/chain/ethereum/manifest.json"
+        export BCM_LOCAL_CHAIN_KEY_FILE="$STATE_DIR/stub/chain/ethereum/evm-keys.json"
+        export BCM_LOCAL_CHAIN_CLUSTER_MANIFEST_FILE="$STATE_DIR/stub/chain/manifest.json"
+    fi
     export BCM_EVM_CHAIN_ID=31337
-    export BCM_LOCAL_CHAIN_MANIFEST_FILE="$STATE_DIR/stub/chain/manifest.json"
-    export BCM_LOCAL_CHAIN_KEY_FILE="$STATE_DIR/stub/chain/evm-keys.json"
-    export BCM_STUB_WEBHOOK_DELIVERY_URL=http://127.0.0.1:8080/webhook
+    export BCM_FINALITY_CONFIRMATIONS_LOCAL=2
+    export BCM_STUB_WEBHOOK_DELIVERY_URL="http://127.0.0.1:$WEBHOOK_PORT/webhook"
     export BCM_STUB_RESET_ENABLED=true
     unset BCM_FIREBLOCKS_PRIVATE_KEY_PEM BCM_FIREBLOCKS_PRIVATE_KEY_FILE BCM_LOCAL_TEST_PRIVATE_KEY_SHA256
     start_gradle_process stub ":blockchain-manager-test-support:bootRun"
-    wait_http stub "http://127.0.0.1:18090/actuator/health"
+    wait_http stub "http://127.0.0.1:$STUB_MANAGEMENT_PORT/actuator/health"
 
     export BCM_FIREBLOCKS_PRIVATE_KEY_FILE="$(prepare_local_api_key)"
     if ! running api; then
-        assert_port_free 8080 "BCM API"
-        assert_port_free 9090 "BCM management"
+        assert_port_free "$API_PORT" "BCM API"
+        assert_port_free "$API_MANAGEMENT_PORT" "BCM management"
     fi
     export BCM_ADMIN_API_ACCESS_MODE=FUNCTION_TEST
-    export BCM_ADMIN_TARGET_BASE_URL=http://127.0.0.1:8080
+    export BCM_API_PORT="$API_PORT"
+    export BCM_MANAGEMENT_PORT="$API_MANAGEMENT_PORT"
+    export BCM_ADMIN_PORT="$ADMIN_PORT"
+    export BCM_ADMIN_TARGET_BASE_URL="http://127.0.0.1:$API_PORT"
+    export BCM_ADMIN_WEBHOOK_MANAGEMENT_BASE_URL="http://127.0.0.1:$WEBHOOK_MANAGEMENT_PORT"
+    mkdir -p "$REPO_ROOT/build/system-test"
+    export BCM_ADMIN_SYSTEM_TEST_ENABLED=true
+    export BCM_ADMIN_SYSTEM_TEST_STATE_DIRECTORY="${BCM_SYSTEM_TEST_ROOT:-$REPO_ROOT/build/system-test}"
+    export BCM_ADMIN_LOCAL_SCENARIO_ENABLED=true
+    export BCM_ADMIN_LOCAL_SCENARIO_REPOSITORY="$REPO_ROOT"
+    export BCM_ADMIN_LOCAL_ASSET_MANAGEMENT_ENABLED=true
     start_gradle_process api ":blockchain-manager-app:bcm-api:bootRun"
-    wait_http api "http://127.0.0.1:9090/actuator/health"
+    wait_http api "http://127.0.0.1:$API_MANAGEMENT_PORT/actuator/health"
+    if ! running webhook; then
+        assert_port_free "$WEBHOOK_PORT" "BCM Webhook"
+        assert_port_free "$WEBHOOK_MANAGEMENT_PORT" "BCM Webhook management"
+    fi
+    export BCM_WEBHOOK_PORT="$WEBHOOK_PORT"
+    export BCM_WEBHOOK_MANAGEMENT_PORT="$WEBHOOK_MANAGEMENT_PORT"
+    start_gradle_process webhook ":blockchain-manager-app:bcm-webhook:bootRun"
+    wait_http webhook "http://127.0.0.1:$WEBHOOK_MANAGEMENT_PORT/actuator/health"
     if ! running admin; then
-        assert_port_free 9080 "BCM Admin"
+        assert_port_free "$ADMIN_PORT" "BCM Admin"
     fi
     start_gradle_process admin ":blockchain-manager-app:bcm-admin:bootRun"
-    wait_http admin "http://127.0.0.1:9080/actuator/health"
+    wait_http admin "http://127.0.0.1:$ADMIN_PORT/actuator/health"
+
+    if [ "$CHAIN_PROFILE" = catalog ]; then
+        echo "기본 네트워크·자산 준비 중..."
+        python3 "$SCRIPT_DIR/internal/local-deposit-test.py" --bootstrap-catalog
+        echo "기본 네트워크·자산 준비 완료 (ETHEREUM·BASE / USDC·KRWK)"
+    fi
 
     echo ""
-    echo "Blockchain Manager Stub 로컬 환경이 준비됐습니다."
-    echo "Admin: http://127.0.0.1:9080/admin/dashboard"
-    echo "BCM:   http://127.0.0.1:8080"
-    echo "Stub:  http://127.0.0.1:18080"
+    echo "Blockchain Manager + Fireblocks 로컬 Stub 환경이 준비됐습니다."
+    echo "Admin: http://127.0.0.1:$ADMIN_PORT/admin/dashboard"
+    echo "BCM:   http://127.0.0.1:$API_PORT"
+    echo "API 문서: http://127.0.0.1:$API_PORT/api-docs/"
+    echo "Webhook: http://127.0.0.1:$WEBHOOK_PORT/webhook"
+    echo "Stub:  http://127.0.0.1:$STUB_PORT"
 }
 
 down_all() {
+    use_active_dataset
     stop_process admin
+    stop_process webhook
     stop_process api
     stop_process stub
     stop_process chain
@@ -489,11 +704,13 @@ down_all() {
 
 status_all() {
     local name
-    for name in chain stub api admin; do
+    use_active_dataset
+    echo "현재 실행 모드: $(active_local_mode)"
+    for name in chain stub api webhook admin; do
         if running "$name"; then
-            echo "$name: RUNNING (pid $(cat "$(pid_file "$name")"))"
+            echo "$(component_display_name "$name"): RUNNING (pid $(cat "$(pid_file "$name")"))"
         else
-            echo "$name: STOPPED"
+            echo "$(component_display_name "$name"): STOPPED"
         fi
     done
     if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
@@ -506,7 +723,7 @@ status_all() {
 logs() {
     local target="${1:-api}"
     case "$target" in
-        chain|stub|api|admin)
+        chain|stub|api|webhook|admin)
             [ -f "$(log_file "$target")" ] || fail "$target 로그가 없습니다."
             tail -n 100 -f "$(log_file "$target")"
             ;;
@@ -514,25 +731,28 @@ logs() {
             require_command docker
             compose logs -f --tail 100
             ;;
-        *) fail "로그 대상은 chain, stub, api, admin, infra 중 하나여야 합니다." ;;
+        *) fail "로그 대상은 chain, stub, api, webhook, admin, infra 중 하나여야 합니다." ;;
     esac
 }
 
 purge_local_infra() {
     [ -t 0 ] || fail "purge는 대화형 터미널에서만 실행할 수 있습니다."
-    local answer
-    read -e -r -p "이 스크립트 전용 PostgreSQL·Kafka 데이터를 모두 삭제할까요? [y/N]: " answer
+    local answer active_mode
+    use_active_dataset
+    active_mode="$(active_local_mode)"
+    read -e -r -p "현재 선택된 $active_mode 모드의 PostgreSQL·Kafka 데이터를 모두 삭제할까요? [y/N]: " answer
     case "$answer" in
         y|Y|yes|YES) ;;
         *) echo "취소했습니다."; return 0 ;;
     esac
     stop_process admin
+    stop_process webhook
     stop_process api
     stop_process stub
     stop_process chain
     require_command docker
     compose down --volumes --remove-orphans
-    echo "로컬 PostgreSQL·Kafka 데이터를 초기화했습니다. .env는 보존됩니다."
+    echo "$active_mode 모드의 로컬 PostgreSQL·Kafka 데이터를 초기화했습니다. 다른 모드와 .env는 보존됩니다."
 }
 
 reset_local_environment() {
@@ -553,6 +773,37 @@ reset_local_environment() {
             "$base_url/__stub/reset"
     )" || fail "로컬 Stub reset 요청에 실패했습니다: $base_url"
     printf '%s\n' "$response"
+}
+
+test_local_deposit() {
+    require_command python3
+    require_command docker
+    local name
+    for name in chain stub api webhook admin; do
+        running "$name" || fail "test deposit은 실행 중인 Stub 로컬 환경이 필요합니다: $(component_display_name "$name") STOPPED"
+    done
+    docker info >/dev/null 2>&1 || fail "Docker가 실행 중이지 않습니다."
+    compose ps --status running --services | grep -Fxq postgres || fail "PostgreSQL이 실행 중이지 않습니다."
+    compose ps --status running --services | grep -Fxq kafka || fail "Kafka가 실행 중이지 않습니다."
+
+    export BCM_VENDOR_MODE=STUB
+    export BCM_CHAIN_MODE=LOCAL
+    export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
+    export SPRING_DATASOURCE_USERNAME=postgres
+    export SPRING_DATASOURCE_PASSWORD=bcm
+    export KAFKA_BOOTSTRAP_SERVERS="127.0.0.1:$KAFKA_PORT"
+    export BCM_HTTP_MAX_CONNECTIONS=100
+    export BCM_FIREBLOCKS_BASE_URL="http://127.0.0.1:$STUB_PORT"
+    export BCM_FIREBLOCKS_API_KEY=bcm-local-stub
+    export BCM_FIREBLOCKS_PRIVATE_KEY_FILE="$(prepare_local_api_key)"
+    export FIREBLOCKS_JWKS_URL="http://127.0.0.1:$STUB_PORT/.well-known/jwks.json"
+    export BCM_LOCAL_API_PORT="$API_PORT"
+    export BCM_LOCAL_ADMIN_PORT="$ADMIN_PORT"
+    export BCM_LOCAL_STUB_PORT="$STUB_PORT"
+    export BCM_LOCAL_KAFKA_PORT="$KAFKA_PORT"
+    unset BCM_FIREBLOCKS_PRIVATE_KEY_PEM
+
+    python3 "$SCRIPT_DIR/internal/local-deposit-test.py"
 }
 
 command_name="${1:-help}"
@@ -576,6 +827,18 @@ case "$command_name" in
         esac
         ;;
     status) status_all ;;
+    stop)
+        case "${1:-}" in
+            api|webhook|admin) stop_process "$1" ;;
+            *) fail "개별 종료 대상은 api, webhook, admin 중 하나여야 합니다." ;;
+        esac
+        ;;
+    test)
+        case "${1:-}" in
+            deposit) test_local_deposit ;;
+            *) fail "테스트 대상은 deposit만 지원합니다." ;;
+        esac
+        ;;
     logs) logs "${1:-api}" ;;
     down) down_all ;;
     purge) purge_local_infra ;;

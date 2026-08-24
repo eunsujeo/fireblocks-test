@@ -17,7 +17,7 @@
 
 - **무엇**: Fireblocks 기반 수탁형 지갑의 **온체인 자산 이동 단일 창구** 서비스.
   벤더 원어(tx 상태·웹훅)를 공통 상태(TxStatus)로 번역해 DAW-CORE 에 공급한다.
-- **스택**: Kotlin + Spring Boot (모놀리식 단일 배포 · Gradle 멀티모듈) · PostgreSQL · Kafka · Spring Batch.
+- **스택**: Kotlin + Spring Boot (Gradle 멀티모듈 단일 저장소 · API/Webhook/Admin/BAT 독립 프로세스) · PostgreSQL · Kafka · Spring Batch.
 - **설계 문서**: 계약 문서 사본이 [docs/design/](docs/design/) 에 있다 — 코드는 이 설계를 구현한다. 정본은 waas-wiki
   (나란히 클론된 `../waas-wiki`) 이고 사본은 byte-동일 유지 — 규칙은 [docs/design/README.md](docs/design/README.md).
   설계와 코드가 어긋나면 **코드를 설계에 맞추는 게 기본**이고, 설계를 바꿔야 하면 사용자에게 먼저 묻는다.
@@ -62,7 +62,7 @@
   사용하고 패키지에 포함하거나 초기화하지 않는다. PostgreSQL·Kafka 컨테이너는 개발자 로컬·CI 전체 E2E에서만 기동한다.
 - **tx 대사는 종결 건만** — 벤더 원어 기준 COMPLETED · FAILED · 출금 REJECTED · BLOCKED (진행 중은 웹훅 몫).
 - **DB 는 코어(daw_) 규약** — 일시 `VARCHAR(16)` (값 포맷 `yyyyMMddHHmmss` 14자 — 2026-08-05 확정, 변환은 support 유틸 단일 관리) · 일자 `VARCHAR(8)` · 불리언 `_yn VARCHAR(1)` · 금액 `NUMERIC` · 감사 4컬럼(`frst_reg_empno` 계열, 센티넬 `SYSTEM`/`9999`) · payload `JSONB`. 벤더 id 는 `VARCHAR(64)`.
-- **DB 일시·일자의 시간대 = UTC** (2026-08-14 확정 — 03) — 모든 `_dttm`은 UTC `yyyyMMddHHmmss`, `_dt`·`base_dt`는 UTC `yyyyMMdd`로 저장한다. `Clock` 빈은 `bcm-api`·`bcm-bat` 두 곳의 `Clock.systemUTC()`뿐이며, 벤더 epoch ms도 저장 직전 공통 유틸에서 UTC로 변환한다. API는 ISO 8601 UTC(`Z`)를 쓰고 화면·정산·보고서에서 필요한 시간대로 변환한다. 2026-08-06 KST 결정은 이 결정으로 대체됐다.
+- **DB 일시·일자의 시간대 = UTC** (2026-08-14 확정 — 03) — 모든 `_dttm`은 UTC `yyyyMMddHHmmss`, `_dt`·`base_dt`는 UTC `yyyyMMdd`로 저장한다. DB 시각을 만드는 `Clock` 빈은 `blockchain-manager-application`(이를 `bcm-api`·`bcm-webhook`이 공유)과 `bcm-bat`의 `Clock.systemUTC()`뿐이며, 벤더 epoch ms도 저장 직전 공통 유틸에서 UTC로 변환한다. API는 ISO 8601 UTC(`Z`)를 쓰고 화면·정산·보고서에서 필요한 시간대로 변환한다. 2026-08-06 KST 결정은 이 결정으로 대체됐다.
 - **수신 원문은 바이트 그대로** (2026-08-06 확정 — 03) — `bcm_whk_l.payload` 는 TEXT, `payload_hash`(SHA-256 소문자 hex)·`sign_vl`(서명 헤더 원문)을 수신 시점에 함께 남긴다. **본문 바이트를 한 번 읽어 서명 검증·저장·해시에 같은 `byte[]` 를 쓴다.** `bcm_raw_tx_l` 로는 복사만 하고 해시를 재계산하지 않는다. payload `JSONB` 규약의 예외는 이 두 테이블뿐(`bcm_outbox_l` 은 JSONB 유지).
 - **가상 스레드 채택 · `StructuredTaskScope` 불채택** (2026-08-06 확정) — `spring.threads.virtual.enabled=true` + `ScopedValue`(JDK 25 정식)는 쓴다. `--enable-preview` 가 필요한 preview API 는 수탁 프로덕션 빌드에 넣지 않는다. 조건 2가지 — ① 수신 동시성에 명시 상한(커넥션 풀이 실질 상한이라 무제한이면 폭주 시 커넥션 대기로 쌓인다) ② relay 순차 발행·워커 폴링은 병렬화 대상이 아니다(계정 내 `evnt_id` 순서 보장). 규칙은 [.claude/rules/virtual-thread.md](.claude/rules/virtual-thread.md).
 - **금액은 문자열 필드(`amountInfo`)에서 읽는다** — payload 의 숫자 `amount` 는 정밀도 손실 위험.
@@ -74,9 +74,11 @@
 ```
 blockchain-manager-svc/            (rootProject.name = "blockchain-manager")
 ├── blockchain-manager-app/
-│   ├── bcm-api/                   REST API + 웹훅 수신 + 판단 워커 + relay
+│   ├── bcm-api/                   REST API + Admin 조회·실행 경계
+│   ├── bcm-webhook/               웹훅 수신 + 판단 워커 + outbox relay
 │   ├── bcm-admin/                 독립 Admin Frontend + BFF
 │   └── bcm-bat/                   Spring Batch — sweep 트리거 · tx 대사
+├── blockchain-manager-application/     API·Webhook 공유 application 오케스트레이션·설정
 ├── blockchain-manager-domain/     도메인 모델 · 전이 표 · Repository 인터페이스 (순수 Kotlin)
 ├── blockchain-manager-infra/
 │   ├── persistence/               Spring Data JDBC · bcm_ 테이블 매핑

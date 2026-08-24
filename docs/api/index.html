@@ -97,6 +97,8 @@
       .nav-link:hover { background: var(--elevated); color: var(--strong); text-decoration: none; }
       .nav-link.active { color: var(--strong); background: var(--elevated); font-weight: 600; }
       .nav-link .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .category-link { justify-content: space-between; padding: 9px 10px; }
+      .category-link .count { color: var(--muted); font: 11px var(--mono); }
 
       /* method badge */
       .m { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
@@ -169,6 +171,34 @@
       .status { font-family: var(--mono); font-weight: 700; }
       .status.ok { color: var(--m-get); }
       .status.err { color: var(--m-del); }
+      .environment, .try-panel { border: 1px solid var(--hairline); background: var(--surface); border-radius: 10px; padding: 16px; }
+      .environment { margin: 18px 0 26px; display: grid; grid-template-columns: minmax(180px, 1fr) 2fr; gap: 8px 18px; align-items: end; }
+      .environment h2 { grid-column: 1 / -1; border: 0; padding: 0; margin: 0; font-size: 15px; }
+      .environment p { grid-column: 1 / -1; margin: 0 0 4px; color: var(--muted2); }
+      .category-header { margin-bottom: 22px; }
+      .category-header .eyebrow { color: var(--accent); font: 700 11px var(--mono); letter-spacing: .7px; text-transform: uppercase; }
+      .category-header .page-sub { max-width: 760px; }
+      .field { display: grid; gap: 5px; min-width: 0; }
+      .field label { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .35px; text-transform: uppercase; }
+      .field input, .field textarea {
+        width: 100%; border: 1px solid var(--hairline); border-radius: 6px; background: var(--code-bg); color: var(--code-ink);
+        font: 12.5px/1.5 var(--mono); padding: 9px 10px;
+      }
+      .field textarea { min-height: 180px; resize: vertical; tab-size: 2; }
+      .try-details { margin: 18px 0 4px; }
+      .try-details > summary { cursor: pointer; color: var(--link); font-weight: 600; list-style-position: outside; margin-left: 16px; }
+      .try-panel { margin-top: 10px; }
+      .try-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .try-grid .wide { grid-column: 1 / -1; }
+      .try-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+      .execute {
+        border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: #111;
+        font: 700 13px var(--sans); padding: 8px 14px; cursor: pointer;
+      }
+      .execute:disabled { opacity: .5; cursor: not-allowed; }
+      .try-result { margin-top: 12px; }
+      .try-result .result-meta { display: flex; gap: 10px; color: var(--muted2); }
+      .try-result .result-note { margin: 8px 0 0; color: var(--muted2); }
 
       .group-head { margin-top: 56px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
                     text-transform: uppercase; color: var(--accent); }
@@ -183,6 +213,8 @@
         .sidebar.open { transform: translateX(0); }
         .content-inner { padding: 24px 20px 100px; }
         .menu-toggle { display: inline-flex; position: fixed; top: 12px; right: 12px; z-index: 30; }
+        .environment, .try-grid { grid-template-columns: 1fr; }
+        .try-grid .wide { grid-column: auto; }
       }
       @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
       :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
@@ -212,7 +244,6 @@
           </div>
           <div class="downloads">
             <a class="iconbtn" href="./openapi.yaml" download>OpenAPI ↓</a>
-            <a class="iconbtn" href="./api.md" download>Markdown ↓</a>
             <a class="iconbtn" href="./api.html" download>HTML ↓</a>
           </div>
         </div>
@@ -233,11 +264,13 @@
       </div>
     </div>
 
+    <script src="./try-it.js"></script>
     <script src="./spec.js"></script>
     <script>
       (function () {
         const spec = window.OPENAPI;
         if (!spec) { document.getElementById("content").textContent = "spec.js 를 불러오지 못했습니다."; return; }
+        const tryApi = window.BCM_API_TRY;
         const serverUrl = (spec.servers && spec.servers[0] && spec.servers[0].url) || "";
 
         const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
@@ -364,8 +397,7 @@
           return null;
         }
         function mediaExample(media) {
-          if (!media) return undefined;
-          return media.example !== undefined ? media.example : sample(media.schema);
+          return tryApi.firstMediaExample(media, sample);
         }
         function jsonBlock(value) {
           const pre = el("pre"); const code = el("code");
@@ -403,6 +435,130 @@
             return 'curl -X ' + M + ' "' + url + '" \\\n  -H "Content-Type: application/json" \\\n  -d \'' + JSON.stringify(body, null, 2) + "'";
           }
           return 'curl -X ' + M + ' "' + url + '"';
+        }
+
+        function parameterExample(parameter) {
+          const schema = parameter.schema || {};
+          if (parameter.example !== undefined) return parameter.example;
+          if (schema.example !== undefined) return schema.example;
+          if (schema.default !== undefined) return schema.default;
+          return parameter.required ? sample(schema) : "";
+        }
+
+        function renderTryPanel(method, op, params, path, requestMedia) {
+          const details = el("details", "try-details");
+          details.innerHTML = "<summary>이 요청 실행하기</summary>";
+          const panel = el("div", "try-panel");
+          const grid = el("div", "try-grid");
+          params.map((parameter) => (parameter.$ref ? resolve(parameter) : parameter)).forEach((parameter) => {
+            if (!['path', 'query'].includes(parameter.in)) return;
+            const field = el("div", "field");
+            const input = el("input");
+            input.dataset.tryParam = parameter.name;
+            input.dataset.tryIn = parameter.in;
+            input.value = parameterExample(parameter) ?? "";
+            input.placeholder = parameter.required ? "필수" : "선택";
+            const label = el("label");
+            label.textContent = `${parameter.name} · ${parameter.in}${parameter.required ? " · 필수" : ""}`;
+            field.append(label, input); grid.appendChild(field);
+          });
+          if (requestMedia) {
+            const field = el("div", "field wide");
+            const label = el("label"); label.textContent = "JSON 요청 본문";
+            const textarea = el("textarea"); textarea.dataset.tryBody = "true";
+            textarea.value = JSON.stringify(mediaExample(requestMedia), null, 2);
+            field.append(label, textarea); grid.appendChild(field);
+          }
+          const mutation = method !== "get";
+          if (mutation && path.startsWith("/admin/")) {
+            [["X-Employee-No", "LOCAL"], ["X-Branch-Code", "9999"]].forEach(([name, value]) => {
+              const field = el("div", "field"); const label = el("label"); const input = el("input");
+              label.textContent = name; input.dataset.tryHeader = name; input.value = value; field.append(label, input); grid.appendChild(field);
+            });
+          }
+          panel.appendChild(grid);
+          const actions = el("div", "try-actions");
+          const button = el("button", "execute"); button.type = "button"; button.textContent = "요청 실행";
+          const copyButton = el("button"); copyButton.type = "button"; copyButton.textContent = "curl 복사";
+          const hint = el("span", "desc", mutation ? "상태를 바꾸는 요청은 실행 직전에 다시 확인합니다." : "선택한 Base URL로 직접 요청합니다.");
+          actions.append(button, copyButton, hint); panel.appendChild(actions);
+          const result = el("div", "try-result"); panel.appendChild(result);
+          function requestParts() {
+            const baseUrl = document.getElementById("baseUrl").value.trim();
+            if (!tryApi.validBaseUrl(baseUrl)) throw new Error("http(s) Base URL을 확인하세요. userinfo는 허용하지 않습니다.");
+            const parameterValues = Array.from(panel.querySelectorAll("[data-try-param]")).map((input) => ({ name: input.dataset.tryParam, in: input.dataset.tryIn, value: input.value.trim() }));
+            const target = tryApi.requestTarget(baseUrl, path, parameterValues);
+            const headers = { Accept: "application/json" };
+            panel.querySelectorAll("[data-try-header]").forEach((input) => { if (input.value.trim()) headers[input.dataset.tryHeader] = input.value.trim(); });
+            const bodyInput = panel.querySelector("[data-try-body]");
+            let body;
+            if (bodyInput) {
+              try { body = JSON.parse(bodyInput.value); }
+              catch (_) { throw new Error("요청 본문이 올바른 JSON이 아닙니다."); }
+              headers["Content-Type"] = "application/json";
+            }
+            return { target, headers, body };
+          }
+          copyButton.addEventListener("click", async () => {
+            try {
+              const request = requestParts();
+              const command = tryApi.curlCommand(method, request.target, request.headers, request.body);
+              if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(command);
+              else window.prompt("curl을 복사하세요.", command);
+              result.textContent = "현재 입력값의 curl을 복사했습니다.";
+            } catch (error) { result.textContent = error.message; }
+          });
+          button.addEventListener("click", async () => {
+            let request;
+            try { request = requestParts(); }
+            catch (error) { result.textContent = error.message; return; }
+            if (mutation && !window.confirm(`${method.toUpperCase()} ${request.target}\n\n이 요청을 실행할까요?`)) return;
+            const options = { method: method.toUpperCase(), headers: request.headers };
+            if (request.body !== undefined) options.body = JSON.stringify(request.body);
+            button.disabled = true; result.textContent = "요청 중…"; const started = performance.now();
+            try {
+              const response = await fetch(request.target, options);
+              const elapsed = Math.round(performance.now() - started);
+              const text = await response.text();
+              const headers = Array.from(response.headers.entries()).map(([name, value]) => `${name}: ${value}`).join("\n");
+              const rawResponse = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}\n${headers}${headers ? "\n" : ""}\n${text || "(응답 본문 없음)"}`;
+              result.replaceChildren();
+              const meta = el("div", "result-meta"); meta.innerHTML = `<strong class="status ${response.ok ? "ok" : "err"}">응답 수신 · ${response.status}${response.statusText ? ` ${esc(response.statusText)}` : ""}</strong><span>${elapsed}ms</span>`;
+              const pre = el("pre"); const code = el("code"); code.textContent = rawResponse; pre.appendChild(code);
+              result.append(meta, pre);
+            } catch (error) {
+              const elapsed = Math.round(performance.now() - started);
+              const command = tryApi.curlCommand(method, request.target, request.headers, request.body);
+              const diagnosticLines = [
+                `REQUEST ${method.toUpperCase()} ${request.target}`,
+                "",
+                `BROWSER ERROR ${error.name || "Error"}: ${error.message || String(error)}`,
+                "",
+                "브라우저가 HTTP 응답을 받지 못했습니다. 서버 처리 여부를 이 결과만으로 판단할 수 없습니다.",
+                mutation ? "변경 요청은 재실행 전에 원장 또는 멱등키로 처리 여부를 확인하세요." : "BCM 실행 상태와 브라우저의 네트워크/CORS 경계를 확인하세요.",
+                "",
+                "CURL",
+                command,
+              ];
+              const recovery = tryApi.localRecoveryCommands(request.target);
+              if (recovery.length) {
+                diagnosticLines.push(
+                  "",
+                  "LOCAL RECOVERY",
+                  `상태 확인: ${recovery[0]}`,
+                  `Stub 모드 재시작: ${recovery[1]}`,
+                  `Fireblocks 모드 재시작: ${recovery[2]}`,
+                );
+              }
+              const diagnostic = diagnosticLines.join("\n");
+              result.replaceChildren();
+              const meta = el("div", "result-meta"); meta.innerHTML = `<strong class="status err">응답 없음 · 실행 여부 확인 불가</strong><span>${elapsed}ms</span>`;
+              const note = el("p", "result-note", "HTTP 응답 원문이 없으므로 표시할 응답 값이 없습니다.");
+              const pre = el("pre"); const code = el("code"); code.textContent = diagnostic; pre.appendChild(code);
+              result.append(meta, note, pre);
+            } finally { button.disabled = false; }
+          });
+          details.appendChild(panel); return details;
         }
 
         // --- mini markdown (subset) ---
@@ -453,33 +609,15 @@
           return html;
         }
 
-        // --- render ---
+        // --- category render ---
         const nav = document.getElementById("nav");
         const content = document.getElementById("content");
+        const schemas = (spec.components && spec.components.schemas) || {};
+        const schemaNames = Object.keys(schemas);
         document.getElementById("brandTitle").textContent = spec.info.title;
         document.getElementById("brandVer").textContent = "v" + spec.info.version;
         document.title = spec.info.title;
 
-        const navSpy = []; // {id, link}
-        function addNav(group, items) {
-          const g = el("div", "nav-group");
-          g.appendChild(el("div", "nav-title", group));
-          items.forEach(({ id, label, method }) => {
-            const a = el("a", "nav-link");
-            a.href = "#" + id;
-            a.innerHTML = (method ? `<span class="m m-${method.toLowerCase()}">${method}</span>` : "") + `<span class="label">${esc(label)}</span>`;
-            g.appendChild(a); navSpy.push({ id, link: a });
-          });
-          nav.appendChild(g);
-        }
-
-        // intro + conventions
-        const title = el("h1", "page-title"); title.textContent = spec.info.title; content.appendChild(title);
-        const descHeadings = [];
-        const md = el("div", "md"); md.innerHTML = markdown(spec.info.description, descHeadings); content.appendChild(md);
-        addNav("개요", descHeadings.map((h) => ({ id: h.id, label: h.text })));
-
-        // operations grouped by tag
         const tagOrder = (spec.tags || []).map((t) => t.name);
         const groups = {};
         for (const [path, item] of Object.entries(spec.paths)) {
@@ -491,115 +629,165 @@
           }
         }
         const orderedTags = tagOrder.filter((t) => groups[t]).concat(Object.keys(groups).filter((t) => !tagOrder.includes(t)));
+        const categories = orderedTags.map((tag) => {
+          const meta = (spec.tags || []).find((item) => item.name === tag) || {};
+          return {
+            kind: "operations",
+            tag,
+            slug: tryApi.categorySlug(tag),
+            label: meta["x-displayName"] || tag,
+            description: meta.description || "",
+            count: groups[tag].length,
+          };
+        });
+        if (schemaNames.length) categories.push({ kind: "schemas", slug: "types", label: "데이터 타입", description: "요청과 응답에서 사용하는 공통 스키마", count: schemaNames.length });
+        const allowedCategories = categories.map((category) => category.slug);
+        const defaultCategory = allowedCategories[0] || "api";
+        let navSpy = [];
+        let observer = null;
 
-        orderedTags.forEach((tag) => {
-          const tagMeta = (spec.tags || []).find((t) => t.name === tag);
-          const gh = el("div", "group-head"); gh.textContent = tag; content.appendChild(gh);
-          if (tagMeta && tagMeta.description) content.appendChild(el("p", "tag-desc", esc(tagMeta.description)));
-          const navItems = [];
-          groups[tag].forEach(({ path, method, op, params }) => {
-            const id = "op-" + method + "-" + path.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
-            navItems.push({ id, label: op.summary || path, method: method.toUpperCase() });
-            const sec = el("section", "op"); sec.id = id;
-            const head = el("div", "op-head");
-            head.innerHTML = `<span class="m m-${method}">${method.toUpperCase()}</span><span class="op-path">${esc(opServerUrl(op) + path)}</span>`;
-            sec.appendChild(head);
-            if (op.summary) sec.appendChild(el("div", "op-title", esc(op.summary)));
-            if (op.description) { const d = el("div", "op-desc md"); d.innerHTML = markdown(op.description); sec.appendChild(d); }
+        function operationId(path, method) {
+          return "op-" + method + "-" + path.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+        }
 
-            if (spec.info["x-curl"]) {
-              sec.appendChild(el("div", "block-label", "curl"));
-              const pre = el("pre"); const code = el("code");
-              code.textContent = curlText(method, op, params, path);
-              pre.appendChild(code); sec.appendChild(pre);
-            }
+        function addCategoryNav(selected) {
+          const group = el("div", "nav-group");
+          group.appendChild(el("div", "nav-title", "카테고리"));
+          categories.forEach((category) => {
+            const link = el("a", "nav-link category-link" + (category.slug === selected.slug ? " active" : ""));
+            link.href = "#" + category.slug;
+            link.innerHTML = `<span class="label">${esc(category.label)}</span><span class="count">${category.count}</span>`;
+            group.appendChild(link);
+          });
+          nav.appendChild(group);
+        }
 
-            if (params.length) {
-              sec.appendChild(el("div", "block-label", "파라미터"));
-              const card = el("div", "card"); const t = el("table");
-              t.innerHTML = "<thead><tr><th>이름</th><th>위치</th><th>타입</th><th>필수</th><th>예시</th><th>설명</th></tr></thead>";
-              const tb = el("tbody");
-              params.map((p) => (p.$ref ? resolve(p) : p)).forEach((p) => {
-                const sc = p.schema || {};
-                let exv = p.example !== undefined ? p.example : (sc.example !== undefined ? sc.example : sc.default);
-                const exHtml = exv !== undefined ? `<code>${esc(exv)}</code>` : "";
-                const tr = el("tr");
-                tr.innerHTML = `<td><code>${esc(p.name)}</code></td><td>${esc(p.in)}</td><td>${typeLabel(sc)}</td>`
-                  + `<td>${p.required ? '<span class="req">필수</span>' : '<span class="opt">-</span>'}</td>`
-                  + `<td>${exHtml}</td>`
-                  + `<td class="desc">${p.description ? inline(p.description) : ""}</td>`;
-                tb.appendChild(tr);
-              });
-              t.appendChild(tb); card.appendChild(t); sec.appendChild(card);
-            }
+        function addItemNav(category, items) {
+          const group = el("div", "nav-group");
+          group.appendChild(el("div", "nav-title", category.kind === "schemas" ? "스키마" : "API"));
+          items.forEach(({ id, label, method }) => {
+            const link = el("a", "nav-link");
+            link.href = `#${category.slug}/${id}`;
+            link.innerHTML = (method ? `<span class="m m-${method.toLowerCase()}">${method}</span>` : "") + `<span class="label">${esc(label)}</span>`;
+            group.appendChild(link);
+            navSpy.push({ id, link });
+          });
+          nav.appendChild(group);
+        }
 
-            const rb = op.requestBody && resolve(op.requestBody);
-            const rbMedia = rb && rb.content && rb.content["application/json"];
-            const rbSchema = rbMedia && rbMedia.schema;
-            if (rbSchema) {
-              sec.appendChild(el("div", "block-label", "요청 본문"));
-              sec.appendChild(jsonBlock(mediaExample(rbMedia)));
-              const pt = propTable(rbSchema);
-              if (pt) sec.appendChild(pt);
-            }
+        function renderHeader(category) {
+          const header = el("header", "category-header");
+          header.appendChild(el("div", "eyebrow", esc(spec.info.title)));
+          const title = el("h1", "page-title"); title.textContent = category.label; header.appendChild(title);
+          if (category.description) {
+            const description = el("div", "page-sub md"); description.innerHTML = markdown(category.description); header.appendChild(description);
+          }
+          content.appendChild(header);
+          if (category.kind !== "operations") return;
+          const environment = el("section", "environment");
+          environment.innerHTML = '<h2>요청 실행</h2><p>아래 API 예시는 OpenAPI 스펙에서 생성됩니다. Base URL만 로컬 또는 허용된 BCM 주소로 지정하세요.</p>';
+          const baseField = el("div", "field wide"); const baseLabel = el("label"); const baseInput = el("input");
+          baseLabel.textContent = "BCM Base URL"; baseInput.id = "baseUrl"; baseInput.placeholder = "http://127.0.0.1:38080";
+          baseInput.value = tryApi.inferBaseUrl(window.location); baseField.append(baseLabel, baseInput); environment.appendChild(baseField); content.appendChild(environment);
+        }
 
-            if (op.responses) {
-              sec.appendChild(el("div", "block-label", "응답"));
-              for (const [code, rRaw] of Object.entries(op.responses)) {
-                const r = resolve(rRaw);
-                const ok = /^2/.test(code);
-                const row = el("div"); row.style.margin = "10px 0 2px";
-                row.innerHTML = `<span class="status ${ok ? "ok" : "err"}">${code}</span> <span class="desc">${r.description ? inline(r.description) : ""}</span>`;
-                sec.appendChild(row);
-                const media = r.content && r.content["application/json"];
-                if (media && media.schema) {
-                  sec.appendChild(jsonBlock(mediaExample(media)));
-                  const pt = propTable(media.schema); if (pt) sec.appendChild(pt);
-                }
+        function renderOperation(path, method, op, params) {
+          const id = operationId(path, method);
+          const sec = el("section", "op"); sec.id = id;
+          const head = el("div", "op-head");
+          head.innerHTML = `<span class="m m-${method}">${method.toUpperCase()}</span><span class="op-path">${esc(opServerUrl(op) + path)}</span>`;
+          sec.appendChild(head);
+          if (op.summary) sec.appendChild(el("div", "op-title", esc(op.summary)));
+          if (op.description) { const description = el("div", "op-desc md"); description.innerHTML = markdown(op.description); sec.appendChild(description); }
+          if (params.length) {
+            sec.appendChild(el("div", "block-label", "파라미터"));
+            const card = el("div", "card"); const table = el("table");
+            table.innerHTML = "<thead><tr><th>이름</th><th>위치</th><th>타입</th><th>필수</th><th>예시</th><th>설명</th></tr></thead>";
+            const body = el("tbody");
+            params.map((parameter) => (parameter.$ref ? resolve(parameter) : parameter)).forEach((parameter) => {
+              const schema = parameter.schema || {};
+              const example = parameter.example !== undefined ? parameter.example : (schema.example !== undefined ? schema.example : schema.default);
+              const row = el("tr");
+              row.innerHTML = `<td><code>${esc(parameter.name)}</code></td><td>${esc(parameter.in)}</td><td>${typeLabel(schema)}</td>`
+                + `<td>${parameter.required ? '<span class="req">필수</span>' : '<span class="opt">-</span>'}</td>`
+                + `<td>${example !== undefined ? `<code>${esc(example)}</code>` : ""}</td>`
+                + `<td class="desc">${parameter.description ? inline(parameter.description) : ""}</td>`;
+              body.appendChild(row);
+            });
+            table.appendChild(body); card.appendChild(table); sec.appendChild(card);
+          }
+          const requestBody = op.requestBody && resolve(op.requestBody);
+          const requestMedia = requestBody && requestBody.content && requestBody.content["application/json"];
+          if (requestMedia && requestMedia.schema) {
+            sec.appendChild(el("div", "block-label", "요청 본문"));
+            sec.appendChild(jsonBlock(mediaExample(requestMedia)));
+            const properties = propTable(requestMedia.schema); if (properties) sec.appendChild(properties);
+          }
+          sec.appendChild(renderTryPanel(method, op, params, path, requestMedia));
+          if (op.responses) {
+            sec.appendChild(el("div", "block-label", "응답"));
+            for (const [code, rawResponse] of Object.entries(op.responses)) {
+              const response = resolve(rawResponse);
+              const row = el("div"); row.style.margin = "10px 0 2px";
+              row.innerHTML = `<span class="status ${/^2/.test(code) ? "ok" : "err"}">${code}</span> <span class="desc">${response.description ? inline(response.description) : ""}</span>`;
+              sec.appendChild(row);
+              const media = response.content && response.content["application/json"];
+              if (media && media.schema) {
+                sec.appendChild(jsonBlock(mediaExample(media)));
+                const properties = propTable(media.schema); if (properties) sec.appendChild(properties);
               }
             }
-            content.appendChild(sec);
-          });
-          addNav(tag, navItems);
-        });
+          }
+          content.appendChild(sec);
+          return { id, label: op.summary || path, method: method.toUpperCase() };
+        }
 
-        // schemas ("타입")
-        const schemas = (spec.components && spec.components.schemas) || {};
-        const schemaNames = Object.keys(schemas);
-        if (schemaNames.length) {
-          const gh = el("div", "group-head"); gh.textContent = "타입"; content.appendChild(gh);
+        function renderCurrentCategory() {
+          const route = tryApi.categoryRoute(window.location.hash, allowedCategories, defaultCategory);
+          const category = categories.find((item) => item.slug === route.category) || categories[0];
+          if (!category) return;
+          if (!window.location.hash || route.category !== String(window.location.hash).replace(/^#/, "").split("/")[0]) {
+            history.replaceState(null, "", "#" + category.slug);
+          }
+          if (observer) observer.disconnect();
+          navSpy = [];
+          nav.replaceChildren();
+          content.replaceChildren();
+          addCategoryNav(category);
+          renderHeader(category);
           const navItems = [];
-          schemaNames.forEach((name) => {
-            const s = schemas[name];
-            const id = "schema-" + name; navItems.push({ id, label: name });
-            const sec = el("section", "schema-block"); sec.id = id;
-            sec.appendChild(el("div", "schema-name", esc(name)));
-            if (s.description) { const d = el("div", "schema-desc md"); d.innerHTML = markdown(s.description); sec.appendChild(d); }
-            const pt = propTable(s);
-            if (pt) sec.appendChild(pt);
-            else if (s.enum) { sec.appendChild(enumTable(s)); }
-            else { const c = el("div", "card"); c.style.padding = "10px 14px"; c.innerHTML = typeLabel(s); sec.appendChild(c); }
-            content.appendChild(sec);
-          });
-          addNav("타입", navItems);
+          if (category.kind === "operations") {
+            groups[category.tag].forEach(({ path, method, op, params }) => navItems.push(renderOperation(path, method, op, params)));
+          } else {
+            schemaNames.forEach((name) => {
+              const schema = schemas[name];
+              const id = "schema-" + name; navItems.push({ id, label: name });
+              const sec = el("section", "schema-block"); sec.id = id;
+              sec.appendChild(el("div", "schema-name", esc(name)));
+              if (schema.description) { const description = el("div", "schema-desc md"); description.innerHTML = markdown(schema.description); sec.appendChild(description); }
+              const properties = propTable(schema);
+              if (properties) sec.appendChild(properties);
+              else if (schema.enum) sec.appendChild(enumTable(schema));
+              else { const card = el("div", "card"); card.style.padding = "10px 14px"; card.innerHTML = typeLabel(schema); sec.appendChild(card); }
+              content.appendChild(sec);
+            });
+          }
+          addItemNav(category, navItems);
+          const byId = {}; navSpy.forEach((item) => (byId[item.id] = item.link));
+          observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              navSpy.forEach((item) => item.link.classList.remove("active"));
+              const link = byId[entry.target.id]; if (link) link.classList.add("active");
+            });
+          }, { rootMargin: "-10% 0px -80% 0px", threshold: 0 });
+          navSpy.forEach((item) => { const target = document.getElementById(item.id); if (target) observer.observe(target); });
+          if (route.anchor) requestAnimationFrame(() => document.getElementById(route.anchor)?.scrollIntoView());
+          else window.scrollTo(0, 0);
         }
 
-        // 부록 (x-appendix) — 타입 뒤에 렌더 (미확정 등)
-        if (spec.info["x-appendix"]) {
-          const apx = el("div", "md"); apx.innerHTML = markdown(spec.info["x-appendix"]); content.appendChild(apx);
-        }
-
-        // scroll spy
-        const byId = {}; navSpy.forEach((n) => (byId[n.id] = n.link));
-        const obs = new IntersectionObserver((entries) => {
-          entries.forEach((e) => {
-            if (e.isIntersecting) {
-              navSpy.forEach((n) => n.link.classList.remove("active"));
-              const link = byId[e.target.id]; if (link) link.classList.add("active");
-            }
-          });
-        }, { rootMargin: "-10% 0px -80% 0px", threshold: 0 });
-        navSpy.forEach((n) => { const t = document.getElementById(n.id); if (t) obs.observe(t); });
+        renderCurrentCategory();
+        window.addEventListener("hashchange", renderCurrentCategory);
 
         // theme toggle
         const root = document.documentElement;

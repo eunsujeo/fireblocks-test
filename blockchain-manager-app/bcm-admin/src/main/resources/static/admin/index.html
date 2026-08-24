@@ -22,7 +22,7 @@
         <kbd class="search-shortcut" aria-hidden="true">/</kbd>
         <button type="submit">검색</button>
       </form>
-      <span class="environment">LOCAL 환경<strong>읽기 전용</strong></span>
+      <span class="environment" id="runtime-environment">환경 확인 중<strong id="runtime-capability">확인 중</strong></span>
     </header>
     <nav class="sidebar" aria-label="주 메뉴">
       <p class="nav-label">현황</p>
@@ -37,7 +37,8 @@
       <a class="nav-link" href="/admin/search?q=tx" data-link data-route="transaction"><span class="nav-index">07</span><span class="nav-text">거래 조사</span></a>
       <a class="nav-link" href="/admin/band-s" data-link data-route="bandS"><span class="nav-index">08</span><span class="nav-text">밴드S</span></a>
       <a class="nav-link" href="/admin/emergency" data-link data-route="emergency"><span class="nav-index">09</span><span class="nav-text">비상 운영</span></a>
-      <p class="scope-note">기능 테스트용 조회 콘솔입니다. 상태 변경 API와 벤더 자격은 이 프로세스에 노출하지 않습니다.</p>
+      <a class="nav-link" href="/admin/test-runs" data-link data-route="testRuns" data-system-test-nav hidden><span class="nav-index">10</span><span class="nav-text">테스트 실행</span></a>
+      <p class="scope-note" id="scope-note">현재 로컬 기능 범위를 확인하고 있습니다.</p>
     </nav>
     <main id="app-content" tabindex="-1"><div class="content" aria-live="polite"></div></main>
   </div>

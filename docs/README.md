@@ -1,0 +1,14 @@
+# 문서 안내
+
+| 위치 | 역할 | 관리 규칙 |
+|---|---|---|
+| `design/` | waas-wiki 설계 정본의 서비스 사본 19개와 매핑 인덱스 | **read-only**, 정본과 byte 동일 유지. 모두 구현·리뷰 근거라 삭제하지 않음 |
+| `api/` | OpenAPI 정본과 실행 가능한 개발자 포털 | `openapi.yaml`만 수정하고 `python3 docs/api/build.py`로 생성물 갱신 |
+| `admin-reference/` | 사용자 승인 Admin 디자인 토큰·기준 화면 | `design/08-bcm-admin.md`가 참조하므로 유지 |
+| `runbooks/` | 현재 운영 경계·경보·복구·향후 배포 결정 로그 | 실제 계약이 바뀔 때 함께 갱신 |
+| `standards/` | 아키텍처 규칙 | 코드 구조 변경 전 확인 |
+| `ai/` | AI 작업 요청과 독립 리뷰 절차 | 현재 사용하는 절차만 유지 |
+| `history/` | 완료된 계획·검증 이력 | 현재 작업 지시로 사용하지 않음 |
+
+테스트 전략은 [testing.md](testing.md), 도구·버전 선정 근거는 [tooling.md](tooling.md)에 있다.
+새 문서는 기존 범주에 들어가지 않고 지속적으로 유지할 책임자가 있을 때만 추가한다.

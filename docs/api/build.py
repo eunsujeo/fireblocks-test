@@ -98,7 +98,14 @@ def sample(s, depth=0):
 def media_example(media):
     if not media:
         return None
-    return media["example"] if "example" in media else sample(media.get("schema") or {})
+    if "example" in media:
+        return media["example"]
+    examples = media.get("examples") or {}
+    if examples:
+        first = next(iter(examples.values())) or {}
+        if "value" in first:
+            return first["value"]
+    return sample(media.get("schema") or {})
 
 
 def prop_rows(s):
@@ -325,9 +332,13 @@ def build(cfg):
     # 읽어 스펙별로 동작한다. 스펙마다 다른 건 spec.js(인라인)뿐이라 뷰어 로직은 갈라두지 않는다.
     html = open(os.path.join(HERE, "index.html"), encoding="utf-8").read()
     specjs = open(os.path.join(cfg["dir"], "spec.js"), encoding="utf-8").read()
+    tryjs = open(os.path.join(HERE, "try-it.js"), encoding="utf-8").read()
+    html = html.replace('<script src="./try-it.js"></script>',
+                        "<script>\n" + tryjs + "</script>")
     html = html.replace('<script src="./spec.js"></script>',
                         "<script>\n" + specjs + "</script>")
-    assert "window.OPENAPI" in html, "spec.js 인라인 실패 — index.html 의 script 태그 확인"
+    assert "window.OPENAPI" in html and "window.BCM_API_TRY" in html, \
+        "실행 helper/spec.js 인라인 실패 — index.html 의 script 태그 확인"
     # export 파일에는 다운로드 버튼이 의미 없다(옆에 파일이 없음) — topact 의 anchor 만 제거
     html = re.sub(r'\s*<a class="iconbtn" href="\./[^"]+" download>[^<]*</a>', "", html)
     open(os.path.join(cfg["dir"], "api.html"), "w", encoding="utf-8").write(html)

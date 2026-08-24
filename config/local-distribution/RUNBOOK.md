@@ -14,7 +14,7 @@ Docker를 요구하거나 두 인프라를 포함·설치·초기화·reset하�
 ./install.sh verify
 ```
 
-연결 환경의 CI는 smoke 이미지를 미리 받은 뒤 `scripts/local-distribution-smoke.sh <tar.gz>`를 실행한다. 이 검사는
+연결 환경의 CI는 smoke 이미지를 미리 받은 뒤 `scripts/internal/local-distribution-smoke.sh <tar.gz>`를 실행한다. 이 검사는
 컨테이너 네트워크를 `none`으로 고정한 채 chain·Stub 기동, reset, 종료와 재기동 및 결정적 manifest를 검증한다.
 
 ## 설치와 확인
@@ -56,7 +56,7 @@ reset은 Stub·Anvil만 기준 상태로 복원한다. BCM PostgreSQL과 Kafka �
 ```sh
 sudo /opt/blockchain-manager-local/current/install.sh rollback
 # 또는 releases 아래의 명시적인 디렉터리 이름 지정
-sudo /opt/blockchain-manager-local/current/install.sh rollback blockchain-manager-local-<version>-linux-x86_64
+sudo /opt/blockchain-manager-local/current/install.sh rollback blockchain-manager-local-<version>-linux-x86_64-<manifest-sha256>
 ```
 
 로그는 `bcm-local logs` 또는 `journalctl -u bcm-local-anvil -u bcm-local-stub`으로 확인한다.

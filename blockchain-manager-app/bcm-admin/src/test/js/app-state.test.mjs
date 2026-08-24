@@ -11,6 +11,8 @@ import {
   isGlobalSearchShortcut,
   resolveViewState,
   runSingleFlight,
+  shouldRefreshTestRun,
+  testRunIdFromPath,
   transactionIdentifierFromPath,
 } from "../../main/resources/static/admin/app-state.js";
 
@@ -28,6 +30,21 @@ test("밴드S 경로는 독립 운영 원장 화면으로 해석된다", () => {
 test("비상 운영 경로는 실행 게이트 원장 화면으로 해석된다", () => {
   assert.equal(adminRouteFromPath("/admin/emergency"), "emergency");
   assert.equal(adminRouteFromPath("/admin/emergency/"), "emergency");
+});
+
+test("로컬 테스트 실행 목록과 상세 경로를 구분한다", () => {
+  assert.equal(adminRouteFromPath("/admin/test-runs"), "testRuns");
+  assert.equal(adminRouteFromPath("/admin/test-runs/run%3A2026"), "testRun");
+  assert.equal(testRunIdFromPath("/admin/test-runs/run%3A2026"), "run:2026");
+  assert.equal(testRunIdFromPath("/admin/test-runs/%E0%A4%A"), null);
+});
+
+test("테스트 실행 자동 갱신은 진행 상태에서만 유지한다", () => {
+  assert.equal(shouldRefreshTestRun("PENDING"), true);
+  assert.equal(shouldRefreshTestRun("RUNNING"), true);
+  assert.equal(shouldRefreshTestRun("PASSED"), false);
+  assert.equal(shouldRefreshTestRun("FAILED"), false);
+  assert.equal(shouldRefreshTestRun("ABORTED"), false);
 });
 
 test("네트워크 필터는 URL 왕복 뒤에도 보존된다", () => {
@@ -130,6 +147,49 @@ test("브라우저 번들은 BFF 상대경로만 호출하고 인증정보나 �
   assert.deepEqual(fetchArguments, ["url"]);
   assert.match(appSource, /request\(`?\/bff\/admin\//);
   assert.doesNotMatch(appSource, /https?:\/\/|Authorization|X-Employee-No|privateKey|rawPayload|signature/i);
+});
+
+test("자산 등록은 검색·후보 선택·검증 요약을 한 모달에서 완료한다", () => {
+  assert.match(appSource, /id="asset-add-dialog"/);
+  assert.match(appSource, /role="listbox"/);
+  assert.match(appSource, /자산 심볼 검색/);
+  assert.match(appSource, /\/bff\/admin\/asset-candidates/);
+  assert.match(appSource, /method: "POST"/);
+  assert.match(appSource, /"X-BCM-Local-Asset-Management": "execute"/);
+  assert.match(appSource, /등록할 자산 확인/);
+  assert.match(styleSource, /\.asset-dialog::backdrop/);
+});
+
+test("첫 화면은 Fireblocks 카탈로그에서 네트워크와 자산 등록으로 이어진다", () => {
+  assert.match(shellSource, /id="runtime-capability"/);
+  assert.match(shellSource, /id="scope-note"/);
+  assert.match(appSource, /catalogNetworkCount/);
+  assert.match(appSource, /adoptedNetworkCount/);
+  assert.match(appSource, /catalogSyncedAt/);
+  assert.match(appSource, /\/admin\/networks\?adopted=false/);
+  assert.match(appSource, /\/admin\/assets\?action=add/);
+  assert.match(appSource, /developerPortalUrl/);
+  assert.match(appSource, /id="network-adopt-dialog"/);
+  assert.match(appSource, /method: "PUT"/);
+  assert.match(appSource, /"X-BCM-Local-Asset-Management": "execute"/);
+});
+
+test("테스트 실행 진단은 숨김 메뉴에서 시작하고 서버 진행률과 다음 조치만 표시한다", () => {
+  assert.match(shellSource, /data-system-test-nav[^>]*hidden/);
+  assert.match(appSource, /\/bff\/admin\/test-runs/);
+  assert.match(appSource, /progress\.percent/);
+  assert.match(appSource, /failure\.nextAction/);
+  assert.match(appSource, /relatedIds\.transactionHref/);
+  assert.match(appSource, /statusBanner\(payload\)/);
+  assert.match(appSource, /payload\.state === "FRESH" && shouldRefreshTestRun/);
+  assert.match(appSource, /step\.classification/);
+  assert.match(appSource, /step\.observations/);
+  assert.match(appSource, /\/bff\/admin\/test-scenarios/);
+  assert.match(appSource, /data-scenario-id/);
+  assert.match(appSource, /STUB \+ LOCAL ONLY/);
+  assert.match(appSource, /"X-BCM-Local-Scenario": "execute"/);
+  assert.match(appSource, /"OPEN", "READY"/);
+  assert.doesNotMatch(appSource, /rawPayload|privateKey|component\.log/i);
 });
 
 test("장시간 원장은 서버 단계와 관측 시각 및 금지 사유를 함께 표시한다", () => {

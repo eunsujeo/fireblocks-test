@@ -1,0 +1,50 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
+
+bcm:
+  operational-metrics:
+    fixed-delay-millis: ${BCM_OPERATIONAL_METRICS_FIXED_DELAY_MILLIS:60000}
+    initial-delay-millis: ${BCM_OPERATIONAL_METRICS_INITIAL_DELAY_MILLIS:60000}
+  operational-alert:
+    enabled: ${BCM_OPERATIONAL_ALERT_ENABLED:false}
+    endpoint: ${BCM_OPERATIONAL_ALERT_ENDPOINT:}
+    bearer-token: ${BCM_OPERATIONAL_ALERT_BEARER_TOKEN:}
+    connect-timeout-millis: ${BCM_OPERATIONAL_ALERT_CONNECT_TIMEOUT_MILLIS:1000}
+    read-timeout-millis: ${BCM_OPERATIONAL_ALERT_READ_TIMEOUT_MILLIS:2000}
+  webhook-worker:
+    enabled: ${BCM_WEBHOOK_WORKER_ENABLED:true}
+    fixed-delay-millis: ${BCM_WEBHOOK_WORKER_FIXED_DELAY_MILLIS:500}
+    max-attempts: ${BCM_WEBHOOK_WORKER_MAX_ATTEMPTS:3}
+    outbox-max-attempts: ${BCM_OUTBOX_MAX_ATTEMPTS:5}
+  outbox-relay:
+    enabled: ${BCM_OUTBOX_RELAY_ENABLED:true}
+    fixed-delay-millis: ${BCM_OUTBOX_RELAY_FIXED_DELAY_MILLIS:500}
+    max-events-per-run: ${BCM_OUTBOX_RELAY_MAX_EVENTS_PER_RUN:100}
+    send-timeout-millis: ${BCM_OUTBOX_RELAY_SEND_TIMEOUT_MILLIS:5000}
+  finality-confirmations:
+    ethereum: ${BCM_FINALITY_ETHEREUM:1}
+    base: ${BCM_FINALITY_BASE:1}
+  fireblocks:
+    connect-timeout-millis: ${BCM_VENDOR_CONNECT_TIMEOUT_MILLIS:3000}
+    read-timeout-millis: ${BCM_TRANSACTION_SUBMIT_TIMEOUT_MILLIS:10000}
+    webhook-jwks-url: ${FIREBLOCKS_JWKS_URL:https://keys.fireblocks.io/.well-known/jwks.json}
+    webhook-jwks-timeout-millis: ${FIREBLOCKS_JWKS_TIMEOUT_MILLIS:3000}
+    webhook-jwks-refresh-cooldown-millis: ${FIREBLOCKS_JWKS_REFRESH_COOLDOWN_MILLIS:30000}
+
+server:
+  port: ${BCM_WEBHOOK_PORT:8081}
+  tomcat:
+    max-connections: ${BCM_WEBHOOK_HTTP_MAX_CONNECTIONS:100}
+
+management:
+  server:
+    port: ${BCM_WEBHOOK_MANAGEMENT_PORT:9091}
+    address: ${BCM_WEBHOOK_MANAGEMENT_ADDRESS:127.0.0.1}
+  endpoints:
+    web:
+      exposure:
+        include: ${BCM_MANAGEMENT_ENDPOINTS:health,metrics}

@@ -54,7 +54,7 @@ internal object LocalChainCommand {
         )
     }
 
-    private fun loadOrCreateSeed(path: Path): String {
+    internal fun loadOrCreateSeed(path: Path): String {
         path.parent?.let(Files::createDirectories)
         if (!Files.exists(path)) {
             val generated = ByteArray(SEED_BYTES).also(SecureRandom()::nextBytes).toHex()

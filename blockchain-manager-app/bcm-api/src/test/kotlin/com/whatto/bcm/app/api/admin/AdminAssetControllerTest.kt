@@ -4,7 +4,6 @@ import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.app.application.asset.AdoptNetworkCommand
 import com.whatto.bcm.app.application.asset.AssetCandidate
 import com.whatto.bcm.app.application.asset.AuditActor
-import com.whatto.bcm.app.application.asset.RegisterVendorAssetMappingCommand
 import com.whatto.bcm.app.application.asset.VendorAssetMappingService
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
@@ -78,10 +77,19 @@ class AdminAssetControllerTest {
     fun `채택·등록·삭제 — 감사 헤더를 서비스 명령으로 넘기고 계약 상태를 돌려준다`() {
         every { service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "opaque-candidate", "123456", "0001")) } returns network
         every {
-            service.register(RegisterVendorAssetMappingCommand("ETHEREUM", "USDC", "0xA0b8", "123456", "0001"))
+            service.register(
+                match {
+                    it.network == "ETHEREUM" &&
+                        it.symbol == "USDC" &&
+                        it.contractAddress == "0xA0b8" &&
+                        it.employeeNo == "123456" &&
+                        it.branchCode == "0001" &&
+                        it.requestId.isNotBlank()
+                },
+            )
         } returns mapping
         every { service.releaseNetwork("ETHEREUM", audit) } returns Unit
-        every { service.delete("ETHEREUM", "USDC", audit) } returns Unit
+        every { service.delete("ETHEREUM", "USDC", match { it.employeeNo == "123456" && it.requestId.isNotBlank() }) } returns Unit
 
         mockMvc
             .perform(

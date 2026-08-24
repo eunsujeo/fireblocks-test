@@ -4,7 +4,7 @@ status: To Do
 group: 블록체인 매니저
 ---
 
-블록체인 매니저 DB(`bcm_`)의 테이블 전체 — 계정·주소 매핑, 거래 운영 상태, 수신 인박스, sweep 대상, 주기 작업, boost 이력, 수수료 견적, finalize 원본, 발행 아웃박스. 자산 매핑·블록체인 카탈로그 두 표는 [자산 매핑](07-asset-master.md) 에서 정의한다.
+블록체인 매니저 DB(`bcm_`)의 테이블 전체 — 계정·주소 매핑, 거래 운영 상태, 수신 인박스, sweep 대상, 주기 작업, boost 이력, 수수료 견적, finalize 원본, 발행 아웃박스. 자산의 현재 매핑·변경 snapshot과 블록체인 카탈로그는 [자산 매핑](07-asset-master.md) 에서 정의한다.
 회계 진실(고객 원장·귀속·잔액·출금 지시 상태)은 여기 없다 — 그것은 DAW-CORE DB(`daw_`)다.
 
 ## 명명 규약
@@ -38,7 +38,8 @@ group: 블록체인 매니저
 | `bcm_fee_qt_l` | 자산별 LOW·MEDIUM·HIGH 네트워크 수수료 견적 시계열 | 제출·boost 요청 시각의 최근 견적 대응 · sweep 가스비 조건 입력 |
 | `bcm_raw_tx_l` | finalize 트랜잭션 원본 | 일 배치 보관 — 장기 보존 |
 | `bcm_blkc_m` | 벤더 블록체인 카탈로그 — 일 1회 동기화 | 네트워크 채택 · 자산 등록 때 고르기 ([자산 매핑](07-asset-master.md)) |
-| `bcm_vndr_ast_m` | 자산 매핑 — (네트워크, 토큰) ↔ 벤더 assetId | 벤더 호출 직전 변환 ([자산 매핑](07-asset-master.md)) |
+| `bcm_vndr_ast_m` | 자산의 현재 매핑 — (네트워크, 토큰) ↔ 벤더 assetId · 활성 여부 | 활성 매핑 판정 · 벤더 호출 직전 변환 ([자산 매핑](07-asset-master.md)) |
+| `bcm_vndr_ast_chng_l` | 자산 매핑 변경 원장 — 변경 전후 snapshot, 추가 전용 | 등록·해제·재활성·교체 감사와 장애 대조 ([자산 매핑](07-asset-master.md)) |
 
 ## ERD
 
@@ -57,6 +58,7 @@ entity: bcm_swp_item_l @4,3 :: sweep 실행 항목 | swp_exec_id PK,FK :: 실행
 entity: bcm_raw_tx_l @2,4 :: finalize 원본 — 일 배치 장기 보관 | base_dt PK :: 적재 기준일 = 파티션 키 | vndr_tx_id PK :: 벤더 tx id | payload_hash :: 원문 SHA-256 — 무결성
 entity: bcm_job_m @3,4 :: 주기 작업 상태 — heartbeat · 대사 커서 | job_nm PK :: 작업명 | last_scs_dttm :: 마지막 성공 — tx 대사의 안정화된 createdAt 창 끝
 entity: bcm_fee_qt_l @4,4 :: 자산별 네트워크 수수료 견적 시계열 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | obs_dttm PK :: 관측 시각 | fee_lvl PK :: LOW/MEDIUM/HIGH
+entity: bcm_vndr_ast_chng_l @1,5 :: 자산 매핑 변경 원장 — 변경 전후 snapshot (추가 전용) | chng_id PK :: 변경 id | ntwk_cd FK :: 네트워크 코드 | tkn_smbl FK :: 토큰 심볼 | actn_dvcd :: REGISTER/DEACTIVATE/REACTIVATE/REPLACE
 rel: bcm_acnt_m | bcm_addr_m | 계정당 주소 | one-many
 rel: bcm_acnt_m | bcm_tx_l | 계정 귀속 | one-many
 rel: bcm_acnt_m | bcm_swp_trgt | sweep 대상 | one-many
@@ -70,6 +72,7 @@ rel: bcm_tx_l | bcm_outbox_l | 같은 트랜잭션 발행 예약 | one-many
 rel: bcm_tx_l | bcm_boost_l | root 거래의 boost 시도 | one-many
 rel: bcm_tx_l | bcm_raw_tx_l | 확정 원본 | one-many | dashed
 rel: bcm_vndr_ast_m | bcm_fee_qt_l | 관측 당시 자산 매핑 | one-many | dashed
+rel: bcm_vndr_ast_m | bcm_vndr_ast_chng_l | 현재 매핑의 변경 snapshot | one-many
 rel: bcm_fee_qt_l | bcm_sbmt_l | 제출 시각 직전 견적 대응 | one-many | dashed
 ```
 
@@ -1695,7 +1698,7 @@ version·evidence·요청·판단·action 6개 원장에는 `UPDATE OR DELETE`�
 
 ## 미확정
 
-- **`bcm_tx_l`·`bcm_whk_l`·`bcm_outbox_l` 보존** — 종결·처리 완료·발송 완료 건을 언제까지 두고 언제 정리할지 — `bcm_raw_tx_l` 원본 보관과 역할을 나눈 뒤 확정.
+- **`bcm_tx_l`·`bcm_whk_l`·`bcm_outbox_l` 보존** — 종결·처리 완료·발송 완료 건을 언제까지 두고 언제 정리할지 — `bcm_raw_tx_l` 원본 보관과 역할을 나눈 뒤 확정. 이는 [운영 로그 정책](11-operational-log-policy.md)의 중앙 로그 보존 기간과 별도로 결정한다.
 
 ## 확정 이력 (2026-08-14)
 

@@ -4,6 +4,7 @@ import com.whatto.bcm.testsupport.chain.EvmJsonRpcClient
 import com.whatto.bcm.testsupport.chain.LocalEvmKey
 import com.whatto.bcm.testsupport.chain.LocalGaslessExecutor
 import com.whatto.bcm.testsupport.config.TestSupportProperties
+import com.whatto.bcm.testsupport.config.requireInternalLocalEndpoint
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import org.web3j.crypto.Credentials
@@ -21,6 +22,8 @@ import kotlin.concurrent.withLock
 
 internal data class LocalStubAsset(
     val id: String,
+    val blockchainId: String,
+    val chainId: Long,
     val displayName: String,
     val displaySymbol: String,
     val decimals: Int,
@@ -46,32 +49,47 @@ internal data class LocalStubTokenTransfer(
 internal class LocalStubChainState(
     private val properties: TestSupportProperties,
 ) {
-    private val rpc = EvmJsonRpcClient(properties.evmRpcUrl)
-    private val manifest by lazy(::loadManifest)
-    private val privateKeysByAddress by lazy(::loadPrivateKeys)
+    private val contexts by lazy(::loadContexts)
     private val resetLock = ReentrantLock()
-    private var baselineSnapshotId = properties.resetEnabled.takeIf { it }?.let { rpc.snapshot() }
-    private var nextTransactionNonce: BigInteger? = null
 
-    fun assets(): List<LocalStubAsset> = manifest.assets
+    fun blockchains(): List<LocalStubBlockchain> =
+        if (properties.localChainClusterManifestFile.isBlank()) {
+            listOf(LocalStubBlockchain(LOCAL_BLOCKCHAIN_ID, "Local EVM", properties.evmChainId))
+        } else {
+            contexts.map { context ->
+                LocalStubBlockchain(
+                    id = context.manifest.blockchainId,
+                    displayName = context.manifest.displayName,
+                    chainId = context.manifest.chainId,
+                )
+            }
+        }
+
+    fun assets(): List<LocalStubAsset> = contexts.flatMap { it.manifest.assets }
+
+    fun assets(blockchainId: String): List<LocalStubAsset> = assets().filter { it.blockchainId == blockchainId }
 
     fun asset(assetId: String): LocalStubAsset? = assets().find { it.id == assetId }
 
-    fun vaultAddress(index: Int): String =
-        (manifest.customerAddresses + manifest.operatorAddress).getOrNull(index)
+    fun vaultAddress(
+        index: Int,
+        asset: LocalStubAsset,
+    ): String =
+        context(asset).manifest.let { manifest -> (manifest.customerAddresses + manifest.operatorAddress).getOrNull(index) }
             ?: throw IllegalStateException("local chain has no deterministic address for vault index=$index")
 
-    fun externalSourceAddress(): String = manifest.deployerAddress
+    fun externalSourceAddress(asset: LocalStubAsset): String = context(asset).manifest.deployerAddress
 
     fun balance(
         address: String,
         asset: LocalStubAsset,
     ): String {
+        val context = context(asset)
         val raw =
             if (asset.contractAddress == null) {
-                rpc.nativeBalance(address)
+                context.rpc.nativeBalance(address)
             } else {
-                rpc.tokenBalance(asset.contractAddress, address)
+                context.rpc.tokenBalance(asset.contractAddress, address)
             }
         return decimalAmount(raw, asset.decimals)
     }
@@ -79,31 +97,35 @@ internal class LocalStubChainState(
     fun setNativeBalance(
         address: String,
         balanceWei: BigInteger,
-    ) = rpc.setNativeBalance(address, balanceWei)
+    ) = contexts.first().rpc.setNativeBalance(address, balanceWei)
 
     fun configureNextTransactionNonce(nonce: BigInteger) {
         require(nonce.signum() >= 0) { "transaction nonce must not be negative" }
         resetLock.withLock {
-            check(nextTransactionNonce == null) { "next transaction nonce is already configured" }
-            nextTransactionNonce = nonce
+            val context = contexts.first()
+            check(context.nextTransactionNonce == null) { "next transaction nonce is already configured" }
+            context.nextTransactionNonce = nonce
         }
     }
 
     fun submitRawTransaction(
+        asset: LocalStubAsset,
         sourceAddress: String,
         destinationAddress: String,
         rawAmount: BigInteger,
         callData: String,
         gasLimit: BigInteger,
     ): LocalStubTransactionResult {
+        val context = context(asset)
         val normalizedSource = normalizedAddress(sourceAddress)
         val privateKey =
-            privateKeysByAddress[normalizedSource]
+            context.privateKeysByAddress[normalizedSource]
                 ?: throw IllegalStateException("local EVM key does not exist for source address")
         val transaction =
             RawTransaction.createTransaction(
                 resetLock.withLock {
-                    nextTransactionNonce.also { nextTransactionNonce = null } ?: rpc.transactionCount(normalizedSource)
+                    context.nextTransactionNonce.also { context.nextTransactionNonce = null }
+                        ?: context.rpc.transactionCount(normalizedSource)
                 },
                 GAS_PRICE_WEI,
                 gasLimit,
@@ -115,28 +137,30 @@ internal class LocalStubChainState(
             Numeric.toHexString(
                 TransactionEncoder.signMessage(
                     transaction,
-                    properties.evmChainId,
+                    asset.chainId,
                     Credentials.create(privateKey),
                 ),
             )
-        val transactionHash = rpc.sendRawTransaction(signed)
-        val receipt = rpc.waitForReceipt(transactionHash)
+        val transactionHash = context.rpc.sendRawTransaction(signed)
+        val receipt = context.rpc.waitForReceipt(transactionHash)
         return LocalStubTransactionResult(transactionHash, receipt.successful, receipt.blockNumber)
     }
 
     fun submitGaslessTransaction(
+        asset: LocalStubAsset,
         sourceAddress: String,
         destinationAddress: String,
         rawAmount: BigInteger,
         callData: String,
     ): LocalStubTransactionResult {
+        val context = context(asset)
         val executor =
             LocalGaslessExecutor(
-                rpc = rpc,
-                chainId = properties.evmChainId,
-                feePayer = localKey(manifest.gaslessFeePayerAddress),
-                delegationContractAddress = manifest.gaslessDelegationContractAddress,
-                sourceKey = ::localKey,
+                rpc = context.rpc,
+                chainId = asset.chainId,
+                feePayer = localKey(context, context.manifest.gaslessFeePayerAddress),
+                delegationContractAddress = context.manifest.gaslessDelegationContractAddress,
+                sourceKey = { address -> localKey(context, address) },
             )
         val receipt = executor.execute(sourceAddress, destinationAddress, callData, rawAmount)
         return LocalStubTransactionResult(receipt.transactionHash, receipt.successful, receipt.blockNumber)
@@ -150,7 +174,8 @@ internal class LocalStubChainState(
         val tokenAddress = asset.contractAddress
         return if (tokenAddress == null) {
             submitRawTransaction(
-                sourceAddress = manifest.deployerAddress,
+                asset = asset,
+                sourceAddress = context(asset).manifest.deployerAddress,
                 destinationAddress = destinationAddress,
                 rawAmount = rawAmount,
                 callData = "0x",
@@ -158,7 +183,8 @@ internal class LocalStubChainState(
             )
         } else {
             submitRawTransaction(
-                sourceAddress = manifest.deployerAddress,
+                asset = asset,
+                sourceAddress = context(asset).manifest.deployerAddress,
                 destinationAddress = tokenAddress,
                 rawAmount = BigInteger.ZERO,
                 callData = TRANSFER_SELECTOR + addressWord(destinationAddress) + uintWord(rawAmount),
@@ -167,12 +193,17 @@ internal class LocalStubChainState(
         }
     }
 
-    fun tokenTransfers(transactionHash: String): List<LocalStubTokenTransfer> {
+    fun tokenTransfers(
+        transactionHash: String,
+        assetId: String,
+    ): List<LocalStubTokenTransfer> {
+        val transactionAsset = checkNotNull(asset(assetId)) { "local asset does not exist" }
+        val context = context(transactionAsset)
         val assetsByContract =
-            assets()
+            context.manifest.assets
                 .filter { it.contractAddress != null }
                 .associateBy { normalizedAddress(requireNotNull(it.contractAddress)) }
-        return rpc
+        return context.rpc
             .waitForReceipt(transactionHash)
             .logs
             .asSequence()
@@ -189,21 +220,68 @@ internal class LocalStubChainState(
             }.toList()
     }
 
-    fun blockNumber(): BigInteger = rpc.blockNumber()
+    fun blockNumber(assetId: String): BigInteger = context(checkNotNull(asset(assetId))).rpc.blockNumber()
 
-    fun mineBlock() = rpc.mineBlock()
+    fun mineBlock(assetId: String) = context(checkNotNull(asset(assetId))).rpc.mineBlock()
 
     fun reset() {
         resetLock.withLock {
-            val snapshotId = checkNotNull(baselineSnapshotId) { "local environment reset is not enabled" }
-            check(rpc.revert(snapshotId)) { "local chain baseline snapshot is no longer available" }
-            baselineSnapshotId = rpc.snapshot()
-            nextTransactionNonce = null
+            contexts.forEach { context ->
+                val snapshotId = checkNotNull(context.baselineSnapshotId) { "local environment reset is not enabled" }
+                check(context.rpc.revert(snapshotId)) { "local chain baseline snapshot is no longer available" }
+                context.baselineSnapshotId = context.rpc.snapshot()
+                context.nextTransactionNonce = null
+            }
         }
     }
 
-    private fun loadManifest(): LocalStubManifest {
-        val manifestPath = Path.of(properties.localChainManifestFile)
+    private fun loadContexts(): List<LocalStubChainContext> {
+        if (properties.localChainClusterManifestFile.isBlank()) {
+            return listOf(loadContext(properties.evmRpcUrl, properties.localChainManifestFile, properties.localChainKeyFile, true))
+        }
+        val clusterPath = Path.of(properties.localChainClusterManifestFile)
+        val cluster =
+            try {
+                ObjectMapper().readTree(Files.readString(clusterPath))
+            } catch (exception: Exception) {
+                throw IllegalStateException("local chain cluster manifest is not readable: $clusterPath", exception)
+            }
+        check(cluster.required("schemaVersion").asInt() == 1) { "unsupported local chain cluster schema" }
+        return cluster
+            .required("chains")
+            .iterator()
+            .asSequence()
+            .map { chain ->
+                loadContext(
+                    chain.required("rpcUrl").asString(),
+                    chain.required("manifestFile").asString(),
+                    chain.required("keyFile").asString(),
+                    false,
+                )
+            }.toList()
+            .also { contexts ->
+                check(contexts.map { it.manifest.blockchainId }.distinct().size == contexts.size) { "duplicate local blockchain id" }
+                check(
+                    contexts
+                        .flatMap { it.manifest.assets }
+                        .map { it.id }
+                        .distinct()
+                        .size == contexts.flatMap { it.manifest.assets }.size,
+                ) {
+                    "duplicate local asset id"
+                }
+            }
+    }
+
+    private fun loadContext(
+        rpcUrl: String,
+        manifestFile: String,
+        keyFile: String,
+        includeNativeAsset: Boolean,
+    ): LocalStubChainContext {
+        requireInternalLocalEndpoint("cluster EVM RPC URL", rpcUrl)
+        val rpc = EvmJsonRpcClient(rpcUrl)
+        val manifestPath = Path.of(manifestFile)
         val document =
             try {
                 ObjectMapper().readTree(Files.readString(manifestPath))
@@ -211,7 +289,7 @@ internal class LocalStubChainState(
                 throw IllegalStateException("local chain manifest is not readable: $manifestPath", exception)
             }
         val chainId = document.required("chainId").asLong()
-        check(chainId == properties.evmChainId && rpc.chainId() == chainId) {
+        check(rpc.chainId() == chainId) {
             "local chain manifest and RPC chain id mismatch"
         }
         val deployerAddress = document.required("deployerAddress").asString()
@@ -231,39 +309,90 @@ internal class LocalStubChainState(
             "local chain manifest addresses do not belong to RPC"
         }
 
-        val tokenSymbol = document.required("tokenSymbol").asString()
-        val tokenDecimals = document.required("tokenDecimals").asInt()
-        val tokenContractAddress = document.required("tokenContractAddress").asString()
-        return LocalStubManifest(
-            deployerAddress = deployerAddress,
-            operatorAddress = operatorAddress,
-            gaslessFeePayerAddress = gaslessFeePayerAddress,
-            gaslessDelegationContractAddress = gaslessDelegationContractAddress,
-            customerAddresses = customerAddresses,
-            assets =
+        val blockchainId = document.get("blockchainId")?.asString() ?: LOCAL_BLOCKCHAIN_ID
+        val displayName = document.get("displayName")?.asString() ?: "Local EVM"
+        val assetDocuments =
+            document
+                .get("assets")
+                ?.iterator()
+                ?.asSequence()
+                ?.toList()
+        val manifestAssets =
+            assetDocuments?.map { asset ->
+                val contractAddress = asset.required("contractAddress").asString()
+                check(rpc.codeHash(contractAddress) == asset.required("codeHash").asString()) {
+                    "local token code hash does not match manifest: ${asset.required("id").asString()}"
+                }
+                LocalStubAsset(
+                    id = asset.required("id").asString(),
+                    blockchainId = blockchainId,
+                    chainId = chainId,
+                    displayName = asset.required("displayName").asString(),
+                    displaySymbol = asset.required("symbol").asString(),
+                    decimals = asset.required("decimals").asInt(),
+                    assetClass = "ERC20",
+                    contractAddress = contractAddress,
+                )
+            } ?: run {
+                val contractAddress = document.required("tokenContractAddress").asString()
+                check(rpc.codeHash(contractAddress) == document.required("tokenCodeHash").asString()) {
+                    "local token code hash does not match manifest: $TOKEN_ASSET_ID"
+                }
+                listOf(
+                    LocalStubAsset(
+                        id = TOKEN_ASSET_ID,
+                        blockchainId = blockchainId,
+                        chainId = chainId,
+                        displayName = "Local ${document.required("tokenSymbol").asString()}",
+                        displaySymbol = document.required("tokenSymbol").asString(),
+                        decimals = document.required("tokenDecimals").asInt(),
+                        assetClass = "ERC20",
+                        contractAddress = contractAddress,
+                    ),
+                )
+            }
+        val assets =
+            if (includeNativeAsset) {
                 listOf(
                     LocalStubAsset(
                         id = NATIVE_ASSET_ID,
+                        blockchainId = blockchainId,
+                        chainId = chainId,
                         displayName = "Local Ether",
                         displaySymbol = "ETH",
                         decimals = NATIVE_DECIMALS,
                         assetClass = "NATIVE",
                         contractAddress = null,
                     ),
-                    LocalStubAsset(
-                        id = TOKEN_ASSET_ID,
-                        displayName = "Local $tokenSymbol",
-                        displaySymbol = tokenSymbol,
-                        decimals = tokenDecimals,
-                        assetClass = "ERC20",
-                        contractAddress = tokenContractAddress,
-                    ),
-                ),
+                ) + manifestAssets
+            } else {
+                manifestAssets
+            }
+        val manifest =
+            LocalStubManifest(
+                blockchainId = blockchainId,
+                displayName = displayName,
+                chainId = chainId,
+                deployerAddress = deployerAddress,
+                operatorAddress = operatorAddress,
+                gaslessFeePayerAddress = gaslessFeePayerAddress,
+                gaslessDelegationContractAddress = gaslessDelegationContractAddress,
+                customerAddresses = customerAddresses,
+                assets = assets,
+            )
+        return LocalStubChainContext(
+            rpc = rpc,
+            manifest = manifest,
+            privateKeysByAddress = loadPrivateKeys(manifest, keyFile),
+            baselineSnapshotId = properties.resetEnabled.takeIf { it }?.let { rpc.snapshot() },
         )
     }
 
-    private fun loadPrivateKeys(): Map<String, String> {
-        val keyPath = Path.of(properties.localChainKeyFile)
+    private fun loadPrivateKeys(
+        manifest: LocalStubManifest,
+        keyFile: String,
+    ): Map<String, String> {
+        val keyPath = Path.of(keyFile)
         val document =
             try {
                 ObjectMapper().readTree(Files.readString(keyPath))
@@ -310,13 +439,18 @@ internal class LocalStubChainState(
         return value.lowercase()
     }
 
-    private fun localKey(address: String): LocalEvmKey {
+    private fun localKey(
+        context: LocalStubChainContext,
+        address: String,
+    ): LocalEvmKey {
         val normalized = normalizedAddress(address)
         return LocalEvmKey(
             address = normalized,
-            privateKey = checkNotNull(privateKeysByAddress[normalized]) { "local EVM key does not exist for address" },
+            privateKey = checkNotNull(context.privateKeysByAddress[normalized]) { "local EVM key does not exist for address" },
         )
     }
+
+    private fun context(asset: LocalStubAsset): LocalStubChainContext = contexts.single { it.manifest.blockchainId == asset.blockchainId }
 
     private fun addressWord(address: String): String = normalizedAddress(address).removePrefix("0x").padStart(64, '0')
 
@@ -331,12 +465,23 @@ internal class LocalStubChainState(
     private fun JsonNode.required(field: String): JsonNode = checkNotNull(get(field)) { "local chain manifest field is missing: $field" }
 
     private data class LocalStubManifest(
+        val blockchainId: String,
+        val displayName: String,
+        val chainId: Long,
         val deployerAddress: String,
         val operatorAddress: String,
         val gaslessFeePayerAddress: String,
         val gaslessDelegationContractAddress: String,
         val customerAddresses: List<String>,
         val assets: List<LocalStubAsset>,
+    )
+
+    private data class LocalStubChainContext(
+        val rpc: EvmJsonRpcClient,
+        val manifest: LocalStubManifest,
+        val privateKeysByAddress: Map<String, String>,
+        var baselineSnapshotId: String?,
+        var nextTransactionNonce: BigInteger? = null,
     )
 
     companion object {
@@ -351,3 +496,9 @@ internal class LocalStubChainState(
         private val TOKEN_TRANSFER_GAS_LIMIT = BigInteger.valueOf(100_000)
     }
 }
+
+internal data class LocalStubBlockchain(
+    val id: String,
+    val displayName: String,
+    val chainId: Long,
+)

@@ -15,6 +15,7 @@ import com.whatto.bcm.domain.admin.AdminExecutionGateResumeSummary
 import com.whatto.bcm.domain.admin.AdminExecutionGateSummary
 import com.whatto.bcm.domain.admin.AdminExternalControlEvidenceSummary
 import com.whatto.bcm.domain.admin.AdminPolicySummary
+import com.whatto.bcm.domain.admin.AdminRuntimeReadiness
 import com.whatto.bcm.domain.admin.AdminWebhookRecoverySummary
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.constraints.Size
@@ -47,6 +48,13 @@ class AdminGovernanceController(
             RequestIdFilter.requestIdOf(request),
         )
 
+    @GetMapping("/admin/runtime-readiness")
+    fun runtimeReadiness(request: HttpServletRequest): ApiResponse<AdminRuntimeReadinessData> =
+        ApiResponse.of(
+            AdminRuntimeReadinessData.from(service.runtimeReadiness()),
+            RequestIdFilter.requestIdOf(request),
+        )
+
     @GetMapping("/admin/change-requests/{requestId}")
     fun changeRequest(
         @PathVariable @Size(max = 36) requestId: String,
@@ -54,6 +62,38 @@ class AdminGovernanceController(
     ): ApiResponse<AdminChangeRequestData> =
         ApiResponse.of(AdminChangeRequestData.from(service.changeRequest(requestId)), RequestIdFilter.requestIdOf(request))
 }
+
+data class AdminRuntimeReadinessData(
+    val observedAt: String,
+    val webhook: AdminWebhookRuntimeData,
+) {
+    companion object {
+        fun from(value: AdminRuntimeReadiness) =
+            AdminRuntimeReadinessData(
+                observedAt = value.observedAt.toString(),
+                webhook =
+                    AdminWebhookRuntimeData(
+                        state = value.webhook.state.name,
+                        lastReceivedAt = value.webhook.lastReceivedAt?.toString(),
+                        pendingInboxCount = value.webhook.pendingInboxCount,
+                        poisonedInboxCount = value.webhook.poisonedInboxCount,
+                        pendingOutboxCount = value.webhook.pendingOutboxCount,
+                        poisonedOutboxCount = value.webhook.poisonedOutboxCount,
+                        statusPath = "/admin/emergency",
+                    ),
+            )
+    }
+}
+
+data class AdminWebhookRuntimeData(
+    val state: String,
+    val lastReceivedAt: String?,
+    val pendingInboxCount: Long,
+    val poisonedInboxCount: Long,
+    val pendingOutboxCount: Long,
+    val poisonedOutboxCount: Long,
+    val statusPath: String,
+)
 
 data class AdminExecutionGateOverviewData(
     val observedAt: String,

@@ -7,10 +7,14 @@ import com.whatto.bcm.admin.client.AdminExecutionGateOverview
 import com.whatto.bcm.admin.client.AdminExecutionGateResume
 import com.whatto.bcm.admin.client.AdminExternalControlEvidence
 import com.whatto.bcm.admin.client.AdminNetwork
+import com.whatto.bcm.admin.client.AdminRuntimeReadiness
 import com.whatto.bcm.admin.client.AdminTransactionInvestigation
 import com.whatto.bcm.admin.client.AdminTransactionInvestigationSummary
+import com.whatto.bcm.admin.client.AdminWebhookRuntime
 import com.whatto.bcm.admin.client.BcmAdminReadGateway
+import com.whatto.bcm.admin.client.BcmWebhookHealthGateway
 import com.whatto.bcm.admin.client.SourceFailure
+import com.whatto.bcm.admin.config.AdminProperties
 import io.mockk.every
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
@@ -21,22 +25,115 @@ import java.time.ZoneOffset
 
 class AdminReadServiceTest {
     private val gateway = mockk<BcmAdminReadGateway>()
+    private val webhookHealthGateway = mockk<BcmWebhookHealthGateway>()
     private val clock = Clock.fixed(Instant.parse("2026-08-17T09:00:00Z"), ZoneOffset.UTC)
-    private val service = AdminReadService(gateway, clock, staleAfterSeconds = 90_000)
+    private val service = AdminReadService(gateway, webhookHealthGateway, clock, staleAfterSeconds = 90_000)
 
     @Test
     fun `대시보드는 한 소스 실패를 부분 상태로 표시하고 성공한 값을 유지한다`() {
-        every { gateway.networks(null, null, true, null) } returns
+        every { gateway.networks(null, null, null, null) } returns
             listOf(network(code = "BASE", testnet = false), network(code = "SEPOLIA", testnet = true))
         every { gateway.assetMappings(null, null) } throws SourceFailure("assets", 502, "upstream unavailable")
+        every { gateway.runtimeReadiness() } returns runtimeReadiness("HEALTHY")
+        every { webhookHealthGateway.isReady() } returns true
 
         val result = service.overview()
 
         assertThat(result.state).isEqualTo(ViewState.PARTIAL)
+        assertThat(result.catalogNetworkCount).isEqualTo(2)
+        assertThat(result.adoptedNetworkCount).isEqualTo(2)
+        assertThat(result.availableNetworkCount).isZero()
+        assertThat(result.catalogSyncedAt).isEqualTo("20260817080000")
         assertThat(result.networkCount).isEqualTo(2)
         assertThat(result.testnetCount).isEqualTo(1)
         assertThat(result.assetMappingCount).isNull()
+        assertThat(result.webhook?.state).isEqualTo("HEALTHY")
         assertThat(result.issues).extracting("source").containsExactly("assets")
+        assertThat(result.preparationChecks.single { it.key == "BCM_WEBHOOK" }.status)
+            .isEqualTo(PreparationStatus.ACTION_REQUIRED)
+    }
+
+    @Test
+    fun `대시보드는 Fireblocks 카탈로그 후보와 채택 네트워크를 구분한다`() {
+        every { gateway.networks(null, null, null, null) } returns
+            listOf(
+                network(code = "BASE"),
+                network(code = null, candidateId = "polygon-amoy", syncedAt = "20260817083000"),
+                network(code = null, candidateId = "deprecated", deprecated = true),
+            )
+        every { gateway.assetMappings(null, null) } returns emptyList()
+        every { gateway.runtimeReadiness() } returns runtimeReadiness("NEVER_RECEIVED")
+        every { webhookHealthGateway.isReady() } returns true
+
+        val result = service.overview()
+
+        assertThat(result.catalogNetworkCount).isEqualTo(3)
+        assertThat(result.adoptedNetworkCount).isEqualTo(1)
+        assertThat(result.availableNetworkCount).isEqualTo(1)
+        assertThat(result.catalogSyncedAt).isEqualTo("20260817083000")
+    }
+
+    @Test
+    fun `첫 수신 전에는 Webhook 장애로 단정하지 않고 점검 행동을 안내한다`() {
+        every { gateway.networks(null, null, null, null) } returns emptyList()
+        every { gateway.assetMappings(null, null) } returns emptyList()
+        every { gateway.runtimeReadiness() } returns runtimeReadiness("NEVER_RECEIVED")
+        every { webhookHealthGateway.isReady() } returns true
+
+        val result = service.overview()
+        val webhook = result.preparationChecks.single { it.key == "BCM_WEBHOOK" }
+        val account = result.preparationChecks.single { it.key == "ACCOUNT_ADDRESS" }
+
+        assertThat(webhook.status).isEqualTo(PreparationStatus.NOT_OBSERVED)
+        assertThat(webhook.detail).contains("첫 입금 점검")
+        assertThat(account.owner).isEqualTo(PreparationOwner.DIRECT)
+        assertThat(account.detail).doesNotContain("DAW-CORE가")
+    }
+
+    @Test
+    fun `로컬 Stub 준비 상태는 두 네트워크와 네 자산 매핑이 모두 있어야 완료다`() {
+        every { gateway.networks(null, null, null, null) } returns
+            listOf(network(code = "ETHEREUM"), network(code = "BASE"))
+        every { gateway.assetMappings(null, null) } returns
+            listOf(
+                AdminAssetMapping("ETHEREUM", "USDC", "0x01", "20260821000000"),
+                AdminAssetMapping("ETHEREUM", "KRWK", "0x02", "20260821000000"),
+                AdminAssetMapping("BASE", "USDC", "0x03", "20260821000000"),
+            )
+        every { gateway.runtimeReadiness() } returns runtimeReadiness("NEVER_RECEIVED")
+        every { webhookHealthGateway.isReady() } returns true
+        val localService =
+            AdminReadService(
+                gateway,
+                webhookHealthGateway,
+                clock,
+                staleAfterSeconds = 90_000,
+                properties = AdminProperties(vendorMode = "STUB", chainMode = "LOCAL", dataSet = "stub"),
+            )
+
+        val result = localService.overview()
+
+        assertThat(result.preparationChecks.single { it.key == "NETWORK_ADOPTION" }.status)
+            .isEqualTo(PreparationStatus.READY)
+        assertThat(result.preparationChecks.single { it.key == "ASSET_MAPPING" }.status)
+            .isEqualTo(PreparationStatus.ACTION_REQUIRED)
+        assertThat(result.preparationChecks.single { it.key == "ASSET_MAPPING" }.detail).contains("3/4")
+    }
+
+    @Test
+    fun `과거 원장이 정상이어도 Webhook 프로세스 health 실패는 준비 완료로 표시하지 않는다`() {
+        every { gateway.networks(null, null, null, null) } returns emptyList()
+        every { gateway.assetMappings(null, null) } returns emptyList()
+        every { gateway.runtimeReadiness() } returns runtimeReadiness("HEALTHY")
+        every { webhookHealthGateway.isReady() } throws SourceFailure("webhookHealth", 502, "unavailable")
+
+        val result = service.overview()
+        val webhook = result.preparationChecks.single { it.key == "BCM_WEBHOOK" }
+
+        assertThat(result.state).isEqualTo(ViewState.PARTIAL)
+        assertThat(result.issues).extracting("source").contains("webhookHealth")
+        assertThat(webhook.status).isEqualTo(PreparationStatus.ACTION_REQUIRED)
+        assertThat(webhook.detail).contains("프로세스 health")
     }
 
     @Test
@@ -192,16 +289,18 @@ class AdminReadServiceTest {
     }
 
     private fun network(
-        code: String,
+        code: String?,
         testnet: Boolean = false,
         syncedAt: String = "20260817080000",
+        candidateId: String = "candidate-$code",
+        deprecated: Boolean = false,
     ) = AdminNetwork(
-        candidateId = "candidate-$code",
+        candidateId = candidateId,
         code = code,
-        displayName = code.lowercase().replaceFirstChar(Char::uppercase),
+        displayName = (code ?: candidateId).lowercase().replaceFirstChar(Char::uppercase),
         chainId = 8453,
         testnet = testnet,
-        deprecated = false,
+        deprecated = deprecated,
         syncedAt = syncedAt,
     )
 
@@ -327,4 +426,19 @@ class AdminReadServiceTest {
         retryCondition = "RESUME_CHECK_DRIFT",
         statusPath = "/admin/execution-gates",
     )
+
+    private fun runtimeReadiness(state: String) =
+        AdminRuntimeReadiness(
+            observedAt = "2026-08-17T09:00:00Z",
+            webhook =
+                AdminWebhookRuntime(
+                    state = state,
+                    lastReceivedAt = null,
+                    pendingInboxCount = 0,
+                    poisonedInboxCount = 0,
+                    pendingOutboxCount = 0,
+                    poisonedOutboxCount = 0,
+                    statusPath = "/admin/emergency",
+                ),
+        )
 }

@@ -1,6 +1,6 @@
 package com.whatto.bcm.app.api.admin
 
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test

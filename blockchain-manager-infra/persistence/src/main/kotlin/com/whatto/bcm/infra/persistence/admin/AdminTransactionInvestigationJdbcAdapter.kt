@@ -391,7 +391,8 @@ class AdminTransactionInvestigationJdbcAdapter(
                   OR execution.vndr_tx_id = :identifier
             )
             SELECT tx.*,
-                   submission.tx_dvcd, submission.sbmt_stcd, submission.trsf_amt,
+                   submission.tx_dvcd, submission.sbmt_stcd,
+                   COALESCE(submission.trsf_amt, event_amount.trsf_amt) AS trsf_amt,
                    submission.snd_acnt_id, submission.rcv_dvcd, submission.rcv_vl,
                    submission.swp_exec_id, submission.req_dttm, submission.rsp_dttm
               FROM bcm_tx_l tx
@@ -403,6 +404,17 @@ class AdminTransactionInvestigationJdbcAdapter(
                  ORDER BY CASE WHEN submission.ext_tx_id = tx.ext_tx_id THEN 0 ELSE 1 END
                  LIMIT 1
               ) submission ON TRUE
+              LEFT JOIN LATERAL (
+                SELECT CASE
+                         WHEN outbox.payload ->> 'amount' ~ '^(0|[1-9][0-9]*)(\.[0-9]+)?$'
+                         THEN (outbox.payload ->> 'amount')::numeric
+                       END AS trsf_amt
+                  FROM bcm_outbox_l outbox
+                 WHERE outbox.vndr_tx_id = tx.vndr_tx_id
+                   AND jsonb_extract_path_text(outbox.payload, 'amount') IS NOT NULL
+                 ORDER BY outbox.evnt_id DESC
+                 LIMIT 1
+              ) event_amount ON TRUE
              WHERE tx.vndr_tx_id = (SELECT root_tx_id FROM roots ORDER BY root_tx_id LIMIT 1)
             """.trimIndent()
 

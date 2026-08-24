@@ -66,6 +66,27 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `제출 원장이 없는 입금은 발행 event에서 금액을 조사한다`() {
+        insertTransaction("tx-deposit", "tx-deposit", "deposit-1", "FINALIZED")
+        jdbc.update(
+            """
+            INSERT INTO bcm_outbox_l
+              (evnt_id, evnt_dt, vndr_tx_id, agg_typ_dvcd, evt_typ_dvcd, topic, payload,
+               evnt_stcd, rtry_cnt, max_rtry_cnt, pub_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('0198b8ad-2e00-7000-8000-000000000010', '20260817', 'tx-deposit', 'TX', 'TXCF',
+                    'deposit-events', CAST('{"status":"FINALIZED","amount":"1.25"}' AS jsonb),
+                    'S', 0, 3, '20260817120700', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+        )
+
+        val result = investigations.findByIdentifier("tx-deposit")
+
+        assertThat(result?.summary?.transactionType).isNull()
+        assertThat(result?.summary?.amount).isEqualByComparingTo("1.25")
+    }
+
+    @Test
     fun `sweep 실행 식별자는 항목 1대N과 원천 vault allowance를 함께 연결한다`() {
         insertSubmission("swp-1", "SWEEP_BATCH", "tx-sweep", "swx-1")
         insertTransaction("tx-sweep", "tx-sweep", "swp-1", "FINALIZED")

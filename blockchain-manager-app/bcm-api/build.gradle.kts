@@ -3,8 +3,19 @@ plugins {
     alias(libs.plugins.kotlin.spring)
 }
 
+val productionOnly = providers.gradleProperty("bcmProductionOnly").map(String::toBoolean).getOrElse(false)
+val apiDocumentation = rootProject.layout.projectDirectory.dir("docs/api")
+
+tasks.processResources {
+    from(apiDocumentation) {
+        include("index.html", "openapi.yaml", "spec.js", "api.md", "api.html", "try-it.js")
+        into("static/api-docs")
+    }
+}
+
 dependencies {
     implementation(platform(libs.spring.boot.bom))
+    implementation(project(":blockchain-manager-application"))
     implementation(project(":blockchain-manager-domain"))
     implementation(project(":blockchain-manager-support"))
     implementation(project(":blockchain-manager-infra:persistence"))
@@ -19,7 +30,10 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
-    testImplementation(project(":blockchain-manager-test-support"))
+    if (!productionOnly) {
+        testImplementation(project(":blockchain-manager-test-support"))
+        testImplementation(project(":blockchain-manager-app:bcm-webhook"))
+    }
     // 통합 테스트의 JdbcTemplate·Flyway 컴파일 참조용 — 런타임 배선 소관은 infra/persistence
     testImplementation("org.springframework.boot:spring-boot-starter-data-jdbc")
     testImplementation("org.springframework.boot:spring-boot-starter-flyway")
@@ -35,15 +49,19 @@ dependencies {
 }
 
 tasks.test {
-    dependsOn(":blockchain-manager-test-support:compileLocalContracts")
-    systemProperty(
-        "bcm.contract-artifacts",
-        project(":blockchain-manager-test-support")
-            .layout
-            .buildDirectory
-            .dir("contracts")
-            .get()
-            .asFile
-            .absolutePath,
-    )
+    if (productionOnly) {
+        enabled = false
+    } else {
+        dependsOn(":blockchain-manager-test-support:compileLocalContracts")
+        systemProperty(
+            "bcm.contract-artifacts",
+            project(":blockchain-manager-test-support")
+                .layout
+                .buildDirectory
+                .dir("contracts")
+                .get()
+                .asFile
+                .absolutePath,
+        )
+    }
 }

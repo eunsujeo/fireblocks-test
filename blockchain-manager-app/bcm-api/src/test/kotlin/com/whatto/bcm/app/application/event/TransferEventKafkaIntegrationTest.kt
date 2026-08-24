@@ -5,11 +5,11 @@ import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SpecificationVersion
 import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.app.api.BcmApiApplication
-import com.whatto.bcm.app.api.support.IntegrationTestSupport
 import com.whatto.bcm.app.application.submission.TransactionSubmissionCommand
 import com.whatto.bcm.app.application.submission.TransactionSubmissionRecipient
 import com.whatto.bcm.app.application.submission.TransactionSubmissionService
 import com.whatto.bcm.app.application.webhook.WebhookDecisionProcessor
+import com.whatto.bcm.app.application.webhook.WebhookRuntimeConfiguration
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
@@ -24,6 +24,7 @@ import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookNotification
 import com.whatto.bcm.infra.client.fireblocks.FireblocksClient
 import com.whatto.bcm.support.submission.SubmissionRequestHashes
+import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import io.mockk.every
 import io.mockk.verify
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
@@ -53,6 +55,7 @@ import java.util.concurrent.TimeUnit
         "bcm.outbox-relay.enabled=false",
     ],
 )
+@Import(WebhookRuntimeConfiguration::class)
 class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
     @Autowired
     lateinit var submissions: TransactionSubmissionService
