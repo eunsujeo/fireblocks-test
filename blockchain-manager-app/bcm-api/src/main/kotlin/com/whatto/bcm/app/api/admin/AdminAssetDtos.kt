@@ -42,8 +42,12 @@ data class AdoptNetworkRequest(
 
 data class AssetCandidateData(
     val network: String,
+    val networkDisplayName: String,
+    val chainId: Long?,
+    val testnet: Boolean,
     val symbol: String,
     val displayName: String?,
+    val fireblocksAssetId: String,
     val assetClass: String?,
     val decimals: Int?,
     val contractAddress: String?,
@@ -53,8 +57,12 @@ data class AssetCandidateData(
         fun from(candidate: VendorAssetCatalogCandidate) =
             AssetCandidateData(
                 candidate.network,
+                candidate.networkDisplayName,
+                candidate.chainId,
+                candidate.testnet,
                 candidate.symbol,
                 candidate.displayName,
+                candidate.fireblocksAssetId,
                 candidate.assetClass,
                 candidate.decimals,
                 candidate.contractAddress,
@@ -93,6 +101,9 @@ data class RegisterAssetMappingRequest(
     @field:NotBlank
     @field:Pattern(regexp = AdminAssetController.SYMBOL_PATTERN)
     val symbol: String?,
+    @field:NotBlank
+    @field:Size(max = 64)
+    val fireblocksAssetId: String?,
     @field:Size(max = 128)
     @param:JsonProperty(value = "contractAddress", required = true)
     val contractAddress: String?,
@@ -101,6 +112,7 @@ data class RegisterAssetMappingRequest(
 data class AssetMappingData(
     val network: String,
     val symbol: String,
+    val fireblocksAssetId: String,
     val contractAddress: String?,
     val registeredAt: String,
 ) {
@@ -109,6 +121,7 @@ data class AssetMappingData(
             AssetMappingData(
                 mapping.network,
                 mapping.symbol,
+                mapping.vendorAssetId,
                 mapping.contractAddress,
                 mapping.registeredAt,
             )

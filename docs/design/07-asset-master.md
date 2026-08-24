@@ -21,7 +21,9 @@ group: 운영 설계
 현재 매핑 표는 매핑만 담는다. 지원 여부는 여전히 사람이 등록한 현재 매핑으로 정하며, 벤더 자산 카탈로그는 **찾기 위한 캐시**일
 뿐 지원 자산 목록이나 등록 근거가 아니다. 블록체인 목록과 채택한 네트워크의 자산 목록을 하루 한 번 받아 둔다(아래 "표 셋").
 
-**범위 (시작 시점)** — 스테이블코인만, 네트워크는 `ETHEREUM` · `BASE` 둘. 벤더 자산 분류는 NATIVE · FT · FIAT · NFT · SFT · VIRTUAL 로, 스테이블코인이라는 분류는 없다.
+**범위 (시작 시점)** — 스테이블코인만, 네트워크 계열은 Ethereum · Base 둘이다. mainnet과 testnet은 서로 다른 BCM 코드로 두며,
+로컬 Fireblocks TESTNET은 `ETHEREUM_SEPOLIA` · `BASE_SEPOLIA`를 지원 목록에서 자동 연결한다. 벤더 자산 분류는
+NATIVE · FT · FIAT · NFT · SFT · VIRTUAL 로, 스테이블코인이라는 분류는 없다.
 
 ## 네트워크 코드와 토큰 심볼
 
@@ -189,16 +191,16 @@ sequenceDiagram
     ADM->>API: GET /admin/asset-candidates — q=USDC
     API->>MDB: 채택한 네트워크의 현재 카탈로그 검색
     MDB-->>API: exact · prefix · 단어 검색 결과
-    API-->>ADM: 네트워크 · 심볼 · 표시명 · 컨트랙트 주소 · 소수 자릿수 · 동기화 시각<br/>운영자가 발행사 문서와 대조
+    API-->>ADM: 네트워크 이름·testnet·chainId · 심볼 · 표시명 · Fireblocks assetId · 컨트랙트 주소 · 소수 자릿수 · 동기화 시각<br/>운영자가 발행사 문서와 대조
 
     Note over ADM,FB: 등록 — 주소로 자산을 지정한다
-    ADM->>API: POST 매핑 등록<br/>network · symbol · contractAddress<br/>직원번호 · 부점코드
+    ADM->>API: POST 매핑 등록<br/>network · symbol · fireblocksAssetId · contractAddress<br/>직원번호 · 부점코드
     API->>MDB: (network, symbol) 현재 행 조회
     alt 활성 매핑이 이미 있음
         MDB-->>API: actv_yn=Y인 기존 행
         API-->>ADM: 409 CONFLICT
     else 통과
-        API->>FB: 그 체인에서 주소로 자산 재해소 — 캐시를 신뢰하지 않음
+        API->>FB: 그 체인에서 assetId + 주소로 자산 재해소 — 캐시를 신뢰하지 않음
         alt 잡힌 자산이 없음
             FB-->>API: 빈 결과
             API-->>ADM: 400 VALIDATION_FAILED
@@ -219,24 +221,28 @@ sequenceDiagram
     end
 ```
 
-색: **초록 상자 = 매니저 안쪽**. 되돌아오는 점선이 실패 응답이다. 벤더 id 는 초록 상자 밖으로 나가지 않는다.
+색: **초록 상자 = 매니저 안쪽**. 되돌아오는 점선이 실패 응답이다. Fireblocks assetId는 운영자가 같은 심볼의 후보를
+구분하고 벤더 Console·지원 문의와 대조할 수 있도록 제한된 Admin 후보·현재 매핑 응답에만 표시한다. 일반 업무 API에는 노출하지 않는다.
 
 등록 요청에는 `vndr_blkc_id` · `chainId` 를 싣지 않는다 — 네트워크와 벤더 체인의 대응은 카탈로그에만 있고 매니저가 `ntwk_cd` 로 찾는다.
 
 **관문 넷**
 
 - **채택한 네트워크만** — FK 가 막는다.
-- **주소로 자산이 하나만 잡혀야 한다** — 없으면 400, 둘 이상이면 409.
+- **assetId·주소·네트워크가 같은 자산 하나만 잡혀야 한다** — 없으면 400, 둘 이상이면 409. 브라우저가 보낸 assetId를 그대로 신뢰하지 않는다.
 - **중복 등록 차단** — 활성 (network, symbol)이 있으면 409다. 비활성 행은 같은 매핑이면 재활성하고, 다른 매핑이면 다시 검증한 뒤 교체한다.
 - **한 자산은 한 매핑** — 해소된 assetId 를 이미 쓰는 행이 있으면 DB 가 막는다.
 
 등록·재활성·교체는 현재 행을 바로 덮어쓰는 일반 수정이 아니다. 위 관문을 모두 다시 통과한 뒤 현재 행과 변경 전후 snapshot을 한 트랜잭션으로 기록한다.
 
-사람이 판단하는 지점은 둘이다 — **네트워크 채택 때 올바른 체인에 이름을 붙이는 것**, **토큰마다 발행사 문서에서 컨트랙트 주소를 확인하는 것**.
+사람이 판단하는 지점은 **토큰마다 Fireblocks assetId와 발행사 문서의 컨트랙트 주소를 함께 확인하는 것**이다. 로컬 Fireblocks
+TESTNET의 지원 네트워크 코드는 시작 스크립트의 고정 지원 목록이 연결하며, 자산 등록 화면에서 운영자에게 내부 코드를 입력시키지 않는다.
 
 ## Admin API — 같은 서비스의 `/admin/*` (2026-08-06 확정)
 
-★ **벤더 어휘가 이 API 를 넘어가지 않는다** — 요청·응답 어디에도 벤더 assetId·blockchainId 가 없다. 계약은 [API 스펙](../../bcm-api-docs/openapi.yaml)의 `Admin` 태그가 정의한다.
+★ 일반 업무 API에는 벤더 어휘가 넘어가지 않는다. 제한된 Admin 자산 후보·현재 매핑에는 운영 대조용
+`fireblocksAssetId`만 명시적으로 노출하고, Fireblocks blockchainId는 계속 불투명 `candidateId` 뒤에 둔다. 계약은
+[API 스펙](../../bcm-api-docs/openapi.yaml)의 `Admin` 태그가 정의한다.
 
 | 오퍼레이션 | 하는 일 |
 |---|---|
@@ -245,7 +251,7 @@ sequenceDiagram
 | `DELETE /admin/networks/{code}` | 채택 논리 해제 — 매핑이 남아 있으면 409 |
 | `GET /admin/asset-candidates` | `q`로 자산 후보를 찾는다 — 심볼·표시명 검색 결과와 네트워크별 카탈로그 동기화 시각이 온다 |
 | `GET /admin/asset-mappings` | 등록된 매핑 목록 |
-| `POST /admin/asset-mappings` | 등록 — `network` · `symbol` · `contractAddress` |
+| `POST /admin/asset-mappings` | 등록 — 후보에서 고른 `network` · `symbol` · `fireblocksAssetId` · `contractAddress` |
 | `DELETE /admin/asset-mappings/{network}/{symbol}` | 논리 해제 — **그 (네트워크, 토큰)으로 발급된 주소가 하나도 없을 때만** 허용, 있으면 409 |
 
 수정 오퍼레이션은 두지 않는다. 주소·현재 매핑·감사 흔적을 물리 삭제하지 않으며, 해제는 `bcm_vndr_ast_m.actv_yn=N`으로 표시한다. 잘못된 매핑은 논리 해제한 뒤 등록 절차를 다시 거쳐 같은 현재 행을 교체한다. 별도 mapping version이나 활성 binding 테이블은 두지 않고, 등록·해제·재활성·교체의 변경 전후 상태를 `bcm_vndr_ast_chng_l`에 추가 전용 snapshot으로 남긴다.
@@ -254,12 +260,13 @@ sequenceDiagram
 exact/prefix → `simple` 사전의 단어 prefix → 컨트랙트 주소 exact/prefix 순으로 정렬하고 같은 점수에서는
 네트워크·심볼·컨트랙트 주소 순으로 고정한다. 최대 50건만 반환한다. 응답 `data`는 다음 두 값을 갖는다.
 
-- `items` — `network`·`symbol`·`displayName`·`assetClass`·`decimals`·`contractAddress`·`catalogSyncedAt`. 벤더 id는 싣지 않는다.
+- `items` — 내부 연결값 `network`, 사람이 비교할 `networkDisplayName`·`chainId`·`testnet`, 자산의 `symbol`·`displayName`·
+  `fireblocksAssetId`·`assetClass`·`decimals`·`contractAddress`·`catalogSyncedAt`.
 - `sources` — 채택 네트워크마다 `network`·`state`(`READY`/`STALE`/`NEVER_SYNCED`)·`catalogSyncedAt`.
   마지막 성공이 48시간보다 오래됐으면 `STALE`이다.
 
 캐시가 비었거나 오래돼도 임의로 실시간 벤더 조회로 우회하지 않으며 안전한 빈 결과와 `sources` 상태를 보여 준다.
-**등록 POST는 후보 캐시의 값으로 assetId를 결정하지 않고 기존 주소 기반 Fireblocks 재조회와 관문 넷을 항상 다시 수행한다.**
+**등록 POST는 후보 캐시의 값으로 assetId를 결정하지 않고 Fireblocks에서 같은 네트워크의 assetId·주소를 다시 해소해 관문 넷을 항상 수행한다.**
 
 **감사 흔적** — 자동 처리 행은 시스템 센티넬(`SYSTEM`/`9999`), **Admin 수동 개입은 실제 직원번호·부점코드**를 남긴다([DB 명명 규약](03-bcm-db.md)).
 직원번호·부점코드 헤더는 인증이 아니라 감사 전달값이다. Blockchain Manager Admin BFF가 검증한 단기 JWT 신원에서 만들고 BCM은 JWT와

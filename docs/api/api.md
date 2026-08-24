@@ -1233,11 +1233,11 @@ _응답_
 
 **등록 가능한 자산 후보**
 
-별도 동기화한 Fireblocks 자산 카탈로그 캐시에서 **심볼·표시명·컨트랙트 주소로 찾고 네트워크는 결과로 받는다.** `q=USDC` 하나면 채택한 네트워크마다 관련 자산이 한 번에 온다 — 네트워크를 먼저 고를 필요가 없다.
+별도 동기화한 Fireblocks 자산 카탈로그 캐시에서 **심볼·표시명·컨트랙트 주소로 찾고 네트워크는 결과로 받는다.** `q=USDC` 하나면 로컬 시작 과정에서 자동 연결한 지원 네트워크마다 관련 자산이 한 번에 온다 — 네트워크를 먼저 고르거나 BCM 코드를 입력할 필요가 없다.
 
 운영자가 **컨트랙트 주소를 눈으로 대조**하는 자리다. 발행사 공식 문서의 주소와 같은 행을 찾으면, 그 행의 `network` 와 `contractAddress` 를 그대로 등록에 쓴다.
 
-**채택한 네트워크에서만 찾는다.** 찾던 네트워크가 안 보이면 아직 채택하지 않은 것이므로 `PUT /admin/networks/{code}` 를 먼저 한다.
+**지원 목록으로 연결하고 동기화한 네트워크에서만 찾는다.** 찾던 네트워크가 안 보이면 로컬 시작 로그의 Network 연결과 asset catalog 준비 단계를 확인한다.
 
 결과의 `symbol` 은 아직 우리 코드가 아닌 벤더 표기이며, 등록할 때 우리 `symbol` 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다. 캐시는 탐색용이고 실제 등록은 Fireblocks에서 주소를 다시 해소한다.
 
@@ -1265,8 +1265,12 @@ _응답_
     "items": [
       {
         "network": "BASE",
+        "networkDisplayName": "Base",
+        "chainId": 8453,
+        "testnet": false,
         "symbol": "USDC",
         "displayName": "USD Coin",
+        "fireblocksAssetId": "USDC_BASE",
         "assetClass": "FT",
         "decimals": 6,
         "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -1317,10 +1321,10 @@ _응답_
 
 **자산 매핑 등록**
 
-우리 (네트워크, 토큰) 이 어느 자산인지 **컨트랙트 주소로** 지정한다. 등록은 어쩌다 한 번이지만 여기서 틀리면 자금이 엉뚱한 체인으로 가므로 관문 넷을 지난다.
+우리 (네트워크, 토큰) 이 어느 자산인지 후보의 **Fireblocks Asset ID와 컨트랙트 주소로** 지정한다. 등록은 어쩌다 한 번이지만 여기서 틀리면 자금이 엉뚱한 체인으로 가므로 관문 넷을 지난다.
 
 - **채택한 네트워크만** — 이름을 붙이지 않은 네트워크로는 등록할 수 없다 (`400`).
-- **주소로 자산이 하나만 잡혀야 한다** — 그 네트워크에 그 컨트랙트 주소가 없으면 `400`, 둘 이상이면 `409` 다. 잘못된 주소는 여기서 그냥 아무것도 찾지 못한다.
+- **Asset ID·주소·네트워크가 모두 일치해야 한다** — Fireblocks 최신 조회에서 하나라도 다르면 `400`, 둘 이상이면 `409` 다. 화면의 캐시 값이나 브라우저 입력을 그대로 신뢰하지 않는다.
 - **활성 매핑을 덮어쓰지 않는다** — 이미 활인 (네트워크, 토큰) 매핑은 `409` 다. 논리 해제된 행은 검증을 다시 통과한 뒤 재활성 또는 교체하고 전후 snapshot을 남긴다.
 - **한 자산은 한 매핑** — 다른 (네트워크, 토큰) 이 이미 그 자산이면 `409` 다.
 
@@ -1332,6 +1336,7 @@ curl -X POST "https://{baseUrl}/blockchain/manage-api/admin/asset-mappings" \
   -d '{
   "network": "BASE",
   "symbol": "USDC",
+  "fireblocksAssetId": "USDC_BASE",
   "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 }'
 ```
@@ -1350,6 +1355,7 @@ _요청 본문_
 {
   "network": "BASE",
   "symbol": "USDC",
+  "fireblocksAssetId": "USDC_BASE",
   "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 }
 ```
@@ -1358,6 +1364,7 @@ _요청 본문_
 |---|---|---|---|
 | `network` | string | 필수 | 채택한 네트워크 코드 |
 | `symbol` | string | 필수 | 우리 심볼 — 여기서 정하고, 이후 모든 계약에서 이 값을 쓴다 |
+| `fireblocksAssetId` | string | 필수 | 후보 목록에서 선택한 Fireblocks Asset ID. 서버가 등록 직전에 Network·주소와 다시 검증한다 |
 | `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null |
 
 
@@ -1370,6 +1377,7 @@ _응답_
   "data": {
     "network": "BASE",
     "symbol": "USDC",
+    "fireblocksAssetId": "USDC_BASE",
     "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     "registeredAt": "20260806031045"
   },
@@ -1453,6 +1461,7 @@ _응답_
     {
       "network": "BASE",
       "symbol": "USDC",
+      "fireblocksAssetId": "USDC_BASE",
       "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       "registeredAt": "20260806031045"
     }
@@ -2236,8 +2245,12 @@ _응답_
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `network` | string | 필수 | 이 자산이 있는 우리 네트워크 코드 |
+| `networkDisplayName` | string | 필수 | Fireblocks가 표시하는 네트워크 이름 |
+| `chainId` | integer \\| null | 필수 |  |
+| `testnet` | boolean | 필수 | 시험망 여부 |
 | `symbol` | string | 필수 | 벤더가 이 자산에 붙인 표기 — 등록할 때 이 값을 그대로 쓰거나 우리 값을 따로 정한다 |
 | `displayName` | string \\| null | 필수 |  |
+| `fireblocksAssetId` | string | 필수 | Fireblocks Console·지원 문의와 대조할 자산 식별자. 일반 업무 API에는 노출하지 않는다 |
 | `assetClass` | string \\| null | 필수 |  |
 | `decimals` | integer \\| null | 필수 |  |
 | `contractAddress` | string \\| null | 필수 | 네이티브 자산은 null |
@@ -2277,6 +2290,7 @@ _응답_
 |---|---|---|---|
 | `network` | string | 필수 |  |
 | `symbol` | string | 필수 |  |
+| `fireblocksAssetId` | string | 필수 | 현재 매핑이 사용하는 Fireblocks 자산 식별자 |
 | `contractAddress` | string \\| null | - | 네이티브 자산은 null |
 | `registeredAt` | string | 필수 |  |
 
@@ -2809,6 +2823,7 @@ _응답_
 |---|---|---|---|
 | `network` | string | 필수 | 채택한 네트워크 코드 |
 | `symbol` | string | 필수 | 우리 심볼 — 여기서 정하고, 이후 모든 계약에서 이 값을 쓴다 |
+| `fireblocksAssetId` | string | 필수 | 후보 목록에서 선택한 Fireblocks Asset ID. 서버가 등록 직전에 Network·주소와 다시 검증한다 |
 | `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null |
 
 

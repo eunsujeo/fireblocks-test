@@ -88,6 +88,7 @@ class VendorAssetMappingService(
         val matches =
             allVendorAssets(blockchain.candidateId, symbol = null).filter { asset ->
                 asset.blockchainId == blockchain.candidateId &&
+                    asset.id == command.fireblocksAssetId &&
                     when (command.contractAddress) {
                         null -> asset.assetClass == NATIVE_ASSET_CLASS
                         else -> asset.contractAddress?.equals(command.contractAddress, ignoreCase = true) == true
@@ -180,6 +181,7 @@ data class AdoptNetworkCommand(
 data class RegisterVendorAssetMappingCommand(
     val network: String,
     val symbol: String,
+    val fireblocksAssetId: String,
     val contractAddress: String?,
     val employeeNo: String,
     val branchCode: String,

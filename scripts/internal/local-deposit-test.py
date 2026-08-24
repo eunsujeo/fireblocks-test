@@ -92,6 +92,11 @@ LOCAL_CATALOG = (
     ("BASE", 31338, ("USDC", "KRWK")),
 )
 
+FIREBLOCKS_TEST_CATALOG = (
+    ("ETHEREUM_SEPOLIA", 11155111),
+    ("BASE_SEPOLIA", 84532),
+)
+
 
 def local_catalog_contracts() -> dict[tuple[str, str], str]:
     cluster_file = os.environ.get("BCM_LOCAL_CHAIN_CLUSTER_MANIFEST_FILE", "")
@@ -194,7 +199,12 @@ def ensure_local_asset(runner: Any, ledger: LocalLedger) -> None:
             runner.http_json(
                 "POST",
                 f"http://127.0.0.1:{api_port}/admin/asset-mappings",
-                payload={"network": network, "symbol": symbol, "contractAddress": asset.get("contractAddress")},
+                payload={
+                    "network": network,
+                    "symbol": symbol,
+                    "fireblocksAssetId": asset.get("fireblocksAssetId"),
+                    "contractAddress": asset.get("contractAddress"),
+                },
                 headers=actor_headers,
                 expected_statuses={201},
             )
@@ -210,6 +220,52 @@ def bootstrap_local_catalog() -> None:
     sync_catalog()
     progress(2, 2, "ETHEREUM·BASE의 USDC·KRWK 매핑 준비")
     ensure_local_asset(runner, ledger)
+
+
+def bootstrap_fireblocks_catalog() -> None:
+    runner = load_runner()
+    api_port = runner.SMOKE_API_PORT
+    actor_headers = {"X-Employee-No": "LOCAL", "X-Branch-Code": "9999"}
+    total = len(FIREBLOCKS_TEST_CATALOG) + 1
+
+    for index, (network, chain_id) in enumerate(FIREBLOCKS_TEST_CATALOG, start=1):
+        progress(index, total, f"{network} 연결 상태 확인")
+        document, _ = runner.http_json(
+            "GET",
+            f"http://127.0.0.1:{api_port}/admin/networks?chainId={chain_id}&testnet=true",
+        )
+        candidates = runner.response_data(document, "Fireblocks TESTNET 조회")
+        supported = [
+            item
+            for item in candidates
+            if item.get("chainId") == chain_id
+            and item.get("testnet") is True
+            and item.get("deprecated") is not True
+        ]
+        if not supported:
+            raise RuntimeError(f"지원 Fireblocks TESTNET을 찾지 못했습니다: {network} (chainId {chain_id})")
+        candidate = next((item for item in supported if item.get("code") == network), None)
+        candidate = candidate or next((item for item in supported if item.get("code") is None), None)
+        if candidate is None:
+            adopted_codes = ", ".join(str(item.get("code")) for item in supported)
+            raise RuntimeError(
+                f"Fireblocks TESTNET 연결이 예상 BCM Network와 다릅니다: chainId {chain_id}, "
+                f"expected {network}, actual {adopted_codes}"
+            )
+        adopted_code = candidate.get("code")
+        if adopted_code is None:
+            candidate_id = candidate.get("candidateId")
+            if not isinstance(candidate_id, str) or not candidate_id:
+                raise RuntimeError(f"Fireblocks TESTNET candidateId가 없습니다: {network}")
+            runner.http_json(
+                "PUT",
+                f"http://127.0.0.1:{api_port}/admin/networks/{network}",
+                payload={"candidateId": candidate_id},
+                headers=actor_headers,
+            )
+
+    progress(total, total, "연결된 TESTNET 자산 카탈로그 동기화")
+    sync_asset_catalog()
 
 
 def verify_kafka_event(account_id: str, run_id: str) -> None:
@@ -279,5 +335,8 @@ def main() -> int:
 if __name__ == "__main__":
     if sys.argv[1:] == ["--bootstrap-catalog"]:
         bootstrap_local_catalog()
+        raise SystemExit(0)
+    if sys.argv[1:] == ["--bootstrap-fireblocks-catalog"]:
+        bootstrap_fireblocks_catalog()
         raise SystemExit(0)
     raise SystemExit(main())

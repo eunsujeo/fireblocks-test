@@ -53,6 +53,7 @@ class LocalAssetManagementBffController(
                 LocalAssetRegistration(
                     network = checkNotNull(request.network),
                     symbol = checkNotNull(request.symbol),
+                    fireblocksAssetId = checkNotNull(request.fireblocksAssetId),
                     contractAddress = request.contractAddress,
                 ),
             )
@@ -109,6 +110,9 @@ data class LocalAssetRegistrationRequest(
     @field:NotNull
     @field:Pattern(regexp = LocalAssetManagementBffController.SYMBOL_PATTERN)
     val symbol: String?,
+    @field:NotNull
+    @field:Size(min = 1, max = 64)
+    val fireblocksAssetId: String?,
     @field:Size(max = 128)
     val contractAddress: String?,
 )

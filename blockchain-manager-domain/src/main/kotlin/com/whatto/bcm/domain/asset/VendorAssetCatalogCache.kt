@@ -17,8 +17,12 @@ data class VendorAssetCatalogSnapshotAsset(
 
 data class VendorAssetCatalogCandidate(
     val network: String,
+    val networkDisplayName: String,
+    val chainId: Long?,
+    val testnet: Boolean,
     val symbol: String,
     val displayName: String?,
+    val fireblocksAssetId: String,
     val assetClass: String?,
     val decimals: Int?,
     val contractAddress: String?,

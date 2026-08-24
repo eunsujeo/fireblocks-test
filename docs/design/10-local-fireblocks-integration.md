@@ -268,9 +268,12 @@ executionId/jobRunId` 순서다. 실제로 생긴 식별자만 기록하며 fixt
 `local.sh up fireblocks`는 로컬 PostgreSQL·Kafka를 준비한 뒤 API·Webhook·Admin을 시작하기 전에 실제 BCM
 `FireblocksClient`로 `GET /v1/blockchains` 읽기를 한 번 수행한다. 이 확인은 `.env`의 API key·PKCS#8 private key·공식 Base URL로
 만든 요청 JWT가 실제 Fireblocks에서 받아들여지는지만 판정하며 거래 생성 권한·TAP·Webhook JWKS까지 검증했다고 해석하지 않는다.
-성공하면 같은 읽기 결과를 로컬 블록체인 카탈로그에 동기화하고 다음 component를 기동한다. 자산 카탈로그는 채택 네트워크별 정기
-BAT가 별도로 동기화하며 preflight 성공만으로 자산 검색 캐시까지 최신이라고 표시하지 않는다. 인증·연결·응답 해석 중 하나라도 실패하면
-성공처럼 계속하지 않고 애플리케이션 기동 전에 중단한다. 콘솔에는 Secret·JWT·벤더 응답 원문을 내보내지 않고 권한이 제한된
+성공하면 같은 읽기 결과를 로컬 블록체인 카탈로그에 동기화하고 다음 component를 기동한다. API가 준비되면 로컬 TESTNET 지원 목록의
+Ethereum Sepolia(`11155111` → `ETHEREUM_SEPOLIA`)와 Base Sepolia(`84532` → `BASE_SEPOLIA`)를 멱등하게 연결하고, 두 네트워크의
+자산 카탈로그 one-shot 동기화까지 완료한 뒤 Admin 준비 완료를 출력한다. 이 단계는 자산 매핑을 자동 등록하지 않으며 사용자가
+Assets 화면에서 `USDC`를 검색해 Fireblocks assetId와 컨트랙트 주소를 비교·선택하게 한다. 지원 네트워크가 없거나 기존 연결이
+고정 목록과 어긋나거나 자산 동기화가 실패하면 성공처럼 계속하지 않는다. 인증·연결·응답 해석 중 하나라도 실패하면
+애플리케이션 기동 전에 중단한다. 콘솔에는 Secret·JWT·벤더 응답 원문을 내보내지 않고 권한이 제한된
 `build/local/fireblocks-preflight.log` 경로와 안전한 다음 조치만 안내한다.
 
 이미 `local.sh up stub`으로 기동한 개발 환경의 빠른 입금 점검은 `local.sh test deposit`으로 제공한다. 이 helper는

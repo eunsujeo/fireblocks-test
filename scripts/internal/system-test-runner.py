@@ -943,7 +943,12 @@ def adopt_local_asset(ledger: RunLedger, sync_asset_catalog: Callable[[], None])
         _, mapping_headers = http_json(
             "POST",
             f"http://127.0.0.1:{SMOKE_API_PORT}/admin/asset-mappings",
-            payload={"network": "LOCAL", "symbol": symbol, "contractAddress": asset.get("contractAddress")},
+            payload={
+                "network": "LOCAL",
+                "symbol": symbol,
+                "fireblocksAssetId": asset.get("fireblocksAssetId"),
+                "contractAddress": asset.get("contractAddress"),
+            },
             headers=actor_headers,
             expected_statuses={201},
         )

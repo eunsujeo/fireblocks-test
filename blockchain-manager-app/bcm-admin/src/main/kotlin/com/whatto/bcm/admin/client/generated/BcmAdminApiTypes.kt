@@ -18,6 +18,7 @@ data class AdminNetwork(
 data class AdminAssetMapping(
     val network: String,
     val symbol: String,
+    val fireblocksAssetId: String,
     val contractAddress: String? = null,
     val registeredAt: String,
 )
@@ -25,8 +26,12 @@ data class AdminAssetMapping(
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class AdminAssetCandidate(
     val network: String,
+    val networkDisplayName: String,
+    val chainId: Long? = null,
+    val testnet: Boolean,
     val symbol: String,
     val displayName: String? = null,
+    val fireblocksAssetId: String,
     val assetClass: String? = null,
     val decimals: Int? = null,
     val contractAddress: String? = null,

@@ -105,6 +105,7 @@ class AdminAssetController(
                 RegisterVendorAssetMappingCommand(
                     network = checkNotNull(request.network),
                     symbol = checkNotNull(request.symbol),
+                    fireblocksAssetId = checkNotNull(request.fireblocksAssetId),
                     contractAddress = request.contractAddress,
                     employeeNo = employeeNo,
                     branchCode = branchCode,

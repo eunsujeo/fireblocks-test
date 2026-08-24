@@ -79,7 +79,9 @@ bcm-api·bcm-webhook·bcm-admin과 개발자 전용 PostgreSQL·Kafka를 한 번
 런타임 전용 RSA·EVM 키를 `build/local/stub/`에 생성하므로 `.env`나 실 Fireblocks API key가 필요하지 않습니다.
 `up fireblocks`는 API·Webhook·Admin을 시작하기 전에 실제 BCM Fireblocks 클라이언트로 블록체인 목록을 한 번 읽어
 API 인증을 확인하고 블록체인 카탈로그를 동기화합니다. 실패하면 애플리케이션 기동을 중단하며 안전한 상세 로그는
-`build/local/fireblocks-preflight.log`에 남깁니다. 이 확인은 거래 생성 권한·TAP·Webhook JWKS 검사가 아닙니다.
+`build/local/fireblocks-preflight.log`에 남깁니다. BCM API가 준비되면 Ethereum Sepolia와 Base Sepolia를 지원 Network로
+멱등하게 연결하고 두 Network의 자산 카탈로그까지 동기화한 뒤 Admin을 시작합니다. 이 단계는 자산 매핑을 자동 등록하지
+않습니다. 이 확인은 거래 생성 권한·TAP·Webhook JWKS 검사가 아닙니다.
 두 모드는 PostgreSQL·Kafka Docker volume도 각각 사용하므로 Stub에서 만든 테스트 매핑·계정·거래가 Fireblocks 화면에
 섞이지 않습니다. `status`의 현재 실행 모드와 Admin 상단의 `벤더 + 체인 · 데이터셋` 표시로 연결 대상을 확인할 수 있습니다.
 `fireblocks` 모드는 Anvil과 Stub을 기동하지 않고 `.env`의 Fireblocks workspace만 사용합니다. 분리 기능 적용 전 생성된
@@ -136,17 +138,18 @@ Webhook management health만 읽습니다. FUNCTION_TEST에서는 검증된 고�
 Webhook listener로 전달됩니다. `reset`은 Stub 상태와 Anvil 기준
 snapshot만 복원하며 기본 URL은 `http://127.0.0.1:18080`입니다. 다른 loopback 포트는 `BCM_LOCAL_STUB_BASE_URL`로 지정합니다.
 `bcm-bat`는 실행할 작업과 안전 설정을 명시해야 하는 비웹 프로세스이므로 기본 `up`에는 포함하지 않습니다.
-Admin에서 새 네트워크를 채택한 직후 자산을 찾으려면 `./scripts/local.sh sync assets`를 한 번 실행합니다. 검색은 이 캐시의
-심볼·표시명·contract address 인덱스를 사용하고, 실제 등록 시에는 Fireblocks에서 주소를 다시 확인합니다. 정기 배포 환경에서는
+Fireblocks 또는 Stub 카탈로그 변경을 Admin 검색에 즉시 반영하려면 `./scripts/local.sh sync assets`를 실행합니다. 검색은 이 캐시의
+심볼·표시명·contract address 인덱스를 사용하고 결과에 Fireblocks Asset ID를 함께 표시합니다. 실제 등록 시에는 Fireblocks에서 Asset ID와 주소를 다시 확인합니다. 정기 배포 환경에서는
 BAT의 일 1회 `VENDOR_ASSET_CATALOG_SYNC` 작업이 같은 캐시를 갱신합니다.
 
 `up stub`의 최초 실행은 ETHEREUM(chain id 31337)과 BASE(chain id 31338)에 테스트 USDC·KRWK 컨트랙트를 배포하고,
 두 토큰 모두 decimals 6으로 Fireblocks Stub 카탈로그와 BCM 매핑까지 자동 준비합니다. 이후 실행은 같은 seed·manifest와
 이미 등록된 매핑을 멱등하게 재사용합니다. 고객 vault·입금 주소·잔액 이동은 자동으로 만들지 않고 아래 시나리오가 소유합니다.
 
-Admin 첫 화면은 Fireblocks에서 읽은 전체 네트워크 후보, BCM 채택 네트워크, 등록 가능한 후보, 활성 자산과 마지막 카탈로그
-동기화 시각을 구분해 보여 줍니다. 처음에는 **네트워크**에서 Fireblocks 후보의 표시명·chainId·testnet을 확인해 BCM 코드를
-등록한 뒤, **자산 매핑**의 `+ 자산 추가`에서 심볼·network·decimals·contract address를 대조해 등록합니다. `up stub`은
+Admin 첫 화면은 Fireblocks에서 읽은 전체 네트워크 후보, BCM 지원 네트워크, 등록 가능한 후보, 활성 자산과 마지막 카탈로그
+동기화 시각을 구분해 보여 줍니다. 처음에는 **Assets**의 `+ 자산 찾아 등록`에서 `USDC`처럼 아는 이름을 검색합니다. 결과의
+Network 표시명·testnet·chainId, Fireblocks Asset ID, decimals와 contract address를 비교해 하나를 선택하면 됩니다. BCM 내부
+Network code는 시작 스크립트가 지원 목록으로 연결하므로 사용자가 입력하지 않습니다. **Networks** 화면은 이 연결 상태를 진단합니다. `up stub`은
 로컬 카탈로그를, `up fireblocks`는 실제 테스트 workspace 카탈로그를 조회하며 두 모드의 DB·Kafka 데이터는 섞이지 않습니다.
 이 채택·등록 경로는 `FUNCTION_TEST+loopback`에서만 열리고 공유 Admin mutation을 대신하지 않습니다. 해제·교체는 제공하지 않습니다.
 
@@ -167,7 +170,7 @@ Admin 첫 화면의 `처음 설정하는 순서`는 자동으로 읽은 연결·
 
 거래 조사에서는 원거래·활성 거래·외부 거래·부스트·스윕 실행 ID 중 하나를 통합 검색에 입력해 제출, 웹훅,
 outbox, reconciliation, boost, sweep 1:N, allowance와 당시 수수료 견적을 연결해서 확인할 수 있습니다.
-원문 payload·서명·callData·벤더 자산 ID는 Admin 응답과 화면에 노출하지 않습니다.
+원문 payload·서명·callData는 Admin 응답과 화면에 노출하지 않습니다. 자산 등록 화면에 한해 선택 검증에 필요한 Fireblocks Asset ID를 표시합니다.
 
 자산 매핑 활성 상태와 변경 snapshot은 V11이 기존 DB에 추가하므로 정상적인 로컬 DB는 다음 `up`에서 자동 마이그레이션됩니다.
 Flyway 체크섬 불일치가 있는 오래된 개발 DB는 `repair`로 넘기지 말고 DB를 재생성합니다. 아래 명령은 로컬 컨테이너용입니다.

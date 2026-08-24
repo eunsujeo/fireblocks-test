@@ -116,7 +116,8 @@ class VendorAssetCatalogCacheJdbcAdapter(
         val items =
             jdbc.query(
                 """
-                SELECT b.ntwk_cd, c.ast_smbl, c.dspl_nm, c.ast_clss, c.dcml_cnt,
+                SELECT b.ntwk_cd, b.dspl_nm AS ntwk_dspl_nm, b.chain_id, b.test_yn,
+                       c.vndr_ast_id, c.ast_smbl, c.dspl_nm, c.ast_clss, c.dcml_cnt,
                        c.cntr_addr, c.sync_dttm
                   FROM bcm_vndr_ast_ctlg_m c
                   JOIN bcm_blkc_m b ON b.vndr_blkc_id = c.vndr_blkc_id
@@ -228,8 +229,12 @@ class VendorAssetCatalogCacheJdbcAdapter(
         RowMapper { rs, _ ->
             VendorAssetCatalogCandidate(
                 network = rs.getString("ntwk_cd"),
+                networkDisplayName = rs.getString("ntwk_dspl_nm"),
+                chainId = rs.getLong("chain_id").let { if (rs.wasNull()) null else it },
+                testnet = rs.getString("test_yn") == "Y",
                 symbol = rs.getString("ast_smbl"),
                 displayName = rs.getString("dspl_nm"),
+                fireblocksAssetId = rs.getString("vndr_ast_id"),
                 assetClass = rs.getString("ast_clss"),
                 decimals = rs.getInt("dcml_cnt").let { if (rs.wasNull()) null else it },
                 contractAddress = rs.getString("cntr_addr"),

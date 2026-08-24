@@ -40,6 +40,7 @@ interface BcmAdminReadGateway {
 data class RegisterAdminAssetMapping(
     val network: String,
     val symbol: String,
+    val fireblocksAssetId: String,
     val contractAddress: String?,
     val employeeNo: String,
     val branchCode: String,

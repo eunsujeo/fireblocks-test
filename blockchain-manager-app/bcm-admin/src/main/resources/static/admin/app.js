@@ -107,9 +107,9 @@ async function loadEnvironment() {
 
 function applyEnvironment(environment) {
   runtimeEnvironment.firstChild.textContent = `${environment.vendorMode} + ${environment.chainMode} · ${environment.dataSet} 데이터 `;
-  document.querySelector("#runtime-capability").textContent = environment.assetManagementEnabled ? "Network / Asset registration" : "Read only";
+  document.querySelector("#runtime-capability").textContent = environment.assetManagementEnabled ? "Asset registration" : "Read only";
   document.querySelector("#scope-note").textContent = environment.assetManagementEnabled
-    ? "로컬 PC에서 Fireblocks 카탈로그를 확인하고 네트워크와 자산을 등록할 수 있습니다. 해제·교체는 제공하지 않습니다."
+    ? "로컬 PC에서 Fireblocks 자산 후보를 비교해 등록할 수 있습니다. 지원 Network 연결은 시작 과정에서 자동 준비됩니다."
     : "조회 전용 콘솔입니다. 상태 변경 기능은 현재 환경에 노출되지 않습니다.";
 }
 
@@ -145,7 +145,7 @@ function workspaceSummary(data, environment) {
   const catalogReady = Number(data.catalogNetworkCount || 0) > 0;
   const source = environment.vendorMode === "FIREBLOCKS" ? "Fireblocks API" : "Fireblocks Stub";
   return `<section class="workspace-summary ${catalogReady ? "ready" : "needs-action"}" aria-labelledby="workspace-summary-title">
-    <div class="workspace-copy"><p class="eyebrow">CURRENT DATA SOURCE</p><h2 id="workspace-summary-title">${escapeHtml(source)} 카탈로그</h2><p>${catalogReady ? "BCM이 읽어 저장한 네트워크 후보입니다. 채택한 네트워크만 업무와 자산 등록에 사용됩니다." : "아직 네트워크 카탈로그가 없습니다. Fireblocks 인증과 catalog sync를 먼저 확인하세요."}</p><span class="status ${catalogReady ? "success" : "danger"}">${catalogReady ? "CATALOG READY" : "CATALOG REQUIRED"}</span></div>
+    <div class="workspace-copy"><p class="eyebrow">CURRENT DATA SOURCE</p><h2 id="workspace-summary-title">${escapeHtml(source)} 카탈로그</h2><p>${catalogReady ? "BCM이 읽어 저장한 카탈로그입니다. 지원 Network는 시작 과정에서 자동 연결되고 자산은 운영자가 선택합니다." : "아직 네트워크 카탈로그가 없습니다. Fireblocks 인증과 catalog 준비 로그를 확인하세요."}</p><span class="status ${catalogReady ? "success" : "danger"}">${catalogReady ? "CATALOG READY" : "CATALOG REQUIRED"}</span></div>
     <dl class="workspace-metrics">
       <div><dt>Catalog networks</dt><dd>${escapeHtml(data.catalogNetworkCount ?? "—")}</dd></div>
       <div><dt>BCM adopted</dt><dd>${escapeHtml(data.adoptedNetworkCount ?? "—")}</dd></div>
@@ -162,11 +162,11 @@ function setupJourney(data, environment) {
   const assetReady = Number(data.assetMappingCount || 0) > 0;
   const steps = [
     ["01", "Fireblocks 연결 확인", catalogReady, catalogReady ? `${data.catalogNetworkCount}개 네트워크를 읽었습니다.` : "API 인증과 카탈로그 동기화가 필요합니다.", "/admin/networks", "카탈로그 보기", false],
-    ["02", "사용할 네트워크 등록", networkReady, networkReady ? `${data.adoptedNetworkCount}개 네트워크가 채택되었습니다.` : "후보의 chainId와 testnet을 확인하고 BCM 코드를 붙입니다.", "/admin/networks?adopted=false", "네트워크 선택", false],
-    ["03", "자산 검색·등록", assetReady, assetReady ? `${data.assetMappingCount}개 자산 매핑이 활성입니다.` : "채택 네트워크에서 토큰 주소를 대조해 등록합니다.", environment.assetManagementEnabled ? "/admin/assets?action=add" : "/admin/assets", environment.assetManagementEnabled ? "자산 추가" : "자산 보기", false],
+    ["02", "지원 Network 자동 연결", networkReady, networkReady ? `${data.adoptedNetworkCount}개 지원 Network가 연결되었습니다.` : "로컬 시작 과정의 Network 연결·asset catalog 준비 로그를 확인하세요.", "/admin/networks", "연결 상태 보기", false],
+    ["03", "USDC 검색·등록", assetReady, assetReady ? `${data.assetMappingCount}개 자산 매핑이 활성입니다.` : "Network·Contract address·Fireblocks Asset ID를 비교해 선택합니다.", environment.assetManagementEnabled ? "/admin/assets?action=add&q=USDC" : "/admin/assets", environment.assetManagementEnabled ? "USDC 찾기" : "자산 보기", false],
     ["04", "vault·입금 주소 연동", false, "vault와 주소는 Admin이 아니라 DAW-CORE가 사용하는 공개 계정 API로 생성합니다.", environment.developerPortalUrl, "API 문서 열기", true],
   ];
-  return `<section class="setup-section" aria-labelledby="setup-title"><div class="section-head"><div><p class="eyebrow">QUICK START</p><h2 id="setup-title">처음 설정하는 순서</h2></div><span>네트워크 → 자산 → 계정 API</span></div><ol class="setup-grid">${steps.map(([index, title, complete, detail, href, label, external]) => `<li class="setup-card ${complete ? "complete" : "pending"}"><span class="setup-index">${index}</span><div><span class="status ${complete ? "success" : "warning"}">${complete ? "완료" : "확인 필요"}</span><h3>${escapeHtml(title)}</h3><p>${escapeHtml(detail)}</p></div><a class="button${complete ? "" : " primary"}" href="${escapeHtml(href)}" ${external ? 'target="_blank" rel="noopener"' : "data-link"}>${escapeHtml(label)}</a></li>`).join("")}</ol></section>`;
+  return `<section class="setup-section" aria-labelledby="setup-title"><div class="section-head"><div><p class="eyebrow">QUICK START</p><h2 id="setup-title">처음 설정하는 순서</h2></div><span>Fireblocks → 자산 → 계정 API</span></div><ol class="setup-grid">${steps.map(([index, title, complete, detail, href, label, external]) => `<li class="setup-card ${complete ? "complete" : "pending"}"><span class="setup-index">${index}</span><div><span class="status ${complete ? "success" : "warning"}">${complete ? "완료" : "확인 필요"}</span><h3>${escapeHtml(title)}</h3><p>${escapeHtml(detail)}</p></div><a class="button${complete ? "" : " primary"}" href="${escapeHtml(href)}" ${external ? 'target="_blank" rel="noopener"' : "data-link"}>${escapeHtml(label)}</a></li>`).join("")}</ol></section>`;
 }
 
 function preparationChecklist(checks) {
@@ -224,81 +224,17 @@ async function loadNetworks() {
     const candidateCount = payload.data.filter((network) => !network.code && !network.deprecated).length;
     const filtered = Object.keys(filters).length > 0;
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">FIREBLOCKS NETWORK CATALOG</p><h1>Networks</h1><p class="subtitle">Fireblocks에서 읽은 후보 중 BCM이 실제로 사용할 Network를 선택합니다.</p></div><div class="timestamp">채택 ${adoptedCount} · 후보 ${candidateCount}<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      <header class="page-head"><div><p class="eyebrow">FIREBLOCKS NETWORK CATALOG</p><h1>Networks</h1><p class="subtitle">지원 Network의 자동 연결 상태와 Fireblocks 원본 정보를 진단합니다.</p></div><div class="timestamp">연결 ${adoptedCount} · 미지원 ${candidateCount}<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
       ${statusBanner(payload)}${networkFilters(filters)}
       <section class="catalog-note"><div><strong>Fireblocks 후보</strong><span>catalog sync로 읽은 원본</span></div><span aria-hidden="true">→</span><div><strong>BCM 채택</strong><span>업무 요청과 자산 등록에 사용</span></div></section>
       <section class="panel table-wrap"><table><thead><tr><th>Status / Name</th><th>Chain ID</th><th>Environment</th><th>Synced at (UTC)</th><th>Action</th></tr></thead><tbody>
-        ${viewState === "empty" ? `<tr><td colspan="5" class="asset-empty"><strong>${filtered ? "검색 조건에 맞는 네트워크가 없습니다." : "동기화된 네트워크가 없습니다."}</strong><small>${filtered ? "검색어 또는 필터를 바꾸거나 초기화하세요." : "카탈로그 동기화 상태를 확인하세요."}</small></td></tr>` : payload.data.map((network, index) => `<tr><td><span class="status ${network.code ? "success" : "neutral"}">${network.code ? "BCM 등록" : "Fireblocks 후보"}</span><strong>${escapeHtml(network.code || network.displayName)}</strong><small>${escapeHtml(network.code ? network.displayName : "아직 BCM 코드가 없습니다")}</small></td><td class="mono tabular">${escapeHtml(network.chainId ?? "—")}</td><td><span class="status ${network.testnet ? "warning" : "success"}">${network.testnet ? "Testnet" : "Mainnet"}</span>${network.deprecated ? '<small class="danger-text">deprecated</small>' : ""}</td><td class="mono tabular">${coreTime(network.syncedAt)}</td><td>${network.code ? `<a class="button" href="/admin/assets?network=${encodeURIComponent(network.code)}" data-link>자산 보기</a>` : environment.assetManagementEnabled && !network.deprecated ? `<button class="button primary" type="button" data-adopt-network="${index}">등록</button>` : '<span class="muted">등록 불가</span>'}</td></tr>`).join("")}
+        ${viewState === "empty" ? `<tr><td colspan="5" class="asset-empty"><strong>${filtered ? "검색 조건에 맞는 네트워크가 없습니다." : "동기화된 네트워크가 없습니다."}</strong><small>${filtered ? "검색어 또는 필터를 바꾸거나 초기화하세요." : "카탈로그 동기화 상태를 확인하세요."}</small></td></tr>` : payload.data.map((network) => `<tr><td><span class="status ${network.code ? "success" : "neutral"}">${network.code ? "CONNECTED" : "NOT SUPPORTED"}</span><strong>${escapeHtml(network.displayName)}</strong><small>${escapeHtml(network.code || "지원 목록에 없음")}</small></td><td class="mono tabular">${escapeHtml(network.chainId ?? "—")}</td><td><span class="status ${network.testnet ? "warning" : "success"}">${network.testnet ? "Testnet" : "Mainnet"}</span>${network.deprecated ? '<small class="danger-text">deprecated</small>' : ""}</td><td class="mono tabular">${coreTime(network.syncedAt)}</td><td>${network.code ? `<a class="button" href="/admin/assets?network=${encodeURIComponent(network.code)}" data-link>자산 보기</a>` : '<span class="muted">진단 전용</span>'}</td></tr>`).join("")}
       </tbody></table></section>`;
     bindFilter("#network-filter", "/admin/networks");
-    if (environment.assetManagementEnabled) bindNetworkAdoption(payload.data);
     announce(`네트워크 ${payload.data.length}건 조회 완료`);
   } catch (error) {
     statePanel(error.status === 403 ? "forbidden" : "error", loadNetworks);
   }
-}
-
-function networkAdoptDialog() {
-  return `<dialog class="asset-dialog network-adopt-dialog" id="network-adopt-dialog" aria-labelledby="network-adopt-title">
-    <div class="asset-dialog-head"><div><p class="eyebrow">LOCAL NETWORK ADOPTION</p><h2 id="network-adopt-title">네트워크 등록</h2></div><button class="dialog-close" type="button" data-close-network aria-label="네트워크 등록 닫기">×</button></div>
-    <form id="network-adopt-form">
-      <div class="asset-dialog-body">
-        <p class="asset-search-help">Name, Chain ID와 Environment를 확인한 뒤 BCM에서 사용할 고정 코드를 입력하세요.</p>
-        <dl class="network-candidate-summary" id="network-candidate-summary"></dl>
-        <label class="network-code-field">BCM Network code<input id="network-adopt-code" name="code" maxlength="20" pattern="[A-Z0-9_]{1,20}" placeholder="예: BASE" autocomplete="off" required><small>한 번 채택한 코드는 다른 chain으로 조용히 바뀌지 않습니다.</small></label>
-        <div class="asset-dialog-message" id="network-adopt-message" role="alert" hidden></div>
-        <aside class="asset-info"><span aria-hidden="true">i</span><p><strong>로컬 PC 전용 등록입니다.</strong>공유 환경의 네트워크 변경은 mTLS와 단기 JWT 경계가 준비되기 전까지 닫혀 있습니다.</p></aside>
-      </div>
-      <div class="asset-dialog-actions"><button class="button" type="button" data-close-network>취소</button><button class="button primary" id="adopt-network" type="submit">네트워크 등록</button></div>
-    </form>
-  </dialog>`;
-}
-
-function bindNetworkAdoption(networks) {
-  document.querySelector("#network-adopt-dialog")?.remove();
-  document.body.insertAdjacentHTML("beforeend", networkAdoptDialog());
-  const dialog = document.querySelector("#network-adopt-dialog");
-  const form = dialog.querySelector("#network-adopt-form");
-  const code = dialog.querySelector("#network-adopt-code");
-  const message = dialog.querySelector("#network-adopt-message");
-  const submit = dialog.querySelector("#adopt-network");
-  let selected = null;
-  const close = () => dialog.close();
-  const showMessage = (value) => {
-    message.hidden = !value;
-    message.textContent = value || "";
-  };
-  document.querySelectorAll("[data-adopt-network]").forEach((button) => button.addEventListener("click", () => {
-    selected = networks[Number(button.dataset.adoptNetwork)];
-    dialog.querySelector("#network-candidate-summary").innerHTML = `
-      <div><dt>Fireblocks name</dt><dd>${escapeHtml(selected.displayName)}</dd></div>
-      <div><dt>Chain ID</dt><dd class="mono">${escapeHtml(selected.chainId ?? "—")}</dd></div>
-      <div><dt>Environment</dt><dd>${selected.testnet ? "Testnet" : "Mainnet"}</dd></div>
-      <div><dt>Status</dt><dd>${selected.deprecated ? "Deprecated" : "등록 가능"}</dd></div>`;
-    code.value = "";
-    showMessage("");
-    dialog.showModal();
-    code.focus();
-  }));
-  dialog.querySelectorAll("[data-close-network]").forEach((button) => button.addEventListener("click", close));
-  dialog.addEventListener("click", (event) => { if (event.target === dialog) close(); });
-  dialog.addEventListener("close", () => { selected = null; form.reset(); showMessage(""); });
-  code.addEventListener("input", () => { code.value = code.value.toUpperCase(); });
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    runSingleFlight(submit, async () => {
-      if (!selected || !form.reportValidity()) return;
-      showMessage("");
-      const payload = await request(`/bff/admin/networks/${encodeURIComponent(code.value)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "X-BCM-Local-Asset-Management": "execute" },
-        body: JSON.stringify({ candidateId: selected.candidateId }),
-      });
-      announce(`${payload.data.code} 네트워크 등록 완료`);
-      close();
-      await loadNetworks();
-    }).catch((error) => showMessage(`${error.code}: ${error.message}${error.requestId ? ` · requestId ${error.requestId}` : ""}`));
-  });
 }
 
 function networkFilters(filters) {
@@ -327,8 +263,8 @@ async function loadAssets() {
     app.innerHTML = `
       <header class="page-head"><div><h1>Assets</h1><p class="subtitle">USDC처럼 알고 있는 자산 이름 하나로 시작하세요. Network는 검색 결과에서 비교해 선택합니다.</p></div><div class="page-actions">${environment.assetManagementEnabled ? '<button class="button primary" id="open-asset-add" type="button">+ 자산 찾아 등록</button>' : ""}<div class="timestamp">${payload.data.length}건<strong>${dualTime(payload.meta.generatedAt)}</strong></div></div></header>
       ${statusBanner(payload)}${assetFilters(filters)}${assetDiscoveryPrompt(filters.q, discoverySymbol, environment.assetManagementEnabled)}
-      <section class="panel table-wrap"><table><thead><tr><th>Network</th><th>Symbol</th><th>Contract address</th><th>Registered at (UTC)</th></tr></thead><tbody>
-        ${viewState === "empty" ? `<tr><td colspan="4" class="asset-empty"><strong>${filtered ? "검색 조건에 맞는 asset mapping이 없습니다." : "등록된 asset mapping이 없습니다."}</strong><small>${filtered ? "Network, Symbol 또는 Contract address를 바꾸거나 초기화하세요." : "채택한 Network의 asset 후보를 검색해 첫 mapping을 등록하세요."}</small></td></tr>` : payload.data.map((asset) => `<tr><td><strong>${escapeHtml(asset.network)}</strong></td><td class="mono">${escapeHtml(asset.symbol)}</td><td><code title="${escapeHtml(asset.contractAddress || "native")}">${escapeHtml(asset.contractAddress || "Native asset")}</code>${asset.contractAddress ? `<button class="copy" data-copy="${escapeHtml(asset.contractAddress)}" aria-label="Contract address 복사">복사</button>` : ""}</td><td class="mono tabular">${coreTime(asset.registeredAt)}</td></tr>`).join("")}
+      <section class="panel table-wrap"><table><thead><tr><th>Network</th><th>Symbol</th><th>Fireblocks Asset ID</th><th>Contract address</th><th>Registered at (UTC)</th></tr></thead><tbody>
+        ${viewState === "empty" ? `<tr><td colspan="5" class="asset-empty"><strong>${filtered ? "검색 조건에 맞는 asset mapping이 없습니다." : "등록된 asset mapping이 없습니다."}</strong><small>${filtered ? "Network, Symbol 또는 Contract address를 바꾸거나 초기화하세요." : "USDC처럼 알고 있는 이름으로 후보를 검색해 첫 mapping을 등록하세요."}</small></td></tr>` : payload.data.map((asset) => `<tr><td><strong>${escapeHtml(asset.network)}</strong></td><td class="mono">${escapeHtml(asset.symbol)}</td><td>${identifier(asset.fireblocksAssetId, "Fireblocks Asset ID")}</td><td><code title="${escapeHtml(asset.contractAddress || "native")}">${escapeHtml(asset.contractAddress || "Native asset")}</code>${asset.contractAddress ? `<button class="copy" data-copy="${escapeHtml(asset.contractAddress)}" aria-label="Contract address 복사">복사</button>` : ""}</td><td class="mono tabular">${coreTime(asset.registeredAt)}</td></tr>`).join("")}
       </tbody></table></section>
       ${environment.assetManagementEnabled ? assetAddDialog() : '<section class="readonly-callout" role="note"><strong>READ ONLY</strong><span>로컬 자산 매핑 관리가 비활성화되어 있습니다.</span></section>'}`;
     bindFilter("#asset-filter", "/admin/assets");
@@ -357,7 +293,7 @@ function assetAddDialog() {
         <label for="asset-candidate-symbol">어떤 자산을 찾으세요?</label>
         <div><span class="search-icon" aria-hidden="true"></span><input id="asset-candidate-symbol" name="q" minlength="2" maxlength="64" autocomplete="off" placeholder="USDC, USD Coin, contract address" required><button class="button" type="submit">검색</button></div>
       </form>
-      <p class="asset-search-help">정확한 Network를 몰라도 됩니다. Symbol, asset name 또는 contract address로 찾아보세요.</p>
+      <p class="asset-search-help">Symbol, asset name 또는 contract address로 검색합니다.</p>
       <div class="asset-candidate-status" id="asset-candidate-status" role="status">자산을 입력하면 네트워크별 후보를 찾습니다.</div>
       <div class="asset-catalog-sources" id="asset-catalog-sources" aria-label="자산 카탈로그 동기화 상태"></div>
       <div class="asset-candidate-list" id="asset-candidate-list" role="listbox" aria-label="등록 가능한 자산 후보"></div>
@@ -457,9 +393,10 @@ function bindAssetAddDialog(activeMappings) {
         dialog.querySelector("#asset-selection-title").textContent = `${selected.symbol} · ${selected.network}`;
         dialog.querySelector("#asset-selection-details").innerHTML = `
           <div><dt>Name</dt><dd>${escapeHtml(selected.displayName || "—")}</dd></div>
-          <div><dt>Network</dt><dd>${escapeHtml(selected.network)}</dd></div>
+          <div><dt>Network</dt><dd>${escapeHtml(selected.networkDisplayName)} · ${selected.testnet ? "Testnet" : "Mainnet"}${selected.chainId == null ? "" : ` · Chain ID ${escapeHtml(selected.chainId)}`}</dd></div>
           <div><dt>Decimals</dt><dd>${escapeHtml(selected.decimals ?? "—")}</dd></div>
-          <div><dt>Contract address</dt><dd><code title="${escapeHtml(selected.contractAddress || "native")}">${escapeHtml(selected.contractAddress || "Native asset")}</code></dd></div>`;
+          <div><dt>Fireblocks Asset ID</dt><dd>${identifier(selected.fireblocksAssetId, "Fireblocks Asset ID")}</dd></div>
+          <div><dt>Contract address</dt><dd>${selected.contractAddress ? identifier(selected.contractAddress, "Contract address") : "Native asset"}</dd></div>`;
         symbolInput.value = selected.symbol.toUpperCase();
         selection.hidden = false;
         register.disabled = !symbolInput.checkValidity();
@@ -481,7 +418,7 @@ function bindAssetAddDialog(activeMappings) {
     const payload = await request("/bff/admin/assets", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-BCM-Local-Asset-Management": "execute" },
-      body: JSON.stringify({ network: selected.network, symbol: symbolInput.value, contractAddress: selected.contractAddress }),
+      body: JSON.stringify({ network: selected.network, symbol: symbolInput.value, fireblocksAssetId: selected.fireblocksAssetId, contractAddress: selected.contractAddress }),
     });
     announce(`${payload.data.network} ${payload.data.symbol} 자산 매핑 등록 완료`);
     close();
@@ -506,7 +443,7 @@ function assetCandidateRow(candidate, index, mapping) {
   const address = candidate.contractAddress || "Native asset";
   return `<button class="asset-candidate" type="button" role="option" aria-selected="false" data-candidate-index="${index}" ${mapping ? "disabled aria-disabled=\"true\"" : ""}>
     <span class="asset-avatar" aria-hidden="true">${escapeHtml(candidate.symbol.slice(0, 2))}</span>
-    <span class="asset-candidate-copy"><strong>${escapeHtml(candidate.symbol)} <small>${escapeHtml(candidate.displayName || "")}</small></strong><span>${escapeHtml(candidate.network)} · ${escapeHtml(candidate.assetClass || "UNKNOWN")} · Decimals ${escapeHtml(candidate.decimals ?? "—")}</span><code title="${escapeHtml(address)}">${escapeHtml(address)}</code><small>Catalog ${coreTime(candidate.catalogSyncedAt)}</small>${mapping ? `<em>이미 BCM에 등록됨 · ${escapeHtml(mapping.symbol)}</em>` : ""}</span>
+    <span class="asset-candidate-copy"><strong>${escapeHtml(candidate.symbol)} <small>${escapeHtml(candidate.displayName || "")}</small></strong><span>${escapeHtml(candidate.networkDisplayName)} · ${candidate.testnet ? "Testnet" : "Mainnet"}${candidate.chainId == null ? "" : ` · Chain ID ${escapeHtml(candidate.chainId)}`} · ${escapeHtml(candidate.assetClass || "UNKNOWN")} · Decimals ${escapeHtml(candidate.decimals ?? "—")}</span><small>Fireblocks Asset ID</small><code title="${escapeHtml(candidate.fireblocksAssetId)}">${escapeHtml(candidate.fireblocksAssetId)}</code><small>Contract address</small><code title="${escapeHtml(address)}">${escapeHtml(address)}</code><small>Catalog ${coreTime(candidate.catalogSyncedAt)}</small>${mapping ? `<em>이미 BCM에 등록됨 · ${escapeHtml(mapping.symbol)}</em>` : ""}</span>
     <span class="asset-select-mark" aria-hidden="true">${mapping ? "등록됨" : "선택"}</span>
   </button>`;
 }

@@ -26,6 +26,7 @@ class LocalAssetManagementService(
             RegisterAdminAssetMapping(
                 network = request.network,
                 symbol = request.symbol,
+                fireblocksAssetId = request.fireblocksAssetId,
                 contractAddress = request.contractAddress,
                 employeeNo = properties.localAssetManagement.employeeNo,
                 branchCode = properties.localAssetManagement.branchCode,
@@ -51,5 +52,6 @@ data class LocalNetworkAdoption(
 data class LocalAssetRegistration(
     val network: String,
     val symbol: String,
+    val fireblocksAssetId: String,
     val contractAddress: String?,
 )

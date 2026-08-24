@@ -480,6 +480,20 @@ verify_fireblocks_api_authentication() {
     echo "Fireblocks API 인증 성공 — 블록체인 목록 읽기 완료"
 }
 
+bootstrap_fireblocks_asset_catalog() {
+    local bootstrap_log="$STATE_DIR/fireblocks-asset-catalog-bootstrap.log"
+    mkdir -p "$STATE_DIR"
+    : > "$bootstrap_log"
+    chmod 600 "$bootstrap_log"
+
+    echo "Fireblocks 지원 네트워크·자산 카탈로그 준비 중..."
+    if ! python3 "$SCRIPT_DIR/internal/local-deposit-test.py" --bootstrap-fireblocks-catalog > "$bootstrap_log" 2>&1; then
+        echo "상세 로그: $bootstrap_log" >&2
+        fail "Fireblocks 지원 네트워크·자산 카탈로그 준비에 실패했습니다. 로그에서 chainId와 API 응답을 확인하세요."
+    fi
+    echo "Fireblocks 지원 네트워크·자산 카탈로그 준비 완료 (Ethereum Sepolia·Base Sepolia)"
+}
+
 sync_asset_catalog_now() {
     require_command docker
     local active_mode
@@ -618,6 +632,7 @@ up_fireblocks() {
 
     start_gradle_process api ":blockchain-manager-app:bcm-api:bootRun"
     wait_http api "http://127.0.0.1:$API_MANAGEMENT_PORT/actuator/health"
+    bootstrap_fireblocks_asset_catalog
     if ! running webhook; then
         assert_port_free "$WEBHOOK_PORT" "BCM Webhook"
         assert_port_free "$WEBHOOK_MANAGEMENT_PORT" "BCM Webhook management"

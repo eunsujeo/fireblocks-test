@@ -90,6 +90,7 @@ class HttpBcmAdminReadGateway(
                                 mapOf(
                                     "network" to command.network,
                                     "symbol" to command.symbol,
+                                    "fireblocksAssetId" to command.fireblocksAssetId,
                                     "contractAddress" to command.contractAddress,
                                 ),
                             ),
