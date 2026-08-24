@@ -325,6 +325,41 @@ running() {
     managed_process "$1" || legacy_managed_process "$1"
 }
 
+local_mode_runtime_state() {
+    local mode="${1:-$(active_local_mode)}"
+    case "$mode" in
+        fireblocks)
+            if running chain || running stub; then
+                printf '%s' 'CONFLICT'
+            elif running api && running webhook && running admin; then
+                printf '%s' 'RUNNING'
+            elif ! running api && ! running webhook && ! running admin; then
+                printf '%s' 'STOPPED'
+            else
+                printf '%s' 'PARTIAL'
+            fi
+            ;;
+        stub)
+            if running chain && running stub && running api && running webhook && running admin; then
+                printf '%s' 'RUNNING'
+            elif ! running chain && ! running stub && ! running api && ! running webhook && ! running admin; then
+                printf '%s' 'STOPPED'
+            else
+                printf '%s' 'PARTIAL'
+            fi
+            ;;
+        *) fail "알 수 없는 로컬 실행 모드가 기록되어 있습니다: $mode" ;;
+    esac
+}
+
+print_local_context() {
+    local active_mode runtime_state
+    active_mode="$(active_local_mode)"
+    runtime_state="$(local_mode_runtime_state "$active_mode")"
+    echo "현재 로컬 모드: $active_mode ($runtime_state)"
+    echo "데이터셋: $active_mode"
+}
+
 # wrapper shell이 Java Gradle client로 exec 되기 전의 짧은 구간에는 command identity가 아직 완성되지 않는다.
 # 이 함수는 readiness 대기 유예에만 쓰고, 종료 신호를 보낼 근거로는 사용하지 않는다.
 starting_process_alive() {
@@ -556,6 +591,8 @@ up_fireblocks() {
     fi
 
     select_local_mode fireblocks
+    echo "로컬 실행 모드: fireblocks"
+    echo "데이터셋: fireblocks"
 
     mkdir -p "$STATE_DIR"
     echo "PostgreSQL·Kafka 시작 중..."
@@ -594,6 +631,8 @@ up_fireblocks() {
     fi
     start_gradle_process admin ":blockchain-manager-app:bcm-admin:bootRun"
     wait_http admin "http://127.0.0.1:$ADMIN_PORT/actuator/health"
+    [ "$(local_mode_runtime_state fireblocks)" = RUNNING ] ||
+        fail "Fireblocks 모드 프로세스 구성이 완전하지 않습니다. status와 logs를 확인하세요."
 
     echo ""
     echo "Blockchain Manager 로컬 환경이 준비됐습니다."
@@ -616,6 +655,8 @@ up_stub() {
     fi
 
     select_local_mode stub
+    echo "로컬 실행 모드: stub"
+    echo "데이터셋: stub"
     export BCM_LOCAL_CHAIN_PROFILE="$CHAIN_PROFILE"
 
     mkdir -p "$STATE_DIR/stub"
@@ -721,6 +762,8 @@ up_stub() {
     fi
     start_gradle_process admin ":blockchain-manager-app:bcm-admin:bootRun"
     wait_http admin "http://127.0.0.1:$ADMIN_PORT/actuator/health"
+    [ "$(local_mode_runtime_state stub)" = RUNNING ] ||
+        fail "Stub 모드 프로세스 구성이 완전하지 않습니다. status와 logs를 확인하세요."
 
     if [ "$CHAIN_PROFILE" = catalog ]; then
         echo "기본 네트워크·자산 준비 중..."
@@ -767,7 +810,7 @@ restart_local_environment() {
 status_all() {
     local name
     use_active_dataset
-    echo "현재 실행 모드: $(active_local_mode)"
+    print_local_context
     for name in chain stub api webhook admin; do
         if running "$name"; then
             echo "$(component_display_name "$name"): RUNNING (pid $(cat "$(pid_file "$name")"))"
@@ -784,13 +827,21 @@ status_all() {
 
 logs() {
     local target="${1:-api}"
+    use_active_dataset
+    print_local_context
     case "$target" in
         chain|stub|api|webhook|admin)
             [ -f "$(log_file "$target")" ] || fail "$target 로그가 없습니다."
+            if running "$target"; then
+                echo "로그 대상: $(component_display_name "$target") (RUNNING)"
+            else
+                echo "로그 대상: $(component_display_name "$target") (STOPPED, 이전 로그일 수 있음)"
+            fi
             tail -n 100 -f "$(log_file "$target")"
             ;;
         infra)
             require_command docker
+            echo "로그 대상: PostgreSQL·Kafka"
             compose logs -f --tail 100
             ;;
         *) fail "로그 대상은 chain, stub, api, webhook, admin, infra 중 하나여야 합니다." ;;

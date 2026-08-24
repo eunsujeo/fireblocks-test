@@ -123,6 +123,8 @@ cp /발급받은/경로/fireblocks-private-key.pem .keys/
 
 `restart`는 인자를 생략하면 현재 `fireblocks` 또는 `stub` 모드를 유지합니다. 모드를 바꾸려면
 `restart fireblocks` 또는 `restart stub`으로 명시하면 되며, 잘못된 모드는 기존 환경을 종료하기 전에 거부합니다.
+두 모드는 같은 로컬 프로세스를 동시에 점유할 수 없고 한 번에 하나만 활성화됩니다. `status`와 `logs`는 첫 줄에
+현재 모드·실행 상태(`RUNNING`·`PARTIAL`·`STOPPED`·`CONFLICT`)와 데이터셋을 표시합니다.
 
 Admin은 `http://127.0.0.1:9080/admin/dashboard`, BCM API는 `http://127.0.0.1:38080`, Webhook listener는
 `http://127.0.0.1:38081/webhook`입니다. 일반적인 개발 서버 포트와 겹치지 않도록 로컬 실행기에서만 높은 기본 포트를 사용합니다.
