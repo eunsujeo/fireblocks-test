@@ -147,6 +147,18 @@ case "$restart_output" in
 esac
 
 for contract in \
+    'local_mode_runtime_state()' \
+    '현재 로컬 모드: $active_mode ($runtime_state)' \
+    '데이터셋: $active_mode' \
+    '로컬 실행 모드: fireblocks' \
+    '로컬 실행 모드: stub'; do
+    grep -Fq "$contract" scripts/local.sh || {
+        echo "로컬 단일 모드와 로그 식별 계약이 없습니다: $contract" >&2
+        exit 1
+    }
+done
+
+for contract in \
     'up_stub()' \
     'verify_fireblocks_api_authentication()' \
     'export BCM_JOB=catalog-sync-once' \
