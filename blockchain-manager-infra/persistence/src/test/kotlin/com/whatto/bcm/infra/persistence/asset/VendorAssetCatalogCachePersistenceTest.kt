@@ -109,17 +109,17 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
         assertThat(symbolResult.items.map { it.fireblocksAssetId }).containsExactly("usdc-eth", "usdc-polygon", "usdc-old")
         assertThat(nameResult.items.map { it.symbol }).containsExactly("USDC", "USDC.e")
         assertThat(addressResult.items.map { it.symbol }).containsExactly("USDT")
-        assertThat(symbolResult.items.single { it.symbol == "USDC" }.catalogSyncedAt)
+        assertThat(symbolResult.items.single { it.fireblocksAssetId == "usdc-eth" }.catalogSyncedAt)
             .isEqualTo("20260824010000")
-        assertThat(symbolResult.items.single { it.symbol == "USDC" })
+        assertThat(symbolResult.items.single { it.fireblocksAssetId == "usdc-eth" })
             .extracting("fireblocksAssetId", "networkDisplayName", "chainId", "testnet")
             .containsExactly("usdc-eth", "ETHEREUM", 1L, false)
         assertThat(symbolResult.items.single { it.fireblocksAssetId == "usdc-polygon" }.network).isNull()
         assertThat(symbolResult.items.single { it.fireblocksAssetId == "usdc-polygon" }.registrationAllowed).isFalse()
         assertThat(symbolResult.items.single { it.fireblocksAssetId == "usdc-polygon" }.registrationDisabledReason)
             .isEqualTo("BCM 지원 Network가 아닙니다.")
-        assertThat(symbolResult.sources.map { it.vendorBlockchainId })
-            .containsExactly("base-id", "ethereum-id", "polygon-id")
+        assertThat(symbolResult.sources.map { it.networkDisplayName })
+            .containsExactly("BASE", "ETHEREUM", "Polygon")
         assertThat(symbolResult.sources.single { it.network == "ETHEREUM" }.state)
             .isEqualTo(VendorAssetCatalogCacheState.READY)
         assertThat(symbolResult.sources.single { it.network == "BASE" }.state)
@@ -130,7 +130,7 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
     fun `자산이 0건인 network도 성공 시각과 READY 상태를 남긴다`() {
         assets.replaceSnapshot(snapshot("polygon-id", "20260824030000"))
 
-        val source = assets.search("usdc", null, "20260822010000", 50).sources.single { it.vendorBlockchainId == "polygon-id" }
+        val source = assets.search("usdc", null, "20260822010000", 50).sources.single { it.networkDisplayName == "Polygon" }
 
         assertThat(source.state).isEqualTo(VendorAssetCatalogCacheState.READY)
         assertThat(source.catalogSyncedAt).isEqualTo("20260824030000")

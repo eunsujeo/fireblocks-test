@@ -183,8 +183,10 @@ class AdminAssetControllerTest {
                     decimals = 6,
                     contractAddress = "0xA0B8",
                     catalogSyncedAt = "20260806110000",
+                    registrationAllowed = true,
+                    registrationDisabledReason = null,
                 ),
             ),
-            listOf(VendorAssetCatalogSource("ETHEREUM", VendorAssetCatalogCacheState.READY, "20260806110000")),
+            listOf(VendorAssetCatalogSource("ETHEREUM", "Ethereum", VendorAssetCatalogCacheState.READY, "20260806110000")),
         )
 }

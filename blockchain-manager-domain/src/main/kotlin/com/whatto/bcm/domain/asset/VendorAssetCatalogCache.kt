@@ -16,7 +16,7 @@ data class VendorAssetCatalogSnapshotAsset(
 )
 
 data class VendorAssetCatalogCandidate(
-    val network: String,
+    val network: String?,
     val networkDisplayName: String,
     val chainId: Long?,
     val testnet: Boolean,
@@ -27,10 +27,13 @@ data class VendorAssetCatalogCandidate(
     val decimals: Int?,
     val contractAddress: String?,
     val catalogSyncedAt: String,
+    val registrationAllowed: Boolean,
+    val registrationDisabledReason: String?,
 )
 
 data class VendorAssetCatalogSource(
-    val network: String,
+    val network: String?,
+    val networkDisplayName: String,
     val state: VendorAssetCatalogCacheState,
     val catalogSyncedAt: String?,
 )

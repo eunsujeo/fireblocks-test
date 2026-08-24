@@ -209,6 +209,7 @@ for contract in \
     '("ETHEREUM_SEPOLIA", 11155111)' \
     '("BASE_SEPOLIA", 84532)' \
     '지원 Fireblocks TESTNET을 찾지 못했습니다' \
+    'asset-catalog-supported-sync-once' \
     'sync_asset_catalog()'; do
     grep -Fq "$contract" scripts/internal/local-deposit-test.py || {
         echo "Fireblocks 자산 우선 검색 bootstrap 계약이 없습니다: $contract" >&2

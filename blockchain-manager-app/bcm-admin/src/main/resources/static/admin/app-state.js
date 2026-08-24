@@ -49,11 +49,14 @@ export function assetCandidateEmptyState(query, sources) {
       actionLabel: null,
     };
   }
-  const neverSynced = sources.filter((source) => source.state === "NEVER_SYNCED").map((source) => source.network);
+  const neverSynced = sources.filter((source) => source.state === "NEVER_SYNCED");
   if (neverSynced.length) {
+    const label = neverSynced.length === 1
+      ? (neverSynced[0].network || neverSynced[0].networkDisplayName)
+      : `${neverSynced.length}개 Network`;
     return {
       kind: "CATALOG_REQUIRED",
-      message: `${neverSynced.join(", ")} catalog가 아직 동기화되지 않았습니다.`,
+      message: `${label} catalog가 아직 동기화되지 않았습니다.`,
       detail: "./scripts/local.sh sync assets를 실행한 뒤 다시 검색하세요.",
       actionHref: null,
       actionLabel: null,
@@ -75,6 +78,10 @@ export function registeredAssetMapping(candidate, mappings) {
       ? mapping.contractAddress?.toLowerCase() === candidate.contractAddress.toLowerCase()
       : !mapping.contractAddress
   ));
+}
+
+export function assetCandidateSelectable(candidate, mapping) {
+  return candidate.registrationAllowed === true && !mapping;
 }
 
 export function resolveViewState({ loading = false, status = 200, error = false, state = "FRESH", data = null }) {

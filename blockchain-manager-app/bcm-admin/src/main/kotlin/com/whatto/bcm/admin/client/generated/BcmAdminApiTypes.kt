@@ -25,7 +25,7 @@ data class AdminAssetMapping(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class AdminAssetCandidate(
-    val network: String,
+    val network: String? = null,
     val networkDisplayName: String,
     val chainId: Long? = null,
     val testnet: Boolean,
@@ -36,11 +36,14 @@ data class AdminAssetCandidate(
     val decimals: Int? = null,
     val contractAddress: String? = null,
     val catalogSyncedAt: String,
+    val registrationAllowed: Boolean,
+    val registrationDisabledReason: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class AdminAssetCatalogSource(
-    val network: String,
+    val network: String? = null,
+    val networkDisplayName: String,
     val state: String,
     val catalogSyncedAt: String? = null,
 )

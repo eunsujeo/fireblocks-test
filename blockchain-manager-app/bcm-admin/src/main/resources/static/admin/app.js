@@ -1,6 +1,7 @@
 import {
   adminRouteFromPath,
   assetCandidateEmptyState,
+  assetCandidateSelectable,
   assetDiscoverySymbol,
   changeRequestIdFromPath,
   filtersFromUrl,
@@ -374,14 +375,15 @@ function bindAssetAddDialog(activeMappings) {
       ]);
       candidates = payload.data?.items || [];
       const catalogSources = payload.data?.sources || [];
-      sources.innerHTML = catalogSources.map(assetCatalogSource).join("");
+      sources.innerHTML = assetCatalogSources(catalogSources);
       const currentMappings = mappingPayload.data || activeMappings;
       const mappedCandidates = candidates.map((candidate) => ({ candidate, mapping: registeredAssetMapping(candidate, currentMappings) }));
-      const availableCount = mappedCandidates.filter(({ mapping }) => !mapping).length;
-      const registeredCount = mappedCandidates.length - availableCount;
+      const availableCount = mappedCandidates.filter(({ candidate, mapping }) => assetCandidateSelectable(candidate, mapping)).length;
+      const registeredCount = mappedCandidates.filter(({ mapping }) => mapping).length;
+      const unsupportedCount = mappedCandidates.filter(({ candidate }) => !candidate.registrationAllowed).length;
       const emptyState = candidates.length ? null : assetCandidateEmptyState(query, catalogSources);
       status.textContent = candidates.length
-        ? `${candidates.length}개 후보 · 등록 가능 ${availableCount}개${registeredCount ? ` · 이미 등록 ${registeredCount}개` : ""}`
+        ? `${candidates.length}개 후보 · 등록 가능 ${availableCount}개${unsupportedCount ? ` · 미지원 ${unsupportedCount}개` : ""}${registeredCount ? ` · 이미 등록 ${registeredCount}개` : ""}`
         : emptyState.message;
       list.innerHTML = candidates.length
         ? mappedCandidates.map(({ candidate, mapping }, index) => assetCandidateRow(candidate, index, mapping)).join("")
@@ -441,17 +443,29 @@ function assetCandidatePrerequisite(state) {
 
 function assetCandidateRow(candidate, index, mapping) {
   const address = candidate.contractAddress || "Native asset";
-  return `<button class="asset-candidate" type="button" role="option" aria-selected="false" data-candidate-index="${index}" ${mapping ? "disabled aria-disabled=\"true\"" : ""}>
+  const selectable = assetCandidateSelectable(candidate, mapping);
+  const unavailable = mapping ? `이미 BCM에 등록됨 · ${mapping.symbol}` : candidate.registrationDisabledReason;
+  return `<button class="asset-candidate" type="button" role="option" aria-selected="false" data-candidate-index="${index}" ${selectable ? "" : "disabled aria-disabled=\"true\""}>
     <span class="asset-avatar" aria-hidden="true">${escapeHtml(candidate.symbol.slice(0, 2))}</span>
-    <span class="asset-candidate-copy"><strong>${escapeHtml(candidate.symbol)} <small>${escapeHtml(candidate.displayName || "")}</small></strong><span>${escapeHtml(candidate.networkDisplayName)} · ${candidate.testnet ? "Testnet" : "Mainnet"}${candidate.chainId == null ? "" : ` · Chain ID ${escapeHtml(candidate.chainId)}`} · ${escapeHtml(candidate.assetClass || "UNKNOWN")} · Decimals ${escapeHtml(candidate.decimals ?? "—")}</span><small>Fireblocks Asset ID</small><code title="${escapeHtml(candidate.fireblocksAssetId)}">${escapeHtml(candidate.fireblocksAssetId)}</code><small>Contract address</small><code title="${escapeHtml(address)}">${escapeHtml(address)}</code><small>Catalog ${coreTime(candidate.catalogSyncedAt)}</small>${mapping ? `<em>이미 BCM에 등록됨 · ${escapeHtml(mapping.symbol)}</em>` : ""}</span>
-    <span class="asset-select-mark" aria-hidden="true">${mapping ? "등록됨" : "선택"}</span>
+    <span class="asset-candidate-copy"><strong>${escapeHtml(candidate.symbol)} <small>${escapeHtml(candidate.displayName || "")}</small></strong><span>${escapeHtml(candidate.networkDisplayName)} · ${candidate.testnet ? "Testnet" : "Mainnet"}${candidate.chainId == null ? "" : ` · Chain ID ${escapeHtml(candidate.chainId)}`} · ${escapeHtml(candidate.assetClass || "UNKNOWN")} · Decimals ${escapeHtml(candidate.decimals ?? "—")}</span><small>Fireblocks Asset ID</small><code title="${escapeHtml(candidate.fireblocksAssetId)}">${escapeHtml(candidate.fireblocksAssetId)}</code><small>Contract address</small><code title="${escapeHtml(address)}">${escapeHtml(address)}</code><small>Catalog ${coreTime(candidate.catalogSyncedAt)}</small>${unavailable ? `<em>${escapeHtml(unavailable)}</em>` : ""}</span>
+    <span class="asset-select-mark" aria-hidden="true">${mapping ? "등록됨" : candidate.registrationAllowed ? "선택" : "미지원"}</span>
   </button>`;
 }
 
 function assetCatalogSource(source) {
   const tone = { READY: "success", STALE: "warning", NEVER_SYNCED: "danger" }[source.state] || "danger";
   const time = source.catalogSyncedAt ? coreTime(source.catalogSyncedAt) : "동기화 이력 없음";
-  return `<div><strong>${escapeHtml(source.network)}</strong><span class="status ${tone}">${escapeHtml(source.state)}</span><small>${time}</small></div>`;
+  const label = source.network || source.networkDisplayName;
+  return `<div><strong>${escapeHtml(label)}</strong><span class="status ${tone}">${escapeHtml(source.state)}</span><small>${time}</small></div>`;
+}
+
+function assetCatalogSources(sources) {
+  if (!sources.length) return "";
+  const ready = sources.filter((source) => source.state === "READY").length;
+  const stale = sources.filter((source) => source.state === "STALE").length;
+  const never = sources.filter((source) => source.state === "NEVER_SYNCED").length;
+  const issues = sources.filter((source) => source.state !== "READY").slice(0, 10);
+  return `<div><strong>${sources.length} Networks</strong><span class="status ${never ? "danger" : stale ? "warning" : "success"}">READY ${ready}</span><small>STALE ${stale} · NOT SYNCED ${never}</small></div>${issues.map(assetCatalogSource).join("")}`;
 }
 
 function assetFilters(filters) {

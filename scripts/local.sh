@@ -528,7 +528,7 @@ sync_asset_catalog_now() {
     local sync_log="$STATE_DIR/asset-catalog-sync.log"
     : > "$sync_log"
     chmod 600 "$sync_log"
-    echo "채택 네트워크의 Fireblocks 자산 카탈로그 동기화 중..."
+    echo "전체 Fireblocks 네트워크의 읽기 전용 자산 카탈로그 동기화 중..."
     if ! (
         cd "$REPO_ROOT"
         export BCM_JOB=asset-catalog-sync-once
@@ -537,7 +537,7 @@ sync_asset_catalog_now() {
         echo "상세 로그: $sync_log" >&2
         fail "자산 카탈로그 동기화에 실패했습니다."
     fi
-    echo "자산 카탈로그 동기화 완료 — Admin에서 검색 결과를 다시 확인하세요."
+    echo "전체 자산 카탈로그 동기화 완료 — 미지원 후보는 읽기 전용으로 표시됩니다."
 }
 
 stop_tree() {

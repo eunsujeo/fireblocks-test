@@ -84,7 +84,7 @@ def sync_catalog() -> None:
 
 
 def sync_asset_catalog() -> None:
-    run_catalog_job("asset-catalog-sync-once")
+    run_catalog_job("asset-catalog-supported-sync-once")
 
 
 LOCAL_CATALOG = (

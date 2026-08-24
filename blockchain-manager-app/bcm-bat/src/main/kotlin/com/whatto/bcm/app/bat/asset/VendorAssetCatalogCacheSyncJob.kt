@@ -29,7 +29,7 @@ class VendorAssetCatalogCacheSyncJob(
 ) {
     @Scheduled(cron = "\${bcm.asset-catalog-sync.cron:0 15 3 * * *}", zone = "Asia/Seoul")
     fun run() {
-        service.sync()
+        service.sync(VendorAssetCatalogSyncScope.ALL)
     }
 }
 
@@ -40,13 +40,30 @@ class VendorAssetCatalogCacheSyncOnceRunner(
     private val context: ConfigurableApplicationContext,
 ) : ApplicationRunner {
     override fun run(args: ApplicationArguments) {
-        command.sync()
+        command.sync(VendorAssetCatalogSyncScope.ALL)
+        context.close()
+    }
+}
+
+@Component
+@ConditionalOnProperty(prefix = "bcm", name = ["job"], havingValue = "asset-catalog-supported-sync-once")
+class VendorAssetCatalogCacheSupportedSyncOnceRunner(
+    private val command: VendorAssetCatalogCacheSyncCommand,
+    private val context: ConfigurableApplicationContext,
+) : ApplicationRunner {
+    override fun run(args: ApplicationArguments) {
+        command.sync(VendorAssetCatalogSyncScope.ADOPTED)
         context.close()
     }
 }
 
 fun interface VendorAssetCatalogCacheSyncCommand {
-    fun sync()
+    fun sync(scope: VendorAssetCatalogSyncScope)
+}
+
+enum class VendorAssetCatalogSyncScope {
+    ALL,
+    ADOPTED,
 }
 
 @Service
@@ -58,12 +75,15 @@ class VendorAssetCatalogCacheSyncService(
     private val alerts: VendorAssetCatalogSyncAlertPort,
     private val clock: Clock,
 ) : VendorAssetCatalogCacheSyncCommand {
-    override fun sync() {
+    fun sync() = sync(VendorAssetCatalogSyncScope.ALL)
+
+    override fun sync(scope: VendorAssetCatalogSyncScope) {
         val syncedAt = CoreDateTimes.now(clock)
-        jobs.markStarted(JOB_NAME, syncedAt)
+        val jobName = if (scope == VendorAssetCatalogSyncScope.ALL) JOB_NAME else SUPPORTED_JOB_NAME
+        jobs.markStarted(jobName, syncedAt)
         val failures = mutableListOf<Pair<String, RuntimeException>>()
-        blockchains.findAll(adopted = true).forEach { blockchain ->
-            val network = requireNotNull(blockchain.network)
+        blockchains.findAll(adopted = if (scope == VendorAssetCatalogSyncScope.ADOPTED) true else null).forEach { blockchain ->
+            val source = blockchain.network ?: blockchain.candidateId
             try {
                 val assets = allVendorAssets(blockchain.candidateId)
                 cache.replaceSnapshot(
@@ -74,14 +94,14 @@ class VendorAssetCatalogCacheSyncService(
                     ),
                 )
             } catch (exception: RuntimeException) {
-                failures += network to exception
-                alerts.syncFailed(network, exception::class.simpleName ?: "RuntimeException")
+                failures += source to exception
+                alerts.syncFailed(source, exception::class.simpleName ?: "RuntimeException")
             }
         }
         if (failures.isNotEmpty()) {
             throw VendorAssetCatalogSyncException(failures.map { it.first }, failures.first().second)
         }
-        jobs.markSucceeded(JOB_NAME, syncedAt)
+        jobs.markSucceeded(jobName, syncedAt)
     }
 
     private fun allVendorAssets(blockchainId: String): List<VendorAsset> {
@@ -114,6 +134,7 @@ class VendorAssetCatalogCacheSyncService(
 
     internal companion object {
         const val JOB_NAME = "VENDOR_ASSET_CATALOG_SYNC"
+        const val SUPPORTED_JOB_NAME = "VENDOR_ASSET_CATALOG_SUPPORTED_SYNC"
     }
 }
 

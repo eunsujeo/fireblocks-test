@@ -559,8 +559,8 @@ window.OPENAPI = {
         "tags": [
           "Admin"
         ],
-        "summary": "등록 가능한 자산 후보",
-        "description": "별도 동기화한 Fireblocks 자산 카탈로그 캐시에서 **심볼·표시명·컨트랙트 주소로 찾고 네트워크는 결과로 받는다.** `q=USDC` 하나면 로컬 시작 과정에서 자동 연결한 지원 네트워크마다 관련 자산이 한 번에 온다 — 네트워크를 먼저 고르거나 BCM 코드를 입력할 필요가 없다.\n\n운영자가 **컨트랙트 주소를 눈으로 대조**하는 자리다. 발행사 공식 문서의 주소와 같은 행을 찾으면, 그 행의 `network` 와 `contractAddress` 를 그대로 등록에 쓴다.\n\n**지원 목록으로 연결하고 동기화한 네트워크에서만 찾는다.** 찾던 네트워크가 안 보이면 로컬 시작 로그의 Network 연결과 asset catalog 준비 단계를 확인한다.\n\n결과의 `symbol` 은 아직 우리 코드가 아닌 벤더 표기이며, 등록할 때 우리 `symbol` 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다. 캐시는 탐색용이고 실제 등록은 Fireblocks에서 주소를 다시 해소한다.\n\n읽기 전용이고 아무것도 바꾸지 않는다.\n",
+        "summary": "Fireblocks 자산 후보 검색",
+        "description": "별도 동기화한 Fireblocks 자산 카탈로그 캐시에서 **심볼·표시명·컨트랙트 주소로 찾고 네트워크는 결과로 받는다.** `q=USDC` 하나면 동기화한 모든 네트워크의 관련 자산이 한 번에 온다 — 네트워크를 먼저 고르거나 BCM 코드를 입력할 필요가 없다.\n\n운영자가 **컨트랙트 주소를 눈으로 대조**하는 자리다. 발행사 공식 문서의 주소와 같은 행을 찾으면, 그 행의 `network` 와 `contractAddress` 를 그대로 등록에 쓴다.\n\n**동기화한 모든 Fireblocks 네트워크에서 찾는다.** BCM이 지원하지 않는 네트워크의 후보도 비교할 수 있지만 `registrationAllowed=false`이며 등록할 수 없다. 로컬에서는 전체 후보가 필요할 때 `./scripts/local.sh sync assets`를 실행한다.\n\n결과의 `symbol` 은 아직 우리 코드가 아닌 벤더 표기이며, 등록할 때 우리 `symbol` 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다. 캐시는 탐색용이고 실제 등록은 Fireblocks에서 주소를 다시 해소한다.\n\n읽기 전용이고 아무것도 바꾸지 않는다.\n",
         "operationId": "assetCandidatesOf",
         "parameters": [
           {
@@ -1321,7 +1321,7 @@ window.OPENAPI = {
       },
       "AssetCandidate": {
         "type": "object",
-        "description": "등록할 수 있는 자산 하나 — 어느 네트워크의 것인지까지 담는다.",
+        "description": "Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 비교 정보다.",
         "required": [
           "network",
           "networkDisplayName",
@@ -1333,12 +1333,21 @@ window.OPENAPI = {
           "assetClass",
           "decimals",
           "contractAddress",
-          "catalogSyncedAt"
+          "catalogSyncedAt",
+          "registrationAllowed",
+          "registrationDisabledReason"
         ],
         "properties": {
           "network": {
-            "type": "string",
-            "description": "이 자산이 있는 우리 네트워크 코드",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "BCM 지원 네트워크 코드. 미지원 Fireblocks 네트워크는 null",
             "example": "BASE"
           },
           "networkDisplayName": {
@@ -1422,6 +1431,23 @@ window.OPENAPI = {
             "type": "string",
             "description": "이 후보가 속한 네트워크 자산 카탈로그의 마지막 성공 동기화 UTC 시각",
             "example": "20260824010000"
+          },
+          "registrationAllowed": {
+            "type": "boolean",
+            "description": "현재 BCM 지원 경계에서 이 후보를 등록할 수 있는지 서버가 판정한 값",
+            "example": true
+          },
+          "registrationDisabledReason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "등록할 수 없을 때 운영자가 확인할 이유",
+            "example": null
           }
         }
       },
@@ -1429,13 +1455,25 @@ window.OPENAPI = {
         "type": "object",
         "required": [
           "network",
+          "networkDisplayName",
           "state",
           "catalogSyncedAt"
         ],
         "properties": {
           "network": {
-            "type": "string",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "example": "BASE"
+          },
+          "networkDisplayName": {
+            "type": "string",
+            "example": "Base"
           },
           "state": {
             "type": "string",

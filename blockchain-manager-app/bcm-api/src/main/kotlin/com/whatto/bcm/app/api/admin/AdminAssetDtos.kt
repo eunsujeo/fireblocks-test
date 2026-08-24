@@ -41,7 +41,7 @@ data class AdoptNetworkRequest(
 )
 
 data class AssetCandidateData(
-    val network: String,
+    val network: String?,
     val networkDisplayName: String,
     val chainId: Long?,
     val testnet: Boolean,
@@ -52,6 +52,8 @@ data class AssetCandidateData(
     val decimals: Int?,
     val contractAddress: String?,
     val catalogSyncedAt: String,
+    val registrationAllowed: Boolean,
+    val registrationDisabledReason: String?,
 ) {
     companion object {
         fun from(candidate: VendorAssetCatalogCandidate) =
@@ -67,17 +69,26 @@ data class AssetCandidateData(
                 candidate.decimals,
                 candidate.contractAddress,
                 candidate.catalogSyncedAt,
+                candidate.registrationAllowed,
+                candidate.registrationDisabledReason,
             )
     }
 }
 
 data class AssetCatalogSourceData(
-    val network: String,
+    val network: String?,
+    val networkDisplayName: String,
     val state: String,
     val catalogSyncedAt: String?,
 ) {
     companion object {
-        fun from(source: VendorAssetCatalogSource) = AssetCatalogSourceData(source.network, source.state.name, source.catalogSyncedAt)
+        fun from(source: VendorAssetCatalogSource) =
+            AssetCatalogSourceData(
+                source.network,
+                source.networkDisplayName,
+                source.state.name,
+                source.catalogSyncedAt,
+            )
     }
 }
 

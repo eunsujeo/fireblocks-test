@@ -739,7 +739,7 @@ class SmokeEnvironment:
         self.run_bat_job(
             ["./gradlew", "--no-daemon", ":blockchain-manager-app:bcm-bat:bootRun"],
             "asset-catalog-sync",
-            environment=self.bat_environment("asset-catalog-sync-once"),
+            environment=self.bat_environment("asset-catalog-supported-sync-once"),
         )
 
     def run_bat_job(

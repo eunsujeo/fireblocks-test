@@ -73,9 +73,29 @@ class AdminAssetSpecComplianceTest {
                         decimals = 6,
                         contractAddress = "0x8335",
                         catalogSyncedAt = "20260824010000",
+                        registrationAllowed = true,
+                        registrationDisabledReason = null,
+                    ),
+                    VendorAssetCatalogCandidate(
+                        network = null,
+                        networkDisplayName = "Polygon",
+                        chainId = 137,
+                        testnet = false,
+                        symbol = "USDC",
+                        displayName = "USD Coin",
+                        fireblocksAssetId = "USDC_POLYGON",
+                        assetClass = "FT",
+                        decimals = 6,
+                        contractAddress = "0x3c49",
+                        catalogSyncedAt = "20260824010000",
+                        registrationAllowed = false,
+                        registrationDisabledReason = "BCM 지원 Network가 아닙니다.",
                     ),
                 ),
-                listOf(VendorAssetCatalogSource("BASE", VendorAssetCatalogCacheState.READY, "20260824010000")),
+                listOf(
+                    VendorAssetCatalogSource("BASE", "Base", VendorAssetCatalogCacheState.READY, "20260824010000"),
+                    VendorAssetCatalogSource(null, "Polygon", VendorAssetCatalogCacheState.READY, "20260824010000"),
+                ),
             )
 
         mockMvc

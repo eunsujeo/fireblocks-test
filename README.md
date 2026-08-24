@@ -114,7 +114,7 @@ cp /발급받은/경로/fireblocks-private-key.pem .keys/
 ./scripts/local.sh status          # 프로세스·컨테이너 상태
 ./scripts/local.sh restart         # 현재 모드를 종료 후 다시 기동
 ./scripts/local.sh restart stub    # 모드를 지정해 종료 후 다시 기동
-./scripts/local.sh sync assets     # 신규 채택 네트워크의 자산 검색 캐시 즉시 갱신
+./scripts/local.sh sync assets     # 모든 Fireblocks 네트워크의 읽기 전용 자산 검색 캐시 갱신
 ./scripts/local.sh stop webhook    # api|webhook|admin 중 하나만 종료
 ./scripts/local.sh test deposit    # up stub 환경의 입금→Webhook→FINALIZED→Kafka→Admin 점검
 ./scripts/local.sh logs api        # chain|stub|api|webhook|admin|infra 로그
@@ -138,8 +138,10 @@ Webhook management health만 읽습니다. FUNCTION_TEST에서는 검증된 고�
 Webhook listener로 전달됩니다. `reset`은 Stub 상태와 Anvil 기준
 snapshot만 복원하며 기본 URL은 `http://127.0.0.1:18080`입니다. 다른 loopback 포트는 `BCM_LOCAL_STUB_BASE_URL`로 지정합니다.
 `bcm-bat`는 실행할 작업과 안전 설정을 명시해야 하는 비웹 프로세스이므로 기본 `up`에는 포함하지 않습니다.
-Fireblocks 또는 Stub 카탈로그 변경을 Admin 검색에 즉시 반영하려면 `./scripts/local.sh sync assets`를 실행합니다. 검색은 이 캐시의
-심볼·표시명·contract address 인덱스를 사용하고 결과에 Fireblocks Asset ID를 함께 표시합니다. 실제 등록 시에는 Fireblocks에서 Asset ID와 주소를 다시 확인합니다. 정기 배포 환경에서는
+Fireblocks 또는 Stub 카탈로그 변경을 Admin 검색에 즉시 반영하려면 `./scripts/local.sh sync assets`를 실행합니다. 이 명령은 모든
+Fireblocks Network의 자산을 읽기 전용 캐시에 동기화하며 Network를 자동 채택하거나 자산을 등록하지 않습니다. 검색은 이 캐시의
+심볼·표시명·contract address 인덱스를 사용하고 결과에 Fireblocks Asset ID를 함께 표시합니다. 미지원 Network 후보도
+비교할 수 있지만 선택할 수 없고, 실제 등록 시에는 지원 Network 여부와 Fireblocks Asset ID·주소를 다시 확인합니다. 정기 배포 환경에서는
 BAT의 일 1회 `VENDOR_ASSET_CATALOG_SYNC` 작업이 같은 캐시를 갱신합니다.
 
 `up stub`의 최초 실행은 ETHEREUM(chain id 31337)과 BASE(chain id 31338)에 테스트 USDC·KRWK 컨트랙트를 배포하고,

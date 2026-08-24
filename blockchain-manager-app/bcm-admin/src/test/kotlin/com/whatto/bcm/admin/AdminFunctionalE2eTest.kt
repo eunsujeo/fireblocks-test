@@ -257,7 +257,7 @@ class AdminFunctionalE2eTest {
                     check(exchange.requestURI.query?.contains("q=USD+Coin") == true)
                     respond(
                         exchange,
-                        """{"data":{"items":[{"network":"BASE","networkDisplayName":"Base","chainId":8453,"testnet":false,"symbol":"USDC","displayName":"USD Coin","fireblocksAssetId":"USDC_BASE","assetClass":"FT","decimals":6,"contractAddress":"0x8335","catalogSyncedAt":"20260824010000"}],"sources":[{"network":"BASE","state":"READY","catalogSyncedAt":"20260824010000"}]},"meta":{"requestId":"bcm-candidates"}}""",
+                        """{"data":{"items":[{"network":"BASE","networkDisplayName":"Base","chainId":8453,"testnet":false,"symbol":"USDC","displayName":"USD Coin","fireblocksAssetId":"USDC_BASE","assetClass":"FT","decimals":6,"contractAddress":"0x8335","catalogSyncedAt":"20260824010000","registrationAllowed":true,"registrationDisabledReason":null}],"sources":[{"network":"BASE","networkDisplayName":"Base","state":"READY","catalogSyncedAt":"20260824010000"}]},"meta":{"requestId":"bcm-candidates"}}""",
                     )
                 }
                 createContext("/admin/runtime-readiness") { exchange -> respond(exchange, runtimeReadinessResponse) }

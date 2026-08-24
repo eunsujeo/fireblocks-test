@@ -1231,13 +1231,13 @@ _응답_
 
 #### `GET` https://{baseUrl}/blockchain/manage-api/admin/asset-candidates
 
-**등록 가능한 자산 후보**
+**Fireblocks 자산 후보 검색**
 
-별도 동기화한 Fireblocks 자산 카탈로그 캐시에서 **심볼·표시명·컨트랙트 주소로 찾고 네트워크는 결과로 받는다.** `q=USDC` 하나면 로컬 시작 과정에서 자동 연결한 지원 네트워크마다 관련 자산이 한 번에 온다 — 네트워크를 먼저 고르거나 BCM 코드를 입력할 필요가 없다.
+별도 동기화한 Fireblocks 자산 카탈로그 캐시에서 **심볼·표시명·컨트랙트 주소로 찾고 네트워크는 결과로 받는다.** `q=USDC` 하나면 동기화한 모든 네트워크의 관련 자산이 한 번에 온다 — 네트워크를 먼저 고르거나 BCM 코드를 입력할 필요가 없다.
 
 운영자가 **컨트랙트 주소를 눈으로 대조**하는 자리다. 발행사 공식 문서의 주소와 같은 행을 찾으면, 그 행의 `network` 와 `contractAddress` 를 그대로 등록에 쓴다.
 
-**지원 목록으로 연결하고 동기화한 네트워크에서만 찾는다.** 찾던 네트워크가 안 보이면 로컬 시작 로그의 Network 연결과 asset catalog 준비 단계를 확인한다.
+**동기화한 모든 Fireblocks 네트워크에서 찾는다.** BCM이 지원하지 않는 네트워크의 후보도 비교할 수 있지만 `registrationAllowed=false`이며 등록할 수 없다. 로컬에서는 전체 후보가 필요할 때 `./scripts/local.sh sync assets`를 실행한다.
 
 결과의 `symbol` 은 아직 우리 코드가 아닌 벤더 표기이며, 등록할 때 우리 `symbol` 값을 정한다 — 대개 같지만 같아야 하는 것은 아니다. 캐시는 탐색용이고 실제 등록은 Fireblocks에서 주소를 다시 해소한다.
 
@@ -1274,12 +1274,15 @@ _응답_
         "assetClass": "FT",
         "decimals": 6,
         "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        "catalogSyncedAt": "20260824010000"
+        "catalogSyncedAt": "20260824010000",
+        "registrationAllowed": true,
+        "registrationDisabledReason": null
       }
     ],
     "sources": [
       {
         "network": "BASE",
+        "networkDisplayName": "Base",
         "state": "READY",
         "catalogSyncedAt": "20260824010000"
       }
@@ -2240,11 +2243,11 @@ _응답_
 
 ### AssetCandidate
 
-등록할 수 있는 자산 하나 — 어느 네트워크의 것인지까지 담는다.
+Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 비교 정보다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `network` | string | 필수 | 이 자산이 있는 우리 네트워크 코드 |
+| `network` | string \\| null | 필수 | BCM 지원 네트워크 코드. 미지원 Fireblocks 네트워크는 null |
 | `networkDisplayName` | string | 필수 | Fireblocks가 표시하는 네트워크 이름 |
 | `chainId` | integer \\| null | 필수 |  |
 | `testnet` | boolean | 필수 | 시험망 여부 |
@@ -2255,13 +2258,16 @@ _응답_
 | `decimals` | integer \\| null | 필수 |  |
 | `contractAddress` | string \\| null | 필수 | 네이티브 자산은 null |
 | `catalogSyncedAt` | string | 필수 | 이 후보가 속한 네트워크 자산 카탈로그의 마지막 성공 동기화 UTC 시각 |
+| `registrationAllowed` | boolean | 필수 | 현재 BCM 지원 경계에서 이 후보를 등록할 수 있는지 서버가 판정한 값 |
+| `registrationDisabledReason` | string \\| null | 필수 | 등록할 수 없을 때 운영자가 확인할 이유 |
 
 
 ### AssetCatalogSource
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `network` | string | 필수 |  |
+| `network` | string \\| null | 필수 |  |
+| `networkDisplayName` | string | 필수 |  |
 | `state` | string | 필수 | 마지막 성공이 48시간 이내면 READY, 더 오래됐으면 STALE, 성공 이력이 없으면 NEVER_SYNCED `READY` `STALE` `NEVER_SYNCED` |
 | `catalogSyncedAt` | string \\| null | 필수 |  |
 

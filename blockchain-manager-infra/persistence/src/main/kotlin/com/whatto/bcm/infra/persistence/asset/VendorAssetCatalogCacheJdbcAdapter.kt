@@ -35,6 +35,17 @@ class VendorAssetCatalogCacheJdbcAdapter(
             """.trimIndent(),
             systemParameters(snapshot.vendorBlockchainId, snapshot.syncedAt),
         )
+        val blockchainUpdated =
+            jdbc.update(
+                """
+                UPDATE bcm_blkc_m
+                   SET ast_sync_dttm = :syncedAt,
+                       last_chng_empno = :empno, last_chng_brcd = :brcd
+                 WHERE vndr_blkc_id = :blockchainId
+                """.trimIndent(),
+                systemParameters(snapshot.vendorBlockchainId, snapshot.syncedAt),
+            )
+        if (blockchainUpdated != 1) throw ConflictException("vendorBlockchainCatalog", snapshot.vendorBlockchainId)
         if (snapshot.assets.isEmpty()) return
 
         try {
@@ -121,8 +132,7 @@ class VendorAssetCatalogCacheJdbcAdapter(
                        c.cntr_addr, c.sync_dttm
                   FROM bcm_vndr_ast_ctlg_m c
                   JOIN bcm_blkc_m b ON b.vndr_blkc_id = c.vndr_blkc_id
-                 WHERE b.ntwk_cd IS NOT NULL
-                   AND c.prst_yn = 'Y'
+                 WHERE c.prst_yn = 'Y'
                    $networkPredicate
                    AND (
                      lower(c.ast_smbl) = :query
@@ -142,7 +152,8 @@ class VendorAssetCatalogCacheJdbcAdapter(
                    WHEN lower(c.cntr_addr) = :query THEN 5
                    ELSE 6
                  END,
-                 b.ntwk_cd, c.ast_smbl, coalesce(c.cntr_addr, '')
+                 CASE WHEN b.ntwk_cd IS NULL THEN 1 ELSE 0 END,
+                 b.dspl_nm, c.ast_smbl, coalesce(c.cntr_addr, '')
                  LIMIT :limit
                 """.trimIndent(),
                 parameters,
@@ -179,18 +190,17 @@ class VendorAssetCatalogCacheJdbcAdapter(
         network?.let { parameters["network"] = it }
         return jdbc.query(
             """
-            SELECT b.ntwk_cd, max(c.sync_dttm) AS catalog_sync_dttm
+            SELECT b.ntwk_cd, b.dspl_nm, b.ast_sync_dttm AS catalog_sync_dttm
               FROM bcm_blkc_m b
-              LEFT JOIN bcm_vndr_ast_ctlg_m c ON c.vndr_blkc_id = b.vndr_blkc_id
-             WHERE b.ntwk_cd IS NOT NULL$predicate
-             GROUP BY b.ntwk_cd
-             ORDER BY b.ntwk_cd
+             WHERE 1 = 1$predicate
+             ORDER BY CASE WHEN b.ntwk_cd IS NULL THEN 1 ELSE 0 END, b.dspl_nm, b.vndr_blkc_id
             """.trimIndent(),
             parameters,
         ) { rs, _ ->
             val syncedAt = rs.getString("catalog_sync_dttm")
             VendorAssetCatalogSource(
                 network = rs.getString("ntwk_cd"),
+                networkDisplayName = rs.getString("dspl_nm"),
                 state =
                     when {
                         syncedAt == null -> VendorAssetCatalogCacheState.NEVER_SYNCED
@@ -227,8 +237,9 @@ class VendorAssetCatalogCacheJdbcAdapter(
 
     private val candidateRowMapper =
         RowMapper { rs, _ ->
+            val network = rs.getString("ntwk_cd")
             VendorAssetCatalogCandidate(
-                network = rs.getString("ntwk_cd"),
+                network = network,
                 networkDisplayName = rs.getString("ntwk_dspl_nm"),
                 chainId = rs.getLong("chain_id").let { if (rs.wasNull()) null else it },
                 testnet = rs.getString("test_yn") == "Y",
@@ -239,12 +250,15 @@ class VendorAssetCatalogCacheJdbcAdapter(
                 decimals = rs.getInt("dcml_cnt").let { if (rs.wasNull()) null else it },
                 contractAddress = rs.getString("cntr_addr"),
                 catalogSyncedAt = rs.getString("sync_dttm"),
+                registrationAllowed = network != null,
+                registrationDisabledReason = if (network == null) UNSUPPORTED_NETWORK_REASON else null,
             )
         }
 
     companion object {
         private const val SYSTEM_EMPLOYEE = "SYSTEM"
         private const val SYSTEM_BRANCH = "9999"
+        private const val UNSUPPORTED_NETWORK_REASON = "BCM 지원 Network가 아닙니다."
         private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
     }
 }

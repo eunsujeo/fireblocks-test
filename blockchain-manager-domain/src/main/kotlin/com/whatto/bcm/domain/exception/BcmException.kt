@@ -63,8 +63,8 @@ class VendorApiException(
     cause: Throwable? = null,
 ) : BcmException("vendor api failure: operation=$operation httpStatus=$httpStatus", cause)
 
-/** 채택 네트워크별 자산 카탈로그 동기화 중 일부가 실패했다. */
+/** 벤더 네트워크별 자산 카탈로그 동기화 중 일부가 실패했다. */
 class VendorAssetCatalogSyncException(
-    val failedNetworks: List<String>,
+    val failedSources: List<String>,
     cause: Throwable,
-) : RuntimeException("vendor asset catalog sync failed: networks=${failedNetworks.joinToString(",")}", cause)
+) : RuntimeException("vendor asset catalog sync failed: sources=${failedSources.joinToString(",")}", cause)

@@ -117,6 +117,10 @@ test("자산 후보 없음은 로컬 준비 실패와 catalog 미동기화와 �
     actionHref: null,
     actionLabel: null,
   });
+  assert.equal(assetCandidateEmptyState("USDC", [
+    { network: null, networkDisplayName: "Polygon", state: "NEVER_SYNCED" },
+    { network: null, networkDisplayName: "Solana", state: "NEVER_SYNCED" },
+  ]).message, "2개 Network catalog가 아직 동기화되지 않았습니다.");
   assert.deepEqual(assetCandidateEmptyState("USDC", [
     { network: "BASE_SEPOLIA", state: "READY" },
   ]), {

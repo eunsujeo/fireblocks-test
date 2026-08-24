@@ -103,7 +103,7 @@ class VendorAssetCatalogCacheSyncServiceTest {
         assertThatThrownBy { service(vendor, cache, RecordingJobStates(), alerts).sync() }
             .isInstanceOf(VendorAssetCatalogSyncException::class.java)
 
-        assertThat(cache.snapshots.map { it.vendorBlockchainId }).containsExactly("ethereum-id")
+        assertThat(cache.snapshots.map { it.vendorBlockchainId }).containsExactly("ethereum-id", "unused-id")
         assertThat(alerts.networks).containsExactly("BASE")
     }
 
