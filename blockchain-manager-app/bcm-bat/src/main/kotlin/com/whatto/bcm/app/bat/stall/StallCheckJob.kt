@@ -1,6 +1,9 @@
 package com.whatto.bcm.app.bat.stall
 
 import com.whatto.bcm.domain.job.JobStateRepository
+import com.whatto.bcm.domain.monitoring.OperationalAlert
+import com.whatto.bcm.domain.monitoring.OperationalAlertChannel
+import com.whatto.bcm.domain.monitoring.OperationalAlertRoute
 import com.whatto.bcm.domain.tx.StallAlert
 import com.whatto.bcm.domain.tx.StallAlertPort
 import com.whatto.bcm.domain.tx.StallAlertReason
@@ -166,18 +169,22 @@ class StallCheckSafetyConfig(
 }
 
 @Component
-class LoggingStallAlertAdapter : StallAlertPort {
+class OperationalStallAlertAdapter(
+    private val channel: OperationalAlertChannel,
+) : StallAlertPort {
     override fun alert(alert: StallAlert) {
-        logger.error(
-            "거래 막힘 경보 rootVendorTransactionId={} activeVendorTransactionId={} reason={} observedTransactionHash={}",
-            alert.rootVendorTransactionId,
-            alert.activeVendorTransactionId,
-            alert.reason,
-            alert.observedTransactionHash,
+        channel.publish(
+            OperationalAlert(
+                route = OperationalAlertRoute.TRANSACTION,
+                type = "transaction.stall.detected",
+                identifiers =
+                    buildMap {
+                        put("rootVendorTransactionId", alert.rootVendorTransactionId)
+                        put("activeVendorTransactionId", alert.activeVendorTransactionId)
+                        alert.observedTransactionHash?.let { put("observedTransactionHash", it) }
+                    },
+                context = mapOf("reason" to alert.reason.name),
+            ),
         )
-    }
-
-    private companion object {
-        val logger = LoggerFactory.getLogger(LoggingStallAlertAdapter::class.java)
     }
 }

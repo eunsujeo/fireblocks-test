@@ -2,6 +2,8 @@ package com.whatto.bcm.infra.client.fireblocks
 
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.VendorApiException
+import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
+import com.whatto.bcm.domain.monitoring.VendorCallMetricOutcome
 import com.whatto.bcm.domain.vendor.VendorAsset
 import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.domain.vendor.VendorBalance
@@ -25,6 +27,10 @@ import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.domain.vendor.VendorTransactionRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
 import com.whatto.bcm.domain.vendor.VendorVault
+import com.whatto.bcm.domain.vendor.VendorWebhookRecoveryPort
+import com.whatto.bcm.domain.vendor.VendorWebhookResendReceipt
+import com.whatto.bcm.domain.vendor.VendorWebhookStatus
+import com.whatto.bcm.domain.vendor.VendorWebhookSubscription
 import com.whatto.bcm.domain.vendor.WalletVendorPort
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
@@ -49,12 +55,14 @@ class FireblocksClient(
     restClientBuilder: RestClient.Builder,
     private val properties: FireblocksProperties,
     private val signer: FireblocksJwtSigner,
+    private val metrics: OperationalMetricsPort,
     restClientFactory: FireblocksRestClientFactory,
 ) : WalletVendorPort,
     VendorAssetCatalogPort,
     VendorTransactionPort,
     VendorContractCallPort,
-    VendorNetworkFeePort {
+    VendorNetworkFeePort,
+    VendorWebhookRecoveryPort {
     private val restClient = restClientFactory.create(restClientBuilder, properties)
     private val objectMapper = ObjectMapper()
 
@@ -311,6 +319,45 @@ class FireblocksClient(
         )
     }
 
+    override fun webhook(webhookId: String): VendorWebhookSubscription =
+        webhookSubscription(
+            exchange(
+                operation = "webhook",
+                method = HttpMethod.GET,
+                path = webhookPath(webhookId),
+                body = null,
+                idempotencyKey = null,
+                responseType = WebhookResponse::class.java,
+            ),
+        )
+
+    override fun activateWebhook(webhookId: String): VendorWebhookSubscription =
+        webhookSubscription(
+            exchange(
+                operation = "activateWebhook",
+                method = HttpMethod.PATCH,
+                path = webhookPath(webhookId),
+                body = mapOf("enabled" to true),
+                idempotencyKey = null,
+                responseType = WebhookResponse::class.java,
+            ),
+        )
+
+    override fun resendFailedWebhookNotifications(webhookId: String): VendorWebhookResendReceipt {
+        val response =
+            exchange(
+                operation = "resendFailedWebhookNotifications",
+                method = HttpMethod.POST,
+                path = "${webhookPath(webhookId)}/notifications/resend_failed",
+                body = emptyMap<String, Any>(),
+                idempotencyKey = null,
+                responseType = ResendFailedWebhookNotificationsResponse::class.java,
+            )
+        return VendorWebhookResendReceipt(
+            checkNotNull(response.total) { "resendFailedWebhookNotifications 응답 결손: total" },
+        )
+    }
+
     private fun transactionOrNull(
         operation: String,
         path: String,
@@ -413,6 +460,22 @@ class FireblocksClient(
             .buildAndExpand(id)
             .encode()
             .toUriString()
+
+    private fun webhookPath(webhookId: String): String = encodedPath("$WEBHOOKS_PATH/{id}", webhookId)
+
+    private fun webhookSubscription(response: WebhookResponse): VendorWebhookSubscription {
+        val status = requireNotNull(response.status) { "webhook 응답 결손: status" }
+        return VendorWebhookSubscription(
+            webhookId = requireNotNull(response.id) { "webhook 응답 결손: id" },
+            status =
+                try {
+                    VendorWebhookStatus.valueOf(status)
+                } catch (exception: IllegalArgumentException) {
+                    throw IllegalStateException("webhook 응답 미지원 status: $status", exception)
+                },
+            events = requireNotNull(response.events) { "webhook 응답 결손: events" }.toSet(),
+        )
+    }
 
     private fun isDefinitiveTransactionRejection(httpStatus: Int?): Boolean = httpStatus in DEFINITIVE_TRANSACTION_REJECTION_STATUSES
 
@@ -530,16 +593,21 @@ class FireblocksClient(
         var attempt = 1
         while (true) {
             try {
-                return call(method, path, bodyBytes, idempotencyKey, responseType)
+                val response = call(method, path, bodyBytes, idempotencyKey, responseType)
+                metrics.recordVendorCall(operation, VendorCallMetricOutcome.SUCCESS)
+                return response
             } catch (exception: HttpClientErrorException.TooManyRequests) {
+                metrics.recordVendorCall(operation, VendorCallMetricOutcome.RATE_LIMITED)
                 if (attempt >= properties.maxAttempts) {
                     throw VendorApiException(operation, exception.statusCode.value(), exception)
                 }
                 Thread.sleep(retryDelayMillis(exception, attempt))
                 attempt++
             } catch (exception: RestClientResponseException) {
+                metrics.recordVendorCall(operation, VendorCallMetricOutcome.ERROR)
                 throw VendorApiException(operation, exception.statusCode.value(), exception)
             } catch (exception: RestClientException) {
+                metrics.recordVendorCall(operation, VendorCallMetricOutcome.ERROR)
                 throw VendorApiException(operation, null, exception)
             }
         }
@@ -586,6 +654,7 @@ class FireblocksClient(
         private const val BLOCKCHAIN_PAGE_SIZE = 500
         private const val ASSET_PAGE_SIZE = 1000
         private const val TRANSACTIONS_PATH = "/v1/transactions"
+        private const val WEBHOOKS_PATH = "/v1/webhooks"
         private const val NETWORK_FEE_PATH = "/v1/estimate_network_fee"
         private const val NEXT_PAGE_HEADER = "next-page"
         private val DEFINITIVE_TRANSACTION_REJECTION_STATUSES = setOf(409, 422)

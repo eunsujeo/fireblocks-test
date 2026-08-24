@@ -1,6 +1,9 @@
 package com.whatto.bcm.infra.client.fireblocks
 
 import com.whatto.bcm.domain.exception.VendorApiException
+import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
+import com.whatto.bcm.domain.monitoring.VendorCallMetricOutcome
+import com.whatto.bcm.domain.vendor.VendorWebhookStatus
 import com.whatto.bcm.infra.client.fireblocks.fixture.TestRsaKeyFixture
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -32,6 +35,7 @@ class FireblocksClientTest {
     private fun fixture(
         maxAttempts: Int = 3,
         maxBackoffMillis: Long = 250,
+        metrics: OperationalMetricsPort = NoOpOperationalMetrics,
     ): Pair<FireblocksClient, MockRestServiceServer> {
         val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
@@ -53,8 +57,55 @@ class FireblocksClientTest {
                     },
                 properties = properties,
                 signer = FireblocksJwtSigner("api-key-1", privateKeyPem, Clock.systemUTC()),
+                metrics = metrics,
             )
         return client to server
+    }
+
+    @Test
+    fun `웹훅 상태 조회와 활성화 및 실패 알림 재전송은 Webhooks V2 계약을 사용한다`() {
+        val (client, server) = fixture()
+        val webhookPath = "https://sandbox-api.fireblocks.test/v1/webhooks/44fcead0-7053-4831-a53a-df7fb90d440f"
+        server
+            .expect(requestTo(webhookPath))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(headerDoesNotExist("Idempotency-Key"))
+            .andRespond(
+                withSuccess(
+                    """{"id":"44fcead0-7053-4831-a53a-df7fb90d440f","status":"SUSPENDED","events":["transaction.created","transaction.status.updated"]}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        server
+            .expect(requestTo(webhookPath))
+            .andExpect(method(HttpMethod.PATCH))
+            .andExpect(jsonPath("$.enabled").value(true))
+            .andRespond(
+                withSuccess(
+                    """{"id":"44fcead0-7053-4831-a53a-df7fb90d440f","status":"ENABLED","events":["transaction.created","transaction.status.updated"]}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        server
+            .expect(requestTo("$webhookPath/notifications/resend_failed"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(jsonPath("$.startTime").doesNotExist())
+            .andExpect(jsonPath("$.events").doesNotExist())
+            .andRespond(
+                withStatus(HttpStatus.ACCEPTED)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("""{"total":1}"""),
+            )
+
+        val before = client.webhook("44fcead0-7053-4831-a53a-df7fb90d440f")
+        val activated = client.activateWebhook("44fcead0-7053-4831-a53a-df7fb90d440f")
+        val receipt = client.resendFailedWebhookNotifications("44fcead0-7053-4831-a53a-df7fb90d440f")
+
+        assertThat(before.status).isEqualTo(VendorWebhookStatus.SUSPENDED)
+        assertThat(before.events).containsExactly("transaction.created", "transaction.status.updated")
+        assertThat(activated.status).isEqualTo(VendorWebhookStatus.ENABLED)
+        assertThat(receipt.scheduledNotificationCount).isEqualTo(1)
+        server.verify()
     }
 
     @Test
@@ -201,7 +252,8 @@ class FireblocksClientTest {
 
     @Test
     fun `429 는 Retry-After 를 존중해 재시도하고 성공하면 결과를 돌려준다`() {
-        val (client, server) = fixture()
+        val metrics = RecordingOperationalMetrics()
+        val (client, server) = fixture(metrics = metrics)
         server
             .expect(requestTo("https://sandbox-api.fireblocks.test/v1/vault/accounts/7/ETH_TEST5"))
             .andRespond(withTooManyRequests().header(HttpHeaders.RETRY_AFTER, "0"))
@@ -217,6 +269,10 @@ class FireblocksClientTest {
         val balance = client.balanceOf(vaultId = "7", assetSymbol = "ETH_TEST5")
 
         assertThat(balance.total).isEqualTo("1")
+        assertThat(metrics.vendorCalls).containsExactly(
+            "balanceOf" to VendorCallMetricOutcome.RATE_LIMITED,
+            "balanceOf" to VendorCallMetricOutcome.SUCCESS,
+        )
         server.verify()
     }
 
@@ -247,7 +303,8 @@ class FireblocksClientTest {
 
     @Test
     fun `429 가 최대 시도까지 계속되면 VendorApiException(429) 로 소진을 알린다`() {
-        val (client, server) = fixture(maxAttempts = 2)
+        val metrics = RecordingOperationalMetrics()
+        val (client, server) = fixture(maxAttempts = 2, metrics = metrics)
         repeat(2) {
             server
                 .expect(requestTo("https://sandbox-api.fireblocks.test/v1/vault/accounts/7/ETH_TEST5"))
@@ -262,12 +319,17 @@ class FireblocksClientTest {
                 assertThat(exception.operation).isEqualTo("balanceOf")
                 assertThat(exception.cause).isNotNull()
             })
+        assertThat(metrics.vendorCalls).containsExactly(
+            "balanceOf" to VendorCallMetricOutcome.RATE_LIMITED,
+            "balanceOf" to VendorCallMetricOutcome.RATE_LIMITED,
+        )
         server.verify()
     }
 
     @Test
     fun `429 외 HTTP 에러는 재시도 없이 VendorApiException 으로 변환한다 — cause 보존`() {
-        val (client, server) = fixture()
+        val metrics = RecordingOperationalMetrics()
+        val (client, server) = fixture(metrics = metrics)
         server
             .expect(requestTo("https://sandbox-api.fireblocks.test/v1/vault/accounts"))
             .andRespond(
@@ -284,6 +346,32 @@ class FireblocksClientTest {
                 assertThat(exception.operation).isEqualTo("createVault")
                 assertThat(exception.cause).isNotNull()
             })
+        assertThat(metrics.vendorCalls).containsExactly("createVault" to VendorCallMetricOutcome.ERROR)
         server.verify()
+    }
+}
+
+private object NoOpOperationalMetrics : OperationalMetricsPort {
+    override fun recordWebhookIngestion(
+        outcome: com.whatto.bcm.domain.monitoring.WebhookIngestionMetricOutcome,
+        receivedAt: String?,
+    ) = Unit
+
+    override fun recordVendorCall(
+        operation: String,
+        outcome: VendorCallMetricOutcome,
+    ) = Unit
+
+    override fun recordReconciliation(recoveredCount: Int) = Unit
+}
+
+private class RecordingOperationalMetrics : OperationalMetricsPort by NoOpOperationalMetrics {
+    val vendorCalls = mutableListOf<Pair<String, VendorCallMetricOutcome>>()
+
+    override fun recordVendorCall(
+        operation: String,
+        outcome: VendorCallMetricOutcome,
+    ) {
+        vendorCalls += operation to outcome
     }
 }

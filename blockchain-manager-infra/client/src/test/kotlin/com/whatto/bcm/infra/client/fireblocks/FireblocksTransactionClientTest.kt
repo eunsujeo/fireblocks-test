@@ -577,7 +577,22 @@ class FireblocksTransactionClientTest {
                     },
                 properties = properties,
                 signer = FireblocksJwtSigner("api-key-1", privateKeyPem, Clock.systemUTC()),
+                metrics = NoOpTransactionClientOperationalMetrics,
             )
         return client to server
     }
+}
+
+private object NoOpTransactionClientOperationalMetrics : com.whatto.bcm.domain.monitoring.OperationalMetricsPort {
+    override fun recordWebhookIngestion(
+        outcome: com.whatto.bcm.domain.monitoring.WebhookIngestionMetricOutcome,
+        receivedAt: String?,
+    ) = Unit
+
+    override fun recordVendorCall(
+        operation: String,
+        outcome: com.whatto.bcm.domain.monitoring.VendorCallMetricOutcome,
+    ) = Unit
+
+    override fun recordReconciliation(recoveredCount: Int) = Unit
 }

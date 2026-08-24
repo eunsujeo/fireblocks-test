@@ -17,6 +17,10 @@ data class SweepExecution(
     val transactionHash: String?,
     val requestedAt: String,
     val finishedAt: String?,
+    val policyVersionId: String,
+    val policySnapshotHash: String,
+    val contractVersionId: String,
+    val contractEvidenceId: String,
 )
 
 enum class SweepExecutionStatus {

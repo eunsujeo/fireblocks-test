@@ -18,5 +18,6 @@ class SubmissionClassificationTest {
         assertThat(SubmissionTransactionType.INTERNAL.customerEventType()).isEqualTo(EventType.INTERNAL)
         assertThat(SubmissionTransactionType.SWEEP_APPROVE.customerEventType()).isNull()
         assertThat(SubmissionTransactionType.SWEEP_BATCH.customerEventType()).isNull()
+        assertThat(SubmissionTransactionType.BAND_S.customerEventType()).isNull()
     }
 }

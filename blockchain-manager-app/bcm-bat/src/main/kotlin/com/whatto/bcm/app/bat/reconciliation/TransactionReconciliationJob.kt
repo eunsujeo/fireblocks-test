@@ -2,7 +2,13 @@ package com.whatto.bcm.app.bat.reconciliation
 
 import com.whatto.bcm.app.bat.stall.StallTerminalObservationHandler
 import com.whatto.bcm.domain.job.JobStateRepository
+import com.whatto.bcm.domain.monitoring.OperationalAlert
+import com.whatto.bcm.domain.monitoring.OperationalAlertChannel
+import com.whatto.bcm.domain.monitoring.OperationalAlertRoute
+import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.tx.StallCandidate
+import com.whatto.bcm.domain.tx.TxReconciliationMissingWebhookAlert
+import com.whatto.bcm.domain.tx.TxReconciliationMissingWebhookAlertPort
 import com.whatto.bcm.domain.tx.TxReconciliationObservationEvidence
 import com.whatto.bcm.domain.tx.TxReconciliationPolicy
 import com.whatto.bcm.domain.tx.TxReconciliationRecord
@@ -10,6 +16,8 @@ import com.whatto.bcm.domain.tx.TxReconciliationReport
 import com.whatto.bcm.domain.tx.TxReconciliationReportPort
 import com.whatto.bcm.domain.tx.TxReconciliationRepository
 import com.whatto.bcm.domain.tx.TxReconciliationSnapshot
+import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlert
+import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlertPort
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.PhysicalTransactionEvidence
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
@@ -34,6 +42,9 @@ class TransactionReconciliationJob(
     private val statusTranslator: VendorStatusTranslator,
     private val terminalObservations: StallTerminalObservationHandler,
     private val reports: TxReconciliationReportPort,
+    private val missingWebhookAlerts: TxReconciliationMissingWebhookAlertPort,
+    private val trackingStoppedAlerts: TxReconciliationTrackingStoppedAlertPort,
+    private val metrics: OperationalMetricsPort,
     private val jobs: JobStateRepository,
     private val clock: Clock,
     private val properties: TransactionReconciliationProperties,
@@ -49,20 +60,23 @@ class TransactionReconciliationJob(
                 ?: CoreDateTimes.format(stabilized.minusSeconds(properties.initialLookbackSeconds))
         jobs.markStarted(JOB_NAME, runAt)
 
-        val windowRecords = reconciliation.findCreatedBetween(from, to)
-        val selected = selectRootObservations(allTransactions(from, to))
         val stoppedTrackingCount =
             reconciliation.markExpiredPendingStopped(
                 CoreDateTimes.format(current.minusSeconds(properties.pendingMaxAgeSeconds)),
                 runAt,
             )
+        if (stoppedTrackingCount > 0) {
+            trackingStoppedAlerts.alert(TxReconciliationTrackingStoppedAlert(runAt, stoppedTrackingCount))
+        }
+        val windowRecords = reconciliation.findCreatedBetween(from, to)
+        val selected = selectRootObservations(allTransactions(from, to))
         reconciliation
             .claimPendingForReconciliation(
                 CoreDateTimes.format(current.minusSeconds(properties.pendingStaleSeconds)),
                 runAt,
                 properties.pendingMaxLookupsPerRun,
-            ).filter { it.record.vendorTxId !in selected }
-            .forEach { pending ->
+                selected.keys.toSet(),
+            ).forEach { pending ->
                 vendor
                     .transaction(pending.record.activeVendorTxId)
                     ?.let { transaction ->
@@ -101,6 +115,10 @@ class TransactionReconciliationJob(
                 )
                 recoveredCount += 1
             }
+        metrics.recordReconciliation(recoveredCount)
+        if (recoveredCount > 0) {
+            missingWebhookAlerts.alert(TxReconciliationMissingWebhookAlert(from, to, recoveredCount))
+        }
         reports.report(TxReconciliationReport(from, to, result, recoveredCount, stoppedTrackingCount))
         jobs.markSucceeded(JOB_NAME, to)
     }
@@ -247,5 +265,37 @@ class LoggingTxReconciliationReportAdapter : TxReconciliationReportPort {
 
     private companion object {
         val logger = LoggerFactory.getLogger(LoggingTxReconciliationReportAdapter::class.java)
+    }
+}
+
+@Component
+class OperationalTxReconciliationMissingWebhookAlertAdapter(
+    private val channel: OperationalAlertChannel,
+) : TxReconciliationMissingWebhookAlertPort {
+    override fun alert(alert: TxReconciliationMissingWebhookAlert) {
+        channel.publish(
+            OperationalAlert(
+                route = OperationalAlertRoute.RECONCILIATION,
+                type = "reconciliation.alert.missing-webhook",
+                identifiers = mapOf("from" to alert.from, "to" to alert.to),
+                context = mapOf("recoveredCount" to alert.recoveredCount.toString()),
+            ),
+        )
+    }
+}
+
+@Component
+class OperationalTxReconciliationTrackingStoppedAlertAdapter(
+    private val channel: OperationalAlertChannel,
+) : TxReconciliationTrackingStoppedAlertPort {
+    override fun alert(alert: TxReconciliationTrackingStoppedAlert) {
+        channel.publish(
+            OperationalAlert(
+                route = OperationalAlertRoute.RECONCILIATION,
+                type = "reconciliation.alert.tracking-stopped",
+                identifiers = mapOf("stoppedAt" to alert.stoppedAt),
+                context = mapOf("count" to alert.count.toString()),
+            ),
+        )
     }
 }

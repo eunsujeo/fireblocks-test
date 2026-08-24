@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blockchain Manager Admin — 승인 기준 화면</title>
+  <link rel="stylesheet" href="tokens.css">
+  <style>
+    .app { min-height: 100vh; display: grid; grid-template: 58px 1fr / 224px 1fr; }
+    .topbar {
+      grid-column: 1 / -1; display: grid; grid-template-columns: 224px 1fr auto; align-items: center;
+      border-bottom: 1px solid var(--line-strong); background: rgb(8 13 18 / 94%); position: sticky; top: 0; z-index: 10;
+    }
+    .brand { height: 100%; padding: 0 var(--space-4); display: flex; align-items: center; gap: 10px; border-right: 1px solid var(--line-subtle); font-weight: 700; }
+    .brand-mark { width: 20px; height: 20px; border: 2px solid var(--accent); transform: rotate(45deg); box-shadow: inset 0 0 0 4px var(--bg-canvas); }
+    .search { margin: 0 var(--space-5); max-width: 760px; height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--bg-panel); border: 1px solid var(--line-subtle); color: var(--text-secondary); }
+    .search kbd { margin-left: auto; color: var(--text-muted); font: 11px var(--font-mono); }
+    .session { padding-right: var(--space-4); display: flex; align-items: center; gap: 12px; }
+    .environment { color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); padding: 4px 8px; font: 700 11px var(--font-mono); }
+    .role-select { color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--line-strong); padding: 7px 28px 7px 9px; }
+    .sidebar { padding: var(--space-4) var(--space-3); border-right: 1px solid var(--line-subtle); background: rgb(13 20 27 / 90%); }
+    .nav-label { margin: 14px 10px 8px; color: var(--text-muted); font: 10px var(--font-mono); text-transform: uppercase; }
+    .nav-button { width: 100%; padding: 10px; display: flex; align-items: center; gap: 10px; color: var(--text-secondary); background: transparent; border: 0; border-left: 2px solid transparent; text-align: left; cursor: pointer; }
+    .nav-button:hover { color: var(--text-primary); background: var(--bg-raised); }
+    .nav-button.active { color: var(--accent); background: var(--bg-selected); border-left-color: var(--accent); }
+    .nav-button span:first-child { width: 16px; font-family: var(--font-mono); }
+    .sidebar-note { margin: 28px 8px 0; padding: 12px; border: 1px solid var(--line-subtle); color: var(--text-muted); font-size: var(--text-xs); line-height: 1.55; }
+    main { min-width: 0; padding: 28px clamp(20px, 3vw, 48px) 56px; }
+    .page { display: none; max-width: 1440px; margin: 0 auto; }
+    .page.active { display: block; }
+    .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .eyebrow { color: var(--accent); font: 11px var(--font-mono); text-transform: uppercase; }
+    h1 { margin: 4px 0 5px; font-size: var(--text-xl); line-height: 1.15; }
+    h2 { margin: 0; font-size: var(--text-lg); }
+    .subtitle { color: var(--text-secondary); }
+    .refresh { color: var(--text-muted); font: 12px var(--font-mono); text-align: right; }
+    .button { min-height: 34px; padding: 7px 12px; border: 1px solid var(--line-strong); background: var(--bg-raised); color: var(--text-primary); cursor: pointer; }
+    .button:hover { border-color: var(--accent); }
+    .button.primary { border-color: var(--accent-strong); background: var(--accent-strong); color: #06110f; font-weight: 750; }
+    .button.danger { border-color: var(--danger); color: var(--danger); background: transparent; }
+    .button:disabled { cursor: not-allowed; opacity: .42; border-color: var(--line-strong); color: var(--text-muted); background: var(--bg-panel); }
+    .banner { margin-bottom: 16px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; border-left: 3px solid var(--warning); background: color-mix(in srgb, var(--warning) 10%, var(--bg-panel)); }
+    .banner.danger { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, var(--bg-panel)); }
+    .banner strong { display: block; margin-bottom: 2px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .metric { padding: 16px; min-height: 116px; background: var(--bg-panel); border: 1px solid var(--line-subtle); position: relative; }
+    .metric::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--tone, var(--info)); }
+    .metric-label { color: var(--text-secondary); }
+    .metric-value { margin-top: 10px; font: 700 30px var(--font-mono); }
+    .metric-note { margin-top: 5px; color: var(--text-muted); font-size: var(--text-xs); }
+    .columns { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, .8fr); gap: 14px; }
+    .panel { background: var(--bg-panel); border: 1px solid var(--line-subtle); }
+    .panel-head { min-height: 48px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line-subtle); }
+    .panel-body { padding: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 9px 12px; color: var(--text-muted); font: 10px var(--font-mono); text-align: left; border-bottom: 1px solid var(--line-strong); }
+    td { padding: 12px; border-bottom: 1px solid var(--line-subtle); vertical-align: top; }
+    tr:last-child td { border-bottom: 0; }
+    .status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .status::before { content: ""; width: 7px; height: 7px; background: currentColor; box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 20%, transparent); }
+    .status.high, .status.failed { color: var(--danger); }
+    .status.medium, .status.pending { color: var(--warning); }
+    .status.ok, .status.finalized { color: var(--success); }
+    .status.info { color: var(--info); }
+    .link { color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .emergency-step { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line-subtle); align-items: center; }
+    .step-no { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--line-strong); font: 11px var(--font-mono); }
+    .detail-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 14px; }
+    .summary-strip { margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 1px; background: var(--line-subtle); border: 1px solid var(--line-subtle); }
+    .summary-item { min-width: 170px; flex: 1; padding: 12px 14px; background: var(--bg-panel); }
+    .label { color: var(--text-muted); font: 10px var(--font-mono); text-transform: uppercase; }
+    .value { margin-top: 5px; }
+    .timeline { padding-left: 4px; }
+    .event { display: grid; grid-template-columns: 86px 16px 1fr; gap: 10px; min-height: 70px; }
+    .event-time { color: var(--text-muted); font: 11px var(--font-mono); }
+    .event-line { position: relative; border-left: 1px solid var(--line-strong); }
+    .event-line::before { content: ""; position: absolute; width: 7px; height: 7px; left: -4px; top: 2px; background: var(--accent); }
+    .event:last-child .event-line { border-left-color: transparent; }
+    .event-kind { margin-bottom: 3px; font-size: var(--text-xs); color: var(--text-muted); }
+    .fact { color: var(--info); }
+    .judgement { color: var(--warning); }
+    .kv { display: grid; grid-template-columns: 145px 1fr; gap: 9px 12px; }
+    .kv div:nth-child(odd) { color: var(--text-muted); }
+    .diff { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line-subtle); border: 1px solid var(--line-subtle); }
+    .diff-column { background: var(--bg-panel); }
+    .diff-title { padding: 12px 14px; border-bottom: 1px solid var(--line-subtle); color: var(--text-secondary); }
+    .diff-row { padding: 11px 14px; display: grid; grid-template-columns: 1.4fr 1fr; border-bottom: 1px solid var(--line-subtle); }
+    .diff-row.changed { background: color-mix(in srgb, var(--warning) 8%, transparent); }
+    .evidence { margin-top: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .evidence-item { padding: 12px; border: 1px solid var(--line-subtle); background: var(--bg-panel); }
+    .approval-bar { margin-top: 14px; padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 18px; border: 1px solid var(--line-strong); background: var(--bg-raised); }
+    .quorum { display: flex; gap: 7px; margin-top: 8px; }
+    .quorum-slot { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line-strong); color: var(--text-muted); font: 11px var(--font-mono); }
+    .quorum-slot.filled { color: var(--success); border-color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }
+    .band-axis { margin: 26px 6px 34px; position: relative; height: 10px; display: grid; grid-template-columns: 8fr 10fr 82fr; }
+    .band-zone.low, .band-zone.high { background: var(--danger); }
+    .band-zone.target { background: var(--success); }
+    .band-marker { position: absolute; top: -9px; transform: translateX(-50%); width: 2px; height: 28px; background: var(--text-primary); }
+    .band-marker::after { content: attr(data-label); position: absolute; top: 31px; left: 50%; transform: translateX(-50%); white-space: nowrap; font: 10px var(--font-mono); color: var(--text-secondary); }
+    .band-marker.current { background: var(--warning); }
+    .band-marker.current::before { content: "현재 18.7%"; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: var(--warning); font: 700 12px var(--font-mono); }
+    .formula { padding: 12px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); color: var(--text-secondary); font: 12px var(--font-mono); }
+    .input-health { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+    .health-item { padding: 10px; border: 1px solid var(--line-subtle); }
+    .screen-note { margin-top: 18px; color: var(--text-muted); font-size: var(--text-xs); }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 72px 1fr; }
+      .topbar { grid-template-columns: 72px 1fr auto; }
+      .brand { justify-content: center; }
+      .brand span:last-child, .nav-button span:last-child, .sidebar-note, .nav-label { display: none; }
+      .nav-button { justify-content: center; }
+      .grid-4, .evidence { grid-template-columns: repeat(2, 1fr); }
+      .columns, .detail-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>BCM ADMIN</span></div>
+    <div class="search" role="search">⌕ <span>txId, externalTxId, 계정, 주소, 요청 ID 검색</span><kbd>⌘ K</kbd></div>
+    <div class="session">
+      <span class="environment">PROD</span>
+      <select id="role" class="role-select" aria-label="검토할 역할">
+        <option value="viewer">조회자</option>
+        <option value="operator">운영자</option>
+        <option value="approver" selected>승인자</option>
+        <option value="security">보안 승인자</option>
+        <option value="auditor">감사자</option>
+      </select>
+    </div>
+  </header>
+
+  <aside class="sidebar" aria-label="주 메뉴">
+    <div class="nav-label">Reference screens</div>
+    <button class="nav-button active" data-page="dashboard"><span>01</span><span>대시보드</span></button>
+    <button class="nav-button" data-page="transaction"><span>02</span><span>거래 상세</span></button>
+    <button class="nav-button" data-page="approval"><span>03</span><span>정책 승인</span></button>
+    <button class="nav-button" data-page="band"><span>04</span><span>밴드S Simulation</span></button>
+    <div class="nav-label">Operations</div>
+    <button class="nav-button"><span>·</span><span>네트워크·자산</span></button>
+    <button class="nav-button"><span>·</span><span>Sweep·Allowance</span></button>
+    <button class="nav-button"><span>·</span><span>컨트랙트</span></button>
+    <button class="nav-button"><span>·</span><span>감사</span></button>
+    <div class="sidebar-note">검토용 비정본 화면<br>기준 시각과 환경은 항상 고정 표시합니다.</div>
+  </aside>
+
+  <main>
+    <section id="dashboard" class="page active">
+      <div class="page-head">
+        <div><div class="eyebrow">Operations queue</div><h1>대시보드</h1><div class="subtitle">통계가 아니라 지금 조치해야 할 순서입니다.</div></div>
+        <div class="refresh">마지막 성공 갱신<br><strong>2026-08-17 08:31:42 UTC</strong></div>
+      </div>
+      <div class="banner danger"><span>!</span><div><strong>부분 갱신 상태</strong>RPC-B 응답이 4분째 지연 중입니다. 컨트랙트 활성화·재개는 차단되며 마지막 성공값을 최신으로 표시하지 않습니다.</div></div>
+      <div class="grid-4">
+        <div class="metric" style="--tone:var(--danger)"><div class="metric-label">중지·차단</div><div class="metric-value">2</div><div class="metric-note">BASE 출금 · ETH approve</div></div>
+        <div class="metric" style="--tone:var(--warning)"><div class="metric-label">승인 대기</div><div class="metric-value">3</div><div class="metric-note">내 승인 가능 1건</div></div>
+        <div class="metric" style="--tone:var(--warning)"><div class="metric-label">외부 Drift</div><div class="metric-value">1</div><div class="metric-note">code hash 재검증 필요</div></div>
+        <div class="metric" style="--tone:var(--info)"><div class="metric-label">장시간 미종결</div><div class="metric-value">6</div><div class="metric-note">가장 오래된 관찰 47분</div></div>
+      </div>
+      <div class="columns">
+        <div class="panel">
+          <div class="panel-head"><h2>우선 확인</h2><button class="button">필터 저장</button></div>
+          <table><thead><tr><th>위험</th><th>대상 / 원인</th><th>관찰 시각</th><th>다음 행동</th></tr></thead><tbody>
+            <tr><td><span class="status high">높음</span></td><td><strong>BASE sweep 중지</strong><br><span class="muted">TAP 실제값 불일치</span></td><td class="mono">08:29:10Z</td><td><button class="link">비상 운영 열기</button></td></tr>
+            <tr><td><span class="status high">높음</span></td><td><strong>구 컨트랙트 allowance 잔존</strong><br><span class="muted">14 vault · 총 81,200 USDC</span></td><td class="mono">08:27:03Z</td><td><button class="link">회수 현황 보기</button></td></tr>
+            <tr><td><span class="status medium">중간</span></td><td><strong>tx-root-8f… 대사 중단</strong><br><span class="muted">추적 최대 나이 도달</span></td><td class="mono">08:13:55Z</td><td><button class="link" data-goto="transaction">거래 상세 열기</button></td></tr>
+          </tbody></table>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>비상 흐름</h2><span class="status pending">진행 중</span></div>
+          <div class="panel-body">
+            <div class="emergency-step"><span class="step-no">1</span><div><strong>TAP batch 차단</strong><div class="muted">외부 재조회 완료</div></div><span class="status ok">완료</span></div>
+            <div class="emergency-step"><span class="step-no">2</span><div><strong>컨트랙트 pause</strong><div class="muted">multisig 서명 2/3</div></div><span class="status pending">대기</span></div>
+            <div class="emergency-step"><span class="step-no">3</span><div><strong>운영자 제거</strong><div class="muted">2 완료 후 시작</div></div><span class="muted">차단</span></div>
+            <div class="emergency-step"><span class="step-no">4</span><div><strong>allowance 전량 회수</strong><div class="muted">승인 요청 필요</div></div><span class="muted">차단</span></div>
+            <button class="button danger" style="width:100%;margin-top:14px" data-requires="operator">신규 실행 즉시 중지</button>
+          </div>
+        </div>
+      </div>
+      <p class="screen-note">상태 계약: 부분 실패에서는 성공한 신호와 실패한 신호를 분리하고, 고위험 action만 fail-closed로 차단합니다.</p>
+    </section>
+
+    <section id="transaction" class="page">
+      <div class="page-head"><div><div class="eyebrow">Transaction evidence</div><h1>거래 상세</h1><div class="subtitle mono">tx-root-8f9b0a65-20c2-4e22-a2de-…</div></div><div><button class="button">ID 복사</button> <button class="button">모니터링</button></div></div>
+      <div class="summary-strip">
+        <div class="summary-item"><div class="label">공통 상태</div><div class="value"><span class="status finalized">FINALIZED</span></div></div>
+        <div class="summary-item"><div class="label">유형</div><div class="value">WITHDRAWAL</div></div>
+        <div class="summary-item"><div class="label">자산</div><div class="value">BASE / USDC</div></div>
+        <div class="summary-item"><div class="label">Active tx</div><div class="value mono">fb-7d2… / 0xa91…</div></div>
+        <div class="summary-item"><div class="label">기준 시각</div><div class="value mono">08:31:42Z</div></div>
+      </div>
+      <div class="detail-grid">
+        <div class="panel"><div class="panel-head"><h2>상태 타임라인</h2><span class="muted">관찰 사실 ≠ 매니저 판단</span></div><div class="panel-body timeline">
+          <div class="event"><div class="event-time">08:20:03Z</div><div class="event-line"></div><div><div class="event-kind judgement">매니저 판단</div><strong>제출 intent 선기록</strong><div class="muted">canonical hash와 externalTxId 고정</div></div></div>
+          <div class="event"><div class="event-time">08:20:04Z</div><div class="event-line"></div><div><div class="event-kind fact">벤더 관찰</div><strong>SUBMITTED · fb-7d2…</strong><div class="muted">sourceAddress 아직 없음</div></div></div>
+          <div class="event"><div class="event-time">08:22:11Z</div><div class="event-line"></div><div><div class="event-kind fact">웹훅 관찰</div><strong>CONFIRMING · confirmation 0</strong><div class="muted">networkStatus=PENDING</div></div></div>
+          <div class="event"><div class="event-time">08:31:42Z</div><div class="event-line"></div><div><div class="event-kind judgement">대사 판단</div><strong>FINALIZED</strong><div class="muted">COMPLETED 원문 및 최신 root 관찰 확인</div></div></div>
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>현재 진단</h2><span class="status ok">조치 불필요</span></div><div class="panel-body">
+          <div class="kv"><div>벤더 상태</div><div>COMPLETED</div><div>subStatus</div><div>CONFIRMED</div><div>networkStatus</div><div>CONFIRMED</div><div>confirmation</div><div>1</div><div>대사 추적</div><div>08:31:42Z 종료</div><div>발행 이벤트</div><div>4건 · 모두 발송</div><div>관련 boost</div><div>시도 2 · 승자 active tx</div></div>
+          <div class="banner" style="margin:18px 0 0"><span>i</span><div><strong>Action 없음</strong>이미 종결된 거래는 재제출·boost할 수 없습니다. 원문 payload는 이 화면에서 제공하지 않습니다.</div></div>
+        </div></div>
+      </div>
+      <p class="screen-note">상태 계약: root 논리 거래와 active 물리 거래를 분리하고, 원시 payload 대신 구조화된 조사 필드만 제공합니다.</p>
+    </section>
+
+    <section id="approval" class="page">
+      <div class="page-head"><div><div class="eyebrow">Immutable policy request</div><h1>정책 변경 승인</h1><div class="subtitle mono">PCR-20260817-0019 · 만료 09:00:00Z</div></div><span class="status pending">승인 대기 1/2</span></div>
+      <div class="banner"><span>!</span><div><strong>보안 변경 · 3인 분리</strong>요청자 외 승인자 2명이 필요하며, 최종 구성에 보안 승인자 1명이 반드시 포함됩니다.</div></div>
+      <div class="diff">
+        <div class="diff-column"><div class="diff-title">현재 활성 · sweep-policy v4</div><div class="diff-row"><span>minimumAmount</span><strong>100</strong></div><div class="diff-row changed"><span>allowanceCap</span><strong>1,000</strong></div><div class="diff-row changed"><span>batchSize</span><strong>30</strong></div><div class="diff-row"><span>boostMaxAttempts</span><strong>2</strong></div></div>
+        <div class="diff-column"><div class="diff-title">변경안 · sweep-policy v5</div><div class="diff-row"><span>minimumAmount</span><strong>100</strong></div><div class="diff-row changed"><span>allowanceCap</span><strong class="warning-text">1,200 ↑</strong></div><div class="diff-row changed"><span>batchSize</span><strong>20 ↓</strong></div><div class="diff-row"><span>boostMaxAttempts</span><strong>2</strong></div></div>
+      </div>
+      <div class="evidence">
+        <div class="evidence-item"><div class="label">Hard ceiling</div><div class="value"><span class="status ok">통과</span></div><div class="muted mono">max 1,500</div></div>
+        <div class="evidence-item"><div class="label">TAP / Callback</div><div class="value"><span class="status ok">일치</span></div><div class="muted mono">08:34:11Z</div></div>
+        <div class="evidence-item"><div class="label">Code hash</div><div class="value"><span class="status ok">2 RPC 일치</span></div><div class="muted mono">0x98af…01c2</div></div>
+        <div class="evidence-item"><div class="label">영향</div><div class="value">대기 42 · 열린 실행 0</div><div class="muted">BASE / USDC</div></div>
+      </div>
+      <div class="panel" style="margin-top:14px"><div class="panel-body"><div class="kv"><div>요청자</div><div>123456 · 운영자</div><div>요청 사유</div><div>월말 sweep 적체 대응, OPS-4821</div><div>Snapshot</div><div class="mono">sha256:ca3d…772e</div><div>첫 승인</div><div>234567 · 승인자 · 08:36:05Z</div></div></div></div>
+      <div class="approval-bar">
+        <div><strong>정족수</strong><div class="quorum"><span class="quorum-slot filled">A1</span><span class="quorum-slot">SEC</span></div><div class="muted" style="margin-top:7px">보안 승인 1건이 더 필요합니다.</div></div>
+        <div><button class="button danger" data-requires="approver">거절</button> <button id="approveButton" class="button primary" data-requires="security">보안 승인</button></div>
+      </div>
+      <p class="screen-note" id="permissionNote">권한 계약: 역할 선택에 따라 action이 바뀌며, 최종 허용 여부는 서버가 현재 snapshot으로 다시 판정합니다.</p>
+    </section>
+
+    <section id="band" class="page">
+      <div class="page-head"><div><div class="eyebrow">Treasury liquidity</div><h1>밴드S Simulation</h1><div class="subtitle">snapshot <span class="mono">BSS-20260817-083000 · policy v3</span></div></div><span class="status ok">입력 6/6 신선함</span></div>
+      <div class="detail-grid">
+        <div class="panel"><div class="panel-head"><h2>핫 비율</h2><span class="mono muted">기준 08:30:00Z</span></div><div class="panel-body">
+          <div class="band-axis"><span class="band-zone low"></span><span class="band-zone target"></span><span class="band-zone high"></span><span class="band-marker" style="left:8%" data-label="하한 8%"></span><span class="band-marker" style="left:12.5%" data-label="목표 12.5%"></span><span class="band-marker" style="left:18%" data-label="상한 18%"></span><span class="band-marker current" style="left:18.7%"></span></div>
+          <div class="formula">A = H + C = ₩160.0B<br>이동량 = H − 12.5% × A = ₩9.92B<br>진행 중 outbound 예약 ₩0.80B은 H에서 1회만 공제, A는 유지</div>
+          <div class="input-health"><div class="health-item"><div class="label">환율 / NAV</div><div class="value"><span class="status ok">신선함</span></div></div><div class="health-item"><div class="label">Hot balances</div><div class="value"><span class="status ok">4/4</span></div></div><div class="health-item"><div class="label">Cold balances</div><div class="value"><span class="status ok">2/2</span></div></div></div>
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>실행 경로</h2><span class="status info">수동 승인</span></div><div class="panel-body">
+          <div class="emergency-step"><span class="step-no">1</span><div><strong>고객 vault → 옴니버스</strong><div class="muted">기존 sweep 완료분만</div></div><span class="status ok">충족</span></div>
+          <div class="emergency-step"><span class="step-no">2</span><div><strong>출금 풀 → 옴니버스</strong><div class="muted">초과분 회수 · 최소잔액 보호</div></div><span class="status ok">가능</span></div>
+          <div class="emergency-step"><span class="step-no">3</span><div><strong>옴니버스 → fixed cold</strong><div class="muted">TAP allowlist · 외부 콜드</div></div><span class="status ok">일치</span></div>
+        </div></div>
+      </div>
+      <div class="panel" style="margin-top:14px"><div class="panel-head"><h2>제안 이동안</h2><span class="mono muted">proposal hash 8b1d…4a09</span></div><table><thead><tr><th>자산</th><th>회수 출발</th><th>외부 출구</th><th>고정 목적지</th><th>제안 금액</th><th>실행 후</th></tr></thead><tbody>
+        <tr><td>BASE / USDC</td><td class="mono">—</td><td class="mono">omnibus-01</td><td class="mono">cold-A · 0x21…90</td><td class="mono">6,200,000</td><td>12.5%</td></tr>
+        <tr><td>ETH / USDC</td><td class="mono">withdrawal-pool-02</td><td class="mono">omnibus-02</td><td class="mono">cold-B · 0x8d…17</td><td class="mono">1,140,000</td><td>12.5%</td></tr>
+      </tbody></table></div>
+      <div class="approval-bar"><div><strong>차단 사유 없음</strong><div class="muted">정책 v3 · snapshot BSS-… · 목적지 registry v2가 실행까지 고정됩니다.</div></div><button class="button primary" data-requires="operator">이동안 요청</button></div>
+      <p class="screen-note">상태 계약: simulation과 실행은 같은 snapshot을 참조하며, stale·잔액 변화·TAP/RPC drift가 생기면 새 이동안을 요구합니다.</p>
+    </section>
+  </main>
+</div>
+<script>
+  const pages = [...document.querySelectorAll('.page')];
+  const navButtons = [...document.querySelectorAll('[data-page]')];
+  const role = document.querySelector('#role');
+  const allowedRoles = {
+    operator: ['operator'],
+    approver: ['approver', 'security'],
+    security: ['security']
+  };
+
+  function showPage(id) {
+    pages.forEach(page => page.classList.toggle('active', page.id === id));
+    navButtons.forEach(button => button.classList.toggle('active', button.dataset.page === id));
+  }
+
+  function applyRole() {
+    const current = role.value;
+    document.querySelectorAll('[data-requires]').forEach(button => {
+      const required = button.dataset.requires;
+      button.disabled = !allowedRoles[required].includes(current);
+      button.title = button.disabled ? `${required} 역할이 필요합니다` : '';
+    });
+    const note = document.querySelector('#permissionNote');
+    if (note) note.textContent = `${role.options[role.selectedIndex].text} 관점: 서버가 역할·자기 승인 금지·최신 snapshot을 최종 검증합니다.`;
+  }
+
+  navButtons.forEach(button => button.addEventListener('click', () => showPage(button.dataset.page)));
+  document.querySelectorAll('[data-goto]').forEach(button => button.addEventListener('click', () => showPage(button.dataset.goto)));
+  role.addEventListener('change', applyRole);
+  applyRole();
+</script>
+</body>
+</html>

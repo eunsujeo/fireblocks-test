@@ -176,17 +176,29 @@ sequenceDiagram
 |---|---|
 | `GET /admin/networks` | 쓸 수 있는 체인 목록. `adopted` 로 채택 전/후를 가르고, `q` · `chainId` 로 좁힌다 |
 | `PUT /admin/networks/{code}` | **네트워크 채택** — 목록에서 고른 후보에 우리 이름을 붙인다 |
-| `DELETE /admin/networks/{code}` | 채택 해제 — 매핑이 남아 있으면 409 |
+| `DELETE /admin/networks/{code}` | 채택 논리 해제 — 매핑이 남아 있으면 409 |
 | `GET /admin/asset-candidates` | **심볼로** 자산 후보를 찾는다 — 채택한 네트워크마다 잡히는 것이 한 번에 온다 |
 | `GET /admin/asset-mappings` | 등록된 매핑 목록 |
 | `POST /admin/asset-mappings` | 등록 — `network` · `symbol` · `contractAddress` |
-| `DELETE /admin/asset-mappings/{network}/{symbol}` | 되돌리기 — **그 (네트워크, 토큰)으로 발급된 주소가 하나도 없을 때만** 허용, 있으면 409 |
+| `DELETE /admin/asset-mappings/{network}/{symbol}` | 논리 해제 — **그 (네트워크, 토큰)으로 발급된 주소가 하나도 없을 때만** 허용, 있으면 409 |
 
-수정 오퍼레이션은 두지 않는다 — 고치는 경로는 "지우고 다시 넣기"뿐이다.
+수정 오퍼레이션은 두지 않는다. 주소·벤더 매핑·감사 흔적을 물리 삭제하지 않으며, 잘못된 매핑은 논리 해제 뒤 새 불변 mapping
+version을 등록한다. 기존 `bcm_vndr_ast_m` 단일 행 모델은 이 version·활성 binding을 보존하도록 T10.2 구현 전에 03에서 개정한다.
 
-**감사 흔적** — 자동 처리 행은 시스템 센티넬(`SYSTEM`/`9999`), **Admin 수동 개입은 실제 직원번호·부점코드**를 남긴다([DB 명명 규약](03-bcm-db.md)). 상태를 바꾸는 오퍼레이션은 `X-Employee-No` · `X-Branch-Code` 헤더로 받아 감사 4컬럼에 쓴다.
+**감사 흔적** — 자동 처리 행은 시스템 센티넬(`SYSTEM`/`9999`), **Admin 수동 개입은 실제 직원번호·부점코드**를 남긴다([DB 명명 규약](03-bcm-db.md)).
+직원번호·부점코드 헤더는 인증이 아니라 감사 전달값이다. Blockchain Manager Admin BFF가 검증한 단기 JWT 신원에서 만들고 BCM은 JWT와
+헤더가 다르면 거절한다. 브라우저가 보낸 헤더를 그대로 신뢰하지 않는다.
 
-**이 경로의 호출 주체를 Admin 백엔드로 한정하는 망 수준 제한이 필요하다.** 매니저 API 는 인증 없이 내부망을 신뢰하는 구성이라 경로를 나눈 것만으로는 경계가 생기지 않는다. 방식(방화벽 규칙·별도 리스너 등)은 배포 환경에서 정한다.
+**이 경로의 호출 주체는 Blockchain Manager Admin BFF 하나다.** `/admin/*`는 같은 `bcm-api` 애플리케이션의 private listener/ingress에
+분리하고 공유 환경에서는 BFF→BCM mTLS와 5분 이하 단기 JWT를 함께 검증한다. 일반 업무 API의 내부망 신뢰와 별도 경계다.
+T10.2 읽기 전용 기능 테스트 profile은 loopback에서만 실행하고 이 절의 변경 API를 BFF에 노출하지 않는다.
+
+### 해제와 주소 발급의 동시성
+
+- mapping·network 해제와 주소 발급은 같은 활성 binding 행을 잠그고 한 트랜잭션에서 판정한다.
+- 해제는 주소 존재 여부를 잠금 뒤 다시 확인하고 활성 binding만 내린다. 주소 발급은 활성 binding 잠금·확인 뒤에만 벤더를 호출한다.
+- 벤더 호출 중 동시 해제로 주소만 생성되는 경합을 막기 위해 주소 발급 intent를 먼저 기록한다. 진행 intent가 있으면 해제를 409로 거절한다.
+- 논리 해제된 version과 감사 이력은 조회 가능하게 남기고 일반 등록 목록은 활성 binding을 기본으로 반환한다.
 
 ## 뒤로 미룬 것 — 네트워크 장애 대응
 

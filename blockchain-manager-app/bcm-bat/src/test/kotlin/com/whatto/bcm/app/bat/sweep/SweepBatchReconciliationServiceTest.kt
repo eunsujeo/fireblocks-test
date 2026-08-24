@@ -314,7 +314,10 @@ private class FakeReconciliationTargets : SweepTargetRepository {
 
     override fun findByKeyForUpdate(key: SweepTargetKey): SweepTarget? = findByKey(key)
 
-    override fun findPending(limit: Int): List<SweepTarget> = error("not used")
+    override fun findPending(
+        networks: Set<String>,
+        limit: Int,
+    ): List<SweepTarget> = error("not used")
 
     override fun findPendingForUpdate(key: SweepTargetKey): SweepTarget? = error("not used")
 
@@ -479,6 +482,10 @@ private fun reconciliationExecution() =
         transactionHash = "0xabc",
         requestedAt = "20260812150000",
         finishedAt = null,
+        policyVersionId = "policy-v1",
+        policySnapshotHash = "b".repeat(64),
+        contractVersionId = "contract-v1",
+        contractEvidenceId = "evidence-v1",
     )
 
 private fun reconciliationItems() =

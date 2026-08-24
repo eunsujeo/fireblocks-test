@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.bat.sweep
 
+import com.whatto.bcm.app.bat.sweep.fixture.SweepRuntimeFixtures
 import com.whatto.bcm.app.bat.sweep.fixture.SweepSelectionFixtures.account
 import com.whatto.bcm.app.bat.sweep.fixture.SweepSelectionFixtures.balance
 import com.whatto.bcm.app.bat.sweep.fixture.SweepSelectionFixtures.mapping
@@ -119,6 +120,89 @@ class SweepCandidateSelectionServiceTest {
     }
 
     @Test
+    fun `제한 출시 대상이 아닌 네트워크는 벤더 잔액 조회 전에 제외한다`() {
+        val ethereum = target("customer-eth", network = "ETHEREUM")
+        val base = target("customer-base", network = "BASE")
+        val targets = FakeSweepTargets(ethereum, base)
+        val accounts =
+            FakeAccounts(
+                account("omnibus", AccountType.SYSTEM, "vault-omnibus"),
+                account("customer-eth"),
+                account("customer-base"),
+            )
+        val wallet =
+            FakeWallet(
+                mapOf(
+                    ("vault-customer-eth" to "USDC_ERC20") to balance("12"),
+                    ("vault-customer-base" to "USDC_BASE") to balance("30"),
+                ),
+            )
+        val service =
+            service(
+                targets,
+                accounts,
+                FakeMappings(mapping(), mapping(network = "BASE", vendorAssetId = "USDC_BASE")),
+                wallet,
+                properties(enabledNetworks = setOf("ETHEREUM")),
+            )
+
+        assertThat(service.selectCandidates().map { it.target.network }).containsExactly("ETHEREUM")
+        assertThat(wallet.calls).containsExactly("vault-customer-eth" to "USDC_ERC20")
+    }
+
+    @Test
+    fun `활성 정책의 건별 총액 상한 안에서만 후보를 선정한다`() {
+        val targets =
+            FakeSweepTargets(
+                target("customer-over", registeredAt = "20260811090100"),
+                target("customer-70", registeredAt = "20260811090200"),
+                target("customer-40", registeredAt = "20260811090300"),
+                target("customer-30", registeredAt = "20260811090400"),
+            )
+        val accounts =
+            FakeAccounts(
+                account("omnibus", AccountType.SYSTEM, "vault-omnibus"),
+                account("customer-over"),
+                account("customer-70"),
+                account("customer-40"),
+                account("customer-30"),
+            )
+        val wallet =
+            FakeWallet(
+                mapOf(
+                    ("vault-customer-over" to "USDC_ERC20") to balance("120"),
+                    ("vault-customer-70" to "USDC_ERC20") to balance("70"),
+                    ("vault-customer-40" to "USDC_ERC20") to balance("40"),
+                    ("vault-customer-30" to "USDC_ERC20") to balance("30"),
+                ),
+            )
+        val alerts = mutableListOf<SweepExecutionAlert>()
+        val service =
+            service(
+                targets,
+                accounts,
+                FakeMappings(mapping()),
+                wallet,
+                properties(),
+                executionAlerts = SweepExecutionAlertPort(alerts::add),
+                runtimeGuard =
+                    SweepRuntimeFixtures.guard(
+                        SweepRuntimeFixtures.context(
+                            minimumAmount = "10",
+                            batchSize = 10,
+                            itemAmountCap = "100",
+                            batchAmountCap = "100",
+                        ),
+                    ),
+            )
+
+        val selected = service.selectCandidates()
+
+        assertThat(selected.map { it.target.accountId }).containsExactly("customer-70", "customer-30")
+        assertThat(alerts.map { it.target.accountId }).containsExactly("customer-over")
+    }
+
+    @Test
     fun `조회 상한은 전송 상한보다 작을 수 없다`() {
         assertThatThrownBy { properties(batchSize = 3, scanLimit = 2) }
             .isInstanceOf(IllegalArgumentException::class.java)
@@ -128,11 +212,13 @@ class SweepCandidateSelectionServiceTest {
     private fun properties(
         batchSize: Int = 10,
         scanLimit: Int = 100,
+        enabledNetworks: Set<String> = setOf("ETHEREUM", "BASE"),
     ) = SweepProperties(
         omnibusAccountId = "omnibus",
         batchSize = batchSize,
         scanLimit = scanLimit,
         thresholds = listOf(SweepAssetThreshold("ETHEREUM", "USDC", "10")),
+        security = SweepSecurityProperties(batchSubmissionEnabledNetworks = enabledNetworks),
     )
 
     private fun service(
@@ -143,6 +229,10 @@ class SweepCandidateSelectionServiceTest {
         properties: SweepProperties,
         executionAlerts: SweepExecutionAlertPort = SweepExecutionAlertPort { },
         statuses: SweepTransactionStatusRepository = SelectionSweepTransactionStatuses(),
+        runtimeGuard: SweepRuntimeGuard =
+            SweepRuntimeFixtures.guard(
+                SweepRuntimeFixtures.context(minimumAmount = "10", batchSize = properties.batchSize),
+            ),
     ) = SweepCandidateSelectionService(
         targets,
         accounts,
@@ -152,6 +242,7 @@ class SweepCandidateSelectionServiceTest {
         statuses,
         executionAlerts,
         properties,
+        runtimeGuard,
     )
 }
 
@@ -176,9 +267,12 @@ private class FakeSweepTargets(
 
     override fun findByKeyForUpdate(key: SweepTargetKey): SweepTarget? = rows[key]
 
-    override fun findPending(limit: Int): List<SweepTarget> =
+    override fun findPending(
+        networks: Set<String>,
+        limit: Int,
+    ): List<SweepTarget> =
         rows.values
-            .filter { it.activeSweepExecutionId == null }
+            .filter { it.activeSweepExecutionId == null && it.network in networks }
             .sortedBy { it.registeredAt }
             .take(limit)
 

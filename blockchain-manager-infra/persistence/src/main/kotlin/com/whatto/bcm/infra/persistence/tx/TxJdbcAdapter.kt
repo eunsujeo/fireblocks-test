@@ -238,8 +238,15 @@ class TxJdbcAdapter(
         changedAtOrBefore: String,
         checkedAt: String,
         limit: Int,
+        excludedVendorTransactionIds: Set<String>,
     ): List<TxReconciliationRecord> {
         require(limit > 0) { "reconciliation pending limit must be positive" }
+        val exclusionClause =
+            if (excludedVendorTransactionIds.isEmpty()) {
+                ""
+            } else {
+                "AND tx.vndr_tx_id NOT IN (:excludedVendorTransactionIds)"
+            }
         return jdbc.query(
             """
             WITH candidates AS MATERIALIZED (
@@ -248,6 +255,7 @@ class TxJdbcAdapter(
               WHERE tx.last_pub_stcd IN ('SUBMITTED', 'CONFIRMED')
                 AND tx.last_chng_dttm <= :changedAtOrBefore
                 AND tx.rcnc_stop_dttm IS NULL
+                $exclusionClause
                 AND (
                   tx.rcnc_chck_dttm IS NULL
                   OR to_timestamp(tx.rcnc_chck_dttm, 'YYYYMMDDHH24MISS') +
@@ -277,13 +285,16 @@ class TxJdbcAdapter(
             LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = claimed.vndr_tx_id
             ORDER BY claimed.rcnc_chck_dttm, claimed.last_chng_dttm, claimed.vndr_tx_id
             """.trimIndent(),
-            mapOf(
-                "changedAtOrBefore" to changedAtOrBefore,
-                "checkedAt" to checkedAt,
-                "limit" to limit,
-                "employeeNo" to SystemAudit.EMPNO,
-                "branchCode" to SystemAudit.BRCD,
-            ),
+            buildMap {
+                put("changedAtOrBefore", changedAtOrBefore)
+                put("checkedAt", checkedAt)
+                put("limit", limit)
+                put("employeeNo", SystemAudit.EMPNO)
+                put("branchCode", SystemAudit.BRCD)
+                if (excludedVendorTransactionIds.isNotEmpty()) {
+                    put("excludedVendorTransactionIds", excludedVendorTransactionIds)
+                }
+            },
             reconciliationRowMapper,
         )
     }

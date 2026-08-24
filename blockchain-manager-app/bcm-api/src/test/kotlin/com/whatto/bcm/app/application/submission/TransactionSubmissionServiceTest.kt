@@ -2,8 +2,11 @@ package com.whatto.bcm.app.application.submission
 
 import com.whatto.bcm.app.application.account.AccountQueryService
 import com.whatto.bcm.app.application.account.fixture.AccountFixture
+import com.whatto.bcm.app.application.admin.fixture.ExecutionGateFixture
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.TransactionRunner
+import com.whatto.bcm.domain.admin.ExecutionGateRepository
+import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.RelayRejectedException
@@ -48,6 +51,9 @@ class TransactionSubmissionServiceTest {
     @MockK
     lateinit var vendor: VendorTransactionPort
 
+    @MockK
+    lateinit var gates: ExecutionGateRepository
+
     @MockK(relaxed = true)
     lateinit var conflictAlerts: SubmissionConflictAlertPort
 
@@ -68,9 +74,13 @@ class TransactionSubmissionServiceTest {
                 FIXED_CLOCK,
                 TransactionSubmissionProperties(claimTtlSeconds = 30),
                 conflictAlerts,
+                gates,
             )
         every { accounts.requiredAccount(SENDER_ID) } returns AccountFixture.fixture(SENDER_ID, vendorVaultId = "vault-source")
         every { mappings.requiredMapping("ETHEREUM", "USDC") } returns MAPPING
+        every { gates.findCurrent(any(), any()) } returns null
+        every { gates.lockAndFindCurrent(any(), any()) } returns null
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns null
         every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } answers {
             existing(claimId = secondArg(), claimExpiresAt = thirdArg())
         }
@@ -98,6 +108,30 @@ class TransactionSubmissionServiceTest {
         assertThat(inserted.captured.status).isEqualTo(SubmissionStatus.REQUESTED)
         assertThat(inserted.captured.amount).isEqualTo("1.5")
         assertThat(runner.completedTransactions).isEqualTo(2)
+    }
+
+    @Test
+    fun `출금 실행 게이트가 중지되면 새 원장과 벤더 호출을 만들지 않는다`() {
+        every { gates.findCurrent("ETHEREUM", ExecutionGateType.WITHDRAWAL) } returns
+            ExecutionGateFixture.event().copy(network = "ETHEREUM")
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns null
+
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOf(ConflictException::class.java)
+        verify(exactly = 0) { submissions.insert(any()) }
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
+    }
+
+    @Test
+    fun `출금 중지 뒤에도 이미 SUBMITTED인 같은 요청은 기존 결과를 반환한다`() {
+        every { gates.findCurrent("ETHEREUM", ExecutionGateType.WITHDRAWAL) } returns
+            ExecutionGateFixture.event().copy(network = "ETHEREUM")
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
+            existing(status = SubmissionStatus.SUBMITTED, vendorId = "tx-first")
+        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
+
+        assertThat(service.submit(command()).transactionId).isEqualTo("tx-first")
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
     }
 
     @Test
@@ -305,8 +339,8 @@ class TransactionSubmissionServiceTest {
         every { vendor.submitTransaction(any()) } returns VendorTransactionSubmission.Accepted("tx-late")
         every { submissions.markSubmittedByClaim(EXTERNAL_ID, any(), "tx-late", NOW) } throws
             ConflictException("submission", EXTERNAL_ID)
-        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
-            existing(status = SubmissionStatus.SUBMITTED, vendorId = "tx-other")
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returnsMany
+            listOf(null, existing(status = SubmissionStatus.SUBMITTED, vendorId = "tx-other"))
 
         assertThatThrownBy { service.submit(command()) }
             .isInstanceOf(ConflictException::class.java)
@@ -324,8 +358,8 @@ class TransactionSubmissionServiceTest {
         every { vendor.submitTransaction(any()) } returns VendorTransactionSubmission.Accepted("tx-late")
         every { submissions.markSubmittedByClaim(EXTERNAL_ID, any(), "tx-late", NOW) } throws
             ConflictException("submission", EXTERNAL_ID)
-        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
-            existing(status = SubmissionStatus.REQUESTED, claimId = "new-owner")
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returnsMany
+            listOf(null, existing(status = SubmissionStatus.REQUESTED, claimId = "new-owner"))
 
         assertThatThrownBy { service.submit(command()) }
             .isInstanceOf(VendorApiException::class.java)
@@ -362,6 +396,43 @@ class TransactionSubmissionServiceTest {
         assertThat(vendorRequest.captured.destination)
             .isEqualTo(VendorTransactionDestination.Account("vault-destination"))
         assertThat(vendorRequest.captured.useGasless).isFalse()
+    }
+
+    @Test
+    fun `Band S 관리 제출은 계정 master를 우회하고 별도 원장 유형으로 고정 경계를 벤더에 전달한다`() {
+        val inserted = slot<SubmissionRecord>()
+        val vendorRequest = slot<com.whatto.bcm.domain.vendor.VendorTransactionRequest>()
+        every { submissions.insert(capture(inserted)) } answers { firstArg() }
+        every { mappings.requiredMapping("BASE", "USDC") } returns MAPPING.copy(network = "BASE", vendorAssetId = "USDC_BASE")
+        every { vendor.submitTransaction(capture(vendorRequest)) } returns VendorTransactionSubmission.Accepted("tx-band-s")
+        every { submissions.markSubmittedByClaim("band-exec-1-1", any(), "tx-band-s", NOW) } returns
+            existing(status = SubmissionStatus.SUBMITTED, vendorId = "tx-band-s")
+
+        val result =
+            service.submitManaged(
+                ManagedTransactionSubmissionCommand(
+                    externalTransactionId = "band-exec-1-1",
+                    sourceVaultId = "omnibus-base",
+                    recipientType = SubmissionRecipientType.ADDRESS,
+                    recipientValue = "cold-base-usdc",
+                    vendorDestination = VendorTransactionDestination.Address("cold-base-usdc"),
+                    network = "BASE",
+                    symbol = "USDC",
+                    amount = "100.00",
+                    useGasless = true,
+                    note = "band S execution exec-1 item 1",
+                ),
+            )
+
+        assertThat(result.transactionId).isEqualTo("tx-band-s")
+        assertThat(inserted.captured.transactionType).isEqualTo(SubmissionTransactionType.BAND_S)
+        assertThat(inserted.captured.senderAccountId).isEqualTo("omnibus-base")
+        assertThat(inserted.captured.recipientValue).isEqualTo("cold-base-usdc")
+        assertThat(inserted.captured.amount).isEqualTo("100")
+        assertThat(vendorRequest.captured.sourceVaultId).isEqualTo("omnibus-base")
+        assertThat(vendorRequest.captured.destination).isEqualTo(VendorTransactionDestination.Address("cold-base-usdc"))
+        assertThat(vendorRequest.captured.useGasless).isTrue()
+        verify(exactly = 0) { accounts.requiredAccount(any()) }
     }
 
     @Test

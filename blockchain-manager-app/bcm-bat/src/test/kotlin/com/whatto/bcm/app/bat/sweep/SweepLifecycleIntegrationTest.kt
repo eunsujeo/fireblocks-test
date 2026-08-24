@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.bat.sweep
 
 import com.whatto.bcm.app.bat.support.IntegrationTestSupport
+import com.whatto.bcm.app.bat.sweep.fixture.SweepRuntimeFixtures
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
@@ -106,6 +107,7 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
     @BeforeEach
     fun setUp() {
         clearTables()
+        insertAdminSnapshotReferences()
         targets.insertIfAbsent(target(ACCOUNT_A))
         targets.insertIfAbsent(target(ACCOUNT_B))
         wallet = LifecycleWallet(mutableMapOf(VAULT_A to "20", VAULT_B to "30"))
@@ -117,6 +119,17 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
         val mappings = LifecycleMappings
         val observedAlerts = mutableListOf<SweepExecutionAlert>()
         val alerts = SweepExecutionAlertPort { observedAlerts += it }
+        val runtimeGuard =
+            SweepRuntimeFixtures.guard(
+                SweepRuntimeFixtures.context(
+                    network = NETWORK,
+                    symbol = SYMBOL,
+                    contractAddress = SWEEP_CONTRACT,
+                    minimumAmount = "10",
+                    allowanceCap = "100",
+                    batchSize = PROPERTIES.batchSize,
+                ),
+            )
         val contractCalls =
             SweepContractCallSubmissionService(
                 submissions,
@@ -138,6 +151,8 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
                 SequenceApprovalIds(),
                 CLOCK,
                 PROPERTIES,
+                FakeExecutionGates(),
+                runtimeGuard,
             )
         val candidates =
             SweepCandidateSelectionService(
@@ -149,6 +164,7 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
                 transactionStatuses,
                 alerts,
                 PROPERTIES,
+                runtimeGuard,
             )
         executionService =
             SweepBatchExecutionService(
@@ -165,6 +181,8 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
                 alerts,
                 CLOCK,
                 PROPERTIES,
+                FakeExecutionGates(),
+                runtimeGuard,
             )
         reconciliationService =
             SweepBatchReconciliationService(
@@ -312,6 +330,90 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
         jdbc.update("DELETE FROM bcm_swp_auth_m")
     }
 
+    private fun insertAdminSnapshotReferences() {
+        jdbc.update(
+            """
+            INSERT INTO bcm_ctrt_vrsn_l
+              (ctrt_vrsn_id, ctrt_scope_id, ntwk_cd, use_dvcd, vrsn, ctrt_addr, release_cmit,
+               artifact_hash, abi_hash, runtime_code_hash, deploy_tx_hash, deploy_blck_no,
+               immut_payload, immut_hash, ceiling_payload, ceiling_hash, release_uri, reg_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('contract-ETHEREUM', 'ETHEREUM:SWEEP', 'ETHEREUM', 'SWEEP', '1.0.0', ?, 'commit',
+                    ?, ?, ?, '0xdeploy', 1, '{}'::jsonb, ?, '{}'::jsonb, ?, 'doc://release', '20260813000000',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (ctrt_vrsn_id) DO NOTHING
+            """.trimIndent(),
+            SWEEP_CONTRACT,
+            "1".repeat(64),
+            "2".repeat(64),
+            "3".repeat(64),
+            "4".repeat(64),
+            "5".repeat(64),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_ctrt_evdc_l
+              (evdc_id, ctrt_vrsn_id, snps_hash, exp_chain_id, exp_code_hash, exp_immut_hash, pin_blck_no,
+               rpc1_id, rpc1_chain_id, rpc1_code_hash, rpc1_immut_hash, rpc1_obs_dttm,
+               rpc2_id, rpc2_chain_id, rpc2_code_hash, rpc2_immut_hash, rpc2_obs_dttm,
+               tap_mtch_yn, clbk_mtch_yn, gasless_pass_yn, audit_pass_yn, revoke_drill_yn,
+               launch_gate_yn, evdc_stcd, obs_dttm, vld_until_dttm, doc_evdc, doc_evdc_hash,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('evidence-ETHEREUM', 'contract-ETHEREUM', ?, 1, ?, ?, 1,
+                    'RPC_A', 1, ?, ?, '20260813000000', 'RPC_B', 1, ?, ?, '20260813000000',
+                    'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'VALID', '20260813000000', '20991231235959',
+                    '{}'::jsonb, ?, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (evdc_id) DO NOTHING
+            """.trimIndent(),
+            "6".repeat(64),
+            "3".repeat(64),
+            "4".repeat(64),
+            "3".repeat(64),
+            "4".repeat(64),
+            "3".repeat(64),
+            "4".repeat(64),
+            "7".repeat(64),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_plcy_vrsn_l
+              (plcy_vrsn_id, plcy_scope_id, vrsn_no, plcy_schm_vrsn, ctrt_vrsn_id,
+               plcy_payload, plcy_hash, ceiling_snps, ceiling_hash, ceiling_pass_yn, reg_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('policy-ETHEREUM-USDC', 'POLICY:ETHEREUM:USDC', 1, 'v1', 'contract-ETHEREUM',
+                    '{"enabled":true,"minimumAmount":1,"batchSize":25,"allowanceCap":1000,"itemAmountCap":1000,"batchAmountCap":10000,"boostAttempts":1}'::jsonb,
+                    ?, '{}'::jsonb, ?, 'Y', '20260813000000',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (plcy_vrsn_id) DO NOTHING
+            """.trimIndent(),
+            "8".repeat(64),
+            "9".repeat(64),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_ctrt_bind_m
+              (ctrt_scope_id, ntwk_cd, use_dvcd, actv_ctrt_vrsn_id, bind_rvsn, last_evdc_id,
+               bind_snps_hash, reg_dttm, last_chng_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('ETHEREUM:SWEEP', 'ETHEREUM', 'SWEEP', 'contract-ETHEREUM', 1, 'evidence-ETHEREUM', ?,
+                    '20260813000000', '20260813000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (ctrt_scope_id) DO NOTHING
+            """.trimIndent(),
+            "b".repeat(64),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_plcy_bind_m
+              (plcy_scope_id, actv_plcy_vrsn_id, bind_rvsn, bind_snps_hash, reg_dttm, last_chng_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('POLICY:ETHEREUM:USDC', 'policy-ETHEREUM-USDC', 1, ?,
+                    '20260813000000', '20260813000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (plcy_scope_id) DO NOTHING
+            """.trimIndent(),
+            "a".repeat(64),
+        )
+    }
+
     private companion object {
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-13T00:00:00Z"), ZoneId.of("Asia/Seoul"))
         val PROPERTIES =
@@ -333,6 +435,9 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
                         callbackVerified = true,
                         universalGaslessVerified = true,
                         sweepContractVerified = true,
+                        normalApprovalEnabledNetworks = setOf(NETWORK),
+                        emergencyRevocationEnabledNetworks = setOf(NETWORK),
+                        batchSubmissionEnabledNetworks = setOf(NETWORK),
                     ),
             )
         const val NETWORK = "ETHEREUM"

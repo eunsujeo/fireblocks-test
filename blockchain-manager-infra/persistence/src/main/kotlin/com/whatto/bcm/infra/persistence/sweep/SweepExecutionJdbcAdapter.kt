@@ -28,6 +28,8 @@ class SweepExecutionJdbcAdapter(
     ) {
         validate(execution, items)
         try {
+            requireExecutionGateOpen(execution.network)
+            lockAdminSnapshot(execution)
             insertExecution(execution)
             lockAndValidateAuthorizations(execution, items)
             items.forEach(::insertItem)
@@ -100,7 +102,13 @@ class SweepExecutionJdbcAdapter(
         )
     }
 
+    @Transactional
     override fun markSubmitting(executionId: String): SweepExecution {
+        val current = findByIdForUpdate(executionId) ?: throw ResourceNotFoundException("sweepExecution", executionId)
+        if (current.status == SweepExecutionStatus.SUBMITTING) return current
+        if (current.status != SweepExecutionStatus.READY) throw ConflictException("sweepExecution", executionId)
+        requireExecutionGateOpen(current.network)
+        lockAdminSnapshot(current)
         val updated =
             jdbc.update(
                 """
@@ -108,12 +116,63 @@ class SweepExecutionJdbcAdapter(
                 SET swp_exec_stcd = 'SUBMITTING',
                     last_chng_empno = :employeeNo,
                     last_chng_brcd = :branchCode
-                WHERE swp_exec_id = :executionId AND swp_exec_stcd IN ('READY', 'SUBMITTING')
+                WHERE swp_exec_id = :executionId AND swp_exec_stcd = 'READY'
                 """.trimIndent(),
                 lifecycleParameters(executionId),
             )
         if (updated != 1) throw ConflictException("sweepExecution", executionId)
         return required(executionId)
+    }
+
+    private fun requireExecutionGateOpen(network: String) {
+        jdbc.queryForObject(
+            "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0)) IS NULL",
+            mapOf("key" to "BCM:EXECUTION_GATE:$network:SWEEP"),
+            Boolean::class.java,
+        )
+        val status =
+            jdbc
+                .queryForList(
+                    """
+                    SELECT gate_stcd
+                      FROM bcm_exec_gate_evt_l
+                     WHERE ntwk_cd = :network AND gate_dvcd = 'SWEEP'
+                     ORDER BY evt_seq DESC
+                     LIMIT 1
+                    """.trimIndent(),
+                    mapOf("network" to network),
+                    String::class.java,
+                ).firstOrNull()
+        if (status == "STOPPED") throw ConflictException("executionGate", "$network:SWEEP")
+    }
+
+    private fun lockAdminSnapshot(execution: SweepExecution) {
+        jdbc.queryForObject(
+            """
+            SELECT bind_rvsn
+              FROM bcm_plcy_bind_m
+             WHERE plcy_scope_id = 'POLICY:' || :network || ':' || :symbol
+             FOR SHARE
+            """.trimIndent(),
+            mapOf("network" to execution.network, "symbol" to execution.symbol),
+            Long::class.java,
+        )
+        jdbc.queryForObject(
+            """
+            SELECT binding.bind_rvsn
+              FROM bcm_ctrt_bind_m binding
+              JOIN bcm_ctrt_vrsn_l contract ON contract.ctrt_scope_id = binding.ctrt_scope_id
+             WHERE contract.ctrt_vrsn_id = :contractVersionId
+             FOR SHARE OF binding
+            """.trimIndent(),
+            mapOf("contractVersionId" to execution.contractVersionId),
+            Long::class.java,
+        )
+        jdbc.queryForObject(
+            "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0)) IS NULL",
+            mapOf("key" to "BCM:SWEEP:EVIDENCE:${execution.contractVersionId}"),
+            Boolean::class.java,
+        )
     }
 
     override fun markSubmitted(
@@ -287,6 +346,9 @@ class SweepExecutionJdbcAdapter(
         require(items.all { it.executionId == execution.executionId }) { "sweep item executionId must match" }
         require(items.map { it.sequence }.distinct().size == items.size) { "sweep item sequence must be unique" }
         require(items.map { it.accountId }.distinct().size == items.size) { "sweep item accountId must be unique" }
+        require(execution.policySnapshotHash.matches(Regex("^[0-9a-f]{64}$"))) {
+            "sweep execution must preserve the active Admin policy snapshot hash"
+        }
         val total = items.map { BigDecimal(it.requestedAmount) }.fold(BigDecimal.ZERO, BigDecimal::add)
         require(total.compareTo(BigDecimal(execution.requestedTotalAmount)) == 0) {
             "sweep requested total amount must equal item sum"
@@ -329,11 +391,13 @@ class SweepExecutionJdbcAdapter(
             """
             INSERT INTO bcm_swp_exec_l
               (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
+               plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id,
                swp_exec_stcd, item_cnt, req_tot_amt, actl_tot_amt, gasless_yn, vndr_tx_id, tx_hash,
                req_dttm, fnsh_dttm, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
               (:executionId, :externalTransactionId, :requestHash, :network, :symbol, :operatorAccountId,
-               :sweepContractAddress, :status, :itemCount, :requestedTotalAmount, :actualTotalAmount, :gasless,
+               :sweepContractAddress, :policyVersionId, :policySnapshotHash, :contractVersionId, :contractEvidenceId,
+               :status, :itemCount, :requestedTotalAmount, :actualTotalAmount, :gasless,
                :vendorTransactionId, :transactionHash, :requestedAt, :finishedAt,
                :employeeNo, :branchCode, :employeeNo, :branchCode)
             """.trimIndent(),
@@ -373,6 +437,10 @@ class SweepExecutionJdbcAdapter(
             "transactionHash" to execution.transactionHash,
             "requestedAt" to execution.requestedAt,
             "finishedAt" to execution.finishedAt,
+            "policyVersionId" to execution.policyVersionId,
+            "policySnapshotHash" to execution.policySnapshotHash,
+            "contractVersionId" to execution.contractVersionId,
+            "contractEvidenceId" to execution.contractEvidenceId,
             "employeeNo" to SystemAudit.EMPNO,
             "branchCode" to SystemAudit.BRCD,
         )
@@ -405,6 +473,7 @@ class SweepExecutionJdbcAdapter(
     private companion object {
         const val EXECUTION_COLUMNS =
             """SELECT swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
+                      plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id,
                       swp_exec_stcd, item_cnt, req_tot_amt, actl_tot_amt, gasless_yn, vndr_tx_id, tx_hash,
                       req_dttm, fnsh_dttm
                FROM bcm_swp_exec_l"""
@@ -430,6 +499,10 @@ class SweepExecutionJdbcAdapter(
                     transactionHash = rs.getString("tx_hash"),
                     requestedAt = rs.getString("req_dttm"),
                     finishedAt = rs.getString("fnsh_dttm"),
+                    policyVersionId = rs.getString("plcy_vrsn_id"),
+                    policySnapshotHash = rs.getString("plcy_snps_hash"),
+                    contractVersionId = rs.getString("ctrt_vrsn_id"),
+                    contractEvidenceId = rs.getString("ctrt_evdc_id"),
                 )
             }
         val ITEM_MAPPER =

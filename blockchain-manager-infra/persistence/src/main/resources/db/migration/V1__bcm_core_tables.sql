@@ -96,7 +96,7 @@ CREATE TABLE bcm_tx_l (
   vndr_sub_stcd   VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 subStatus 원어 — 운영 조사용, 이벤트 미탑재
   vndr_ntwk_stcd  VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 networkStatus 원어 — 운영 조사용, 이벤트 미탑재
   stall_alrt_dttm VARCHAR(16)  NULL,          -- 막힘 경보 일시 — 있으면 다음 주기 건너뜀
-  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 createdAt KST 초 단위 — 대사 시간축, set-once
+  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 createdAt UTC 초 단위 — 대사 시간축, set-once
   rcnc_chck_dttm  VARCHAR(16)  NULL,          -- 창 밖 미결 거래의 마지막 단건 조회 claim 시각
   rcnc_chck_cnt   INT          NOT NULL DEFAULT 0, -- 단건 조회 횟수 — 영속 백오프 단계
   rcnc_stop_dttm  VARCHAR(16)  NULL,          -- 최대 추적 나이 도달 시각
@@ -285,7 +285,7 @@ CREATE INDEX idx_bcm_boost_open ON bcm_boost_l (bst_stcd, req_dttm);
 CREATE TABLE bcm_job_m (
   job_nm         VARCHAR(64)  PRIMARY KEY,
   last_run_dttm  VARCHAR(16)  NOT NULL,       -- heartbeat
-  last_scs_dttm  VARCHAR(16)  NULL,           -- tx 대사의 대조 범위 커서
+  last_scs_dttm  VARCHAR(16)  NULL,           -- 마지막 성공 경계 — tx 대사는 안정화된 createdAt 창 끝
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
   last_chng_empno VARCHAR(6)  NOT NULL,

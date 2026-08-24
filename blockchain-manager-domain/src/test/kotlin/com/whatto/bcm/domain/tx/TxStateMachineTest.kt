@@ -100,6 +100,31 @@ class TxStateMachineTest {
         assertThat(result.record.reconciliationStoppedAt).isNull()
     }
 
+    @Test
+    fun `과거 FAILED 관찰을 보류할 때 대사 중단 상태를 초기화하지 않는다`() {
+        val repository =
+            MemoryTxRecords(
+                record().copy(
+                    lastChangedAt = "20260807120000",
+                    reconciliationCheckedAt = "20260807113000",
+                    reconciliationCheckCount = 5,
+                    reconciliationStoppedAt = "20260807114000",
+                ),
+            )
+
+        val result =
+            TxStateMachine(repository).observeRoot(
+                "tx-root",
+                observation(TxStatus.FAILED).copy(observedAt = "20260807115959"),
+                successEvidence = false,
+                deferFailure = true,
+            )
+
+        assertThat(result.record.reconciliationCheckedAt).isEqualTo("20260807113000")
+        assertThat(result.record.reconciliationCheckCount).isEqualTo(5)
+        assertThat(result.record.reconciliationStoppedAt).isEqualTo("20260807114000")
+    }
+
     private fun record(
         activeVendorTxId: String = "tx-root",
         transactionHash: String? = "0xroot",

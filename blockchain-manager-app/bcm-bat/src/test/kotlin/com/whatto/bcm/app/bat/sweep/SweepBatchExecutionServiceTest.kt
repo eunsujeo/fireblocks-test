@@ -1,10 +1,12 @@
 package com.whatto.bcm.app.bat.sweep
 
+import com.whatto.bcm.app.bat.sweep.fixture.SweepRuntimeFixtures
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.account.DepositAddress
 import com.whatto.bcm.domain.account.DepositAddressRepository
+import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.exception.RelayRejectedException
@@ -59,6 +61,9 @@ class SweepBatchExecutionServiceTest {
         assertThat(executions.items.map { it.sequence }).containsExactly(1, 2)
         assertThat(executions.items.map { it.requestedAmount }).containsExactly("3", "12.5")
         assertThat(executions.execution?.requestedTotalAmount).isEqualTo("15.5")
+        assertThat(executions.execution)
+            .extracting("policyVersionId", "policySnapshotHash", "contractVersionId", "contractEvidenceId")
+            .containsExactly("policy-ETHEREUM-USDC", "a".repeat(64), "contract-ETHEREUM", "evidence-ETHEREUM")
         assertThat(executions.execution?.requestHash)
             .isEqualTo("771d0851bbbbd7fadc6dffbcf4834595337018bf46db8d7490e7923777049a5f")
         assertThat(contract.items).containsExactly(SweepBatchCallItem(OWNER_A, "3"), SweepBatchCallItem(OWNER_B, "12.5"))
@@ -79,16 +84,77 @@ class SweepBatchExecutionServiceTest {
     }
 
     @Test
+    fun `sweep 실행 게이트가 중지되면 새 실행과 allowance 준비를 만들지 않는다`() {
+        val executions = FakeBatchExecutions()
+        val calls = FakeBatchContractCalls()
+        var allowanceCalls = 0
+        val service =
+            service(
+                selector = FakeBatchCandidates(candidate(ACCOUNT_A, "3")),
+                allowance =
+                    SweepAllowancePreparer {
+                        allowanceCalls += 1
+                        SweepAllowancePreparationResult.Ready
+                    },
+                executions = executions,
+                calls = calls,
+                gates = FakeExecutionGates(setOf(NETWORK to ExecutionGateType.SWEEP)),
+            )
+
+        assertThat(service.runOnce()).isEqualTo(SweepBatchExecutionResult.Stopped(NETWORK))
+        assertThat(allowanceCalls).isZero()
+        assertThat(executions.execution).isNull()
+        assertThat(calls.commands).isEmpty()
+    }
+
+    @Test
+    fun `sweep 실행 게이트의 최신 event가 RESUMED이면 새 batch를 허용한다`() {
+        val service =
+            service(
+                selector = FakeBatchCandidates(candidate(ACCOUNT_A, "3")),
+                gates = FakeExecutionGates(resumed = setOf(NETWORK to ExecutionGateType.SWEEP)),
+            )
+
+        assertThat(service.runOnce())
+            .isEqualTo(SweepBatchExecutionResult.Submitted(EXECUTION_ID, EXTERNAL_ID, VENDOR_TX_ID))
+    }
+
+    @Test
+    fun `후보 선정 뒤 정책 cap이 낮아지면 새 cap 안의 후보만 실행한다`() {
+        val executions = FakeBatchExecutions()
+        val service =
+            service(
+                selector = FakeBatchCandidates(candidate(ACCOUNT_A, "5"), candidate(ACCOUNT_B, "3")),
+                executions = executions,
+                runtimeGuard =
+                    SweepRuntimeFixtures.guard(
+                        SweepRuntimeFixtures.context(
+                            contractAddress = SWEEPER,
+                            itemAmountCap = "4",
+                            batchAmountCap = "4",
+                        ),
+                    ),
+            )
+
+        assertThat(service.runOnce())
+            .isEqualTo(SweepBatchExecutionResult.Submitted(EXECUTION_ID, EXTERNAL_ID, VENDOR_TX_ID))
+        assertThat(executions.items.map { it.accountId }).containsExactly(ACCOUNT_B)
+        assertThat(executions.execution?.requestedTotalAmount).isEqualTo("3")
+    }
+
+    @Test
     fun `SUBMITTING에서 중단되면 새 후보를 만들지 않고 같은 실행과 external id를 회수한다`() {
         val selector = FakeBatchCandidates(candidate(ACCOUNT_A, "3"))
         val executions = FakeBatchExecutions()
         val calls = FakeBatchContractCalls()
+        val gates = FakeExecutionGates()
         calls.failure = SubmissionInProgressException(EXTERNAL_ID, 1)
-        val service = service(selector = selector, executions = executions, calls = calls)
+        val service = service(selector = selector, executions = executions, calls = calls, gates = gates)
 
         assertThat(service.runOnce()).isEqualTo(SweepBatchExecutionResult.SubmissionPending(EXECUTION_ID, EXTERNAL_ID))
         assertThat(executions.execution?.status).isEqualTo(SweepExecutionStatus.SUBMITTING)
 
+        gates.stopped = setOf(NETWORK to ExecutionGateType.SWEEP)
         calls.failure = null
         assertThat(service.runOnce())
             .isEqualTo(SweepBatchExecutionResult.Submitted(EXECUTION_ID, EXTERNAL_ID, VENDOR_TX_ID))
@@ -133,7 +199,12 @@ class SweepBatchExecutionServiceTest {
         executions: FakeBatchExecutions = FakeBatchExecutions(),
         contract: FakeBatchContract = FakeBatchContract(),
         calls: FakeBatchContractCalls = FakeBatchContractCalls(),
+        gates: FakeExecutionGates = FakeExecutionGates(),
         properties: SweepProperties = properties(),
+        runtimeGuard: SweepRuntimeGuard =
+            SweepRuntimeFixtures.guard(
+                SweepRuntimeFixtures.context(contractAddress = SWEEPER, batchSize = properties.batchSize),
+            ),
     ) = SweepBatchExecutionService(
         selector,
         allowance,
@@ -148,6 +219,8 @@ class SweepBatchExecutionServiceTest {
         SweepExecutionAlertPort { alerts += it },
         Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC),
         properties,
+        gates,
+        runtimeGuard,
     )
 
     private fun properties(batchEnabled: Boolean = true) =
@@ -163,6 +236,7 @@ class SweepBatchExecutionServiceTest {
                     callbackVerified = true,
                     universalGaslessVerified = true,
                     sweepContractVerified = true,
+                    batchSubmissionEnabledNetworks = setOf(NETWORK),
                 ),
         )
 

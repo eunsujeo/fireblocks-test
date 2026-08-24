@@ -3,6 +3,9 @@ package com.whatto.bcm.app.application.submission
 import com.whatto.bcm.app.application.account.AccountQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.TransactionRunner
+import com.whatto.bcm.domain.admin.ExecutionGatePolicy
+import com.whatto.bcm.domain.admin.ExecutionGateRepository
+import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
@@ -40,21 +43,60 @@ class TransactionSubmissionService(
     private val clock: Clock,
     private val properties: TransactionSubmissionProperties,
     private val conflictAlerts: SubmissionConflictAlertPort,
+    private val executionGates: ExecutionGateRepository,
 ) {
     fun submit(command: TransactionSubmissionCommand): TransactionSubmissionResult {
         val prepared = prepare(command)
+        enforceExecutionGate(command, prepared)
+        return submit(command, prepared)
+    }
+
+    fun submitManaged(command: ManagedTransactionSubmissionCommand): TransactionSubmissionResult {
+        val mapping = mappings.requiredMapping(command.network, command.symbol)
+        val logicalCommand =
+            TransactionSubmissionCommand(
+                externalTransactionId = command.externalTransactionId,
+                senderAccountId = command.sourceVaultId,
+                recipient = command.logicalRecipient(),
+                network = command.network,
+                symbol = command.symbol,
+                amount = command.amount,
+                note = command.note,
+                travelRuleMessage = null,
+            )
+        return submit(
+            logicalCommand,
+            PreparedSubmission(
+                sourceVaultId = command.sourceVaultId,
+                vendorAssetId = mapping.vendorAssetId,
+                recipientType = command.recipientType,
+                recipientValue = command.recipientValue,
+                vendorDestination = command.vendorDestination,
+                transactionType = SubmissionTransactionType.BAND_S,
+                useGasless = command.useGasless,
+            ),
+        )
+    }
+
+    private fun enforceExecutionGate(
+        command: TransactionSubmissionCommand,
+        prepared: PreparedSubmission,
+    ) {
+        if (prepared.transactionType != SubmissionTransactionType.WITHDRAWAL) return
+        val currentGate = executionGates.findCurrent(command.network, ExecutionGateType.WITHDRAWAL) ?: return
+        val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
+        if (existing?.status == SubmissionStatus.REQUESTED || existing?.status == SubmissionStatus.SUBMITTED) return
+        ExecutionGatePolicy.requireOpen(currentGate)
+    }
+
+    private fun submit(
+        command: TransactionSubmissionCommand,
+        prepared: PreparedSubmission,
+    ): TransactionSubmissionResult {
         val fingerprint = fingerprint(command, prepared)
         val claim = newClaim()
         val requested = requestedRecord(command, prepared, fingerprint, claim)
-        val attempt =
-            try {
-                SubmissionAttempt(transactionRunner.run { submissions.insert(requested) }, isNew = true)
-            } catch (conflict: ConflictException) {
-                SubmissionAttempt(
-                    submissions.findByExternalTransactionId(command.externalTransactionId) ?: throw conflict,
-                    isNew = false,
-                )
-            }
+        val attempt = initialAttempt(command, prepared, requested)
 
         val current = attempt.record
         ensureSameRequest(current, command, prepared, fingerprint)
@@ -69,7 +111,7 @@ class TransactionSubmissionService(
             }
 
             SubmissionStatus.REQUESTED -> {
-                val acquired = acquireClaim(command.externalTransactionId, claim)
+                val acquired = acquireClaim(command, prepared, claim, requireOpenForFailed = false)
                 if (acquired.status == SubmissionStatus.SUBMITTED) {
                     TransactionSubmissionResult(
                         checkNotNull(acquired.vendorTransactionId) {
@@ -82,7 +124,7 @@ class TransactionSubmissionService(
             }
 
             SubmissionStatus.FAILED -> {
-                val acquired = acquireClaim(command.externalTransactionId, claim)
+                val acquired = acquireClaim(command, prepared, claim, requireOpenForFailed = true)
                 if (acquired.status == SubmissionStatus.SUBMITTED) {
                     TransactionSubmissionResult(
                         checkNotNull(acquired.vendorTransactionId) {
@@ -97,14 +139,24 @@ class TransactionSubmissionService(
     }
 
     private fun acquireClaim(
-        externalTransactionId: String,
+        command: TransactionSubmissionCommand,
+        prepared: PreparedSubmission,
         claim: SubmissionClaim,
+        requireOpenForFailed: Boolean,
     ): SubmissionRecord {
         val acquisition =
             transactionRunner.run {
+                if (requireOpenForFailed && prepared.transactionType == SubmissionTransactionType.WITHDRAWAL) {
+                    val current = submissions.findByExternalTransactionId(command.externalTransactionId)
+                    if (current?.status == SubmissionStatus.FAILED) {
+                        ExecutionGatePolicy.requireOpen(
+                            executionGates.lockAndFindCurrent(command.network, ExecutionGateType.WITHDRAWAL),
+                        )
+                    }
+                }
                 ClaimAcquisition(
                     submissions.tryClaim(
-                        externalTransactionId,
+                        command.externalTransactionId,
                         claim.id,
                         claim.expiresAt,
                         CoreDateTimes.now(clock),
@@ -115,13 +167,38 @@ class TransactionSubmissionService(
         if (acquired != null) return acquired
 
         val current =
-            submissions.findByExternalTransactionId(externalTransactionId)
-                ?: throw ConflictException("submission", externalTransactionId)
+            submissions.findByExternalTransactionId(command.externalTransactionId)
+                ?: throw ConflictException("submission", command.externalTransactionId)
         if (current.status == SubmissionStatus.SUBMITTED) {
             return current
         }
-        throw SubmissionInProgressException(externalTransactionId, retryAfterSeconds(current))
+        throw SubmissionInProgressException(command.externalTransactionId, retryAfterSeconds(current))
     }
+
+    private fun initialAttempt(
+        command: TransactionSubmissionCommand,
+        prepared: PreparedSubmission,
+        requested: SubmissionRecord,
+    ): SubmissionAttempt =
+        try {
+            transactionRunner.run {
+                if (prepared.transactionType == SubmissionTransactionType.WITHDRAWAL) {
+                    val gate = executionGates.lockAndFindCurrent(command.network, ExecutionGateType.WITHDRAWAL)
+                    val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
+                    if (existing != null) {
+                        if (existing.status == SubmissionStatus.FAILED) ExecutionGatePolicy.requireOpen(gate)
+                        return@run SubmissionAttempt(existing, isNew = false)
+                    }
+                    ExecutionGatePolicy.requireOpen(gate)
+                }
+                SubmissionAttempt(submissions.insert(requested), isNew = true)
+            }
+        } catch (conflict: ConflictException) {
+            SubmissionAttempt(
+                submissions.findByExternalTransactionId(command.externalTransactionId) ?: throw conflict,
+                isNew = false,
+            )
+        }
 
     private fun recoverOrSubmit(
         command: TransactionSubmissionCommand,
@@ -154,7 +231,7 @@ class TransactionSubmissionService(
                             amount = command.amount,
                             note = command.note,
                             travelRuleMessage = command.travelRuleMessage,
-                            useGasless = prepared.transactionType != SubmissionTransactionType.INTERNAL,
+                            useGasless = prepared.useGasless,
                         ),
                     )
             ) {
@@ -310,6 +387,7 @@ class TransactionSubmissionService(
             recipientValue = recipient.value,
             vendorDestination = destination,
             transactionType = recipient.type.transactionType(),
+            useGasless = recipient.type.transactionType() != SubmissionTransactionType.INTERNAL,
         )
     }
 
@@ -382,16 +460,17 @@ class TransactionSubmissionService(
         fingerprint: SubmissionRequestFingerprint,
     ) {
         val same =
-            if (existing.hashVersion == fingerprint.hashVersion) {
-                existing.requestHash == fingerprint.requestHash
-            } else {
-                existing.senderAccountId == command.senderAccountId &&
-                    existing.recipientType == prepared.recipientType &&
-                    existing.recipientValue == prepared.recipientValue &&
-                    existing.network == command.network &&
-                    existing.symbol == command.symbol &&
-                    BigDecimal(existing.amount).compareTo(BigDecimal(command.amount)) == 0
-            }
+            existing.transactionType == prepared.transactionType &&
+                if (existing.hashVersion == fingerprint.hashVersion) {
+                    existing.requestHash == fingerprint.requestHash
+                } else {
+                    existing.senderAccountId == command.senderAccountId &&
+                        existing.recipientType == prepared.recipientType &&
+                        existing.recipientValue == prepared.recipientValue &&
+                        existing.network == command.network &&
+                        existing.symbol == command.symbol &&
+                        BigDecimal(existing.amount).compareTo(BigDecimal(command.amount)) == 0
+                }
         if (!same) {
             throw ConflictException("submission", command.externalTransactionId)
         }
@@ -412,6 +491,36 @@ data class TransactionSubmissionCommand(
     val note: String?,
     val travelRuleMessage: Map<String, Any?>?,
 )
+
+data class ManagedTransactionSubmissionCommand(
+    val externalTransactionId: String,
+    val sourceVaultId: String,
+    val recipientType: SubmissionRecipientType,
+    val recipientValue: String,
+    val vendorDestination: VendorTransactionDestination,
+    val network: String,
+    val symbol: String,
+    val amount: String,
+    val useGasless: Boolean,
+    val note: String?,
+) {
+    init {
+        require(
+            when (recipientType) {
+                SubmissionRecipientType.ADDRESS -> vendorDestination is VendorTransactionDestination.Address
+                SubmissionRecipientType.ACCOUNT -> vendorDestination is VendorTransactionDestination.Account
+                SubmissionRecipientType.WHITELISTED -> vendorDestination is VendorTransactionDestination.Whitelisted
+            },
+        ) { "managed submission recipient and vendor destination must match" }
+    }
+
+    fun logicalRecipient(): TransactionSubmissionRecipient =
+        when (recipientType) {
+            SubmissionRecipientType.ADDRESS -> TransactionSubmissionRecipient.Address(recipientValue)
+            SubmissionRecipientType.ACCOUNT -> TransactionSubmissionRecipient.Account(recipientValue)
+            SubmissionRecipientType.WHITELISTED -> TransactionSubmissionRecipient.Whitelisted(recipientValue)
+        }
+}
 
 sealed interface TransactionSubmissionRecipient {
     val type: SubmissionRecipientType
@@ -450,6 +559,7 @@ private data class PreparedSubmission(
     val recipientValue: String,
     val vendorDestination: VendorTransactionDestination,
     val transactionType: SubmissionTransactionType,
+    val useGasless: Boolean,
 )
 
 private data class SubmissionAttempt(

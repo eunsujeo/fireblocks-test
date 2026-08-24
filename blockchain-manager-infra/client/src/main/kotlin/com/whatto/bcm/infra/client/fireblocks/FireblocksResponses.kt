@@ -133,3 +133,13 @@ internal data class NetworkFeeResponse(
     val baseFee: String? = null,
     val priorityFee: String? = null,
 )
+
+internal data class WebhookResponse(
+    val id: String? = null,
+    val status: String? = null,
+    val events: List<String>? = null,
+)
+
+internal data class ResendFailedWebhookNotificationsResponse(
+    val total: Int? = null,
+)

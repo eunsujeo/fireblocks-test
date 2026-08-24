@@ -52,14 +52,15 @@ class TxStateMachine(
             observation.status == TxStatus.FAILED &&
             previous.lastPublishedStatus in BoostPolicy.rootStatuses
         ) {
+            val newerObservation = observation.observedAt > previous.lastChangedAt
             val deferred =
                 repository.update(
                     previous.copy(
                         stallAlertedAt = null,
                         lastChangedAt = maxOf(previous.lastChangedAt, observation.observedAt),
-                        reconciliationCheckedAt = null,
-                        reconciliationCheckCount = 0,
-                        reconciliationStoppedAt = null,
+                        reconciliationCheckedAt = previous.reconciliationCheckedAt.takeUnless { newerObservation },
+                        reconciliationCheckCount = previous.reconciliationCheckCount.takeUnless { newerObservation } ?: 0,
+                        reconciliationStoppedAt = previous.reconciliationStoppedAt.takeUnless { newerObservation },
                     ),
                 )
             return TxStateChange(deferred, emptyList())

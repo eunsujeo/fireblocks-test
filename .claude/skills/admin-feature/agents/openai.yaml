@@ -1,0 +1,4 @@
+interface:
+  display_name: "BCM Admin Feature"
+  short_description: "BCM Admin 기능을 계약부터 E2E까지 구현"
+  default_prompt: "Use $admin-feature to implement a Blockchain Manager Admin feature from design and OpenAPI through backend, frontend, and tests."

@@ -1,0 +1,60 @@
+:root {
+  color-scheme: dark;
+  --bg-canvas: #080d12;
+  --bg-shell: #0d141b;
+  --bg-panel: #121c25;
+  --bg-raised: #172530;
+  --bg-selected: #17312f;
+  --line-subtle: #22313e;
+  --line-strong: #395064;
+  --text-primary: #eef5f7;
+  --text-secondary: #a7bac5;
+  --text-muted: #758b99;
+  --accent: #5ee0c1;
+  --accent-strong: #2fb99d;
+  --info: #78adff;
+  --success: #75d98b;
+  --warning: #f2bd5a;
+  --danger: #ff7770;
+  --focus: #b7f4e6;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --shadow-float: 0 18px 48px rgb(0 0 0 / 32%);
+  --font-ui: "IBM Plex Sans KR", "Pretendard", "Noto Sans KR", sans-serif;
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", monospace;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 19px;
+  --text-xl: 28px;
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+button, input, select { font: inherit; }
+button, a, select { outline: none; }
+button:focus-visible, a:focus-visible, select:focus-visible {
+  box-shadow: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--focus);
+}
+
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-muted); }
+.danger-text { color: var(--danger); }
+.warning-text { color: var(--warning); }
+.success-text { color: var(--success); }

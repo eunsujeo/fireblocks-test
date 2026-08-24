@@ -13,18 +13,19 @@
 - [x] Phase 5 — 출금·내부이체 (출금 E2E) (2026-08-10)
 - [x] Phase 6 — sweep (approve + transferFrom 배치로 재개) (2026-08-13)
 - [x] Phase 7 — 막힘 점검 · 자동 boost (2026-08-13)
-- [ ] Phase 8 — 배치 3종 — tx 대사 · 원본 보관 · 수수료 시계열
-- [ ] Phase 9 — 운영 보강
+- [x] Phase 8 — 배치 3종 — tx 대사 · 원본 보관 · 수수료 시계열 (2026-08-14)
+- [x] Phase 9 — 운영 보강 (2026-08-17)
+- [ ] Phase 10 — Blockchain Manager Admin
 
 ## 작업 규칙 (모든 Phase 공통)
 
 - **task 층** — Phase 착수 시 첫 작업은 그 Phase 를 체크박스 task 로 분해하는 것이다. task 마다
   완료 기준(어떤 테스트가 통과하면 done)과 근거 설계 절을 붙인다. 분해 결과는 이 문서의 해당 Phase 아래에 둔다.
 - **세션 단위** — 1 세션 = task 1~2개 = 리뷰 가능한 diff 1개. 세션이 끝나면 [PROGRESS.md](PROGRESS.md) 갱신.
-- **Phase 마무리(converge)** — 완료 기준 통과 후 ① `./scripts/converge-review.sh design-sync <base>`
-  ② 지적 반영 후 `./scripts/converge-review.sh code-reviewer <base>`를 **순차 실행** ③ 체크박스와 PROGRESS 갱신.
-  스크립트는 `.git/claude-converge/`의 세션을 재개하므로 한도 초과 때 새 세션으로 처음부터 재시작하지 않는다.
-  마지막 성공 리뷰 commit을 PROGRESS에 기록하며, 셋이 끝나야 Phase 종료다.
+- **Phase 마무리(converge)** — 완료 기준 통과 후 ① 독립 읽기 전용 design-sync ② 지적 반영 후 독립 code-reviewer를
+  **순차 실행** ③ 체크박스와 PROGRESS 갱신. Claude Code는 `./scripts/converge-review.sh <agent> <base>`로 재개하고,
+  Codex는 동일한 `.claude/agents/` 체크리스트를 읽은 별도 reviewer agent/session으로 대체할 수 있다. 구현 세션의 자기 승인은
+  금지하며 마지막 성공 리뷰의 도구·범위·commit을 PROGRESS에 기록한다. 셋이 끝나야 Phase 종료다.
 
 ## 테이블 ↔ Phase 대응 (고아 테이블 방지)
 
@@ -367,19 +368,275 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
   모든 벤더 응답을 먼저 받은 뒤 견적과 성공 heartbeat를 한 트랜잭션에 기록한다. 동일 초 PK 멱등, 일반 제출 MEDIUM·
   boost 저장 fee level의 요청 시각 이하 최근 견적 대응과 미래 견적 제외를 PostgreSQL 테스트로 고정했다.
   완료: 전체 456건·ktlint 그린. 근거: 02 수수료 관측 · 03 `bcm_fee_qt_l`
-- [ ] **T8.4 E2E + converge** — 배치 3종 완료 후 전체 check·ktlint, design-sync·code-reviewer와 설계 사본
-  신선도를 통과하고 Phase 8을 닫는다. 근거: PLAN 공통 완료 규칙
+- [x] **T8.4 E2E + converge** (2026-08-14) — 전체 468건·ktlint 그린, OpenAPI 생성물 diff 없음과 설계 사본
+  16개 byte 동일을 확인했다. design-sync 정합, code-reviewer Critical 0·커밋 가능 판정을 `01bf807`에서 통과했다.
+  근거: PLAN 공통 완료 규칙
 
 ## Phase 9 — 운영 보강
 
 - 인박스 적체·outbox P 잔량·relay 지연·`bcm_job_m` heartbeat 메트릭 + 경보
 - 01 "매니저가 내보내는 신호" 표 **전 행** — 웹훅 수신 생존(마지막 수신 시각·수신 오류율·서명 검증 실패율) · **대사 누락 건수**(0 이탈 시 메트릭 + 운영 알림 — 설계 명시) · 벤더 호출 오류율(429 포함)
+- tx 대사 운영 안전성 — 자동 추적 중단 즉시 알림·상시 잔량, 창 대조 종결 건의 단건 claim 쿼터 소모 방지,
+  stale FAILED 관찰의 대사 중단 상태 초기화 방지
+- 미보관 COMPLETED 인박스 잔류 건수와 root 비FINALIZED 장기 잔류를 가시화한다.
 - resend_failed 수동 러너 (97 실측: 202 total 은 호출 시점 실패분, 배차는 분 단위)
 - **웹훅 구독 상태 확인·재활성화** 도구/런북 — 99 "DB 만 다운 → 조용한 정지" 복구의 마지막 겹. 재기동 시 재전송 API 1회 자동 호출 여부(02)도 이때 결정
-- stuck(`transaction.alert.stuck`) 경보 채널 분리 (01-infra) + 경보 채널 구체 수단 바인딩(#12·#13 해소)
+- stuck(`transaction.alert.stuck`) 벤더 신호를 별도 운영 경보(`transaction.stall.detected`)로 전달 + 경보 채널 구체 수단 바인딩(#12·#13 해소)
 - 의존성 취약점 스캔(OWASP dependency-check 급)을 CI 에 추가 — CLAUDE.md 5절 선언의 이행
 
-**완료 기준**: 01 신호 표 전 행이 메트릭 endpoint 에서 관측됨(로컬 E2E 로 scrape 확인). resend_failed 러너 모의 벤더 실행 검증. 재활성화 런북이 실제 절차로 검증됨(구독 비활성 모의 후 복구).
+**완료 기준**: 02 신호 표 전 행이 메트릭 endpoint 에서 관측됨(로컬 E2E 로 scrape 확인). resend_failed 러너 모의 벤더 실행 검증. 재활성화 런북이 실제 절차로 검증됨(구독 비활성 모의 후 복구).
+
+### task (2026-08-17 분해)
+
+- [x] **T9.1 메트릭 기반·DB 신호** (2026-08-17) — `bcm-api` HTTP·`bcm-bat` JMX에 운영 메트릭 endpoint를 열고,
+  인박스 판단 적체·outbox P 잔량과
+  최장 지연·`bcm_job_m` 작업별 마지막 실행/성공 시각을 DB snapshot으로 수집한다. 애플리케이션 인스턴스가 여러 대여도 DB 값을
+  정본으로 노출하고, 메트릭 조회가 워커 행을 잠그거나 상태를 바꾸지 않게 한다. 완료: PostgreSQL fixture로 backlog/heartbeat
+  이름·값·태그와 두 Boot 애플리케이션 조립을 검증했고, 전체 472건·ktlint·API 생성물 그린. 근거: 02 "매니저가 내보내는
+  신호" heartbeat·판단 적체·발행 적체, 03 `bcm_whk_l`·`bcm_outbox_l`·`bcm_job_m`
+- [x] **T9.2 수신·벤더·대사 경로 신호** (2026-08-17) — 웹훅 마지막 수신 시각·수신 결과·서명 검증 실패,
+  벤더 호출 결과(429 별도), tx 대사가
+  복구한 웹훅 누락 건수를 counter/gauge로 기록한다. 대사 누락이 0에서 벗어나면 운영 알림 포트도 호출하며 목록·단건 조회 또는 처리
+  실패 시 성공 창을 전진시키지 않는 기존 계약을 보존한다. 완료: 정상/서명 실패/수신 실패, 429/기타 벤더 실패, 누락 0/N과
+  목록·단건·복구 실패를 단위·통합 테스트로 고정하고 Actuator endpoint에서 전 행을 확인했다. 전체 478건·ktlint·API 생성물
+  그린. 근거: 02 "웹훅 수신"·"대사"·"매니저가 내보내는 신호", 97 서명·재시도 실측
+- [x] **T9.3 대사·보관 장기 잔류 안전성** (2026-08-17) — 자동 추적 최대 나이 초과를 즉시 알리고 상시 잔량으로 노출한다. 창 대조에서 이미 종결된
+  건이 단건 claim 쿼터를 소모하지 않게 하고, stale FAILED 관찰이 대사 중단 상태를 초기화하지 않게 한다. 미보관 COMPLETED 인박스와
+  root 비FINALIZED 장기 잔류를 메트릭으로 노출한다. 완료: 최대 나이 중단을 벤더 조회 전에 기록·알림하고, 창 종결 root를 SQL claim 전에
+  제외하며, stale FAILED의 추적 상태 보존과 동일·최신 보관 원문 제외를 PostgreSQL 회귀 테스트로 고정했다. Actuator scrape와 전체
+  483건(실패·오류·skip 0), ktlint·API 생성물 검사를 통과했다.
+  근거: 02 "거래 상태 대사"·"원본 보관", 03 대사 추적 컬럼, Phase 8 리뷰 후속
+- [x] **T9.4 웹훅 복구 도구·런북** (2026-08-17) — `bcm-bat` JMX 수동 endpoint로 구독 상태 조회·재활성화와
+  `resend_failed` 접수를 벤더 포트 뒤에 구현했다. 시작 시 자동 실행은 중복·관리자 권한 경계를 넘어가므로 두지 않았고, 필수 이벤트가
+  하나라도 빠지거나 재활성화 검증이 실패하면 재전송하지 않는다. `total`은 즉시 재수신 수가 아닌 비동기 배차 수로 반환하며 운영 절차와
+  5분 후 재확인, 24시간보다 오래된 공백의 tx 대사 복구를 런북에 고정했다. 관리 API 실측·설계 동기화 전에는 기본 비활성이다.
+  완료: 비활성 구독 모의 → 재활성화 → resend 접수와
+  JMX 조립을 검증했고 전체 494건(실패·오류·skip 0), ktlint·API 생성물 검사를 통과했다.
+  근거: 02 웹훅 유실 복구, 97 `resend_failed` 실측, 99 "DB만 다운 → 조용한 정지", 미해결 #40
+- [x] **T9.5 운영 경보 채널 바인딩** (2026-08-17) — API·BAT의 기존 경보 포트 11개를 데이터 토픽과 분리된 설정형 HTTP
+  운영 수신기로 연결했다. `route`·`type` 계약으로 webhook·event-delivery·transaction·sweep·reconciliation·asset을 분리하고,
+  식별자·enum·건수·예외 클래스만 보내며 시크릿·원문 payload·주소·금액·예외 메시지는 제외한다. 운영 채널 timeout·연결 실패·2xx 외
+  응답은 원 자금/웹훅/대사 처리를 롤백하지 않고 ERROR 로그와 `bcm.operational.alert.delivery` 실패 counter를 남긴다. 활성화 상태에서
+  endpoint가 없거나 잘못되면 시작을 거부한다. 완료: route 변환·민감정보 비노출·Bearer HTTP 전달·503 격리·API/BAT Spring 조립과
+  전체 501건(실패·오류·skip 0), ktlint·API 생성물 검사를 통과했다. 근거: 01 별도 경보 채널, 02 막힘 점검, error-handling 규칙
+- [x] **T9.6 CI 의존성 취약점 게이트** (2026-08-17) — 공식 최신 Gradle 플러그인 OWASP Dependency-Check 12.2.2로
+  전체 leaf `runtimeClasspath`를 aggregate 검사하고 HTML·JSON·SARIF·JUnit 보고서를 생성한다. CVSS 7.0 이상, 분석 오류와
+  미사용 suppression에서 fail-closed하며 CI는 configuration cache·parallel·build cache를 끄고 매번 task를 재실행한다. 최초 NVD
+  JSON 2.0 feed 26개를 공식 `.meta` 본문 SHA-256으로 검증해 DB를 구축했다. 실검출한 pgJDBC CVE-2026-54291은 42.7.12,
+  Log4j CVE-2026-49844는 2.25.5로 올렸다. Kotlin build-cache CVE-2026-53914는 실제 build cache를 차단하고 runtime JAR 오탐만
+  PLAN #41·2026-09-30 만료 purl 규칙으로 제한했다. 임시 pgJDBC 42.7.11 fixture가 CVE-2026-54291로 exit 1을 내는 것과 원복 후
+  정상 스캔·`./scripts/ci.sh` 전체 501건·ktlint·API 생성물 그린을 확인했다. 근거: CLAUDE.md 5절·6절, error-handling 규칙
+- [x] **T9.7 converge** (2026-08-17) — Claude Code `design-sync`를 먼저 실행해 스키마·전이표·웹훅·토픽·02 신호 표
+  정합을 확인하고, 공개 웹훅 포트의 Actuator 노출·경보 severity 판단·보관 gauge 필터 차이를 반영했다. 이어 `code-reviewer`의
+  Critical 4건을 관리 리스너 분리, 계약 assertion 복원, 신호별 refresh 실패 격리, Webhooks V2 관리 조작면 기본 비활성+#43으로
+  해소해 Critical 0·커밋 가능 판정을 받았다. 최종 `./scripts/ci.sh`는 전체 505건(실패·오류·skip 0), ktlint, 의존성 스캔,
+  API 생성물 검사를 통과했다. 설계 정본 후속은 #40·#43, 성능 후속은 #44·#45로 추적한다. 근거: CLAUDE.md 6절, PLAN 공통 작업 규칙
+
+## Phase 10 — Blockchain Manager Admin
+
+블록체인 매니저 전용 운영 콘솔. 네트워크·자산·거래·sweep/allowance·boost를 조사하고, 매니저가 사용하는
+sweep 컨트랙트·실행 정책·밴드S 이동안·비상 조치를 버전·승인·감사 경계 안에서 관리한다. 전사 권한 관리,
+일반 컨트랙트 배포, TAP·multisig 직접 편집, DAW-CORE 원장·환율/NAV 정본은 범위 밖이다.
+
+- 프론트는 BFF만 호출하고 BCM·Fireblocks·RPC를 직접 호출하지 않는다.
+- Admin 정책은 배포 hard ceiling과 TAP·Callback·컨트랙트 강제를 완화할 수 없다.
+- 프론트가 금액·밴드S·상태 전이를 계산하지 않고 서버가 action과 금지 사유를 제공한다.
+- 변경 요청·승인·활성화·실행을 분리하며 실행 원장에 적용 정책 version/snapshot을 남긴다.
+- 읽기 전용 → 변경·승인 → 밴드S 수동 승인 실행 → 비상운영 → 제한 자동화 순으로 연다.
+
+### task (설계 초안 2026-08-14)
+
+- [x] **T10.0 범위·UX·권한 정본** (2026-08-17) — waas-wiki `BC/설계/08-bcm-admin.md`와 영향 문서 01·02·03·06·07을
+  확정하고 `docs/design/` 사본을 동기화한다. Admin/BFF 배치, 역할·정족수, 컨트랙트/RPC 증적 정본,
+  밴드S 계산 주체·콜드 이동 경로를 미확정에서 해소한다. 사내 디자인 시스템이 없으므로 기본·의미·컴포넌트
+  디자인 토큰을 정본화하고 Dashboard·Transaction Detail·Policy Approval·Band S Simulation 기준 화면으로 검증한다.
+  완료: 사본 byte-동일 + 화면/상태/권한/비상 흐름·디자인 토큰·기준 화면 사용자 승인.
+  근거: 08 Admin · 06 sweep · 07 asset master
+  - 사용자 승인한 `docs/admin-reference/`의 결정안·디자인 토큰·4개 기준 화면을 정본에 반영했다. 역할별 정족수,
+    mTLS+단기 JWT, 2-RPC 증적, DAW-CORE 밴드S 계산, 단일 omnibus→외부 cold와 이중 공제 금지를 확정했다.
+    후속 사용자 결정으로 Frontend+BFF 소유권은 DAW-CORE와 분리한 독립 Blockchain Manager Admin으로 변경했다.
+    실제 정본 `/Users/mob/Workspace/eunpus`를 `../waas-wiki`로 연결하고 6개 사본 byte-동일, OpenAPI 재생성 무변경,
+    양쪽 `git diff --check`를 확인했다. Claude CLI 로그아웃으로 design-sync는 시작 전 중단됐으며 T10.1에서 인증 후 재실행한다.
+- [x] **T10.1 AI 작업 경계** (2026-08-17) — Admin safety·UX·policy lifecycle rules와 admin-feature·admin-policy-change skill,
+  design-sync·code-reviewer·test-writer 검사를 검증한다.
+  완료: skill 형식 검증 + 대표 조회/정책변경 작업 forward test. 근거: CLAUDE.md 작업 규율 · 08 완료 기준
+  - 두 skill의 `quick_validate.py`와 `agents/openai.yaml`, 검사 agent 3개의 frontmatter 검증을 통과했다. mTLS+단기 JWT,
+    위험 등급별 정족수, 컨트랙트 독립 2-RPC, DAW-CORE 계산/BCM 실행과 단일 omnibus 경계를 rules·skills·agents에 보강했다.
+    `docs/ai/admin-boundary-forward-test.md`의 조회/보안 변경 dry-run 2건은 안전하지 않은 입력을 거절해 모두 PASS였다.
+    실제 Claude Code design-sync는 workspace 미신뢰·로그아웃으로 시작 전 중단되어 code-reviewer는 순차 규칙상 실행하지 않았다.
+- [x] **T10.2 읽기 전용 기반** (2026-08-17) — 별도 Admin Frontend+BFF 셸, OpenAPI 생성 타입, 대시보드·통합검색·
+  네트워크·자산 화면을 구현한다. 완료: loading/empty/error/forbidden/stale 상태와 URL 필터 보존 E2E. 근거: 08 정보 구조·UX
+  - DAW-CORE와 별도로 배포하는 `bcm-admin` 모듈을 추가했다. FUNCTION_TEST 모드는 Admin bind와 BCM target이 모두
+    loopback일 때만 시작하고 BCM의 기존 읽기 API만 호출하며, 공유 환경 모드는 mTLS+5분 이하 단기 JWT 구현 전까지
+    fail-closed한다. 브라우저는 `/bff/admin/*`만 호출하고 상태 변경 route는 제공하지 않는다.
+  - 저장소 OpenAPI에서 BCM Admin 응답 타입을 생성하고 freshness를 `check`에 연결했다. Kotlin 12건·Node 2건,
+    모듈 check·전체 ktlint·API 생성물 검사를 통과했고, 실제 Spring 서버와 Chrome에서 네 화면의 조회 응답 및
+    `q=base&chainId=8453&adopted=true&testnet=false` URL 필터 복원을 확인했다. 정본 영향 문서 01·02·07·08과 사본은 byte-동일하다.
+- [x] **T10.3 운영 조사** (2026-08-17) — 거래 타임라인, reconciliation·boost, sweep 실행 1:N,
+  allowance·fee quote 연결 조회를 구현한다. 완료: 식별자 하나로 제출→웹훅→발행→대사→boost/sweep을 재현하는
+  PostgreSQL+UI E2E. 근거: 02·03·08
+  - root·active·external transaction ID, boost 교체 ID, sweep 실행/외부/벤더 거래 ID를 단일 조사 식별자로 해석하고,
+    구조화된 제출·웹훅·outbox·대사·boost·sweep·allowance·당시 fee quote만 UTC 타임라인으로 반환한다. 원문 payload,
+    signature, callData, 벤더 자산 ID는 계약과 화면에서 제외했다.
+  - 독립 Admin BFF와 거래 상세 화면을 연결해 root/active 구분, 로컬+UTC 시각, 1:N 스윕, 전체 ID 복사,
+    FRESH/STALE/PARTIAL/404를 표시한다. 상세 소스는 100건 상한과 소스별 `TRUNCATED` 근거를 갖는다.
+  - PostgreSQL 어댑터 3건, 실제 PostgreSQL→BCM API 통합 1건, OpenAPI 계약 2건, BFF 서비스/컨트롤러·HTTP E2E,
+    Node 상태 3건을 포함한 `./gradlew check` 110 task와 전체 ktlint·API 타입 freshness, 실제 Headless Chrome 데스크톱·
+    500px 반응형 렌더링이 통과했다.
+- [x] **T10.4 컨트랙트·정책** (2026-08-17) — 불변 컨트랙트 레지스트리, 온체인 검증·외부 drift, 버전 정책, 변경 요청·diff·
+  Quorum 승인·활성화를 구현한다. 완료: 요청자 분리·stale snapshot·동시 활성화·hard ceiling fail-closed 테스트.
+  근거: 03·06·08
+  - 컨트랙트/검증 증적/정책/변경 요청/결정/Admin action의 append-only 원장 6개와 활성 binding 2개를 V2로 추가하고,
+    요청자-승인자 분리·위험도별 정족수·결정 중복 방지·단일 활성화를 도메인과 PostgreSQL 제약으로 함께 방어한다.
+  - 컨트랙트 활성화 직전에 독립 RPC 2곳의 runtime code hash를 다시 수집한다. 불일치·오류·승인 후 drift는 증적만 남기고
+    binding을 만들지 않는다. 정책은 배포 hard ceiling을 넘거나 ceiling 설정이 없으면 fail-closed한다.
+  - 동일 idempotency key 재시도는 같은 결과를 반환하며, 동시 활성화는 정확히 한 건만 성공한다. OpenAPI/BFF/Admin에는
+    서버가 계산한 상태·diff·영향·정족수·증적을 읽기 전용으로 노출했다. mTLS+단기 JWT 전에는 변경 HTTP route를 열지 않는다.
+  - 도메인·PostgreSQL·BCM API·BFF HTTP 기능 테스트와 stale/hard ceiling/2-RPC drift 시나리오, 전체
+    `./gradlew check` 110 task, ktlint·OpenAPI/API 타입 freshness가 통과했다.
+- [x] **T10.5 밴드S** (2026-08-17) — 입력 snapshot·현황·simulation·이동안·수동 승인·멱등 실행·완료 대사를 구현한다.
+  완료: stale/누락 입력 차단, simulation/실행 snapshot 동일성, 정책 상하한·부분 실패 E2E. 근거: 06 밴드S · 08
+  - 2026-08-17 기반 완료: 03 정본에 DAW-CORE 계산/BCM 검증 경계를 반영한 immutable snapshot·proposal·item·execution·
+    event 물리 계약을 추가하고 V3 6개 테이블과 append-only, 자금 실행 정족수, 만료·완전성·활성 정책, 연속 event 제약을 구현했다.
+    누락·만료·정책/input hash 불일치, 단일 omnibus·고정 cold 목적지, dependency, 부분 실패 상태 파생의
+    도메인 테스트와 PostgreSQL 제약 테스트, 총 30개 테이블 부트스트랩 및 관련 ktlint가 통과했다.
+  - snapshot/proposal source ID 멱등 수신, 활성 정책·서버 생성 hash 검증, `BAND_S/FUND` 요청과 기존 독립 승인 lifecycle,
+    실행 intent·item 전체 reservation·응답 유실 재조회, 연속 제출/관찰 event와 `PARTIAL` 대사를 application/persistence로 연결했다.
+    실제 PostgreSQL 정책 활성화→DAW 입력→승인→예약 재시도→item 완료/실패 세로줄과 기존 Admin 관련 회귀가 통과했다.
+  - `GET /admin/band-s`와 독립 Admin BFF/UI를 연결해 입력·정책·제안 hash, 밴드 비율·이동안, 승인·예약, item별 최신
+    실행 상태를 한 응답으로 표시한다. 서버가 `BLOCKED/STALE/PENDING/APPROVED/REJECTED/EXPIRED/EXECUTING/PARTIAL/COMPLETED/FAILED`와
+    금지 사유를 파생하며 브라우저에는 mutation route를 열지 않았다. OpenAPI 계약, 실제 PostgreSQL `PARTIAL` 조회,
+    BFF HTTP E2E, Node route와 전체 `./gradlew check` 110 task가 통과했다. 테스트 DB 풀은 컨텍스트당 2개로 제한했다.
+  - item마다 결정적 externalTxId와 `SUBMIT_INTENT`를 먼저 남긴 뒤 기존 claim·400 조회·응답 유실 회수 경계로 제출한다.
+    제출 원장 계열은 `BAND_S`로 분리해 고객 토픽에 발행하지 않으며, 내부 vault 이동과 고정 cold 주소를 원 제안 그대로
+    벤더에 전달한다. cold deposit은 외부 관찰 전용으로 차단하고 확정 거절만 item `FAILED`로 마감한다.
+  - PostgreSQL+모의 벤더 E2E가 원장 선기록, 제출 멱등, 부분 실패 대사를 검증한다. 같은 실행 예약의 동시 요청은 정책
+    바인딩 잠금 뒤 재조회해 단일 실행 ID로 수렴한다. stale·dependency·누락 입력 도메인 계약과 전체 `ktlintCheck check`
+    110 task, 설계 02·03 정본/사본 byte 동일, `git diff --check`가 통과했다.
+- [ ] **T10.6 비상 운영** — 네트워크/sweep/approve 중지, 웹훅 구독 복구·`resend_failed`, 컨트랙트 외부 pause 확인,
+  전체 `approve(0)` 회수와 강화된 재개 승인을 구현한다.
+  완료: 중지→회수→외부 상태 재조회→재개 장애 훈련. 근거: 06 비상 회수 · 07 네트워크 장애 · 08
+  - [x] **T10.6.0 실행 게이트 원장** — 네트워크별 `WITHDRAWAL/SWEEP/APPROVE` 신규 실행 중지를 append-only로 기록하고,
+    운영자 역할·사유·작업 티켓·멱등·동시 중지를 Domain과 PostgreSQL 제약으로 방어한다.
+    - V4 `bcm_exec_gate_evt_l`과 append-only trigger, 범위 sequence·작업자 멱등 UNIQUE를 추가했다. 운영자 단일 중지와
+      PostgreSQL 동시 요청의 단일 event 수렴, 빈 DB 부트스트랩을 검증했다. 정본 03을 먼저 고치고 사본과 byte-동일하게 맞췄다.
+  - [x] **T10.6.1 실행 경로 차단·조회** — 출금 제출만 선택적으로 막고 입금 감지·주소·잔액·이미 제출된 거래는 유지한다.
+    sweep batch와 정상 allowance approve는 각각 차단하되 비상 `approve(0)` 회수는 열어 둔다. 서버 계산 상태를 조회에 노출한다.
+    - 출금·sweep batch·정상 allowance approve의 신규 실행만 차단하고 기존 REQUESTED/SUBMITTED·SUBMITTING과
+      APPROVING/REVOKING 관찰·동일 ID 회수를 유지한다. 회수 완료 뒤 신규 cap 승인은 중지 상태에서 시작하지 않으며 비상
+      `approve(0)`은 별도 안전 게이트로 열어 뒀다.
+    - `GET /admin/execution-gates`와 BFF·`/admin/emergency` 읽기 화면은 채택 네트워크별 3개 범위의 OPEN/STOPPED,
+      중지 감사 문맥과 신규 실행·기존 복구·비상 회수 허용 여부를 서버 계산값으로 표시한다. mutation route는 만들지 않았다.
+      OpenAPI paths 18/schemas 59, 전체 `check` 110 task, ktlint, 생성물 freshness와 `git diff --check`가 통과했다.
+  - [x] **T10.6.2 외부 pause 관찰** — TAP batch 차단·컨트랙트 pause·운영자 제거는 직접 서명하지 않고 외부 상태 재조회와
+    증적만 기록하며 실패·drift·미확인은 완료로 처리하지 않는다.
+    - V5 `bcm_ext_ctrl_evdc_l`에 TAP 관리면과 pinned block 독립 RPC 2곳의 pause·빈 운영자 집합 hash를 한 snapshot으로
+      append-only 저장한다. 작업자 멱등, 독립 endpoint, 상태·hash·CONFIRMED 물리 제약과 갱신/삭제 거절을 PostgreSQL로 방어한다.
+    - 서버는 `CONFIRMED/DRIFT/STALE/UNCONFIRMED/ERROR`와 issue를 계산하고 외부 source 미설정·예외도 민감정보 없는 ERROR
+      증적으로 남긴다. `GET /admin/execution-gates`와 BFF·비상 화면에는 네트워크별 최신 증적만 읽기 전용으로 표시하며
+      mutation route는 열지 않았다. 조회 시 만료를 STALE로 재계산하고 외부 호출은 DB 트랜잭션 밖에서 수행한다.
+      OpenAPI paths 18/schemas 60, CI build 116 task·ktlint·Dependency-Check를 통과했고 design-sync 정합·code-reviewer Critical 0이다.
+  - [x] **T10.6.3 allowance 전량 회수** — 승인된 자금 실행 요청으로 vault별 `approve(0)`을 선기록·멱등 제출하고,
+    진행 중 batch가 없으며 온체인 allowance 0을 재확인할 때까지 부분 진행 상태를 유지한다.
+    - V6에 회수 실행 snapshot·item·event 3개 append-only 원장과 `ALLOWANCE_REVOKE/FUND` 요청 연결을 추가했다. 요청·예약·제출
+      직전에 활성 binding, 양수 allowance 대상 완전성, source vault·owner·token drift, 진행 batch·active item을 DB guard로 막는다.
+    - 요청자 외 독립 승인 뒤 전 항목 예약, `SUBMIT_INTENT`+기존 제출 원장 REQUESTED 원자적 선기록, 같은 externalTxId 응답 유실
+      회수, 항목 실패 격리와 온체인 0 재확인만으로 COMPLETED 파생을 연결했다. 0이 아닌 재관찰도 현재 projection을 갱신한다.
+    - `GET /admin/execution-gates`와 BFF·비상 화면은 전체/0 확인/제출 중/실패 건수, vault별 최신 event와 관찰값·시각을 읽기 전용으로
+      표시한다. OpenAPI paths 18/schemas 62, 관련 5개 모듈 전체 테스트와 `check ktlintCheck` 110 task가 통과했다.
+  - [x] **T10.6.4 웹훅 복구** — 구독 상태 재조회·재활성화·`resend_failed` 수동 실행을 접수/결과로 분리하고 호출 시각·범위·응답을 감사한다.
+    - V7 요청·event append-only 원장은 요청자와 독립 승인자, 필수 이벤트 snapshot/hash, 호출 intent와 구조화 결과를 보존한다.
+      연속 sequence·허용 전이·필드 조합·필수 이벤트 충족과 요청자/승인자 분리를 PostgreSQL guard로 재검사한다.
+    - 기본 비활성 JMX는 접수와 실행 endpoint를 분리한다. 각 벤더 호출 전에 intent를 별도 transaction으로 commit하고 4xx는 안전한
+      실패 코드로 종결하며 5xx·응답 유실은 자동 재호출하지 않고 timeout 뒤 AMBIGUOUS로 계산한다. 재전송 범위는 호출 시각 기준 24시간이다.
+    - `GET /admin/execution-gates`·BFF·비상 UI는 승인 문맥, 상태·호출/결과 시각, 구독 전후·누락 이벤트, 범위·예약 건수·오류를
+      읽기 전용 표시한다. OpenAPI paths 18/schemas 63, 부트스트랩 37개 테이블, 전체 641건과 `check` 110 task가 통과했다.
+  - [x] **T10.6.5 강화 재개·훈련** — 원인 해소·최신 snapshot·외부 drift 없음·회수 완료를 재검사하고 요청자 외 승인자 2명과
+    보안 승인자 1명의 정족수 뒤에만 재개한다. 중지→외부 조치→회수→재개 장애 훈련 E2E로 닫는다.
+    - V8 재개 요청·외부 재검사 append-only 원장은 현재 STOPPED, 활성 SWEEP binding, 최신 VALID contract evidence, 완료된 allowance
+      회수, 원인 증적과 기대 운영자 hash를 고정한다. RESUMED trigger가 최신성·READY check·강화 정족수·RESUME intent를 재검사한다.
+    - application service는 TAP과 pinned block 독립 RPC 2곳을 transaction 밖에서 새로 읽고, 멱등 입력 변경·drift·stale·회수 미완료·
+      단일 승인·자기 승인·동시 재개를 fail-closed한다. 성공 event 뒤에만 게이트가 OPEN이며 브라우저 mutation route는 열지 않았다.
+    - `GET /admin/execution-gates`·BFF·비상 UI는 재개 상태와 승인/보안 정족수, 최신 check·원인 증적·금지 사유를 읽기 전용 표시한다.
+      OpenAPI paths 18/schemas 64, 부트스트랩 39개 테이블, JUnit 654건+프론트 6건과 `check` 110 task·ktlint가 통과했다.
+- [x] **T10.7 E2E + converge** — 권한·접근성·UTC·민감정보·중복 클릭·동시 승인·장시간 작업 UX와 네트워크별
+  제한 출시 게이트를 검증하고 design-sync→code-reviewer를 통과한다. 근거: PLAN 공통 완료 규칙 · 08 완료 기준
+  - 브라우저/BFF E2E는 키보드·스크린리더 경계, 로컬 시각+UTC 원문, 중복 실행 방지, 장시간 상태·금지 사유,
+    민감정보 비포함과 서버 판정 기반 네트워크 제한 출시를 고정했다.
+  - V9/V10과 application 경계는 활성 policy·contract·evidence snapshot, cap 하향, 실행 게이트, 신규 sweep batch와
+    `READY→SUBMITTING`, 출금 REQUESTED 회수·FAILED 재시도를 같은 잠금 순서와 최신 statement snapshot으로 재검사한다.
+  - JUnit 689건+프론트 13건(실패·오류·skip 0), CI 116 task·ktlint·OpenAPI freshness가 통과했고 독립
+    design-sync와 code-reviewer가 전체 범위 `1ec44fa..b1e5719`을 Critical 0/Major 0으로 판정했다.
+
+**완료 기준**: 운영자가 조사→변경 요청→승인→실행→대사→감사를 재현하고, 정책·컨트랙트·밴드S·비상 조치가
+DB 동시성 방어·외부 drift 검사·hard ceiling·fail-closed·사용자 흐름 E2E를 통과한다.
+
+## Phase 11 — 로컬 블록체인 + Fireblocks 통합 테스트 환경
+
+Fireblocks 사용 가능 여부와 무관하게 계속 사용하는 BCM 전용 통합 테스트 장치다. 단순 fixture 응답기가 아니라 기존
+`FireblocksClient`의 HTTP 계약, 상태 전이·웹훅·복구와 실제 EVM 잔액·receipt·event log를 함께 검증한다. 운영 벤더 구현을
+교체하는 Domain Port나 프로덕션 코드의 테스트 전용 분기는 만들지 않는다.
+
+### 확정 경계 (2026-08-18)
+
+- 코드는 이 저장소의 독립 `test-support` 영역에 두고, `FireblocksClient`의 Base URL과 EVM RPC만 환경 설정으로 바꾼다.
+- 허용 조합은 `STUB+LOCAL`, `FIREBLOCKS+TESTNET`, `FIREBLOCKS+MAINNET`이며 `FIREBLOCKS+LOCAL`과 `STUB+MAINNET`은
+  시작 검증에서 거부한다. 같은 실행 중 Admin에서 모드를 바꾸지 않는다.
+- 원격 대상은 **폐쇄망 일반 Linux 서버**다. Docker를 요구하지 않고 Anvil 실행 파일, Stub fat JAR, chain bootstrap,
+  컨트랙트 artifact, config, systemd unit, start/stop/reset/health-check를 버전·checksum이 있는 `tar.gz`로 배포한다.
+- 원격 BCM은 이미 설치·운영 중인 PostgreSQL·Kafka를 사용한다. 로컬 체인 배포 파일은 둘을 포함·설치·초기화하지 않는다.
+  PostgreSQL·Kafka 컨테이너는 개발자 PC와 CI의 전체 E2E에서만 사용한다.
+- 원격 `reset`은 Stub 상태와 Anvil snapshot/seed만 다룬다. 기존 PostgreSQL·Kafka의 BCM 데이터를 지우지 않으며, 전체 E2E
+  초기화가 필요하면 전용 테스트 DB/topic과 실행 ID 범위를 갖춘 별도 BCM 절차로 수행한다.
+- Stub·Anvil·bootstrap은 외부 통신 없이 loopback/서버 내부 포트로만 노출한다. 실제 Fireblocks Secret과 실제 RPC URL이
+  들어오면 로컬 모드는 시작을 거부한다. 폐쇄망 반입 artifact는 연결 환경에서 미리 빌드·검사하고 고정 버전으로 전달한다.
+- Fireblocks API 요청 JWT는 기본 로컬 경로에서 API key·Bearer 존재와 payload 형식만 확인한다. RS256·nonce·bodyHash 오류는
+  작은 인증 계약 테스트로 분리한다. Webhook은 기존 BCM 검증 경로를 우회하지 않도록 단일 로컬 키·JWKS로 RS512 서명한다.
+- 블록체인 트랜잭션은 Stub의 결정적 테스트 EVM 키로 실제 서명해 Anvil에 raw transaction을 제출한다. API RSA 키,
+  Webhook RSA 키, EVM secp256k1 키는 서로 분리하고 Git에 시크릿을 저장하지 않는다.
+- EVM/ERC-20을 1차 범위로 한다. EVM의 BAND ERC-20은 포함 가능하지만 네이티브 BandChain은 별도 로컬 체인 과제로 둔다.
+- Universal Gasless 로컬 검증은 EIP-7702 프로토콜 동작과 BCM의 관측 결과를 대상으로 한다. Fireblocks MPC·TAP·실제 relayer를
+  복제하거나 동일하다고 주장하지 않으며, 확정된 `approve + transferFrom` batch sweep을 EIP-7702 직접 pull로 바꾸지 않는다.
+
+### task (계획 2026-08-18)
+
+- [ ] **T11.0 계약·설계 정본** (2~3인일) — BCM이 실제 사용하는 Vault/Asset/Transaction/Fee/Webhook API, 상태·오류·필드와
+  실제/시뮬레이션/미지원 경계를 표로 고정한다. waas-wiki에 로컬 통합환경 설계를 먼저 작성하고 `docs/design/` 사본은 정본
+  동기화로만 반영한다. 완료: 지원표·배포 조합·키 경계·reset 소유권·실 Fireblocks 계약 테스트 승인 경계 사용자 승인.
+- [ ] **T11.1 테스트 모듈·실행 모드 기반** (3~4인일) — `test-support` 독립 실행 모듈, STUB/FIREBLOCKS와
+  LOCAL/TESTNET/MAINNET 조합 검증, 내부 포트·health check를 만든다. 완료: 잘못된 조합·실 Secret·외부 RPC가 로컬 모드에서
+  fail-closed하고 기존 FireblocksClient가 코드 분기 없이 Stub URL을 호출하는 조립 테스트 그린.
+- [ ] **T11.2 결정적 로컬 체인** (4~5인일) — Anvil, 고정 chain ID·계정, 테스트 ERC-20, 운영과 같은 ABI의 Sweep
+  컨트랙트, 배포 manifest, seed와 snapshot/revert를 만든다. 완료: 같은 seed가 같은 주소·잔액·컨트랙트를 만들고
+  approve→batchSweep의 성공·부분 결과 event를 실제 receipt에서 재현한다.
+- [ ] **T11.3 상태형 Fireblocks Stub** (5~7인일) — Vault/주소/잔액, 체인·자산 카탈로그, TRANSFER/CONTRACT_CALL,
+  ID·externalTxId·목록 조회, fee 견적, Webhook 조회/변경/재전송을 현재 BCM 사용 범위만 구현한다. 완료: externalTxId 멱등,
+  transaction 상태 머신, 실제 Anvil hash·receipt, 최소 Webhook 서명/JWKS 계약 테스트 그린.
+- [ ] **T11.4 BCM 거래·sweep 세로줄** (4~5인일) — 입출금·내부이체, allowance approve, batch sweep 1:N,
+  network records·`SweepLeg` 대사와 고객 토픽 비발행을 실제 BCM API/BAT 경로로 연결한다. 완료: 정상 및 batch 부분 결과가
+  기존 원장·상태·대사 계약과 일치하고 Stub 전용 Domain Adapter가 없음을 아키텍처 테스트로 고정.
+- [ ] **T11.5 실패·복구·초기화** (4~6인일) — HTTP 4xx/429/5xx·timeout·응답 유실, 중복/역순/유실 Webhook,
+  BLOCKED/REJECTED/FAILED·장기 pending, 잔액/gas/allowance/nonce/revert, 동시 제출과 재대사를 시나리오화한다. CI는 매 실행
+  폐기하고 원격 reset은 Stub+Anvil만 복원한다. 완료: `REAL_LOCAL`·`SIMULATED_VENDOR`·`REAL_FIREBLOCKS_ONLY` 분류와
+  같은 seed의 결정적 재현, 기존 PostgreSQL·Kafka 무변경 검증.
+- [ ] **T11.6 파일 배포·CI·실벤더 계약 검사** (3~5인일) — CPU 아키텍처별 Anvil, 전용 JRE/Stub, artifact와 systemd를
+  checksum manifest가 있는 tar.gz로 만들고 폐쇄망 반입·설치·롤백 런북을 제공한다. 개발자/CI는 기존 Testcontainers의
+  PostgreSQL·Kafka와 로컬 체인을 묶는다. 실제 Sandbox 호출은 사용자 명시 승인과 Secret이 있는 별도 작업에서만 golden
+  contract test로 수행한다. 완료: 깨끗한 일반 Linux 서버 설치→기동→reset→재기동 smoke와 오프라인 무다운로드 검증.
+- [ ] **T11.7 Universal Gasless** (14~22인일) — 먼저 Anvil Prague·사용 라이브러리의 EIP-7702 type-4 지원을 spike한다.
+  통과하면 테스트 delegation 컨트랙트, Vault authorization/실행 의도, fee payer, replay/nonce/deadline 방어와 가스 대납
+  실패를 구현한다. source native 0에서 gasless approve와 확정 batch sweep 경로를 검증하되 Fireblocks 내부 동작은 계약 결과만
+  시뮬레이션한다. 완료: 정상·fee payer 부족·만료·재사용·내부 revert와 실제 Fireblocks 전용 미검증 항목의 명시적 구분.
+- [ ] **T11.8 E2E + converge** — 한 명령 또는 systemd로 기동·상태 확인·reset·종료하고, 로컬/CI/원격 폐쇄망 세 경로의
+  기능·장애·보안 경계를 검증한 뒤 design-sync→code-reviewer를 통과한다. 근거: PLAN 공통 완료 규칙.
+
+**예상 공수**: 기본 통합 플랫폼 27~38인일 + Universal Gasless 14~22인일 = 총 41~60인일. 1명은 약 9~12주,
+Kotlin 백엔드 1명과 EVM/Solidity 인력 0.5~1명이 병렬 작업하면 약 5~7주다. 운영 Sweep artifact가 없으면 5~10인일,
+네이티브 BandChain까지 포함하면 10~18인일을 별도 추가한다.
+
+**완료 기준**: 원격 파일 패키지가 Docker와 번들 PostgreSQL·Kafka 없이 폐쇄망에서 실행되고, 기존 BCM이 설정만으로 Stub/Anvil을
+사용한다. 정상·실패·복구·batch sweep·gasless 경로가 실제 EVM 결과와 일치하며, 실제 Fireblocks 전용 보안·정책 동작은 과장 없이
+별도 계약 테스트로 남긴다.
 
 ## 스펙-설계 불일치 · 미해결 (구현 전/중 해결)
 
@@ -398,7 +655,7 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
 | 10 | **원문 바이트 보존 방식** | ✅ 해결 (2026-08-06) — **`bcm_whk_l.payload` JSONB → TEXT** + `payload_hash CHAR(64)`(수신 `byte[]` 의 SHA-256) + `sign_vl TEXT`(서명 헤더 원문). `bcm_raw_tx_l` 은 세 값을 복사만 하고 재계산하지 않는다. 03·99 개정 + 사본 동기화 완료. JSONB 유지 + `payload_raw` 병기 안은 원본이 둘이 돼 기각 |
 | 11 | **sweep 목적지 과거 불일치** | ✅ 해결 (2026-08-05) — **옴니버스 vault**. CLAUDE.md 3절·Phase 6·waas-wiki 06 반영 및 사본 동기화 완료 (2026-08-10) |
 | 12 | **서비스 간 인증** — 01 미확정, openapi.yaml 에 securitySchemes 없음 | ✅ 해결 (2026-08-05) — **인증 없음** (사용자 결정 — 내부망 경계 신뢰). openapi.yaml 에 무인증 명시는 차기 스펙 개정(#7a)에 포함 |
-| 13 | **경보 채널 구체 수단** — 01 미확정 (막힘·귀속 불명은 별도 알림 채널). Phase 4·7 은 **포트(인터페이스) 추상화**로 진행 — 구체 수단(어느 메신저/알림 시스템)은 뒤에 바인딩 | Phase 9 전 확정 |
+| 13 | **경보 채널 구체 수단** — 01 미확정 (막힘·귀속 불명은 별도 알림 채널). Phase 4·7 은 **포트(인터페이스) 추상화**로 진행 — 구체 수단(어느 메신저/알림 시스템)은 뒤에 바인딩 | ✅ 해결 (2026-08-17) — 배포 제품에 종속되지 않는 Bearer 인증 HTTP 운영 수신기로 바인딩하고 `route`·`type`으로 downstream 채널을 분리한다. 고객 데이터 토픽과 분리하고, 배포 환경별 실제 메신저 연결은 수신기 소관. 채널 장애는 원 처리를 롤백하지 않으며 실패 로그·메트릭을 남긴다 |
 | 17 | **tx 갱신의 DB 레벨 방어 3종** | ✅ 해결 (2026-08-07) — `SELECT FOR UPDATE`, 컨펌 수·갱신 시각 `GREATEST`, 최초 탐지·감사 갱신 제외, PK/UNIQUE `ConflictException` 변환. 신규 tx 동시 경합은 트랜잭션 롤백 후 이긴 행을 잠가 재판정하며 PostgreSQL 동시 테스트로 고정 |
 | 18 | **FINALIZED→REJECTED 전이가 02 표에 없음** | ✅ 해결 (2026-08-07) — 확정 후 동결이므로 발행·반영. 도메인 전이표와 30조합 계약 테스트 반영 |
 | 19 | **`bcm_raw_tx_l` 파티션 생성 주체** — 부모만 생성돼 파티션 없인 INSERT 전부 실패. 배포 시 vs 보관 배치 시 결정 | ✅ 해결 (2026-08-13) — 대상 월 시작 전에 배포 역할이 월별 파티션을 선생성한다. 런타임 애플리케이션은 DDL 권한 없이 DML만 수행하고, 누락 시 보관·인박스 정리·성공 heartbeat를 함께 실패시킨다. waas-wiki `3b033ca`, 사본 `1788071` |
@@ -424,6 +681,17 @@ TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트가 3중 통�
 | 37 | **출금 요청 본문 크기 상한** — `note`와 구조가 아직 불투명한 `travelRule`에 스키마 상한이 없어 큰 JSON이 벤더 호출·claim 점유를 늘릴 수 있다. 구현이 임의로 필드 상한을 만들면 OpenAPI보다 좁아지므로, 전체 HTTP 본문 상한과 필드별 상한·초과 응답(400/413)을 스펙에서 먼저 확정해야 한다 | 실트래픽 연동 전 — waas-wiki/OpenAPI 결정 |
 | 38 | **막힘 상태·RBF hash 보관 불일치** | ✅ 해결 (2026-08-12) — DB 상태는 후보 선별만 하고 조치 직전 벤더 단건 조회로 `CONFIRMING`·txHash·0 confirmation을 확인한다. `bcm_tx_l`은 root 한 행에 active tx id/hash를 보관하고, stuck 웹훅은 선택적 가속 신호일 뿐 correctness 기준으로 삼지 않는다. waas-wiki 02·03·99와 사본 동기화 완료 |
 | 39 | **sweep CONTRACT_CALL canonical `cc-v1` 재계산 불가** | ✅ 해결 (2026-08-13) — `bcm_sbmt_l.call_data TEXT`에 정규화된 calldata를 저장하고 SWEEP_APPROVE/SWEEP_BATCH 존재·소문자 짝수바이트 hex를 DB와 코드에서 강제한다. 원장 왕복 후 cc-v1 hash 재계산 테스트로 고정. waas-wiki 03 `fe92927`, 사본 byte-동일·design-sync 통과 |
+| 40 | **Webhooks V2 재전송 기간 문구 불일치** — 02·90은 `resend_failed`를 원 이벤트 30일 내로 서술하지만 2026-08-17 공식 endpoint reference는 이 API를 최근 24시간 실패 알림 대상으로 제한하고, migration guide의 최대 30일은 resource/query 재전송까지 포함한다 | T9.4 수동 러너는 `resend_failed` 기본 24시간 범위만 사용하고 오래된 공백은 tx 대사로 복구. 다음 waas-wiki 동기화에서 API별 기간을 분리 정정 |
+| 41 | **CVE-2026-53914 Kotlin 안전 GA 대기** — 취약점은 build cache metadata 역직렬화에 있고 runtime `kotlin-stdlib`·`kotlin-reflect`에는 해당 코드가 없지만 NVD의 광범위한 Kotlin CPE가 둘을 매칭한다. 수정 기준 2.4.20은 2026-08-17 현재 RC만 실재한다 | T9.6에서 Gradle build cache를 전역·CI 모두 비활성화하고 runtime purl+CVE만 2026-09-30까지 suppression. Kotlin 2.4.20 GA 실재·Boot 4.1 호환·전체 테스트 확인 후 업그레이드, suppression 제거, build cache 재활성화 |
+| 42 | **CVE-2026-41115 Kafka ACL 문서 불일치** — Dependency-Check가 `kafka-clients` 4.2.1에 Medium 4.3으로 보고한다. Apache는 `CONSUMER_GROUP_DESCRIBE` 구현의 `DESCRIBE GROUP` 검사가 정확하고 4.0.0~4.3.0을 affected이자 fixed로 표기하며 기존 ACL 검토를 권고한다 | 게이트 기준 미만이라 숨기지 않고 보고서에 유지한다. 운영 broker 도입 전 consumer group ACL이 최소 권한인지 확인하고, NVD/Apache 메타데이터 정정 또는 실제 수정 버전이 나오면 재평가 |
+| 43 | **Webhooks V2 구독 관리 API 실측·설계 근거** — 공식 reference에는 `GET/PATCH /v1/webhooks/{id}`, `enabled=true`, `DISABLED/ENABLED/SUSPENDED`가 있으나 저장소 규칙의 근거인 97·90에는 아직 없다 | JMX 복구 endpoint는 기본 비활성. sandbox 실측 또는 담당자 확답을 waas-wiki 97/90에 반영하고 사본을 동기화한 뒤 환경별로 활성화한다 |
+| 44 | **tx 대사 제외 ID 파라미터 팽창** — 창 안 벤더 종결 관찰 ID 전체를 `NOT IN (:ids)`로 펼쳐 대량 창에서 PostgreSQL 파라미터 한계·계획 저하 가능 | Phase 10 전 배열 1파라미터 또는 `VALUES` 조인으로 바꾸고 대량 ID PostgreSQL 회귀 테스트 추가 |
+| 45 | **미보관 COMPLETED 메트릭 스캔 비용** — 60초마다 API·BAT가 처리 완료 인박스의 JSON status와 보관 파티션을 대조해 보존량 증가 시 비용 상승 가능 | 실트래픽 규모 전 실행계획 측정. 필요하면 BAT 단일 수집·5분 주기 또는 명시 상태/보관 표식 설계로 이동 |
+| 46 | **밴드S cold→hot 정족수 정본 모순** — 06·08은 옴니버스 입금 확인 뒤 출금 풀 보충에 재개와 같은 강화 정족수를 요구하지만, 03은 모든 BAND_S를 `risk_dvcd='FUND'`·독립 승인자 1명으로 고정하고 V3 DB trigger도 이를 강제한다 | cold→hot 승인 실행 전 waas-wiki 03에서 위험코드·DB 제약·정족수 파생을 확정. 현재 구현은 정본을 추측해 바꾸지 않음 |
+| 47 | **밴드S sweep 선행·풀별 최소잔액 증적 자리 미정** — hot→cold에서 고객 vault sweep FINALIZED 선행과 출금 풀 최소 운영잔액 보호가 필요하지만 현재 proposal은 기존 sweep 실행 ID·풀별 관찰/최소 잔액을 보관하지 않는다 | DAW-CORE 입력 payload 계약만으로 충분한지, BCM 원장 FK/증적 컬럼이 필요한지 03·06에서 확정 후 구현 |
+| 48 | **밴드S 외부 cold 일반 전송의 Gasless 근거 없음** | ✅ 보수적으로 해결 (2026-08-18) — `EXTERNAL_COLD`는 `useGasless=false`로 제출한다. 향후 켜려면 02·06 또는 벤더 QnA에서 지원 여부·수수료 부담을 먼저 확정한다. |
+| 49 | **고정 cold 목적지 변경의 보안 정족수 원장 부재** — 06·08은 목적지 변경에 서로 다른 승인자 2명+보안 승인자 1명과 TAP 재검증을 요구하지만 현재 `fixedColdAddresses`는 배포 설정이고 version/change request 대상이 아니다 | 실자금 실행 전 목적지 registry의 정책 version·변경 요청·TAP evidence DB/API 자리를 03·08에서 확정하고 배포 설정 직접 변경을 차단 |
+| 50 | **cold→hot 입금 FINALIZED 증적 구조 미정** — `COLD_DEPOSIT` proposal item에는 외부 cold 발신 주소/tx hash가 없고 현재 event 기록은 구조화되지 않은 observation payload를 신뢰해 `FINALIZED`를 추가할 수 있다 | cold→hot 실행 전 고정 외부 cold 발신 주소·tx hash·독립 체인 재조회·FINALIZED 증적과 다음 item 개방 조건을 03·06·08에서 확정 |
 | 14 | **03 스키마 미확정 3건** — 약어 · 감사 센티넬 · subStatus 보관 | ✅ 해결 (2026-08-05, 사용자 위임으로 프로젝트 자체 확정) — ① 약어는 03 표기 그대로(`bcm`·`vndr`·`vlt`·`noti`·`swp`) = 프로젝트 약어집. DAW-CORE 약어집 등장 시 대조·조정 ② 센티넬 `empno='SYSTEM'` · `brcd='9999'` — 코드에선 단일 상수로 관리 ③ **subStatus·networkStatus 를 `bcm_tx_l` 에 보관**(사용자 결정 — 이벤트 미탑재는 유지). **반영 필요: waas-wiki 03 개정(컬럼 추가·미확정 절 정리) + 사본 동기화 — Phase 1 착수의 첫 선행 작업 (미실행)** |
 
 ## 범위 밖 (이 저장소가 아님) · 시점 미배정

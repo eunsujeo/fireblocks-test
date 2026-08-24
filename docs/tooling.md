@@ -10,7 +10,7 @@
 | Spring Boot | **4.1.x** (4.1.0 = 2026-06-10) | OSS 지원 2027-07 까지. 3.5.x 는 2026-06-30 OSS 종료 — 신규 프로젝트에 부적합. 4.0.x 도 2026-12 종료라 4.1 이 착지점 |
 | Spring Framework | 7.0.x | Boot 4.1 요구 (7.0.8+). Jakarta EE 11 · JSpecify null-safety |
 | JDK | **25 LTS** | Spring 권장 LTS · Oracle 지원 2033. Boot 4.1 은 17~26 지원 |
-| Kotlin | **2.3.x** (Boot-managed) | Boot 4.1 관리 버전. 2.4.10 이 최신이지만 Boot 검증 미확인 — 보수적으로 2.3 |
+| Kotlin | **2.3.x** (Boot-managed) | Boot 4.1 관리 버전. CVE-2026-53914의 안전한 2.4.20 GA 대기 중 — PLAN #41의 build cache 차단 유지 |
 | Gradle | **9.6.x** · Kotlin DSL | Boot 4.1 은 8.14+/9.x 지원. version catalog 사용 |
 | Spring Kafka | 4.1.0 | Boot 4.1 페어. ★ Boot 4 는 `spring-boot-starter-kafka` 명시 필요 (모듈화된 스타터) |
 | Spring Batch | 6.0.x | Boot 4 페어. 6 은 메이저 개편 (`ChunkOrientedStep` 등) — 5.x 예제 코드 참고 시 주의 |
@@ -42,7 +42,16 @@ v3 부터 지원, 2.x 는 3.0 까지. repo1 실물·바이트코드(servlet 무�
 
 **미도입 (사내 기준과의 의도적 차이)**: 사내 Spring Boot BOM + spring-dependency-management 플러그인 — Boot 4.1.x 지원 팀 확인 대기 (PLAN 미해결 #9). kotlin-spring(allopen)은 사내 기준(전 모듈)과 달리 **Spring 빈을 가진 모듈만**(app + infra/persistence·client — @Repository·@Configuration CGLIB 프록시가 final 클래스에 못 붙는 실측, 2026-08-05). **domain 은 제외** — 무의존 원칙. 구모듈명(manager-api)은 표준 architecture.md 의 bcm-api 로 대체.
 
-**버전 관리 규칙**: 전 버전은 `gradle/libs.versions.toml` 단일 관리. 분기별로 패치 추종 + release note 의 보안 항목 확인. CI 에 의존성 취약점 스캔(OWASP dependency-check 또는 동급)을 둔다.
+**버전 관리 규칙**: 전 버전은 `gradle/libs.versions.toml` 단일 관리. 분기별로 패치 추종 + release note 의 보안 항목 확인.
+CI 의존성 취약점 검사는 OWASP Dependency-Check 12.2.2 aggregate task를 사용하고 CVSS 7.0 이상 또는 분석 오류에서 실패한다.
+기본 데이터 소스는 NVD 공식 JSON 2.0 feed이며 CI는 Gradle user home의 NVD DB를 캐시한다. 운영용 내부 mirror는
+`NVD_DATAFEED_URL`로 교체한다. suppression은 근거·만료일·추적 이슈 없이 추가하지 않으며, 추가된 규칙이 더 이상 쓰이지 않아도
+빌드를 실패시킨다.
+
+**2026-08-17 스캔 후속** — pgJDBC는 CVE-2026-54291 수정 버전 42.7.12, Log4j는 CVE-2026-49844 수정 버전 2.25.5로
+Boot 4.1.0 BOM을 좁게 보완한다. Kotlin CVE-2026-53914는 build cache metadata 문제이며 안전한 2.4.20 GA가 Maven Central에 아직
+없다. `org.gradle.caching=false`와 CI `--no-build-cache`로 실제 영향면을 차단하고, runtime stdlib/reflect CPE 오탐 suppression은
+PLAN #41·2026-09-30 만료로 제한한다.
 
 ## 2. Claude Code — skill·plugin (리서치 결론)
 

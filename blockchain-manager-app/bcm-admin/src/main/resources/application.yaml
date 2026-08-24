@@ -1,0 +1,22 @@
+server:
+  address: ${BCM_ADMIN_ADDRESS:127.0.0.1}
+  port: ${BCM_ADMIN_PORT:9080}
+
+spring:
+  threads:
+    virtual:
+      enabled: true
+
+bcm:
+  admin:
+    mode: FUNCTION_TEST
+    target-base-url: ${BCM_ADMIN_TARGET_BASE_URL:http://127.0.0.1:8080}
+    connect-timeout-millis: ${BCM_ADMIN_CONNECT_TIMEOUT_MILLIS:1000}
+    read-timeout-millis: ${BCM_ADMIN_READ_TIMEOUT_MILLIS:3000}
+    stale-after-seconds: ${BCM_ADMIN_STALE_AFTER_SECONDS:90000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

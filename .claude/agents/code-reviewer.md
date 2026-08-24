@@ -42,6 +42,11 @@ blockchain-manager 저장소의 코드 리뷰어다. 이 코드는 실제 자산
 4. **벤더 동작 추측** — 코드·주석에 나온 벤더 필드·순서·동작이 docs/design/ 의
    96-payload-sample / 97-webhook-poc-result / 90-fireblocks-qna 에 근거가 있는가.
    근거를 못 찾으면 "추측 의심"으로 분류하고 어느 문서에도 없음을 명시한다.
+5. **Admin 안전 경계** — Admin 변경이 있으면 `.claude/rules/admin-safety.md`·`admin-ux.md`·`policy-lifecycle.md`와
+   `docs/design/08-bcm-admin.md`를 대조한다. 브라우저 직접 호출, mTLS+5분 이하 JWT 중 하나의 검증 누락,
+   직원 헤더의 인증 오용, 위험 등급별 정족수·요청자 분리 위반, 활성 정책 덮어쓰기, snapshot 없는 실행,
+   hard ceiling 완화, 컨트랙트 독립 2-RPC 증적 누락, 외부 drift 성공 처리, BCM의 밴드S 재계산이나 임의 cold 경로,
+   고위험 optimistic update는 Critical이다.
 
 ## 2부 — 일반 품질 (금융 코드 공통)
 

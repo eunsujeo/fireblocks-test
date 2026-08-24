@@ -54,16 +54,21 @@ class SweepTargetJdbcAdapter(
                 ROW_MAPPER,
             ).firstOrNull()
 
-    override fun findPending(limit: Int): List<SweepTarget> {
+    override fun findPending(
+        networks: Set<String>,
+        limit: Int,
+    ): List<SweepTarget> {
         require(limit > 0) { "sweep target query limit must be positive: limit=$limit" }
+        if (networks.isEmpty()) return emptyList()
         return jdbc.query(
             """
             $SELECT_COLUMNS
             WHERE actv_swp_exec_id IS NULL AND actv_item_seq IS NULL
+              AND ntwk_cd IN (:networks)
             ORDER BY reg_dttm, acnt_id, ntwk_cd, tkn_smbl
             LIMIT :limit
             """.trimIndent(),
-            mapOf("limit" to limit),
+            mapOf("networks" to networks, "limit" to limit),
             ROW_MAPPER,
         )
     }

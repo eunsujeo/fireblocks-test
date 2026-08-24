@@ -20,6 +20,7 @@ rootProject.name = "blockchain-manager"
 
 include(
     ":blockchain-manager-app:bcm-api",
+    ":blockchain-manager-app:bcm-admin",
     ":blockchain-manager-app:bcm-bat",
     ":blockchain-manager-domain",
     ":blockchain-manager-infra:persistence",

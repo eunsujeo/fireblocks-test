@@ -32,6 +32,8 @@
 | [03-bcm-db.md](docs/design/03-bcm-db.md) | **bcm_ 코어 스키마** — 컬럼명·타입 그대로 구현 |
 | [06-sweep.md](docs/design/06-sweep.md) | sweep 정책 (트리거·밴드S) · approve + transferFrom 배치 실행 계약 |
 | [07-asset-master.md](docs/design/07-asset-master.md) | **블록체인 카탈로그 + 벤더 자산 매핑 2테이블** · 등록 검증 · Admin API · 벤더 경계 변환 |
+| [08-bcm-admin.md](docs/design/08-bcm-admin.md) | **Blockchain Manager Admin** — 운영 조사 · 컨트랙트/실행 정책 · 밴드S · 승인 · 비상 운영 · UI/UX 경계 |
+| [09-asset-map.md](docs/design/09-asset-map.md) | 고객 vault·옴니버스·출금 풀·회사자산·외부 콜드 간 시나리오별 자산 이동 지도 |
 | [93-batch-partial-fail-sample.md](docs/design/93-batch-partial-fail-sample.md) | batch sweep 부분 실패 실측 payload · 항목 결과 판정 근거 |
 | [94-batch-payload-sample.md](docs/design/94-batch-payload-sample.md) | batch sweep network records 실측 payload · 원천 vault 귀속 근거 |
 | [95-approve-pull-poc-result.md](docs/design/95-approve-pull-poc-result.md) | approve + transferFrom PoC 결과 · 제출 operation · 부분 성공 관찰 |
@@ -53,6 +55,10 @@
 - **이벤트 순서는 매니저가 보장** — 앞 단계 미발행이면 감지 이벤트를 합성 발행. DAW-CORE 는 항상 감지→확정 순서만 받는다.
 - **sweep 은 `approve + transferFrom` 배치 · 목적지는 옴니버스 vault** (2026-08-12 확정) — 고객 vault별·sweep 컨트랙트별 제한 allowance와 `SweepExecution 1:N SweepItem`으로 관리한다. approve·batch 호출은 TAP → Co-signer Callback → 목적지 불변 sweep 컨트랙트의 3중 통제를 통과한다. 최상위 거래 종결만으로 항목을 성공 처리하지 않고 network records + `SweepLeg` 이벤트로 대사한다. EIP-3009·2612·7702 직접 pull과 건별 일반 전송은 구현안에서 제외한다.
 - **batch sweep은 출시 게이트 기본 비활성** — approve와 batch CONTRACT_CALL의 Universal Gasless, TAP 세부 매칭, Callback fail-closed, gas/처리량, 컨트랙트 감사와 전체 `approve(0)` 회수 훈련을 실측·검증한 네트워크만 활성화한다.
+- **로컬 Fireblocks 통합환경은 운영 벤더 대체가 아닌 상시 테스트 장치** (2026-08-18 확정) — 이 저장소의 기존
+  `FireblocksClient`가 상태형 Stub을 호출하고 Anvil에서 실제 EVM 결과를 만든다. 원격 폐쇄망 일반 서버에는 Docker 없이
+  Anvil 실행 파일·Stub fat JAR·컨트랙트·systemd·초기화 도구를 파일 묶음으로 배포하며, 서버에 이미 설치된 PostgreSQL·Kafka를
+  사용하고 패키지에 포함하거나 초기화하지 않는다. PostgreSQL·Kafka 컨테이너는 개발자 로컬·CI 전체 E2E에서만 기동한다.
 - **tx 대사는 종결 건만** — 벤더 원어 기준 COMPLETED · FAILED · 출금 REJECTED · BLOCKED (진행 중은 웹훅 몫).
 - **DB 는 코어(daw_) 규약** — 일시 `VARCHAR(16)` (값 포맷 `yyyyMMddHHmmss` 14자 — 2026-08-05 확정, 변환은 support 유틸 단일 관리) · 일자 `VARCHAR(8)` · 불리언 `_yn VARCHAR(1)` · 금액 `NUMERIC` · 감사 4컬럼(`frst_reg_empno` 계열, 센티넬 `SYSTEM`/`9999`) · payload `JSONB`. 벤더 id 는 `VARCHAR(64)`.
 - **DB 일시·일자의 시간대 = UTC** (2026-08-14 확정 — 03) — 모든 `_dttm`은 UTC `yyyyMMddHHmmss`, `_dt`·`base_dt`는 UTC `yyyyMMdd`로 저장한다. `Clock` 빈은 `bcm-api`·`bcm-bat` 두 곳의 `Clock.systemUTC()`뿐이며, 벤더 epoch ms도 저장 직전 공통 유틸에서 UTC로 변환한다. API는 ISO 8601 UTC(`Z`)를 쓰고 화면·정산·보고서에서 필요한 시간대로 변환한다. 2026-08-06 KST 결정은 이 결정으로 대체됐다.
@@ -98,7 +104,12 @@ blockchain-manager-svc/            (rootProject.name = "blockchain-manager")
 - **테스트 없는 완료 없음** — 규칙은 [docs/testing.md](docs/testing.md). 계약 로직(전이 표·dedup·outbox)은 반드시 테스트로 고정한다. 테스트 수정은 구현과 별도 커밋으로.
 - **커밋은 마일스톤 단위** — 매 편집마다 커밋하지 않는다. 커밋 메시지 끝: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`. PROGRESS.md 는 세션 종료 시 갱신.
 - **강제 장치** — 이 파일의 규칙 중 일부는 hook 으로 이중화돼 있다: docs/design 쓰기 차단 + ktlint(`.claude/settings.json` · `.claude/hooks/`), 시크릿 스캔(`.githooks/pre-commit`). hook 이 막으면 우회하지 말고 원인을 고친다.
-- **converge 리뷰는 순차·재개 가능하게 실행** — `./scripts/converge-review.sh design-sync <base>` 성공 후 `code-reviewer`를 실행한다. 두 agent를 병렬 실행하지 않고, 한도 초과 시 `.git/claude-converge/`에 저장된 같은 세션을 재개한다.
+- **converge 리뷰는 순차·독립적으로 실행** — 구현 세션과 분리된 읽기 전용 세션에서 design-sync 성공 후 code-reviewer를
+  실행한다. Claude Code는 `./scripts/converge-review.sh`로 재개할 수 있고, Codex는 같은 `.claude/agents/` 체크리스트를 읽은
+  별도 reviewer agent/session으로 대체할 수 있다. 세부 기준은 [converge-review.md](docs/ai/converge-review.md)다.
+  두 리뷰를 병렬 실행하거나 구현 세션이 스스로 최종 승인하지 않는다.
+- **Admin 작업 절차** — 일반 Admin 기능은 `.claude/skills/admin-feature`, 정책·컨트랙트·allowance cap·밴드S·pause/resume 변경은
+  `.claude/skills/admin-policy-change`를 적용한다. `docs/design/08-bcm-admin.md`가 없거나 waas-wiki와 다르면 구현보다 설계 동기화가 먼저다.
 - 프롬프트 작성 요령·작업 요청 템플릿: [docs/ai/prompt-guide.md](docs/ai/prompt-guide.md).
 
 ## 7. 확정·미확정

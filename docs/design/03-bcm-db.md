@@ -333,7 +333,7 @@ CREATE INDEX idx_bcm_tx_rcnc ON bcm_tx_l (last_pub_stcd, rcnc_stop_dttm, rcnc_ch
 
 ### bcm_sbmt_l — 제출 원장
 
-우리가 벤더에 낸 건(출금·내부이체·sweep)을 **벤더에 보내기 전에** 먼저 적는 원장이다. 두 가지 일을 한다 — ① `ext_tx_id` 멱등 판정(같은 키 + 같은 내용이면 처음 `txId` 반환, 내용이 다르면 거절) ② 우리 vault 에서 나간 웹훅이 어느 계열인지 가르는 기준.
+우리가 벤더에 낸 건(출금·내부이체·sweep·밴드S)을 **벤더에 보내기 전에** 먼저 적는 원장이다. 두 가지 일을 한다 — ① `ext_tx_id` 멱등 판정(같은 키 + 같은 내용이면 처음 `txId` 반환, 내용이 다르면 거절) ② 우리 vault 에서 나간 웹훅이 어느 계열인지 가르는 기준.
 
 `bcm_tx_l` 에 흡수하지 않는 이유는 **키가 다르기 때문**이다. `bcm_tx_l` 의 PK 는 벤더 tx id 인데 제출 시점에는 그 값을 아직 모른다. 반대로 멱등 판정은 벤더를 부르기 전에 끝나야 한다 — 부른 뒤에 적으면 그 사이에 죽었을 때 돈이 나갔는지 알 방법이 없다. 그래서 우리 요청 키를 PK 로 갖는 원장을 따로 둔다.
 
@@ -345,7 +345,7 @@ CREATE TABLE bcm_sbmt_l (
   sbmt_stcd     VARCHAR(16)  NOT NULL,      -- 제출 상태 REQUESTED · SUBMITTED · FAILED
   claim_id      VARCHAR(36)  NULL,          -- 진행 중 소유권 토큰(UUID) — 이 값을 쥔 호출자만 벤더에 제출한다
   claim_exp_dttm VARCHAR(16) NULL,          -- 소유권 만료 일시 — 지나면 다른 호출자가 뺏는다 (죽은 소유자 방치 방지)
-  tx_dvcd       VARCHAR(16)  NOT NULL,      -- WITHDRAWAL · INTERNAL · SWEEP_APPROVE · SWEEP_BATCH
+  tx_dvcd       VARCHAR(16)  NOT NULL,      -- WITHDRAWAL · INTERNAL · SWEEP_APPROVE · SWEEP_BATCH · BAND_S
   vndr_tx_id    VARCHAR(64)  NULL,          -- 벤더 응답(또는 먼저 온 웹훅)으로 채운다. NULL = 벤더에 닿았는지 미확인
   swp_exec_id   VARCHAR(36)  NULL,          -- SWEEP_BATCH일 때 bcm_swp_exec_l 연결
   snd_acnt_id   VARCHAR(64)  NOT NULL,      -- 보내는 계정 — 이벤트 파티션 키이기도 하다
@@ -377,14 +377,14 @@ CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, last_chck_dttm, req_dtt
 | `req_hash` | "같은 내용인가"의 판정값. 아래 canonical 규칙으로 만든 문자열의 SHA-256. **요청 원문은 저장하지 않는다** — `travelRule` 이 트래블룰 게이트가 만든 암호화 산출물(IVMS101 계열 개인정보)이라, 원문을 남기면 매니저가 그 보관 주체가 된다. 매니저는 운반만 한다([흐름](02-bcm-flow.md)) |
 | `hash_vrsn` | canonical 규칙을 나중에 바꿔도 옛 행을 되살릴 수 있게 판을 함께 적는다. 판이 다르면 해시를 믿지 않고 아래 개별 컬럼으로 그 판의 규칙을 다시 적용해 비교한다 |
 | `call_data` | `cc-v1` 재계산에 쓰는 CONTRACT_CALL 입력. `SWEEP_APPROVE`·`SWEEP_BATCH`에 필수이며 canonical과 같은 소문자 `0x` hex로 저장한다. 일반 출금·내부이체에는 NULL이다. calldata에는 주소·금액이 ABI 인코딩돼 있으므로 원문 payload·시크릿은 저장하지 않는다 |
-| `tx_dvcd` | **웹훅 분류의 유일한 기준.** `SWEEP_APPROVE`는 고객 vault의 allowance 설정, `SWEEP_BATCH`는 운영 계정의 최상위 batch 호출이다. 둘 다 고객 토픽으로 발행하지 않는다 |
+| `tx_dvcd` | **웹훅 분류의 유일한 기준.** `SWEEP_APPROVE`는 고객 vault의 allowance 설정, `SWEEP_BATCH`는 운영 계정의 최상위 batch 호출, `BAND_S`는 승인된 핫·콜드 이동 item이다. 셋 모두 고객 토픽으로 발행하지 않는다 |
 | `swp_exec_id` | `SWEEP_BATCH`에 필수이고 그 밖에는 NULL이다. 최상위 벤더 tx를 실행 1건과 연결하고, 원천 이동은 `bcm_swp_item_l`에서 펼친다 |
 | `vndr_tx_id` | 벤더 응답으로 채우는 게 정상이지만, 응답을 못 받고 웹훅이 먼저 와도 그때 채운다. 부분 UNIQUE 인덱스가 벤더 tx 와 1:1 을 보장한다 |
 | `sbmt_stcd` | `REQUESTED` = 벤더에 닿았는지 모름 · `SUBMITTED` = 벤더가 tx id 를 줌 · `FAILED` = 벤더가 검증으로 확정 거절. 복구 규칙은 [흐름](02-bcm-flow.md) 출금 절 |
 | `claim_id`·`claim_exp_dttm` | **같은 키가 동시에 들어와도 벤더 제출은 한 번만** 하게 하는 소유권이다. 행을 넣거나 뺏을 때 토큰과 만료를 함께 적고, 그 토큰을 쥔 호출자만 벤더를 부른다. **상태값(`SUBMITTING` 같은)으로 하지 않는 이유** — 소유자 프로세스가 죽으면 그 상태에서 영원히 멈춘다. 만료 시각이 붙어 있으면 스스로 풀린다. 만료는 벤더 제출 호출 타임아웃보다 길게 잡는다(운영 설정값) |
 | `last_chck_dttm`·`chck_cnt` | 재시도 요청이 오지 않는 오래된 `REQUESTED` 를 미결 점검이 확인한 흔적. 성공적으로 찾았을 때뿐 아니라 미발견·조회 실패에도 갱신해 같은 건을 매 주기마다 두드리지 않고 백오프·경보한다. **점검기는 조회만 하고 재제출하지 않는다** — 일반 출금 원문을 저장하지 않고, 원 API 요청과 경합하면 중복 전송이 될 수 있기 때문이다 |
 | `snd_acnt_id` | 출금은 출금 풀 vault 계정, 내부이체는 출발 계정. 이벤트 파티션 키가 이 값이라 따로 `acnt_id` 를 두지 않는다 |
-| sweep 제출의 공통 컬럼 | `SWEEP_APPROVE`는 고객 계정·토큰 컨트랙트·승인 cap, `SWEEP_BATCH`는 운영 계정·sweep 컨트랙트·요청 총액을 `snd_acnt_id`·`rcv_vl`·`trsf_amt`에 저장한다. 항목별 금액은 실행 항목이 정본이다 |
+| sweep·밴드S 제출의 공통 컬럼 | `SWEEP_APPROVE`는 고객 계정·토큰 컨트랙트·승인 cap, `SWEEP_BATCH`는 운영 계정·sweep 컨트랙트·요청 총액을 `snd_acnt_id`·`rcv_vl`·`trsf_amt`에 저장한다. `BAND_S`는 proposal item의 출발 vault·목적지·네트워크·자산·수량을 저장하며 `bcm_bnds_exec_evt_l.ext_tx_id`가 실행 item과 잇는다. 항목별 이동안의 정본은 proposal item이다 |
 | 보존 | 종결 뒤에도 남긴다 — `ext_tx_id` 재사용 탐지가 영구적이어야 한다(벤더도 `externalTxId` 를 영구 보관한다) |
 
 #### sbmt_stcd 전이 — 어느 경로로 왔는지가 함께 판단 기준이다
@@ -557,6 +557,10 @@ CREATE TABLE bcm_swp_exec_l (
   tkn_smbl         VARCHAR(16)    NOT NULL,
   opr_acnt_id      VARCHAR(64)    NOT NULL,        -- batch 호출 운영 계정
   swp_ctrt_addr    VARCHAR(128)   NOT NULL,
+  plcy_vrsn_id     VARCHAR(36)    NOT NULL REFERENCES bcm_plcy_vrsn_l(plcy_vrsn_id),
+  plcy_snps_hash   CHAR(64)       NOT NULL,        -- 실행 직전 활성 policy binding snapshot
+  ctrt_vrsn_id     VARCHAR(36)    NOT NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  ctrt_evdc_id     VARCHAR(36)    NOT NULL REFERENCES bcm_ctrt_evdc_l(evdc_id),
   swp_exec_stcd    VARCHAR(16)    NOT NULL,        -- READY/SUBMITTING/SUBMITTED/RECONCILING/COMPLETED/PARTIAL/FAILED
   item_cnt         INT            NOT NULL,
   req_tot_amt      NUMERIC(36,18) NOT NULL,
@@ -665,6 +669,11 @@ CREATE TABLE bcm_job_m (
 );
 ```
 
+새 sweep 실행은 활성 policy binding과 활성 sweep contract binding을 같은 실행 문맥에서 재조회한다. 정책이 현재 배포 hard
+ceiling 안이고 실행 설정과 같으며, contract의 최신 `VALID` evidence가 만료되지 않고 출시 게이트를 통과한 경우에만 위 네 snapshot
+필드를 선기록한다. 제출 재시도는 저장한 version·snapshot·evidence가 현재 활성 문맥과 같은지 다시 확인하되, 이미 벤더에 접수된
+실행의 상태 관찰과 대사는 정책 변경 뒤에도 계속한다.
+
 ### bcm_fee_qt_l — 수수료 견적 시계열
 
 등록된 `(ntwk_cd, tkn_smbl)`의 Fireblocks assetId로 `GET /v1/estimate_network_fee`를 호출해 LOW·MEDIUM·HIGH를 한 행씩 저장한다. 응답 필드는 자산 유형에 따라 일부만 오므로 nullable이고, 적어도 하나는 있어야 한다. `vndr_ast_id`는 관측 당시 호출 대상을 남기는 이력값이라 자산 매핑을 FK로 묶지 않는다.
@@ -734,6 +743,956 @@ CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- �
 
 적격 후보가 더 없음을 확인한 뒤에만 별도 마지막 트랜잭션에서 보존 기간이 지난 처리 완료(`S`) 인박스를 정리하고 성공 heartbeat를 기록한다. 원어가 COMPLETED인 인박스는 root가 아직 FINALIZED가 아니어도 동일하거나 더 최신 `rcv_dttm` 원문이 보관되기 전까지 정리 대상에서 제외한다. 최대 배치에 도달해 적체를 완전히 비우지 못했거나 어느 배치든 실패하면 인박스 정리와 성공 heartbeat는 하지 않는다. 따라서 `last_scs_dttm`은 보관 완전성 커서가 아니라 성공 heartbeat일 뿐이다. 보존 연한·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
 
+## Phase 10 Admin 원장 물리 설계 (2026-08-17 확정)
+
+[Admin](08-bcm-admin.md)의 변경·승인·활성화는 **불변 원장 + 현재 binding projection**으로 구현한다. version·evidence·요청·판단·action은
+추가 전용이고, 현재 binding만 scope별 단일 행을 잠가 교체한다. binding 변경 전후와 외부 관찰은 action 원장에 남으므로 과거 상태를 재현할 수 있다.
+밴드S input snapshot·proposal·item·execution·event도 추가 전용으로 보존하고 현재 상태는 사실 원장에서 파생한다.
+
+### 밴드S input snapshot·proposal·실행 원장
+
+밴드S 금액과 비율은 DAW-CORE가 계산한다. BCM은 DAW-CORE가 보낸 canonical payload의 hash, 정책 version, 기준·만료 시각,
+입력 완전성, proposal-item 합계와 실행 경계만 검증한다. BCM이 환율·NAV·총자산·이동량을 다시 계산하거나 누락값을 보정하지 않는다.
+
+```sql
+CREATE TABLE bcm_bnds_snps_l (
+  snps_id             VARCHAR(36)   PRIMARY KEY,
+  src_req_id          VARCHAR(128)  NOT NULL UNIQUE,
+  plcy_vrsn_id        VARCHAR(36)   NOT NULL REFERENCES bcm_plcy_vrsn_l(plcy_vrsn_id),
+  snps_hash           VARCHAR(64)   NOT NULL UNIQUE,
+  input_hash          VARCHAR(64)   NOT NULL,
+  base_dttm           VARCHAR(16)   NOT NULL,
+  expr_dttm           VARCHAR(16)   NOT NULL,
+  input_cmplt_yn      VARCHAR(1)    NOT NULL,
+  total_ast_krw_amt   NUMERIC       NOT NULL,
+  obs_hot_krw_amt     NUMERIC       NOT NULL,
+  obs_cold_krw_amt    NUMERIC       NOT NULL,
+  efct_hot_krw_amt    NUMERIC       NOT NULL,
+  hot_ratio           NUMERIC       NOT NULL,
+  low_ratio           NUMERIC       NOT NULL,
+  trgt_ratio          NUMERIC       NOT NULL,
+  up_ratio            NUMERIC       NOT NULL,
+  input_payload       JSONB         NOT NULL,
+  issue_payload       JSONB         NOT NULL,
+  reg_dttm            VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ck_bcm_bnds_snps_yn CHECK (input_cmplt_yn IN ('Y','N')),
+  CONSTRAINT ck_bcm_bnds_snps_hash CHECK (snps_hash ~ '^[0-9a-f]{64}$' AND input_hash ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT ck_bcm_bnds_snps_time CHECK (base_dttm < expr_dttm),
+  CONSTRAINT ck_bcm_bnds_snps_amount CHECK (
+    total_ast_krw_amt >= 0 AND obs_hot_krw_amt >= 0 AND obs_cold_krw_amt >= 0 AND efct_hot_krw_amt >= 0
+  ),
+  CONSTRAINT ck_bcm_bnds_snps_ratio CHECK (
+    low_ratio >= 0 AND low_ratio < trgt_ratio AND trgt_ratio < up_ratio AND up_ratio <= 100 AND hot_ratio >= 0
+  )
+);
+
+CREATE TABLE bcm_bnds_prop_l (
+  prop_id             VARCHAR(36)   PRIMARY KEY,
+  src_prop_id         VARCHAR(128)  NOT NULL UNIQUE,
+  snps_id             VARCHAR(36)   NOT NULL REFERENCES bcm_bnds_snps_l(snps_id),
+  plcy_vrsn_id        VARCHAR(36)   NOT NULL REFERENCES bcm_plcy_vrsn_l(plcy_vrsn_id),
+  drct_dvcd           VARCHAR(16)   NOT NULL,
+  prop_hash           VARCHAR(64)   NOT NULL UNIQUE,
+  input_hash          VARCHAR(64)   NOT NULL,
+  item_cnt            INTEGER       NOT NULL,
+  total_krw_amt       NUMERIC       NOT NULL,
+  aft_hot_ratio       NUMERIC       NOT NULL,
+  exec_able_yn        VARCHAR(1)    NOT NULL,
+  prop_payload        JSONB         NOT NULL,
+  block_payload       JSONB         NOT NULL,
+  reg_dttm            VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ck_bcm_bnds_prop_direction CHECK (drct_dvcd IN ('HOT_TO_COLD','COLD_TO_HOT')),
+  CONSTRAINT ck_bcm_bnds_prop_hash CHECK (prop_hash ~ '^[0-9a-f]{64}$' AND input_hash ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT ck_bcm_bnds_prop_yn CHECK (exec_able_yn IN ('Y','N')),
+  CONSTRAINT ck_bcm_bnds_prop_amount CHECK (item_cnt > 0 AND total_krw_amt > 0 AND aft_hot_ratio >= 0)
+);
+
+CREATE TABLE bcm_bnds_prop_item_l (
+  prop_id             VARCHAR(36)   NOT NULL REFERENCES bcm_bnds_prop_l(prop_id),
+  item_seq            INTEGER       NOT NULL,
+  dep_item_seq        INTEGER       NULL,
+  leg_dvcd            VARCHAR(24)   NOT NULL,
+  ntwk_cd             VARCHAR(16)   NOT NULL,
+  tkn_smbl            VARCHAR(16)   NOT NULL,
+  src_vlt_id          VARCHAR(64)   NULL,
+  dst_vlt_id          VARCHAR(64)   NULL,
+  dst_addr            VARCHAR(128)  NULL,
+  amt                  NUMERIC       NOT NULL,
+  krw_amt              NUMERIC       NOT NULL,
+  exp_fee_amt          NUMERIC       NOT NULL,
+  item_hash            VARCHAR(64)   NOT NULL,
+  exec_able_yn         VARCHAR(1)    NOT NULL,
+  block_rsn_cd         VARCHAR(64)   NULL,
+  frst_reg_empno       VARCHAR(6)    NOT NULL,
+  frst_reg_brcd        VARCHAR(4)    NOT NULL,
+  last_chng_empno      VARCHAR(6)    NOT NULL,
+  last_chng_brcd       VARCHAR(4)    NOT NULL,
+  PRIMARY KEY (prop_id, item_seq),
+  CONSTRAINT fk_bcm_bnds_prop_item_dep FOREIGN KEY (prop_id, dep_item_seq)
+    REFERENCES bcm_bnds_prop_item_l(prop_id, item_seq),
+  CONSTRAINT ux_bcm_bnds_prop_item_hash UNIQUE (prop_id, item_hash),
+  CONSTRAINT ck_bcm_bnds_prop_item_leg CHECK (
+    (leg_dvcd = 'INTERNAL_TO_EGRESS' AND src_vlt_id IS NOT NULL AND dst_vlt_id IS NOT NULL AND dst_addr IS NULL) OR
+    (leg_dvcd = 'EXTERNAL_COLD' AND src_vlt_id IS NOT NULL AND dst_vlt_id IS NULL AND dst_addr IS NOT NULL) OR
+    (leg_dvcd = 'COLD_DEPOSIT' AND src_vlt_id IS NULL AND dst_vlt_id IS NOT NULL AND dst_addr IS NULL) OR
+    (leg_dvcd = 'HOT_REDISTRIBUTE' AND src_vlt_id IS NOT NULL AND dst_vlt_id IS NOT NULL AND dst_addr IS NULL)
+  ),
+  CONSTRAINT ck_bcm_bnds_prop_item_hash CHECK (item_hash ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT ck_bcm_bnds_prop_item_yn CHECK (exec_able_yn IN ('Y','N')),
+  CONSTRAINT ck_bcm_bnds_prop_item_amount CHECK (item_seq > 0 AND amt > 0 AND krw_amt > 0 AND exp_fee_amt >= 0)
+);
+
+CREATE TABLE bcm_bnds_exec_l (
+  exec_id             VARCHAR(36)   PRIMARY KEY,
+  req_id              VARCHAR(36)   NOT NULL UNIQUE REFERENCES bcm_chng_req_l(req_id),
+  prop_id             VARCHAR(36)   NOT NULL UNIQUE REFERENCES bcm_bnds_prop_l(prop_id),
+  snps_id             VARCHAR(36)   NOT NULL REFERENCES bcm_bnds_snps_l(snps_id),
+  plcy_vrsn_id        VARCHAR(36)   NOT NULL REFERENCES bcm_plcy_vrsn_l(plcy_vrsn_id),
+  prop_hash           VARCHAR(64)   NOT NULL,
+  input_hash          VARCHAR(64)   NOT NULL,
+  idmp_key            VARCHAR(128)  NOT NULL,
+  exec_hash           VARCHAR(64)   NOT NULL,
+  rsv_dttm            VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_bnds_exec_idmp UNIQUE (req_id, idmp_key),
+  CONSTRAINT ck_bcm_bnds_exec_hash CHECK (
+    prop_hash ~ '^[0-9a-f]{64}$' AND input_hash ~ '^[0-9a-f]{64}$' AND exec_hash ~ '^[0-9a-f]{64}$'
+  )
+);
+
+CREATE TABLE bcm_bnds_exec_item_key (
+  exec_id             VARCHAR(36)  NOT NULL REFERENCES bcm_bnds_exec_l(exec_id),
+  item_seq            INTEGER      NOT NULL,
+  prop_id             VARCHAR(36)  NOT NULL,
+  frst_reg_empno      VARCHAR(6)   NOT NULL,
+  frst_reg_brcd       VARCHAR(4)   NOT NULL,
+  last_chng_empno     VARCHAR(6)   NOT NULL,
+  last_chng_brcd      VARCHAR(4)   NOT NULL,
+  PRIMARY KEY (exec_id, item_seq),
+  CONSTRAINT fk_bcm_bnds_exec_item_prop FOREIGN KEY (prop_id, item_seq)
+    REFERENCES bcm_bnds_prop_item_l(prop_id, item_seq),
+  CONSTRAINT ux_bcm_bnds_exec_item_prop UNIQUE (exec_id, prop_id, item_seq)
+);
+
+CREATE TABLE bcm_bnds_exec_evt_l (
+  exec_id             VARCHAR(36)   NOT NULL REFERENCES bcm_bnds_exec_l(exec_id),
+  item_seq            INTEGER       NOT NULL,
+  evt_seq             INTEGER       NOT NULL,
+  exec_stcd           VARCHAR(24)   NOT NULL,
+  ext_tx_id           VARCHAR(128)  NULL,
+  vndr_tx_id          VARCHAR(64)   NULL,
+  obs_payload         JSONB         NOT NULL,
+  obs_hash            VARCHAR(64)   NOT NULL,
+  occr_dttm           VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  PRIMARY KEY (exec_id, item_seq, evt_seq),
+  CONSTRAINT fk_bcm_bnds_exec_evt_item FOREIGN KEY (exec_id, item_seq)
+    REFERENCES bcm_bnds_exec_item_key(exec_id, item_seq),
+  CONSTRAINT ck_bcm_bnds_exec_evt_state CHECK (
+    exec_stcd IN ('RESERVED','SUBMIT_INTENT','SUBMITTED','FINALIZED','FAILED','RECONCILED','RELEASED')
+  ),
+  CONSTRAINT ck_bcm_bnds_exec_evt_hash CHECK (obs_hash ~ '^[0-9a-f]{64}$')
+);
+CREATE UNIQUE INDEX ux_bcm_bnds_exec_evt_ext ON bcm_bnds_exec_evt_l(ext_tx_id) WHERE ext_tx_id IS NOT NULL;
+CREATE UNIQUE INDEX ux_bcm_bnds_exec_evt_vndr ON bcm_bnds_exec_evt_l(vndr_tx_id) WHERE vndr_tx_id IS NOT NULL;
+```
+
+`bcm_bnds_exec_evt_l`의 item FK를 고정하기 위해 마이그레이션은 `bcm_bnds_exec_l`과 proposal item을 결합한
+`bcm_bnds_exec_item_key(exec_id, item_seq)` 불변 키 테이블을 함께 만든다. 실행 transaction은 승인된 proposal의 모든 item key와
+`RESERVED` event를 한 번에 추가한다. reservation은 최신 event가 `RESERVED/SUBMIT_INTENT/SUBMITTED/FINALIZED`인 동안 유효하고,
+`RECONCILED/FAILED/RELEASED`에서 끝난다. DAW-CORE의 다음 snapshot은 이 활성 reservation을 입력에 한 번만 포함한다.
+
+snapshot·proposal·item·execution·item key·event에는 공통 append-only trigger를 건다. proposal 요청은 `bcm_chng_req_l.tgt_dvcd='BAND_S'`,
+`risk_dvcd='FUND'`, `aft_bnds_prop_id`로 연결하고 요청자 외 독립 승인자 1명을 요구한다. 실행 직전에는 snapshot 만료·완전성,
+정책/binding version, proposal/input hash, 목적지 allowlist와 외부 cold 출구(옴니버스), item dependency를 다시 확인한다.
+`COLD_TO_HOT`의 `COLD_DEPOSIT`은 Admin이 제출하지 않고 외부 입금 `FINALIZED` 관찰만 기록하며 이후 `HOT_REDISTRIBUTE`를 연다.
+
+현재 상태는 event의 `(exec_id,item_seq)`별 가장 큰 `evt_seq`로 파생한다. 전 item이 `RECONCILED`면 `COMPLETED`, 일부가
+`RECONCILED`이고 일부가 `FAILED/RELEASED`면 `PARTIAL`, 전부 `FAILED/RELEASED`면 `FAILED`, 그 외에는 `EXECUTING`이다.
+최상위 벤더 거래 `FINALIZED`만으로 완료 처리하지 않고 완료 후 DAW-CORE 잔액 대사 증적을 받은 `RECONCILED`에서 예약을 해제한다.
+
+### 상태코드와 현재 상태 파생
+
+원장 행의 내용을 상태 변경으로 덮어쓰지 않는다. 화면·API 상태는 아래 사실로 파생한다.
+
+| 대상 | API 상태 | 파생 근거 |
+|---|---|---|
+| 컨트랙트 | `CANDIDATE` | version만 있고 유효 evidence가 없음 |
+| 컨트랙트 | `VERIFIED` | 만료되지 않은 `VALID` evidence가 있고 현재 binding은 아님 |
+| 컨트랙트 | `ACTIVE` | `bcm_ctrt_bind_m.actv_ctrt_vrsn_id`가 해당 version을 가리킴 |
+| 컨트랙트 | `PAUSED`·`RETIRED` | T10.6의 성공 action과 최신 온체인 재조회로 파생. `PAUSED`는 binding 해제를 뜻하지 않음 |
+| 정책 | `DRAFT` | version만 있고 변경 요청이 없음 |
+| 정책 | `IN_REVIEW` | 유효한 요청이 있고 정족수 미충족 |
+| 정책 | `APPROVED` | 같은 snapshot의 승인 정족수 충족, 아직 binding 전 |
+| 정책 | `ACTIVE` | `bcm_plcy_bind_m.actv_plcy_vrsn_id`가 해당 version을 가리킴 |
+| 정책 | `SUPERSEDED` | 과거 성공 activation이 있으나 현재 binding이 다른 version을 가리킴 |
+| 변경 요청 | `PENDING`·`APPROVED`·`REJECTED`·`EXPIRED`·`CANCELLED`·`ACTIVATED` | 판단·만료시각·성공 action에서 우선순위로 파생 |
+| 실행 게이트 | `OPEN`·`STOPPED` | `(network, gate type)`별 최신 `STOPPED/RESUMED` event에서 파생. event가 없거나 최신이 `RESUMED`면 `OPEN` |
+| 밴드S proposal | `BLOCKED` | snapshot 누락·만료·불완전, 정책 불일치, 차단 item 중 하나 이상 |
+| 밴드S proposal | `PENDING`·`APPROVED`·`REJECTED`·`EXPIRED` | `BAND_S` 변경 요청의 판단·만료시각에서 파생 |
+| 밴드S 실행 | `EXECUTING`·`PARTIAL`·`COMPLETED`·`FAILED` | item별 최신 execution event 조합에서 파생 |
+
+저장 상태코드는 `bcm_ctrt_evdc_l.evdc_stcd = VALID/INVALID/STALE/ERROR`,
+`bcm_chng_dcsn_l.dcsn_dvcd = APPROVE/REJECT`, `bcm_adm_actn_l.actn_stcd = INTENT/SUCCEEDED/FAILED`로 닫는다.
+위험 등급은 `GENERAL/SECURITY/RESUME/FUND`, action은 `ACTIVATE/CANCEL/PAUSE/RESUME/EXECUTE`이다.
+
+### 불변 version·evidence 원장
+
+```sql
+CREATE TABLE bcm_ctrt_vrsn_l (
+  ctrt_vrsn_id      VARCHAR(36)   PRIMARY KEY,
+  ctrt_scope_id     VARCHAR(128)  NOT NULL,
+  ntwk_cd           VARCHAR(16)   NOT NULL,
+  use_dvcd          VARCHAR(16)   NOT NULL,
+  vrsn              VARCHAR(32)   NOT NULL,
+  ctrt_addr         VARCHAR(128)  NOT NULL,
+  release_cmit      VARCHAR(64)   NOT NULL,
+  artifact_hash     VARCHAR(64)   NOT NULL,
+  abi_hash          VARCHAR(64)   NOT NULL,
+  runtime_code_hash VARCHAR(64)   NOT NULL,
+  deploy_tx_hash    VARCHAR(128)  NOT NULL,
+  deploy_blck_no    NUMERIC(78,0) NOT NULL,
+  immut_payload     JSONB         NOT NULL,
+  immut_hash        VARCHAR(64)   NOT NULL,
+  ceiling_payload   JSONB         NOT NULL,
+  ceiling_hash      VARCHAR(64)   NOT NULL,
+  release_uri       VARCHAR(512)  NOT NULL,
+  reg_dttm          VARCHAR(16)   NOT NULL,
+  frst_reg_empno    VARCHAR(6)    NOT NULL,
+  frst_reg_brcd     VARCHAR(4)    NOT NULL,
+  last_chng_empno   VARCHAR(6)    NOT NULL,
+  last_chng_brcd    VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_ctrt_vrsn_scope UNIQUE (ctrt_scope_id, vrsn),
+  CONSTRAINT ck_bcm_ctrt_scope CHECK (ctrt_scope_id = ntwk_cd || ':' || use_dvcd),
+  CONSTRAINT ck_bcm_ctrt_hashes CHECK (
+    artifact_hash ~ '^[0-9a-f]{64}$' AND abi_hash ~ '^[0-9a-f]{64}$' AND
+    runtime_code_hash ~ '^[0-9a-f]{64}$' AND immut_hash ~ '^[0-9a-f]{64}$' AND ceiling_hash ~ '^[0-9a-f]{64}$'
+  )
+);
+
+CREATE TABLE bcm_ctrt_evdc_l (
+  evdc_id             VARCHAR(36)   PRIMARY KEY,
+  ctrt_vrsn_id        VARCHAR(36)   NOT NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  snps_hash           VARCHAR(64)   NOT NULL UNIQUE,
+  exp_chain_id        NUMERIC(20,0) NOT NULL,
+  exp_code_hash       VARCHAR(64)   NOT NULL,
+  exp_immut_hash      VARCHAR(64)   NOT NULL,
+  pin_blck_no         NUMERIC(78,0) NOT NULL,
+  rpc1_id             VARCHAR(64)   NOT NULL,
+  rpc1_chain_id       NUMERIC(20,0) NULL,
+  rpc1_code_hash      VARCHAR(64)   NULL,
+  rpc1_immut_hash     VARCHAR(64)   NULL,
+  rpc1_obs_dttm       VARCHAR(16)   NULL,
+  rpc2_id             VARCHAR(64)   NOT NULL,
+  rpc2_chain_id       NUMERIC(20,0) NULL,
+  rpc2_code_hash      VARCHAR(64)   NULL,
+  rpc2_immut_hash     VARCHAR(64)   NULL,
+  rpc2_obs_dttm       VARCHAR(16)   NULL,
+  tap_mtch_yn         VARCHAR(1)    NOT NULL,
+  clbk_mtch_yn        VARCHAR(1)    NOT NULL,
+  gasless_pass_yn     VARCHAR(1)    NOT NULL,
+  audit_pass_yn       VARCHAR(1)    NOT NULL,
+  revoke_drill_yn     VARCHAR(1)    NOT NULL,
+  launch_gate_yn      VARCHAR(1)    NOT NULL,
+  evdc_stcd           VARCHAR(16)   NOT NULL,
+  obs_dttm            VARCHAR(16)   NOT NULL,
+  vld_until_dttm      VARCHAR(16)   NOT NULL,
+  doc_evdc            JSONB         NOT NULL,
+  doc_evdc_hash       VARCHAR(64)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ck_bcm_ctrt_evdc_rpc CHECK (rpc1_id <> rpc2_id),
+  CONSTRAINT ck_bcm_ctrt_evdc_state CHECK (evdc_stcd IN ('VALID','INVALID','STALE','ERROR')),
+  CONSTRAINT ck_bcm_ctrt_evdc_yn CHECK (
+    tap_mtch_yn IN ('Y','N') AND clbk_mtch_yn IN ('Y','N') AND gasless_pass_yn IN ('Y','N') AND
+    audit_pass_yn IN ('Y','N') AND revoke_drill_yn IN ('Y','N') AND launch_gate_yn IN ('Y','N')
+  ),
+  CONSTRAINT ck_bcm_ctrt_evdc_valid CHECK (
+    evdc_stcd <> 'VALID' OR (
+      rpc1_chain_id = exp_chain_id AND rpc2_chain_id = exp_chain_id AND
+      rpc1_code_hash = exp_code_hash AND rpc2_code_hash = exp_code_hash AND
+      rpc1_immut_hash = exp_immut_hash AND rpc2_immut_hash = exp_immut_hash AND
+      rpc1_obs_dttm IS NOT NULL AND rpc2_obs_dttm IS NOT NULL AND
+      tap_mtch_yn = 'Y' AND clbk_mtch_yn = 'Y' AND gasless_pass_yn = 'Y' AND
+      audit_pass_yn = 'Y' AND revoke_drill_yn = 'Y' AND launch_gate_yn = 'Y'
+    )
+  )
+);
+
+CREATE TABLE bcm_plcy_vrsn_l (
+  plcy_vrsn_id      VARCHAR(36)   PRIMARY KEY,
+  plcy_scope_id     VARCHAR(128)  NOT NULL,
+  vrsn_no           INTEGER       NOT NULL,
+  plcy_schm_vrsn    VARCHAR(16)   NOT NULL,
+  base_plcy_vrsn_id VARCHAR(36)   NULL REFERENCES bcm_plcy_vrsn_l(plcy_vrsn_id),
+  ctrt_vrsn_id      VARCHAR(36)   NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  plcy_payload      JSONB         NOT NULL,
+  plcy_hash         VARCHAR(64)   NOT NULL,
+  ceiling_snps      JSONB         NOT NULL,
+  ceiling_hash      VARCHAR(64)   NOT NULL,
+  ceiling_pass_yn   VARCHAR(1)    NOT NULL,
+  reg_dttm          VARCHAR(16)   NOT NULL,
+  frst_reg_empno    VARCHAR(6)    NOT NULL,
+  frst_reg_brcd     VARCHAR(4)    NOT NULL,
+  last_chng_empno   VARCHAR(6)    NOT NULL,
+  last_chng_brcd    VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_plcy_vrsn_scope UNIQUE (plcy_scope_id, vrsn_no),
+  CONSTRAINT ux_bcm_plcy_vrsn_hash UNIQUE (plcy_scope_id, plcy_hash),
+  CONSTRAINT ck_bcm_plcy_ceiling CHECK (ceiling_pass_yn IN ('Y','N')),
+  CONSTRAINT ck_bcm_plcy_hashes CHECK (plcy_hash ~ '^[0-9a-f]{64}$' AND ceiling_hash ~ '^[0-9a-f]{64}$')
+);
+```
+
+RPC ID는 endpoint의 논리 식별자만 저장하며 URL·credential은 저장하지 않는다. `VALID` evidence는 같은 pinned block에서 서로 다른 두 RPC가
+expected chainId·runtime code hash·불변값 hash와 모두 일치하고 TAP·Callback·Gasless·감사·회수 훈련·출시 게이트가 전부 통과한 경우뿐이다.
+만료 판단은 `vld_until_dttm`을 현재 UTC와 비교하며 `VALID` 문자열만 믿지 않는다.
+
+### 변경 요청·판단·action 원장
+
+```sql
+CREATE TABLE bcm_chng_req_l (
+  req_id             VARCHAR(36)   PRIMARY KEY,
+  tgt_dvcd           VARCHAR(16)   NOT NULL,
+  scope_id           VARCHAR(128)  NOT NULL,
+  bfr_ctrt_vrsn_id   VARCHAR(36)   NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  aft_ctrt_vrsn_id   VARCHAR(36)   NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  bfr_plcy_vrsn_id   VARCHAR(36)   NULL REFERENCES bcm_plcy_vrsn_l(plcy_vrsn_id),
+  aft_plcy_vrsn_id   VARCHAR(36)   NULL REFERENCES bcm_plcy_vrsn_l(plcy_vrsn_id),
+  aft_bnds_prop_id   VARCHAR(36)   NULL REFERENCES bcm_bnds_prop_l(prop_id),
+  evdc_id            VARCHAR(36)   NULL REFERENCES bcm_ctrt_evdc_l(evdc_id),
+  risk_dvcd          VARCHAR(16)   NOT NULL,
+  base_bind_rvsn     BIGINT        NOT NULL,
+  tgt_snps_hash      VARCHAR(64)   NOT NULL,
+  diff_payload       JSONB         NOT NULL,
+  diff_hash          VARCHAR(64)   NOT NULL,
+  impact_payload     JSONB         NOT NULL,
+  impact_hash        VARCHAR(64)   NOT NULL,
+  req_rsn            VARCHAR(1000) NOT NULL,
+  work_tckt          VARCHAR(128)  NOT NULL,
+  idmp_key           VARCHAR(128)  NOT NULL,
+  req_role_dvcd      VARCHAR(32)   NOT NULL,
+  req_dttm           VARCHAR(16)   NOT NULL,
+  expr_dttm          VARCHAR(16)   NOT NULL,
+  frst_reg_empno     VARCHAR(6)    NOT NULL,
+  frst_reg_brcd      VARCHAR(4)    NOT NULL,
+  last_chng_empno    VARCHAR(6)    NOT NULL,
+  last_chng_brcd     VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_chng_req_idmp UNIQUE (frst_reg_empno, idmp_key),
+  CONSTRAINT ck_bcm_chng_req_target CHECK (
+    (tgt_dvcd = 'CONTRACT' AND aft_ctrt_vrsn_id IS NOT NULL AND aft_plcy_vrsn_id IS NULL AND aft_bnds_prop_id IS NULL) OR
+    (tgt_dvcd = 'POLICY' AND aft_plcy_vrsn_id IS NOT NULL AND aft_ctrt_vrsn_id IS NULL AND aft_bnds_prop_id IS NULL) OR
+    (tgt_dvcd = 'BAND_S' AND aft_bnds_prop_id IS NOT NULL AND aft_ctrt_vrsn_id IS NULL AND aft_plcy_vrsn_id IS NULL)
+  ),
+  CONSTRAINT ck_bcm_chng_req_risk CHECK (risk_dvcd IN ('GENERAL','SECURITY','RESUME','FUND')),
+  CONSTRAINT ck_bcm_chng_req_hashes CHECK (
+    tgt_snps_hash ~ '^[0-9a-f]{64}$' AND diff_hash ~ '^[0-9a-f]{64}$' AND impact_hash ~ '^[0-9a-f]{64}$'
+  )
+);
+
+CREATE TABLE bcm_chng_dcsn_l (
+  req_id             VARCHAR(36)  NOT NULL REFERENCES bcm_chng_req_l(req_id),
+  aprv_empno         VARCHAR(6)   NOT NULL,
+  aprv_brcd          VARCHAR(4)   NOT NULL,
+  aprv_role_dvcd     VARCHAR(32)  NOT NULL,
+  dcsn_dvcd          VARCHAR(16)  NOT NULL,
+  dcsn_snps_hash     VARCHAR(64)  NOT NULL,
+  dcsn_opin          VARCHAR(1000) NULL,
+  dcsn_dttm          VARCHAR(16)  NOT NULL,
+  frst_reg_empno     VARCHAR(6)   NOT NULL,
+  frst_reg_brcd      VARCHAR(4)   NOT NULL,
+  last_chng_empno    VARCHAR(6)   NOT NULL,
+  last_chng_brcd     VARCHAR(4)   NOT NULL,
+  PRIMARY KEY (req_id, aprv_empno),
+  CONSTRAINT ck_bcm_chng_dcsn CHECK (dcsn_dvcd IN ('APPROVE','REJECT')),
+  CONSTRAINT ck_bcm_chng_aprv_role CHECK (aprv_role_dvcd IN ('BCM_APPROVER','BCM_SECURITY_APPROVER')),
+  CONSTRAINT ck_bcm_chng_dcsn_actor CHECK (aprv_empno = frst_reg_empno AND aprv_brcd = frst_reg_brcd)
+);
+
+CREATE TABLE bcm_adm_actn_l (
+  actn_id            VARCHAR(36)   PRIMARY KEY,
+  corr_id            VARCHAR(36)   NOT NULL,
+  req_id             VARCHAR(36)   NOT NULL REFERENCES bcm_chng_req_l(req_id),
+  actn_dvcd          VARCHAR(16)   NOT NULL,
+  actn_stcd          VARCHAR(16)   NOT NULL,
+  try_seq            INTEGER       NOT NULL,
+  idmp_key           VARCHAR(128)  NOT NULL,
+  req_hash           VARCHAR(64)   NOT NULL,
+  rsp_cd             VARCHAR(64)   NULL,
+  rsp_hash           VARCHAR(64)   NULL,
+  exp_state          JSONB         NOT NULL,
+  exp_state_hash     VARCHAR(64)   NOT NULL,
+  obs_state          JSONB         NULL,
+  obs_state_hash     VARCHAR(64)   NULL,
+  occr_dttm          VARCHAR(16)   NOT NULL,
+  frst_reg_empno     VARCHAR(6)    NOT NULL,
+  frst_reg_brcd      VARCHAR(4)    NOT NULL,
+  last_chng_empno    VARCHAR(6)    NOT NULL,
+  last_chng_brcd     VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_adm_actn_event UNIQUE (corr_id, try_seq, actn_stcd),
+  CONSTRAINT ck_bcm_adm_actn_type CHECK (actn_dvcd IN ('ACTIVATE','CANCEL','PAUSE','RESUME','EXECUTE')),
+  CONSTRAINT ck_bcm_adm_actn_state CHECK (actn_stcd IN ('INTENT','SUCCEEDED','FAILED'))
+);
+CREATE UNIQUE INDEX ux_bcm_adm_actn_idmp ON bcm_adm_actn_l(req_id, actn_dvcd, idmp_key) WHERE actn_stcd = 'INTENT';
+```
+
+`bcm_chng_dcsn_l` 입력 trigger는 요청자 자기 판단, 요청 snapshot과 다른 판단, 만료 뒤 승인, 같은 직원의 중복 판단을 거절한다.
+거절이 한 건이라도 있으면 정족수와 무관하게 요청은 `REJECTED`다. 일반 변경·자금 실행은 요청자 외 승인자 1명,
+보안 변경·재개는 서로 다른 승인자 2명과 그중 `BCM_SECURITY_APPROVER` 1명을 요구한다.
+
+### bcm_exec_gate_evt_l — 신규 실행 중지 원장
+
+네트워크별 출금·sweep·approve 신규 실행 중지는 승인 요청을 기다리지 않는 운영자 1명의 신속 경로다. 기존 승인 요청 FK가
+필수인 `bcm_adm_actn_l`에 억지로 넣지 않고, 범위·사유·작업 티켓·작업자·시각을 별도 추가 전용 원장에 남긴다.
+
+```sql
+CREATE TABLE bcm_exec_gate_evt_l (
+  gate_evt_id         VARCHAR(36)   PRIMARY KEY,
+  ntwk_cd             VARCHAR(20)   NOT NULL REFERENCES bcm_blkc_m(ntwk_cd),
+  gate_dvcd           VARCHAR(16)   NOT NULL,
+  evt_seq             INTEGER       NOT NULL,
+  gate_stcd           VARCHAR(16)   NOT NULL,
+  req_rsn             VARCHAR(1000) NOT NULL,
+  work_tckt           VARCHAR(128)  NOT NULL,
+  idmp_key            VARCHAR(128)  NOT NULL,
+  rsm_req_id          VARCHAR(36)   NULL REFERENCES bcm_chng_req_l(req_id),
+  occr_dttm           VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_exec_gate_seq UNIQUE (ntwk_cd, gate_dvcd, evt_seq),
+  CONSTRAINT ux_bcm_exec_gate_idmp UNIQUE (frst_reg_empno, idmp_key),
+  CONSTRAINT ck_bcm_exec_gate_type CHECK (gate_dvcd IN ('WITHDRAWAL','SWEEP','APPROVE')),
+  CONSTRAINT ck_bcm_exec_gate_state CHECK (gate_stcd IN ('STOPPED','RESUMED')),
+  CONSTRAINT ck_bcm_exec_gate_resume CHECK (
+    (gate_stcd = 'STOPPED' AND rsm_req_id IS NULL) OR
+    (gate_stcd = 'RESUMED' AND rsm_req_id IS NOT NULL)
+  ),
+  CONSTRAINT ck_bcm_exec_gate_seq CHECK (evt_seq > 0),
+  CONSTRAINT ck_bcm_exec_gate_actor CHECK (
+    frst_reg_empno = last_chng_empno AND frst_reg_brcd = last_chng_brcd
+  )
+);
+CREATE INDEX idx_bcm_exec_gate_current ON bcm_exec_gate_evt_l(ntwk_cd, gate_dvcd, evt_seq DESC);
+```
+
+- 현재 상태는 `(ntwk_cd, gate_dvcd)`별 최신 event로 파생한다. event sequence는 중지와 재개를 합쳐 1부터 연속이어야 한다.
+  같은 멱등 키는 같은 event를 반환하고 동시 전이는 `ux_bcm_exec_gate_seq`가 한 행만 허용한다. UPDATE·DELETE는 Admin 추가 전용
+  trigger로 거절한다.
+- `WITHDRAWAL`은 새 출금 제출만 막고 내부이체·입금 감지·주소·잔액 조회·이미 선기록된 제출의 회수/추적은 유지한다.
+  `SWEEP`은 새 batch 실행 생성을, `APPROVE`는 정상 allowance 확대 제출을 막는다. 비상 `approve(0)` 회수는 차단하지 않는다.
+- `RESUMED`는 아래 재개 요청·재검사 원장, 최신 중지 event, 완료된 회수, 만료되지 않은 외부 재검사, 강화 정족수와
+  `RESUME/INTENT`를 DB에서 모두 검증한 뒤 새 event로만 추가한다. 중지 행을 수정·삭제해 재개하지 않는다.
+
+### bcm_ext_ctrl_evdc_l — 비상 외부 통제 관찰 증적
+
+TAP batch 차단, sweep 컨트랙트 pause, 등록 운영자 제거는 BCM이 직접 변경하거나 서명하지 않는다. 운영자가 외부 경계에서
+조치한 뒤 BCM은 TAP 관리면과 pinned block 기준의 독립 RPC 2곳을 새로 조회하고, 한 번의 관찰 시도를 추가 전용 snapshot으로 남긴다.
+
+```sql
+CREATE TABLE bcm_ext_ctrl_evdc_l (
+  ext_ctrl_evdc_id    VARCHAR(36)   PRIMARY KEY,
+  ntwk_cd             VARCHAR(20)   NOT NULL REFERENCES bcm_blkc_m(ntwk_cd),
+  ctrt_vrsn_id        VARCHAR(36)   NOT NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  snps_hash           VARCHAR(64)   NOT NULL UNIQUE,
+  tap_src_id          VARCHAR(64)   NOT NULL,
+  tap_blck_yn         VARCHAR(1)    NULL,
+  tap_obs_dttm        VARCHAR(16)   NULL,
+  pin_blck_no         NUMERIC(78,0) NOT NULL,
+  exp_oprtr_hash      VARCHAR(64)   NOT NULL,
+  rpc1_id             VARCHAR(64)   NOT NULL,
+  rpc1_blck_no        NUMERIC(78,0) NULL,
+  rpc1_pause_yn       VARCHAR(1)    NULL,
+  rpc1_oprtr_hash     VARCHAR(64)   NULL,
+  rpc1_obs_dttm       VARCHAR(16)   NULL,
+  rpc2_id             VARCHAR(64)   NOT NULL,
+  rpc2_blck_no        NUMERIC(78,0) NULL,
+  rpc2_pause_yn       VARCHAR(1)    NULL,
+  rpc2_oprtr_hash     VARCHAR(64)   NULL,
+  rpc2_obs_dttm       VARCHAR(16)   NULL,
+  evdc_stcd           VARCHAR(16)   NOT NULL,
+  issue_payload       JSONB         NOT NULL,
+  issue_hash          VARCHAR(64)   NOT NULL,
+  obs_dttm            VARCHAR(16)   NOT NULL,
+  vld_until_dttm      VARCHAR(16)   NOT NULL,
+  req_rsn             VARCHAR(1000) NOT NULL,
+  work_tckt           VARCHAR(128)  NOT NULL,
+  idmp_key            VARCHAR(128)  NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_ext_ctrl_evdc_idmp UNIQUE (frst_reg_empno, idmp_key),
+  CONSTRAINT ck_bcm_ext_ctrl_evdc_rpc CHECK (rpc1_id <> rpc2_id),
+  CONSTRAINT ck_bcm_ext_ctrl_evdc_state CHECK (
+    evdc_stcd IN ('CONFIRMED','DRIFT','STALE','UNCONFIRMED','ERROR')
+  ),
+  CONSTRAINT ck_bcm_ext_ctrl_evdc_yn CHECK (
+    (tap_blck_yn IS NULL OR tap_blck_yn IN ('Y','N')) AND
+    (rpc1_pause_yn IS NULL OR rpc1_pause_yn IN ('Y','N')) AND
+    (rpc2_pause_yn IS NULL OR rpc2_pause_yn IN ('Y','N'))
+  ),
+  CONSTRAINT ck_bcm_ext_ctrl_evdc_hashes CHECK (
+    snps_hash ~ '^[0-9a-f]{64}$' AND exp_oprtr_hash ~ '^[0-9a-f]{64}$' AND
+    (rpc1_oprtr_hash IS NULL OR rpc1_oprtr_hash ~ '^[0-9a-f]{64}$') AND
+    (rpc2_oprtr_hash IS NULL OR rpc2_oprtr_hash ~ '^[0-9a-f]{64}$') AND
+    issue_hash ~ '^[0-9a-f]{64}$'
+  ),
+  CONSTRAINT ck_bcm_ext_ctrl_evdc_confirmed CHECK (
+    evdc_stcd <> 'CONFIRMED' OR (
+      tap_blck_yn = 'Y' AND tap_obs_dttm IS NOT NULL AND
+      rpc1_blck_no = pin_blck_no AND rpc2_blck_no = pin_blck_no AND
+      rpc1_pause_yn = 'Y' AND rpc2_pause_yn = 'Y' AND
+      rpc1_oprtr_hash = exp_oprtr_hash AND rpc2_oprtr_hash = exp_oprtr_hash AND
+      rpc1_obs_dttm IS NOT NULL AND rpc2_obs_dttm IS NOT NULL
+    )
+  ),
+  CONSTRAINT ck_bcm_ext_ctrl_evdc_actor CHECK (
+    frst_reg_empno = last_chng_empno AND frst_reg_brcd = last_chng_brcd
+  )
+);
+CREATE INDEX idx_bcm_ext_ctrl_evdc_current
+  ON bcm_ext_ctrl_evdc_l(ntwk_cd, obs_dttm DESC);
+```
+
+- `tap_src_id`와 `rpc*_id`는 credential·URL이 아닌 논리 식별자만 저장한다. 운영자 집합도 원문 대신 정렬된 집합의 SHA-256을
+  저장하며, 비상 제거의 기대값은 승인된 빈 집합 hash다.
+- 상태는 서버가 계산한다. 외부 호출 오류가 있으면 `ERROR`, 응답이 하나라도 없으면 `UNCONFIRMED`, 만료되면 `STALE`,
+  TAP이 열려 있거나 pause·pinned block·운영자 hash가 어긋나면 `DRIFT`, 전부 맞을 때만 `CONFIRMED`다.
+- 실패·drift·미확인 시도도 삭제하지 않는다. 같은 작업자와 멱등 키의 재요청은 같은 증적을 반환하고, 새로 관찰하려면 새 멱등 키를 쓴다.
+- 이 원장은 외부 조치를 요청하거나 서명하지 않는다. Admin HTTP/UI에는 조회만 열고 mutation은 인증·인가 경계가 완성될 때까지 열지 않는다.
+
+### bcm_exec_gate_rsm_l · bcm_exec_gate_rsm_chk_l — 강화 재개 요청·직전 재검사 원장
+
+재개 승인은 “원인이 해소됐다”는 체크박스가 아니다. 현재 중지 event, 활성 sweep contract와 최신 검증 evidence, 완료된 allowance
+회수, 원인 분석 문서의 URI·SHA-256, 복구 뒤 기대 운영자 집합 hash를 하나의 불변 요청 snapshot으로 묶는다. 실제 재개 직전에는
+TAP과 독립 RPC 2곳을 다시 읽어 별도 check event로 남긴다. 문서 본문·RPC URL·credential·운영자 원문은 저장하지 않는다.
+
+```sql
+CREATE TABLE bcm_exec_gate_rsm_l (
+  rsm_id              VARCHAR(36)   PRIMARY KEY,
+  ntwk_cd             VARCHAR(20)   NOT NULL REFERENCES bcm_blkc_m(ntwk_cd),
+  gate_dvcd           VARCHAR(16)   NOT NULL,
+  stop_gate_evt_id    VARCHAR(36)   NOT NULL REFERENCES bcm_exec_gate_evt_l(gate_evt_id),
+  ctrt_vrsn_id        VARCHAR(36)   NOT NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  ctrt_bind_rvsn      BIGINT        NOT NULL,
+  ctrt_evdc_id        VARCHAR(36)   NOT NULL REFERENCES bcm_ctrt_evdc_l(evdc_id),
+  rvok_exec_id        VARCHAR(36)   NOT NULL REFERENCES bcm_alwnc_rvok_exec_l(rvok_exec_id),
+  exp_oprtr_hash      VARCHAR(64)   NOT NULL,
+  cause_evdc_uri      VARCHAR(512)  NOT NULL,
+  cause_evdc_hash     VARCHAR(64)   NOT NULL,
+  tgt_snps_hash       VARCHAR(64)   NOT NULL UNIQUE,
+  reg_dttm            VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ck_bcm_exec_gate_rsm_type CHECK (gate_dvcd IN ('WITHDRAWAL','SWEEP','APPROVE')),
+  CONSTRAINT ck_bcm_exec_gate_rsm_hash CHECK (
+    exp_oprtr_hash ~ '^[0-9a-f]{64}$' AND cause_evdc_hash ~ '^[0-9a-f]{64}$' AND
+    tgt_snps_hash ~ '^[0-9a-f]{64}$'
+  ),
+  CONSTRAINT ck_bcm_exec_gate_rsm_actor CHECK (
+    frst_reg_empno = last_chng_empno AND frst_reg_brcd = last_chng_brcd
+  )
+);
+
+CREATE TABLE bcm_exec_gate_rsm_chk_l (
+  rsm_chk_id          VARCHAR(36)   PRIMARY KEY,
+  rsm_id              VARCHAR(36)   NOT NULL REFERENCES bcm_exec_gate_rsm_l(rsm_id),
+  chk_seq             INTEGER       NOT NULL,
+  snps_hash           VARCHAR(64)   NOT NULL UNIQUE,
+  tap_src_id          VARCHAR(64)   NOT NULL,
+  tap_blck_yn         VARCHAR(1)    NULL,
+  tap_obs_dttm        VARCHAR(16)   NULL,
+  pin_blck_no         NUMERIC(78,0) NOT NULL,
+  rpc1_id             VARCHAR(64)   NOT NULL,
+  rpc1_blck_no        NUMERIC(78,0) NULL,
+  rpc1_pause_yn       VARCHAR(1)    NULL,
+  rpc1_oprtr_hash     VARCHAR(64)   NULL,
+  rpc1_obs_dttm       VARCHAR(16)   NULL,
+  rpc2_id             VARCHAR(64)   NOT NULL,
+  rpc2_blck_no        NUMERIC(78,0) NULL,
+  rpc2_pause_yn       VARCHAR(1)    NULL,
+  rpc2_oprtr_hash     VARCHAR(64)   NULL,
+  rpc2_obs_dttm       VARCHAR(16)   NULL,
+  chk_stcd            VARCHAR(16)   NOT NULL,
+  issue_payload       JSONB         NOT NULL,
+  issue_hash          VARCHAR(64)   NOT NULL,
+  obs_dttm            VARCHAR(16)   NOT NULL,
+  vld_until_dttm      VARCHAR(16)   NOT NULL,
+  idmp_key            VARCHAR(128)  NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_exec_gate_rsm_chk_seq UNIQUE (rsm_id, chk_seq),
+  CONSTRAINT ux_bcm_exec_gate_rsm_chk_idmp UNIQUE (frst_reg_empno, idmp_key),
+  CONSTRAINT ck_bcm_exec_gate_rsm_chk_rpc CHECK (rpc1_id <> rpc2_id),
+  CONSTRAINT ck_bcm_exec_gate_rsm_chk_state CHECK (
+    chk_stcd IN ('READY','DRIFT','STALE','UNCONFIRMED','ERROR')
+  ),
+  CONSTRAINT ck_bcm_exec_gate_rsm_chk_ready CHECK (
+    chk_stcd <> 'READY' OR (
+      tap_blck_yn = 'N' AND tap_obs_dttm IS NOT NULL AND
+      rpc1_blck_no = pin_blck_no AND rpc2_blck_no = pin_blck_no AND
+      rpc1_pause_yn = 'N' AND rpc2_pause_yn = 'N' AND
+      rpc1_obs_dttm IS NOT NULL AND rpc2_obs_dttm IS NOT NULL
+    )
+  )
+);
+
+ALTER TABLE bcm_chng_req_l ADD COLUMN aft_gate_rsm_id VARCHAR(36) NULL
+  REFERENCES bcm_exec_gate_rsm_l(rsm_id);
+ALTER TABLE bcm_chng_req_l DROP CONSTRAINT ck_bcm_chng_req_target;
+ALTER TABLE bcm_chng_req_l ADD CONSTRAINT ck_bcm_chng_req_target CHECK (
+  (tgt_dvcd = 'CONTRACT' AND aft_ctrt_vrsn_id IS NOT NULL AND aft_plcy_vrsn_id IS NULL AND
+    aft_bnds_prop_id IS NULL AND aft_alwnc_rvok_id IS NULL AND aft_gate_rsm_id IS NULL) OR
+  (tgt_dvcd = 'POLICY' AND aft_plcy_vrsn_id IS NOT NULL AND aft_ctrt_vrsn_id IS NULL AND
+    aft_bnds_prop_id IS NULL AND aft_alwnc_rvok_id IS NULL AND aft_gate_rsm_id IS NULL) OR
+  (tgt_dvcd = 'BAND_S' AND aft_bnds_prop_id IS NOT NULL AND aft_ctrt_vrsn_id IS NULL AND
+    aft_plcy_vrsn_id IS NULL AND aft_alwnc_rvok_id IS NULL AND aft_gate_rsm_id IS NULL) OR
+  (tgt_dvcd = 'ALLOWANCE_REVOKE' AND aft_alwnc_rvok_id IS NOT NULL AND aft_ctrt_vrsn_id IS NULL AND
+    aft_plcy_vrsn_id IS NULL AND aft_bnds_prop_id IS NULL AND aft_gate_rsm_id IS NULL) OR
+  (tgt_dvcd = 'EXECUTION_GATE' AND aft_gate_rsm_id IS NOT NULL AND aft_ctrt_vrsn_id IS NULL AND
+    aft_plcy_vrsn_id IS NULL AND aft_bnds_prop_id IS NULL AND aft_alwnc_rvok_id IS NULL)
+);
+CREATE UNIQUE INDEX ux_bcm_chng_req_gate_rsm
+  ON bcm_chng_req_l(aft_gate_rsm_id) WHERE aft_gate_rsm_id IS NOT NULL;
+```
+
+- 변경 요청은 `tgt_dvcd='EXECUTION_GATE'`, `risk_dvcd='RESUME'`, `scope_id=ntwk_cd || ':' || gate_dvcd`,
+  `aft_gate_rsm_id`와 `tgt_snps_hash`가 재개 snapshot과 같아야 한다. 요청자는 `BCM_OPERATOR`, 승인자는 요청자와 다른 2명이며
+  그중 1명 이상은 `BCM_SECURITY_APPROVER`여야 한다. 거절·만료·snapshot 변경 뒤 승인은 재사용하지 않는다.
+- 재개 snapshot은 요청 시점의 최신 `STOPPED` event를 가리키고 활성 `SWEEP` contract version·binding revision과 그 version의
+  최신 `VALID` contract evidence를 고정한다. allowance 회수는 같은 네트워크·contract이고 모든 항목 최신 event가
+  `ZERO_CONFIRMED`인 실행만 참조한다. 원인 해소 문서는 승인된 문서 보관소 URI와 SHA-256만 저장한다.
+- 실행 직전 check는 기대 운영자 hash를 요청에서 가져오고 TAP batch가 열렸으며 두 RPC가 같은 pinned block에서 pause 해제와
+  같은 운영자 hash를 관찰할 때만 `READY`다. source 오류는 `ERROR`, 누락은 `UNCONFIRMED`, 값 불일치는 `DRIFT`, 만료는 `STALE`다.
+- `RESUMED` 입력 trigger는 재개 요청이 현재 최신 중지와 같은지, contract binding/evidence와 회수 완료가 여전히 유효한지,
+  최신 check가 `READY`이고 만료 전인지, 강화 정족수·`RESUME/INTENT`가 있는지 한 transaction에서 다시 검사한다.
+  조건이 하나라도 바뀌면 새 snapshot과 승인을 요구한다. 재개 성공 뒤 action 결과와 event를 조회해 완료를 표시한다.
+- 장애 훈련은 최소한 `중지 → 외부 통제 확인 → allowance 전량 회수 → 원인 증적·재개 요청 → 2인 승인(보안 1인 포함) →
+  외부 정상화 재조회 → 재개`를 실제 PostgreSQL E2E로 검증한다. stale·drift·회수 미완료·단일 승인·자기 승인·동시 재개는
+  모두 fail-closed여야 하며 훈련 통과 결과는 contract 출시 evidence의 `revoke_drill_yn` 근거가 된다.
+
+### bcm_alwnc_rvok_exec_l · bcm_alwnc_rvok_item_l · bcm_alwnc_rvok_evt_l — allowance 전량 회수 원장
+
+비상 회수는 `bcm_swp_auth_m`의 현재 상태를 순회하는 임시 작업이 아니다. 승인 전에 활성 sweep 컨트랙트와 allowance가 0보다 큰
+vault 목록, 실제 제출에 필요한 주소·calldata hash를 불변 실행 snapshot으로 고정한다. 변경 요청은 이 snapshot을
+`ALLOWANCE_REVOKE` 대상으로 승인하고, 실행 뒤에는 항목별 event만 추가한다.
+
+```sql
+CREATE TABLE bcm_alwnc_rvok_exec_l (
+  rvok_exec_id        VARCHAR(36)   PRIMARY KEY,
+  ctrt_vrsn_id        VARCHAR(36)   NOT NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  ctrt_bind_rvsn      BIGINT        NOT NULL,
+  ntwk_cd             VARCHAR(20)   NOT NULL REFERENCES bcm_blkc_m(ntwk_cd),
+  swp_ctrt_addr       VARCHAR(128)  NOT NULL,
+  tgt_snps_hash       VARCHAR(64)   NOT NULL UNIQUE,
+  item_cnt            INTEGER       NOT NULL,
+  idmp_key            VARCHAR(128)  NOT NULL,
+  reg_dttm            VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_alwnc_rvok_exec_idmp UNIQUE (frst_reg_empno, idmp_key),
+  CONSTRAINT ck_bcm_alwnc_rvok_exec_hash CHECK (tgt_snps_hash ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT ck_bcm_alwnc_rvok_exec_count CHECK (item_cnt > 0),
+  CONSTRAINT ck_bcm_alwnc_rvok_exec_actor CHECK (
+    frst_reg_empno = last_chng_empno AND frst_reg_brcd = last_chng_brcd
+  )
+);
+
+CREATE TABLE bcm_alwnc_rvok_item_l (
+  rvok_exec_id        VARCHAR(36)    NOT NULL REFERENCES bcm_alwnc_rvok_exec_l(rvok_exec_id),
+  item_seq            INTEGER        NOT NULL,
+  acnt_id             VARCHAR(64)     NOT NULL,
+  ntwk_cd             VARCHAR(20)     NOT NULL,
+  tkn_smbl            VARCHAR(16)     NOT NULL,
+  swp_ctrt_addr       VARCHAR(128)    NOT NULL,
+  src_vlt_id          VARCHAR(64)     NOT NULL,
+  ownr_addr           VARCHAR(128)    NOT NULL,
+  tkn_ctrt_addr       VARCHAR(128)    NOT NULL,
+  bfr_obs_alwnc       NUMERIC(36,18)  NOT NULL,
+  ext_tx_id           VARCHAR(128)    NOT NULL UNIQUE,
+  req_hash            VARCHAR(64)     NOT NULL,
+  frst_reg_empno      VARCHAR(6)      NOT NULL,
+  frst_reg_brcd       VARCHAR(4)      NOT NULL,
+  last_chng_empno     VARCHAR(6)      NOT NULL,
+  last_chng_brcd      VARCHAR(4)      NOT NULL,
+  PRIMARY KEY (rvok_exec_id, item_seq),
+  CONSTRAINT fk_bcm_alwnc_rvok_auth FOREIGN KEY (acnt_id, ntwk_cd, tkn_smbl, swp_ctrt_addr)
+    REFERENCES bcm_swp_auth_m(acnt_id, ntwk_cd, tkn_smbl, swp_ctrt_addr),
+  CONSTRAINT ux_bcm_alwnc_rvok_item_target UNIQUE (
+    rvok_exec_id, acnt_id, ntwk_cd, tkn_smbl, swp_ctrt_addr
+  ),
+  CONSTRAINT ck_bcm_alwnc_rvok_item_seq CHECK (item_seq > 0),
+  CONSTRAINT ck_bcm_alwnc_rvok_item_amount CHECK (bfr_obs_alwnc > 0),
+  CONSTRAINT ck_bcm_alwnc_rvok_item_hash CHECK (req_hash ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT ck_bcm_alwnc_rvok_item_actor CHECK (
+    frst_reg_empno = last_chng_empno AND frst_reg_brcd = last_chng_brcd
+  )
+);
+
+CREATE TABLE bcm_alwnc_rvok_evt_l (
+  rvok_exec_id        VARCHAR(36)    NOT NULL,
+  item_seq            INTEGER        NOT NULL,
+  evt_seq             INTEGER        NOT NULL,
+  rvok_stcd           VARCHAR(24)     NOT NULL,
+  ext_tx_id           VARCHAR(128)    NULL,
+  vndr_tx_id          VARCHAR(64)     NULL,
+  obs_alwnc           NUMERIC(36,18)  NULL,
+  obs_payload         JSONB           NOT NULL,
+  obs_hash            VARCHAR(64)     NOT NULL,
+  err_cd              VARCHAR(64)     NULL,
+  occr_dttm           VARCHAR(16)     NOT NULL,
+  frst_reg_empno      VARCHAR(6)      NOT NULL,
+  frst_reg_brcd       VARCHAR(4)      NOT NULL,
+  last_chng_empno     VARCHAR(6)      NOT NULL,
+  last_chng_brcd      VARCHAR(4)      NOT NULL,
+  PRIMARY KEY (rvok_exec_id, item_seq, evt_seq),
+  CONSTRAINT fk_bcm_alwnc_rvok_evt_item FOREIGN KEY (rvok_exec_id, item_seq)
+    REFERENCES bcm_alwnc_rvok_item_l(rvok_exec_id, item_seq),
+  CONSTRAINT ck_bcm_alwnc_rvok_evt_state CHECK (
+    rvok_stcd IN ('RESERVED','SUBMIT_INTENT','SUBMITTED','ZERO_CONFIRMED','FAILED')
+  ),
+  CONSTRAINT ck_bcm_alwnc_rvok_evt_hash CHECK (obs_hash ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT ck_bcm_alwnc_rvok_evt_amount CHECK (obs_alwnc IS NULL OR obs_alwnc >= 0),
+  CONSTRAINT ck_bcm_alwnc_rvok_evt_fields CHECK (
+    (rvok_stcd = 'RESERVED' AND ext_tx_id IS NULL AND vndr_tx_id IS NULL AND obs_alwnc IS NULL AND err_cd IS NULL) OR
+    (rvok_stcd = 'SUBMIT_INTENT' AND ext_tx_id IS NOT NULL AND vndr_tx_id IS NULL AND err_cd IS NULL) OR
+    (rvok_stcd = 'SUBMITTED' AND ext_tx_id IS NOT NULL AND vndr_tx_id IS NOT NULL AND err_cd IS NULL) OR
+    (rvok_stcd = 'ZERO_CONFIRMED' AND ext_tx_id IS NULL AND vndr_tx_id IS NULL AND obs_alwnc = 0 AND err_cd IS NULL) OR
+    (rvok_stcd = 'FAILED' AND err_cd IS NOT NULL)
+  ),
+  CONSTRAINT ck_bcm_alwnc_rvok_evt_actor CHECK (
+    frst_reg_empno = last_chng_empno AND frst_reg_brcd = last_chng_brcd
+  )
+);
+CREATE INDEX idx_bcm_alwnc_rvok_evt_current
+  ON bcm_alwnc_rvok_evt_l(rvok_exec_id, item_seq, evt_seq DESC);
+
+ALTER TABLE bcm_chng_req_l ADD COLUMN aft_alwnc_rvok_id VARCHAR(36) NULL
+  REFERENCES bcm_alwnc_rvok_exec_l(rvok_exec_id);
+ALTER TABLE bcm_chng_req_l DROP CONSTRAINT ck_bcm_chng_req_target;
+ALTER TABLE bcm_chng_req_l ADD CONSTRAINT ck_bcm_chng_req_target CHECK (
+  (tgt_dvcd = 'CONTRACT' AND aft_ctrt_vrsn_id IS NOT NULL AND aft_plcy_vrsn_id IS NULL AND
+    aft_bnds_prop_id IS NULL AND aft_alwnc_rvok_id IS NULL) OR
+  (tgt_dvcd = 'POLICY' AND aft_plcy_vrsn_id IS NOT NULL AND aft_ctrt_vrsn_id IS NULL AND
+    aft_bnds_prop_id IS NULL AND aft_alwnc_rvok_id IS NULL) OR
+  (tgt_dvcd = 'BAND_S' AND aft_bnds_prop_id IS NOT NULL AND aft_ctrt_vrsn_id IS NULL AND
+    aft_plcy_vrsn_id IS NULL AND aft_alwnc_rvok_id IS NULL) OR
+  (tgt_dvcd = 'ALLOWANCE_REVOKE' AND aft_alwnc_rvok_id IS NOT NULL AND
+    aft_ctrt_vrsn_id IS NULL AND aft_plcy_vrsn_id IS NULL AND aft_bnds_prop_id IS NULL)
+);
+CREATE UNIQUE INDEX ux_bcm_chng_req_alwnc_rvok
+  ON bcm_chng_req_l(aft_alwnc_rvok_id) WHERE aft_alwnc_rvok_id IS NOT NULL;
+```
+
+- 실행 snapshot과 항목은 승인 전 한 transaction에서 추가하고 이후 UPDATE·DELETE를 금지한다. 항목은 `(accountId, network,
+  symbol, sweepContract)` 오름차순으로 정렬하며 `item_seq`, `arv-` UUID v7 `ext_tx_id`, `approve(spender, 0)` calldata의
+  `cc-v1` 요청 hash를 그때 한 번만 만든다. `item_cnt`와 `tgt_snps_hash`는 전체 항목과 활성 contract binding revision을 포함한다.
+- 변경 요청은 `tgt_dvcd='ALLOWANCE_REVOKE'`, `risk_dvcd='FUND'`, `scope_id=ntwk_cd || ':SWEEP'`,
+  `tgt_snps_hash=bcm_alwnc_rvok_exec_l.tgt_snps_hash`여야 한다. 요청자 외 독립 승인자 1명의 승인과 `EXECUTE/INTENT` action이
+  있어야 첫 `RESERVED` event를 쓸 수 있다.
+- 첫 예약과 각 `SUBMIT_INTENT` 직전에 활성 contract version·binding revision과 snapshot hash를 다시 대조하고, 해당 network·contract의
+  `READY/SUBMITTING/SUBMITTED/RECONCILING` batch 및 대상 vault의 active item이 하나라도 있으면 진행하지 않는다.
+- `SUBMIT_INTENT`와 기존 `bcm_sbmt_l(SWEEP_APPROVE)` REQUESTED를 벤더 호출 전에 같은 transaction으로 선기록한다. 응답 유실·재시도는
+  같은 `ext_tx_id`와 저장된 요청 hash로 회수한다. `bcm_swp_auth_m`은 `REVOKING/REVOKED` 현재 projection일 뿐 승인 snapshot과
+  부분 진행 이력을 대신하지 않는다.
+- 항목 event는 `RESERVED → SUBMIT_INTENT → SUBMITTED → ZERO_CONFIRMED`가 기본이며, 실행 사이에 이미 0이 된 항목은
+  `RESERVED → ZERO_CONFIRMED`, 실패 뒤 같은 제출 의도를 회수·재시도할 때는 `FAILED → SUBMIT_INTENT/SUBMITTED/ZERO_CONFIRMED`를
+  허용한다. event의 `ext_tx_id`는 대상 행과 같아야 한다.
+- 실행 상태는 event 최신값으로 계산한다. event가 없으면 `READY`, 시작했지만 0 확인이 없으면 `IN_PROGRESS`, 일부만 0이면
+  `PARTIAL`, 모든 항목 최신 상태가 `ZERO_CONFIRMED`일 때만 `COMPLETED`다. 제출 성공이나 `bcm_swp_auth_m.REVOKED` 문자열만으로
+  완료하지 않는다. 실행·항목·event는 공통 Admin append-only trigger로 보호한다.
+
+### bcm_whk_rcvr_req_l · bcm_whk_rcvr_evt_l — 웹훅 복구 요청·호출 결과 원장
+
+웹훅 구독 복구는 외부 호출을 먼저 하고 로그만 남기는 도구가 아니다. 운영 요청을 불변 row로 접수한 뒤 상태 조회·재활성화·
+`resend_failed` 각각의 호출 intent와 구조화된 결과를 append-only event로 남긴다. 수신 원문 payload·서명·API credential은
+이 원장에 저장하지 않는다.
+
+```sql
+CREATE TABLE bcm_whk_rcvr_req_l (
+  rcvr_req_id         VARCHAR(36)   PRIMARY KEY,
+  whk_id              VARCHAR(64)   NOT NULL,
+  scope_dvcd          VARCHAR(24)   NOT NULL,
+  req_evt_payload     JSONB         NOT NULL,
+  req_evt_hash        VARCHAR(64)   NOT NULL,
+  idmp_key            VARCHAR(128)  NOT NULL,
+  req_rsn             VARCHAR(1000) NOT NULL,
+  work_tckt           VARCHAR(128)  NOT NULL,
+  req_dttm            VARCHAR(16)   NOT NULL,
+  aprv_empno          VARCHAR(6)    NOT NULL,
+  aprv_brcd           VARCHAR(4)    NOT NULL,
+  aprv_dttm           VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  CONSTRAINT ux_bcm_whk_rcvr_req_idmp UNIQUE (frst_reg_empno, idmp_key),
+  CONSTRAINT ck_bcm_whk_rcvr_req_scope CHECK (scope_dvcd = 'FAILED_LAST_24H'),
+  CONSTRAINT ck_bcm_whk_rcvr_req_events CHECK (jsonb_typeof(req_evt_payload) = 'array'),
+  CONSTRAINT ck_bcm_whk_rcvr_req_hash CHECK (req_evt_hash ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT ck_bcm_whk_rcvr_req_independent_approval CHECK (aprv_empno <> frst_reg_empno),
+  CONSTRAINT ck_bcm_whk_rcvr_req_actor CHECK (
+    frst_reg_empno = last_chng_empno AND frst_reg_brcd = last_chng_brcd
+  )
+);
+
+CREATE TABLE bcm_whk_rcvr_evt_l (
+  rcvr_req_id         VARCHAR(36)   NOT NULL REFERENCES bcm_whk_rcvr_req_l(rcvr_req_id),
+  evt_seq             INTEGER       NOT NULL,
+  rcvr_stcd           VARCHAR(24)   NOT NULL,
+  call_dvcd           VARCHAR(24)   NOT NULL,
+  call_dttm           VARCHAR(16)   NOT NULL,
+  rslt_dttm           VARCHAR(16)   NULL,
+  whk_stcd            VARCHAR(16)   NULL,
+  obs_evt_payload     JSONB         NULL,
+  obs_evt_hash        VARCHAR(64)   NULL,
+  scope_fr_dttm       VARCHAR(16)   NULL,
+  scope_to_dttm       VARCHAR(16)   NULL,
+  schd_noti_cnt       INTEGER       NULL,
+  rsp_payload         JSONB         NULL,
+  rsp_hash            VARCHAR(64)   NULL,
+  err_cd              VARCHAR(64)   NULL,
+  occr_dttm           VARCHAR(16)   NOT NULL,
+  frst_reg_empno      VARCHAR(6)    NOT NULL,
+  frst_reg_brcd       VARCHAR(4)    NOT NULL,
+  last_chng_empno     VARCHAR(6)    NOT NULL,
+  last_chng_brcd      VARCHAR(4)    NOT NULL,
+  PRIMARY KEY (rcvr_req_id, evt_seq),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_seq CHECK (evt_seq > 0),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_state CHECK (
+    rcvr_stcd IN ('STATUS_INTENT','STATUS_OBSERVED','ACTIVATE_INTENT','ACTIVATED',
+      'RESEND_INTENT','RESEND_ACCEPTED','FAILED')
+  ),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_call CHECK (
+    call_dvcd IN ('STATUS_QUERY','ACTIVATE','RESEND_FAILED')
+  ),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_whk_state CHECK (
+    whk_stcd IS NULL OR whk_stcd IN ('DISABLED','ENABLED','SUSPENDED')
+  ),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_hashes CHECK (
+    (obs_evt_hash IS NULL OR obs_evt_hash ~ '^[0-9a-f]{64}$') AND
+    (rsp_hash IS NULL OR rsp_hash ~ '^[0-9a-f]{64}$')
+  ),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_scope CHECK (
+    (scope_fr_dttm IS NULL AND scope_to_dttm IS NULL) OR
+    (scope_fr_dttm IS NOT NULL AND scope_to_dttm IS NOT NULL AND scope_fr_dttm <= scope_to_dttm)
+  ),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_count CHECK (schd_noti_cnt IS NULL OR schd_noti_cnt >= 0),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_fields CHECK (
+    (rcvr_stcd IN ('STATUS_INTENT','ACTIVATE_INTENT') AND rslt_dttm IS NULL AND whk_stcd IS NULL AND
+      obs_evt_payload IS NULL AND obs_evt_hash IS NULL AND scope_fr_dttm IS NULL AND scope_to_dttm IS NULL AND
+      schd_noti_cnt IS NULL AND rsp_payload IS NULL AND rsp_hash IS NULL AND err_cd IS NULL) OR
+    (rcvr_stcd = 'RESEND_INTENT' AND rslt_dttm IS NULL AND whk_stcd IS NULL AND
+      obs_evt_payload IS NULL AND obs_evt_hash IS NULL AND scope_fr_dttm IS NOT NULL AND scope_to_dttm IS NOT NULL AND
+      schd_noti_cnt IS NULL AND rsp_payload IS NULL AND rsp_hash IS NULL AND err_cd IS NULL) OR
+    (rcvr_stcd IN ('STATUS_OBSERVED','ACTIVATED') AND rslt_dttm IS NOT NULL AND whk_stcd IS NOT NULL AND
+      obs_evt_payload IS NOT NULL AND obs_evt_hash IS NOT NULL AND scope_fr_dttm IS NULL AND scope_to_dttm IS NULL AND
+      schd_noti_cnt IS NULL AND rsp_payload IS NOT NULL AND rsp_hash IS NOT NULL AND err_cd IS NULL) OR
+    (rcvr_stcd = 'RESEND_ACCEPTED' AND rslt_dttm IS NOT NULL AND whk_stcd IS NULL AND
+      obs_evt_payload IS NULL AND obs_evt_hash IS NULL AND scope_fr_dttm IS NOT NULL AND scope_to_dttm IS NOT NULL AND
+      schd_noti_cnt IS NOT NULL AND rsp_payload IS NOT NULL AND rsp_hash IS NOT NULL AND err_cd IS NULL) OR
+    (rcvr_stcd = 'FAILED' AND rslt_dttm IS NOT NULL AND schd_noti_cnt IS NULL AND
+      rsp_payload IS NULL AND rsp_hash IS NULL AND err_cd IS NOT NULL)
+  ),
+  CONSTRAINT ck_bcm_whk_rcvr_evt_actor CHECK (
+    frst_reg_empno = last_chng_empno AND frst_reg_brcd = last_chng_brcd
+  )
+);
+CREATE INDEX idx_bcm_whk_rcvr_evt_current
+  ON bcm_whk_rcvr_evt_l(rcvr_req_id, evt_seq DESC);
+```
+
+- 요청은 `BCM_OPERATOR`가 만들고 요청자와 다른 `BCM_APPROVER` 1명의 승인을 받은 뒤 접수한다. 승인자·승인 시각은 요청과 함께
+  불변 snapshot으로 남기며 DB도 요청자와 승인자가 같은 행을 거절한다. `(작업자, idmp_key)`가 같은 재요청은 같은 `rcvr_req_id`를
+  반환한다. 필수 이벤트 집합은 정렬한
+  JSON 배열과 SHA-256으로 snapshot해 뒤의 코드·설정 변경이 과거 요청의 범위를 바꾸지 않게 한다.
+- 요청 row만 생긴 상태가 `ACCEPTED`다. 실행기는 `STATUS_INTENT → STATUS_OBSERVED`로 실제 webhook ID·상태·이벤트 집합을
+  확인한다. 필수 이벤트가 하나라도 빠지면 `FAILED`로 끝내며 이벤트 범위를 자동 변경하지 않는다.
+- 상태가 `DISABLED/SUSPENDED`면 `ACTIVATE_INTENT → ACTIVATED`를 추가하고 응답이 `ENABLED`인지 다시 확인한다. 이미
+  `ENABLED`면 활성화 호출을 생략한다. 그 뒤에만 `RESEND_INTENT → RESEND_ACCEPTED`를 허용한다.
+- 각 intent는 외부 호출 전에 commit한다. intent 뒤 대응 결과가 없으면 응답 유실 여부를 알 수 없으므로 자동 재호출하지 않고,
+  서버가 timeout 경과 뒤 `AMBIGUOUS`로 계산한다. 정상 결과는 벤더 응답에서 필요한 필드만 정렬된 JSON과 SHA-256으로 남기며
+  오류 응답 본문·예외 메시지는 저장하지 않고 안전한 `err_cd`만 남긴다.
+- `RESEND_INTENT`의 `scope_fr_dttm/scope_to_dttm`은 실제 호출 시각 기준 최근 24시간을 기록한다. 이 값은 벤더 API에 보내는
+  검색 조건이 아니라 endpoint가 처리한다고 문서화한 실패 알림 범위의 감사 snapshot이다. `RESEND_ACCEPTED.schd_noti_cnt`는
+  응답 `total`이고 실제 재수신 완료 건수가 아니다.
+- event sequence는 1부터 연속이며 위 순서만 허용한다. `FAILED`와 `RESEND_ACCEPTED`는 terminal이다. 요청·event는 공통 Admin
+  append-only trigger로 UPDATE·DELETE를 거절한다.
+- 화면 상태는 event 최신값과 intent timeout으로 계산한다. event 없음 `ACCEPTED`, 진행·결과 event `IN_PROGRESS`, 결과 없는
+  오래된 intent `AMBIGUOUS`, `FAILED` event `FAILED`, `RESEND_ACCEPTED` `COMPLETED`다. 여기서 `COMPLETED`는 재전송 배차 접수 완료다.
+
+### 현재 binding projection
+
+```sql
+CREATE TABLE bcm_ctrt_bind_m (
+  ctrt_scope_id       VARCHAR(128) PRIMARY KEY,
+  ntwk_cd             VARCHAR(16)  NOT NULL,
+  use_dvcd            VARCHAR(16)  NOT NULL,
+  actv_ctrt_vrsn_id   VARCHAR(36)  NULL REFERENCES bcm_ctrt_vrsn_l(ctrt_vrsn_id),
+  bind_rvsn           BIGINT       NOT NULL DEFAULT 0,
+  last_req_id         VARCHAR(36)  NULL REFERENCES bcm_chng_req_l(req_id),
+  last_evdc_id        VARCHAR(36)  NULL REFERENCES bcm_ctrt_evdc_l(evdc_id),
+  bind_snps_hash      VARCHAR(64)  NOT NULL,
+  reg_dttm            VARCHAR(16)  NOT NULL,
+  last_chng_dttm      VARCHAR(16)  NOT NULL,
+  frst_reg_empno      VARCHAR(6)   NOT NULL,
+  frst_reg_brcd       VARCHAR(4)   NOT NULL,
+  last_chng_empno     VARCHAR(6)   NOT NULL,
+  last_chng_brcd      VARCHAR(4)   NOT NULL,
+  CONSTRAINT ck_bcm_ctrt_bind_scope CHECK (ctrt_scope_id = ntwk_cd || ':' || use_dvcd)
+);
+
+CREATE TABLE bcm_plcy_bind_m (
+  plcy_scope_id       VARCHAR(128) PRIMARY KEY,
+  actv_plcy_vrsn_id   VARCHAR(36)  NULL REFERENCES bcm_plcy_vrsn_l(plcy_vrsn_id),
+  bind_rvsn           BIGINT       NOT NULL DEFAULT 0,
+  last_req_id         VARCHAR(36)  NULL REFERENCES bcm_chng_req_l(req_id),
+  bind_snps_hash      VARCHAR(64)  NOT NULL,
+  reg_dttm            VARCHAR(16)  NOT NULL,
+  last_chng_dttm      VARCHAR(16)  NOT NULL,
+  frst_reg_empno      VARCHAR(6)   NOT NULL,
+  frst_reg_brcd       VARCHAR(4)   NOT NULL,
+  last_chng_empno     VARCHAR(6)   NOT NULL,
+  last_chng_brcd      VARCHAR(4)   NOT NULL
+);
+```
+
+활성화 transaction은 scope binding을 `SELECT ... FOR UPDATE`로 잠그고 `base_bind_rvsn` 일치, 대상 version·snapshot,
+거절 부재, 정족수, hard ceiling, contract evidence 만료·drift를 다시 확인한다. 그 뒤 `INTENT` action 추가 → binding revision 1 증가 →
+`SUCCEEDED` action 추가를 한 transaction으로 커밋한다. binding trigger도 같은 요청·revision·정족수·대상 version과
+`bcm_plcy_vrsn_l.ceiling_pass_yn='Y'`, contract의 만료되지 않은 `VALID` evidence를 재검사해 우회 update를 막는다.
+동시 활성화는 같은 scope 행 잠금과 revision 조건으로 하나만 성공한다. 응답 유실 재시도는 partial unique idempotency index와 성공 action을 재조회한다.
+
+version·evidence·요청·판단·action 6개 원장에는 `UPDATE OR DELETE`를 거부하는 공통 trigger를 건다. 현재 binding 두 projection만
+승인된 activation transaction에서 갱신할 수 있다. Admin 원장은 기능 테스트 단계부터 물리 삭제하지 않고 영구 보존하며,
+향후 외부 감사 보관소 이관이 확정되면 새 마이그레이션과 검증된 archive 절차로만 보존 정책을 바꾼다.
+
+`bcm_swp_exec_l`과 T10.5 밴드S 실행 원장은 적용 당시 `plcy_vrsn_id`와 immutable snapshot hash를 보존한다. `bcm_sbmt_l`·
+`bcm_boost_l`의 실행 정책 snapshot은 각 실행 세로줄에서 별도 마이그레이션으로 추가한다.
+
 ## 미확정
 
 - **`bcm_tx_l`·`bcm_whk_l`·`bcm_outbox_l` 보존** — 종결·처리 완료·발송 완료 건을 언제까지 두고 언제 정리할지 — `bcm_raw_tx_l` 원본 보관과 역할을 나눈 뒤 확정.
@@ -767,6 +1726,6 @@ CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- �
 
 ## 확정 이력 (2026-08-05)
 
-- **약어** — 이 문서 표기 그대로 확정(`bcm`·`vndr`·`vlt`·`noti`·`swp`·`sbmt`(제출)·`rcv`(받는 쪽)·`snd`(보내는 쪽) = 프로젝트 약어집). DAW-CORE DB 약어집이 나오면 대조해 어긋난 것만 조정한다.
+- **약어** — 이 문서 표기 그대로 확정(`bcm`·`vndr`·`vlt`·`noti`·`swp`·`bnds`(밴드S)·`sbmt`(제출)·`rcv`(받는 쪽)·`snd`(보내는 쪽) = 프로젝트 약어집). DAW-CORE DB 약어집이 나오면 대조해 어긋난 것만 조정한다.
 - **감사 컬럼 센티넬** — 자동 처리 행은 `empno='SYSTEM'` · `brcd='9999'`(실존 부점과 충돌 불가한 값). 구현은 단일 상수로 관리해 코어 운영 규약 확인 시 한 곳만 바꾼다.
 - **subStatus·networkStatus** — `bcm_tx_l` 에 보관(`vndr_sub_stcd`·`vndr_ntwk_stcd`). 운영 조사용 — 이벤트 미탑재는 유지.

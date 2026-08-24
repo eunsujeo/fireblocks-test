@@ -4,10 +4,14 @@ import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.account.DepositAddressRepository
+import com.whatto.bcm.domain.admin.ExecutionGateRepository
+import com.whatto.bcm.domain.admin.ExecutionGateStatus
+import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.sweep.ActiveSweepRuntimeContext
 import com.whatto.bcm.domain.sweep.SweepBatchCallItem
 import com.whatto.bcm.domain.sweep.SweepBatchContractPort
 import com.whatto.bcm.domain.sweep.SweepExecution
@@ -27,10 +31,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
+import java.math.BigDecimal
 import java.time.Clock
 
 sealed interface SweepBatchExecutionResult {
     data object NoCandidates : SweepBatchExecutionResult
+
+    data class Stopped(
+        val network: String,
+    ) : SweepBatchExecutionResult
 
     data class WaitingForAllowance(
         val candidateCount: Int,
@@ -63,18 +72,29 @@ class SweepBatchExecutionService(
     private val alerts: SweepExecutionAlertPort,
     private val clock: Clock,
     private val properties: SweepProperties,
+    private val executionGates: ExecutionGateRepository,
+    private val runtimeGuard: SweepRuntimeGuard,
 ) {
     fun runOnce(): SweepBatchExecutionResult {
-        properties.security.requireBatchSubmissionReady()
+        properties.security.requireBatchSubmissionEnabled()
         val operator = requiredOperator()
-        executions.findPendingSubmission(operator.accountId)?.let { return submit(it, operator) }
+        executions.findPendingSubmission(operator.accountId)?.let {
+            properties.security.requireBatchSubmissionReady(it.network)
+            validateRuntimeSnapshot(it, runtimeGuard.requireReady(it.network, it.symbol))
+            return submit(it, operator)
+        }
         val selected = candidates.selectCandidates()
         if (selected.isEmpty()) return SweepBatchExecutionResult.NoCandidates
         val groupKey = selected.first().target.network to selected.first().target.symbol
-        val sameAsset = selected.filter { it.target.network to it.target.symbol == groupKey }
+        properties.security.requireBatchSubmissionReady(groupKey.first)
+        val runtime = runtimeGuard.requireReady(groupKey.first, groupKey.second)
+        val sameAsset = applyRuntimePolicy(selected.filter { it.target.network to it.target.symbol == groupKey }, runtime)
+        if (executionGates.findCurrent(groupKey.first, ExecutionGateType.SWEEP)?.status == ExecutionGateStatus.STOPPED) {
+            return SweepBatchExecutionResult.Stopped(groupKey.first)
+        }
         val ready = sameAsset.filter(::prepareAllowance)
         if (ready.isEmpty()) return SweepBatchExecutionResult.WaitingForAllowance(sameAsset.size)
-        val prepared = prepareExecution(ready, operator)
+        val prepared = prepareExecution(ready, operator, runtime)
         try {
             executions.createAndClaim(prepared.execution, prepared.items)
         } catch (conflict: ConflictException) {
@@ -92,14 +112,32 @@ class SweepBatchExecutionService(
             false
         }
 
+    private fun applyRuntimePolicy(
+        candidates: List<SweepCandidate>,
+        runtime: ActiveSweepRuntimeContext,
+    ): List<SweepCandidate> {
+        var total = BigDecimal.ZERO
+        return buildList {
+            for (candidate in candidates) {
+                if (size >= runtime.policy.batchSize) break
+                val amount = BigDecimal(candidate.amount)
+                if (amount < runtime.policy.minimumAmount || amount > runtime.policy.itemAmountCap) continue
+                if (total + amount > runtime.policy.batchAmountCap) continue
+                add(candidate)
+                total += amount
+            }
+        }
+    }
+
     private fun prepareExecution(
         ready: List<SweepCandidate>,
         operator: Account,
+        runtime: ActiveSweepRuntimeContext,
     ): PreparedSweepExecution {
         val first = ready.first().target
         val mapping = checkNotNull(mappings.find(first.network, first.symbol)) { "sweep asset mapping not found" }
         val tokenContract = checkNotNull(mapping.contractAddress) { "native asset does not support batch sweep" }
-        val sweepContract = properties.requiredContractAddress(first.network)
+        val sweepContract = runtime.contractAddress
         val executionId = executionIds.nextId()
         val candidatesByAddress =
             ready.associateBy { candidate ->
@@ -134,6 +172,10 @@ class SweepBatchExecutionService(
                 transactionHash = null,
                 requestedAt = now,
                 finishedAt = null,
+                policyVersionId = runtime.policyVersionId,
+                policySnapshotHash = runtime.policySnapshotHash,
+                contractVersionId = runtime.contractVersionId,
+                contractEvidenceId = runtime.contractEvidenceId,
             )
         return PreparedSweepExecution(
             execution,
@@ -163,9 +205,7 @@ class SweepBatchExecutionService(
         val fingerprint = fingerprint(execution, tokenContract, items)
         check(fingerprint.requestHash == execution.requestHash) { "stored sweep execution hash does not match items" }
         check(fingerprint.totalAmount == execution.requestedTotalAmount) { "stored sweep execution total does not match items" }
-        check(execution.sweepContractAddress.equals(properties.requiredContractAddress(execution.network), ignoreCase = true)) {
-            "stored sweep execution contract is not active"
-        }
+        validateRuntimeSnapshot(execution, runtimeGuard.requireReady(execution.network, execution.symbol))
         val callData =
             batchContract.batchSweepCallData(
                 execution.network,
@@ -213,6 +253,21 @@ class SweepBatchExecutionService(
             execution.executionId,
             items.map { SweepBatchHashItem(it.sourceAddress, it.requestedAmount) },
         )
+
+    private fun validateRuntimeSnapshot(
+        execution: SweepExecution,
+        runtime: ActiveSweepRuntimeContext,
+    ) {
+        check(execution.sweepContractAddress.equals(runtime.contractAddress, ignoreCase = true)) {
+            "stored sweep execution contract is not active"
+        }
+        check(
+            execution.policyVersionId == runtime.policyVersionId &&
+                execution.policySnapshotHash == runtime.policySnapshotHash &&
+                execution.contractVersionId == runtime.contractVersionId &&
+                execution.contractEvidenceId == runtime.contractEvidenceId,
+        ) { "stored sweep execution Admin snapshot is stale" }
+    }
 
     private fun requiredAddress(candidate: SweepCandidate): String =
         checkNotNull(

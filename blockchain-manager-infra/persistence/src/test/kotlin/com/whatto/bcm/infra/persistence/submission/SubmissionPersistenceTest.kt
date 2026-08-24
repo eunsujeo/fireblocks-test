@@ -2,6 +2,7 @@ package com.whatto.bcm.infra.persistence.submission
 
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.submission.SubmissionRecipientType
+import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.infra.persistence.submission.fixture.SubmissionRecordFixture.fixture
@@ -15,6 +16,11 @@ import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.context.annotation.Import
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import javax.sql.DataSource
 
 @DataJdbcTest
 @Import(SubmissionJdbcAdapter::class)
@@ -24,6 +30,9 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
 
     @Autowired
     lateinit var jdbc: JdbcTemplate
+
+    @Autowired
+    lateinit var dataSource: DataSource
 
     @Test
     fun `REQUESTED 제출 원장을 저장하고 externalTxId로 모든 canonical 필드를 되찾는다`() {
@@ -36,6 +45,204 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
         val audit = jdbc.queryForMap("SELECT * FROM bcm_sbmt_l WHERE ext_tx_id = ?", requested.externalTransactionId)
         assertThat(audit["frst_reg_empno"]).isEqualTo("SYSTEM")
         assertThat(audit["frst_reg_brcd"]).isEqualTo("9999")
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `WITHDRAWAL 중지가 먼저 선기록되면 신규 REQUESTED를 만들지 않는다`() {
+        val network = "WDSTOP"
+        val externalTransactionId = "wd-stop-before-request"
+        jdbc.update(
+            """
+            INSERT INTO bcm_blkc_m
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('withdrawal-stop-test', ?, 31338, 'Withdrawal Stop', 'Y', 'N', '20260807120000',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (ntwk_cd) DO NOTHING
+            """.trimIndent(),
+            network,
+        )
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            dataSource.connection.use { stopConnection ->
+                stopConnection.autoCommit = false
+                stopConnection
+                    .prepareStatement(
+                        """
+                        INSERT INTO bcm_exec_gate_evt_l
+                          (gate_evt_id, ntwk_cd, gate_dvcd, evt_seq, gate_stcd, req_rsn, work_tckt,
+                           idmp_key, rsm_req_id, occr_dttm, frst_reg_empno, frst_reg_brcd,
+                           last_chng_empno, last_chng_brcd)
+                        VALUES ('gate-stop-before-withdrawal', ?, 'WITHDRAWAL', 1, 'STOPPED', 'test stop',
+                                'SEC-WD-STOP', 'gate-stop-before-withdrawal', NULL, '20260807120001',
+                                '810001', '0001', '810001', '0001')
+                        """.trimIndent(),
+                    ).use { statement ->
+                        statement.setString(1, network)
+                        statement.executeUpdate()
+                    }
+                val result =
+                    executor.submit<Throwable?> {
+                        runCatching {
+                            submissions.insert(fixture(externalTransactionId = externalTransactionId, network = network))
+                        }.exceptionOrNull()
+                    }
+
+                Thread.sleep(500)
+                assertThat(result.isDone).isFalse()
+                stopConnection.commit()
+
+                assertThat(result.get(5, TimeUnit.SECONDS))
+                    .isInstanceOf(ConflictException::class.java)
+            }
+        } finally {
+            executor.shutdownNow()
+            jdbc.update("DELETE FROM bcm_sbmt_l WHERE ext_tx_id = ?", externalTransactionId)
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `REQUESTED 회수 중 FAILED가 확정되면 중지 게이트 없이 재시도하지 않는다`() {
+        val network = "WDRACESTOP"
+        val externalTransactionId = "wd-failed-during-claim"
+        jdbc.update(
+            """
+            INSERT INTO bcm_blkc_m
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('withdrawal-claim-race-test', ?, 31340, 'Withdrawal Claim Race', 'Y', 'N', '20260807120000',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (ntwk_cd) DO NOTHING
+            """.trimIndent(),
+            network,
+        )
+        submissions.insert(fixture(externalTransactionId = externalTransactionId, network = network))
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            dataSource.connection.use { failureConnection ->
+                failureConnection.autoCommit = false
+                failureConnection
+                    .prepareStatement(
+                        """
+                        UPDATE bcm_sbmt_l
+                        SET sbmt_stcd = 'FAILED', rsp_dttm = '20260807120010',
+                            claim_id = NULL, claim_exp_dttm = NULL
+                        WHERE ext_tx_id = ? AND sbmt_stcd = 'REQUESTED' AND claim_id = 'claim-owner-1'
+                        """.trimIndent(),
+                    ).use { statement ->
+                        statement.setString(1, externalTransactionId)
+                        assertThat(statement.executeUpdate()).isEqualTo(1)
+                    }
+                jdbc.update(
+                    """
+                    INSERT INTO bcm_exec_gate_evt_l
+                      (gate_evt_id, ntwk_cd, gate_dvcd, evt_seq, gate_stcd, req_rsn, work_tckt,
+                       idmp_key, rsm_req_id, occr_dttm, frst_reg_empno, frst_reg_brcd,
+                       last_chng_empno, last_chng_brcd)
+                    VALUES ('gate-stop-during-withdrawal-claim', ?, 'WITHDRAWAL', 1, 'STOPPED', 'test stop',
+                            'SEC-WD-RACE', 'gate-stop-during-withdrawal-claim', NULL, '20260807120011',
+                            '810001', '0001', '810001', '0001')
+                    """.trimIndent(),
+                    network,
+                )
+                val result =
+                    executor.submit<Throwable?> {
+                        runCatching {
+                            submissions.tryClaim(
+                                externalTransactionId,
+                                "claim-owner-2",
+                                "20260807120200",
+                                "20260807120101",
+                            )
+                        }.exceptionOrNull()
+                    }
+
+                Thread.sleep(500)
+                assertThat(result.isDone).isFalse()
+                failureConnection.commit()
+
+                assertThat(result.get(5, TimeUnit.SECONDS))
+                    .isInstanceOf(ConflictException::class.java)
+                assertThat(submissions.findByExternalTransactionId(externalTransactionId)?.status)
+                    .isEqualTo(SubmissionStatus.FAILED)
+            }
+        } finally {
+            executor.shutdownNow()
+            jdbc.update("DELETE FROM bcm_sbmt_l WHERE ext_tx_id = ?", externalTransactionId)
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `WITHDRAWAL claim은 submission row보다 gate를 먼저 잠근다`() {
+        val network = "WDLOCKORDER"
+        val externalTransactionId = "wd-gate-before-row"
+        jdbc.update(
+            """
+            INSERT INTO bcm_blkc_m
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('withdrawal-lock-order-test', ?, 31341, 'Withdrawal Lock Order', 'Y', 'N', '20260807120000',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (ntwk_cd) DO NOTHING
+            """.trimIndent(),
+            network,
+        )
+        submissions.insert(fixture(externalTransactionId = externalTransactionId, network = network))
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            dataSource.connection.use { failureConnection ->
+                failureConnection.autoCommit = false
+                failureConnection
+                    .prepareStatement(
+                        """
+                        UPDATE bcm_sbmt_l
+                        SET sbmt_stcd = 'FAILED', rsp_dttm = '20260807120010',
+                            claim_id = NULL, claim_exp_dttm = NULL
+                        WHERE ext_tx_id = ? AND sbmt_stcd = 'REQUESTED' AND claim_id = 'claim-owner-1'
+                        """.trimIndent(),
+                    ).use { statement ->
+                        statement.setString(1, externalTransactionId)
+                        assertThat(statement.executeUpdate()).isEqualTo(1)
+                    }
+                val result =
+                    executor.submit<SubmissionRecord?> {
+                        submissions.tryClaim(
+                            externalTransactionId,
+                            "claim-owner-2",
+                            "20260807120200",
+                            "20260807120101",
+                        )
+                    }
+
+                Thread.sleep(500)
+                assertThat(result.isDone).isFalse()
+                dataSource.connection.use { probeConnection ->
+                    probeConnection.autoCommit = false
+                    probeConnection
+                        .prepareStatement("SELECT pg_try_advisory_xact_lock(hashtextextended(?, 0))")
+                        .use { statement ->
+                            statement.setString(1, "BCM:EXECUTION_GATE:$network:WITHDRAWAL")
+                            statement.executeQuery().use { rs ->
+                                assertThat(rs.next()).isTrue()
+                                assertThat(rs.getBoolean(1)).isFalse()
+                            }
+                        }
+                    probeConnection.rollback()
+                }
+                failureConnection.commit()
+
+                assertThat(result.get(5, TimeUnit.SECONDS)?.status).isEqualTo(SubmissionStatus.REQUESTED)
+            }
+        } finally {
+            executor.shutdownNow()
+            jdbc.update("DELETE FROM bcm_sbmt_l WHERE ext_tx_id = ?", externalTransactionId)
+        }
     }
 
     @Test

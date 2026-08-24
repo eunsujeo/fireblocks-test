@@ -1,6 +1,9 @@
 package com.whatto.bcm.app.application.webhook
 
+import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
+import com.whatto.bcm.domain.monitoring.WebhookIngestionMetricOutcome
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
+import com.whatto.bcm.domain.webhook.WebhookInsertResult
 import com.whatto.bcm.domain.webhook.WebhookSignatureVerifier
 import io.mockk.every
 import io.mockk.mockk
@@ -17,8 +20,9 @@ class WebhookIngestionServiceTest {
     private val signatureVerifier = mockk<WebhookSignatureVerifier>()
     private val inboxRepository = mockk<WebhookInboxRepository>()
     private val objectMapper = mockk<ObjectMapper>()
+    private val metrics = mockk<OperationalMetricsPort>(relaxed = true)
     private val clock = Clock.fixed(Instant.parse("2026-08-06T03:00:00Z"), ZoneId.of("Asia/Seoul"))
-    private val service = WebhookIngestionService(signatureVerifier, inboxRepository, objectMapper, clock)
+    private val service = WebhookIngestionService(signatureVerifier, inboxRepository, objectMapper, metrics, clock)
 
     @Test
     fun `서명이 틀리면 payload를 파싱하거나 적재하지 않고 거절한다`() {
@@ -28,8 +32,40 @@ class WebhookIngestionServiceTest {
         val result = service.ingest("invalid", payload)
 
         assertThat(result).isEqualTo(WebhookIngestionResult.INVALID_SIGNATURE)
+        verify(exactly = 1) {
+            metrics.recordWebhookIngestion(WebhookIngestionMetricOutcome.INVALID_SIGNATURE, null)
+        }
         verify(exactly = 0) { objectMapper.readTree(any<ByteArray>()) }
         verify(exactly = 0) { inboxRepository.insertIfAbsent(any()) }
+    }
+
+    @Test
+    fun `정상 수신은 accepted와 마지막 정상 수신 시각을 기록한다`() {
+        val payload = realPayload()
+        every { signatureVerifier.verify("valid", payload) } returns true
+        every { objectMapper.readTree(payload) } returns ObjectMapper().readTree(payload)
+        every { inboxRepository.insertIfAbsent(any()) } returns WebhookInsertResult.INSERTED
+
+        val result = service.ingest("valid", payload)
+
+        assertThat(result).isEqualTo(WebhookIngestionResult.ACCEPTED)
+        verify(exactly = 1) {
+            metrics.recordWebhookIngestion(WebhookIngestionMetricOutcome.ACCEPTED, "20260806030000")
+        }
+    }
+
+    @Test
+    fun `계측 실패는 이미 적재한 정상 웹훅의 응답을 실패시키지 않는다`() {
+        val payload = realPayload()
+        every { signatureVerifier.verify("valid", payload) } returns true
+        every { objectMapper.readTree(payload) } returns ObjectMapper().readTree(payload)
+        every { inboxRepository.insertIfAbsent(any()) } returns WebhookInsertResult.INSERTED
+        every {
+            metrics.recordWebhookIngestion(WebhookIngestionMetricOutcome.ACCEPTED, "20260806030000")
+        } throws IllegalStateException("metrics unavailable")
+
+        assertThat(service.ingest("valid", payload)).isEqualTo(WebhookIngestionResult.ACCEPTED)
+        verify(exactly = 1) { inboxRepository.insertIfAbsent(any()) }
     }
 
     @Test
@@ -42,6 +78,7 @@ class WebhookIngestionServiceTest {
         assertThatThrownBy { service.ingest("valid", payload) }
             .isInstanceOf(IllegalArgumentException::class.java)
             .hasMessageContaining("id")
+        verify(exactly = 1) { metrics.recordWebhookIngestion(WebhookIngestionMetricOutcome.ERROR, null) }
         verify(exactly = 0) { inboxRepository.insertIfAbsent(any()) }
     }
 

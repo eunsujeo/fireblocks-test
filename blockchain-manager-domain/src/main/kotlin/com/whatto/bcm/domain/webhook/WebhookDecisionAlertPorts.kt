@@ -1,6 +1,6 @@
 package com.whatto.bcm.domain.webhook
 
-/** 귀속할 주소가 없는 입금 신호. 구체 알림 채널은 Phase 9에서 바인딩한다. */
+/** 귀속할 주소가 없는 입금 신호. 주소·금액·원문은 운영 경보 채널에 전달하지 않는다. */
 fun interface UnattributedDepositAlertPort {
     fun alert(alert: UnattributedDepositAlert)
 }

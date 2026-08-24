@@ -29,6 +29,7 @@ io.github.oshai:kotlin-logging-jvm:7.0.3=ktlint,ktlintReporter,ktlintRuleset
 io.github.oshai:kotlin-logging:5.1.0=ktlint,ktlintReporter
 io.sentry:sentry-bom:8.51.0=compileClasspath,testCompileClasspath,testRuntimeClasspath
 net.bytebuddy:byte-buddy:1.18.3=testCompileClasspath,testRuntimeClasspath
+org.apache.logging.log4j:log4j-bom:2.25.5=compileClasspath,testCompileClasspath,testRuntimeClasspath
 org.apiguardian:apiguardian-api:1.1.2=testCompileClasspath
 org.assertj:assertj-core:3.27.7=testCompileClasspath,testRuntimeClasspath
 org.ec4j.core:ec4j-core:1.1.0=ktlint,ktlintRuleset

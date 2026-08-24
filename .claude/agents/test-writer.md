@@ -15,5 +15,8 @@ blockchain-manager 의 테스트 작성자다. docs/testing.md 의 스택·규�
 - 시간·랜덤은 주입 가능하게 (Clock 파라미터) — 테스트에서 고정.
 - 버그 수정 요청이면 **재현 테스트를 먼저** 만들어 실패를 확인한 뒤 수정 제안.
 - 테스트 이름은 계약을 서술한다: `FINALIZED 에서 CONFIRMED 알림이 오면 무시한다` 형태 (한글 백틱 이름 허용).
+- Admin 계약은 mTLS+5분 이하 JWT, 역할 claim, 요청자/승인자 분리, 위험 등급별 정확한 정족수, stale snapshot,
+  동시 활성화, 중복 승인·실행, hard ceiling, 컨트랙트 독립 2-RPC fail-closed, DAW-CORE 계산/BCM 실행 경계,
+  단일 omnibus→고정 외부 cold, pause/resume 비대칭을 우선 고정한다. 기대값은 `docs/design/08-bcm-admin.md`와 OpenAPI에서 가져온다.
 
 하지 않는 것: 구현 코드 수정(테스트가 실패로 드러낸 버그는 보고만), 커버리지 숫자 채우기용 무의미 테스트, 벤더 실호출.

@@ -9,7 +9,10 @@ interface SweepTargetRepository {
     /** 웹훅과 제출 마감이 같은 대상을 같은 순서로 잠그기 위한 행 잠금. */
     fun findByKeyForUpdate(key: SweepTargetKey): SweepTarget?
 
-    fun findPending(limit: Int): List<SweepTarget>
+    fun findPending(
+        networks: Set<String>,
+        limit: Int,
+    ): List<SweepTarget>
 
     /** 제출 준비 트랜잭션에서 같은 대상의 열린 원장 생성을 직렬화한다. */
     fun findPendingForUpdate(key: SweepTargetKey): SweepTarget?

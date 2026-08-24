@@ -27,5 +27,9 @@ blockchain-manager 코드와 설계 문서 사본(`docs/design/`)의 정합을 �
 6. **스펙 이원화 감시** — docs/api/openapi.yaml 의 이벤트 계약(ChainEvent·토픽·전달 보장) vs 01·02 대조
    (이벤트 계약은 두 문서에 걸쳐 있어 드리프트가 생긴 전력이 있다 — PLAN 미해결 표 #1).
    생성물 신선도: `python3 docs/api/build.py` 재생성 시 spec.js·api.md·api.html 에 diff 가 없는가.
+7. **Admin 계약** — `docs/design/08-bcm-admin.md`가 있으면 `/admin/*` OpenAPI·Controller·정책/컨트랙트 상태 전이와 대조한다.
+   브라우저→BFF→BCM private listener와 mTLS+5분 이하 JWT 경계, 역할 claim과 위험 등급별 정확한 정족수,
+   요청자/승인자 분리, 실행 snapshot, hard ceiling, 컨트랙트 독립 2-RPC 증적, 밴드S의 DAW-CORE 계산/BCM 실행 소유권,
+   고객 vault sweep·출금 풀 회수→단일 omnibus→고정 외부 cold 경로, 중지와 재개의 비대칭이 설계와 같은지 확인한다.
 
 보고 형식: 차이 목록 — [코드 위치] vs [문서 절], 어느 쪽이 정본인지 판단은 하지 않는다 (코드를 고칠지 설계를 고칠지는 사용자 결정). 차이 없으면 "정합"이라고 명시.

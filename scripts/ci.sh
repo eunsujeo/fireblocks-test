@@ -5,9 +5,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # 1. 빌드 + 전체 테스트 + ktlintCheck (check 에 통합) — dependency lock 은 strict 기본
-./gradlew build
+./gradlew --no-build-cache build
 
-# 2. docs/api 생성물 신선도 — openapi.yaml 과 생성물이 어긋난 채 커밋되는 것 방지
+# 2. 전체 배포 의존성 CVE 검사 — High/Critical(CVSS 7.0+) 또는 스캔 오류면 실패
+./gradlew --no-build-cache --no-configuration-cache --no-parallel --rerun-tasks dependencyCheckAggregate
+
+# 3. docs/api 생성물 신선도 — openapi.yaml 과 생성물이 어긋난 채 커밋되는 것 방지
 (cd docs/api && python3 build.py)
 if [ -n "$(git status --porcelain -- docs/api)" ]; then
     echo "docs/api 생성물이 openapi.yaml 과 어긋남 — 'python3 docs/api/build.py' 재생성 결과를 커밋할 것" >&2

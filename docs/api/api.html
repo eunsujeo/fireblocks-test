@@ -235,7 +235,7 @@ window.OPENAPI = {
   "openapi": "3.1.0",
   "info": {
     "title": "Blockchain Manager API",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "x-curl": true,
     "description": "블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.\n호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,\n온체인 상태 변경은 메시지 큐 이벤트로 받는다.\n\n아래 규약은 **모든 엔드포인트에 공통** 적용된다.\n\n## 응답 형식\n\n성공·목록·에러 모두 같은 구조로 돌려준다. `meta.requestId` 로 요청을 추적한다. 스키마 이름은 단건이 `<타입>Response`, 목록이 `<타입>ListResponse` 다.\n\n단일 리소스:\n\n```json\n{\n  \"data\": {\n    \"accountType\": \"CUSTOMER\",\n    \"ref\": \"000123\",\n    \"accountId\": \"acct_01H8X\"\n  },\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  }\n}\n```\n\n페이지네이션 목록:\n\n```json\n{\n  \"data\": [\n    { \"txId\": \"tx_9f2a\", \"status\": \"FINALIZED\", \"amount\": \"1.5\" }\n  ],\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  },\n  \"pagination\": {\n    \"nextCursor\": \"eyJsYXN0IjoxNzUxMzM2MDAwMDAwfQ\",\n    \"hasMore\": true\n  }\n}\n```\n\n에러:\n\n```json\n{\n  \"error\": {\n    \"code\": \"ACCOUNT_NOT_FOUND\",\n    \"message\": \"account not found\"\n  },\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  }\n}\n```\n\n## 데이터 포맷\n\n- **시각** — ISO 8601, UTC, 밀리초. 예: `2026-07-13T04:05:06.789Z`\n- **금액** — 문자열(decimal). 예: `\"1.5\"`. float 가 아니라 decimal 로 파싱한다.\n- **필드명** — camelCase (`externalTxId` · `numOfConfirmations`)\n- **요청 추적** — 모든 응답에 `meta.requestId`\n- **온체인 해시** — 전파 후 채워짐(그 전엔 null), `txHash`\n\n## 에러 코드\n\n판단은 `error.code` 로 한다.\n\n| 코드 | HTTP | 뜻 |\n|---|---|---|\n| `VALIDATION_FAILED` | 400 | 요청 형식·값이 규약에 안 맞음 |\n| `ACCOUNT_NOT_FOUND` | 404 | 계정 없음 (주소 미발급과 구분) |\n| `ASSET_NOT_SUPPORTED` | 400 | 우리가 지원하지 않는 (네트워크, 토큰) — 요청 형식은 맞다 |\n| `NOT_FOUND` | 404 | 그 밖의 리소스 없음 |\n| `CONFLICT` | 409 | 같은 멱등 키에 다른 내용이 왔다 (예: 이미 쓴 externalTxId 로 금액·목적지가 다른 제출) |\n| `SUBMIT_IN_PROGRESS` | 503 | 같은 `externalTxId` 의 앞선 제출이 처리 중이다 — **오류가 아니라 지연**이다. `Retry-After` 뒤에 같은 요청을 그대로 다시 보낸다 |\n| `RELAY_REJECTED` | 502 | 대납 relay 가 전송을 못 대거나 거절 |\n| `INTERNAL` | 500 | 서버 내부 오류 |\n\n`SUBMIT_IN_PROGRESS` 를 `CONFLICT` 와 나눈 이유 — `CONFLICT` 는 \"키를 잘못 썼다\"는 확정 오류라 재시도해도 같은 답이 온다.\n`SUBMIT_IN_PROGRESS` 는 잠시 뒤 성공할 상황이다. 둘을 한 코드로 묶으면 호출 쪽이 사고와 지연을 구분할 수 없다.\n\n`INTERNAL`(500) 은 모든 엔드포인트에서 날 수 있어, 오퍼레이션별 응답 표기에서는 생략한다.\n\n## 페이지네이션\n\n목록은 **커서 방식**이다. `limit`(기본 200, 최대 500)으로 크기를 정하고, 응답 `pagination.nextCursor` 를 다음 요청 `cursor` 로 넘겨 이어받는다. 지금 이어받을 페이지가 있는지는 `hasMore` 로 판단한다 — false 면 현재 시점 마지막 페이지다.\n\n`nextCursor` 는 **마지막 페이지에서도 항상 채워진다** — 이번 응답 마지막 항목의 다음 위치를 가리킨다. `order=asc` 조회에서는 이 커서를 보관했다가 나중에 같은 값으로 재요청하면 그 사이 새로 쌓인 내역만 이어받는다(증분 폴링). `order=desc`(기본, 최신순)는 커서가 과거 방향으로 진행하므로 페이지 순회용이다.\n\n`cursor`/`nextCursor` 는 **불투명 토큰**이라 파싱·구성 대상이 아니며, 받은 값을 그대로 전달한다(다음 위치·필터·정렬 방향이 토큰에 담겨 있다). 커서 요청에서는 첫 요청의 조회 조건이 토큰으로 이어지므로, 함께 보낸 다른 파라미터는 무시된다.\n\n## 인증\n\n**없음 (2026-08-05 확정)** — 호출 쪽과 매니저는 내부망 경계를 신뢰한다. securitySchemes 를 정의하지 않는다.\n\n## 멱등\n\n- **계정 생성** — `createAccount` 는 (`accountType`, `ref`) 로 멱등하다. 같은 값으로 재요청하면 매니저가 같은 결과를 돌려준다(호출 쪽이 별도 멱등키를 넣지 않는다).\n- **주소 발급** — `createDepositAddresses` 는 네트워크마다 `(accountId, network, symbol)` 로 멱등하다. 부분 실패해도 성공분은 남으므로 같은 요청을 그대로 재시도할 수 있다.\n- **출금 제출** — 본문 `externalTxId` 가 멱등 키다. **같은 키로 같은 내용을 재제출하면 처음의 `txId` 를 그대로 돌려준다** — 응답을 못 받아 재시도하는 경우가 정상 경로다. 같은 키인데 **내용이 다르면** `409 CONFLICT` 다. 어느 쪽이든 벤더로 중복 전송되지 않는다.\n\n## 이벤트 (메시지 큐)\n\n온체인 상태 변경(입금 감지·출금 확정 등)은 이 HTTP API 가 아니라 **메시지 큐 이벤트**로 온다. 호출 쪽은 토픽별 컨슈머로 받는다.\n\n```seq\n체인 -> Fireblocks: 온체인 상태 변경\nFireblocks -> 매니저: 웹훅 알림 push (서명 검증 후 수신)\n매니저 -> 큐: publish (3 토픽)\n큐 -> 소비 쪽: consume\n소비 쪽 -> 원장: 반영 (멱등)\n소비 쪽 -> 큐: 오프셋 커밋\n```\n\n| 토픽 | 담는 이벤트 | 파티션 키 |\n|---|---|---|\n| `deposit-events` | 고객 입금 (`DEPOSIT`) | 고객 accountId |\n| `withdrawal-events` | 외부 출금 (`WITHDRAWAL`) | 출금 풀 vault 의 accountId |\n| `internal-events` | 내부 이체 (`INTERNAL` — delta 정산만 · sweep 은 매니저 내부라 싣지 않는다) | 출발 계정 accountId |\n\n귀속 불명 입금(매핑에 없는 주소)은 큐에 싣지 않는다 — 별도 알림 채널로 통지된다.\n\n**ChainEvent** — 큐로 오는 이벤트 형태 (타입 [ChainEvent](#schema-ChainEvent)):\n\n```json\n{\n  \"eventId\": \"0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e0f\",\n  \"type\": \"WITHDRAWAL\",\n  \"txId\": \"tx_9f2a\",\n  \"txHash\": \"0x4e1d...ab\",\n  \"externalTxId\": \"wd-260713-0042\",\n  \"accountId\": \"acct_pool_02\",\n  \"network\": \"ETHEREUM\",\n  \"symbol\": \"USDC\",\n  \"to\": \"0x9f...E2\",\n  \"from\": \"0xAb3...C9\",\n  \"amount\": \"100\",\n  \"status\": \"FINALIZED\",\n  \"numOfConfirmations\": 12\n}\n```\n\n- `eventId` — 이벤트 고유 id (UUID v7). **중복 제거 기준은 이 값 하나다**\n- [`type`](#schema-EventType) — DEPOSIT · WITHDRAWAL · INTERNAL\n- [`status`](#schema-TxStatus) — 공통 상태 다섯 (아래 \"상태 (TxStatus) 기준\"). 소비 쪽은 이것으로만 판단한다\n- `amount` — 이동 금액. **문자열 decimal** 이다(정밀도). 입금은 `externalTxId` 가 없으므로 **금액의 출처가 이 값뿐이다**\n- `from` — 발신 주소. 입금은 항상 채워진다 — 입금 판별을 의뢰할 때 쓴다\n- `txHash` — 전파 후 채워짐\n- RBF 대체 거래는 별도 고객 거래가 아니다. 조회 응답과 이벤트의 `txId`·`externalTxId`는 최초 거래 값을 유지하고,\n  `txHash`는 root 계열에서 실제로 채굴된 승자 거래 값으로 바뀔 수 있다\n- 벤더의 `subStatus`·`networkStatus` 는 이벤트에 싣지 않는다 — 매니저가 번역에 쓰는 내부 값이다\n\n전달 보장:\n\n- **at-least-once** — 같은 이벤트가 드물게 두 번 올 수 있다. **`eventId` 유일 기준으로 중복을 버린다** — 한 거래(txId)에서 감지·확정·실패 이벤트가 각각 오므로 `txId` 로 중복 제거하면 뒤 이벤트가 버려진다.\n- **오프셋 커밋** — 원장 반영이 성공한 뒤에만.\n- **순서** — 같은 계정은 파티션 키가 보장.\n- ★ **한 거래의 순서는 매니저가 보장한다** — 한 `txId` 에 대해 받는 순서는 항상 `감지 → 확정` 또는 `감지 → 무효` 다. 매니저가 감지를 아직 발행하지 않은 상태에서 확정·거부 알림을 먼저 받으면 **감지 이벤트를 합성해 먼저 발행**한 뒤 그 상태를 발행한다. 소비 쪽은 \"감지 없는 확정\" 을 다루지 않는다.\n- **입금 시작 상태** — 입금은 `SUBMITTED` 없이 `CONFIRMED` 부터 온다 (`SUBMITTED` 는 우리가 제출하는 거래에서만 관찰).\n- `REJECTED`(일시적) ≠ `FAILED`(영구). 확정(`FINALIZED`) 판정은 **매니저가** `numOfConfirmations` 를 체인별 임계와 비교해 내린다 — 컨슈머는 `status` 로만 판단한다.\n\n## 상태 (TxStatus) 기준\n\n거래·이벤트의 `status` 는 이 다섯이 기준이다. 벤더 원어는 매니저가 이 다섯으로 번역한다. 아래 표의 `subStatus`·`networkStatus` 열은 **매니저가 번역에 쓰는 벤더 내부 값** — 이벤트에는 `status`(TxStatus) 만 싣는다.\n\n| 공통 상태 | 뜻 | 블록체인 상태 (Pending → Confirmed → Finalized) | 벤더(Fireblocks) 원어 | 대표 subStatus | networkStatus |\n|---|---|---|---|---|---|\n| `SUBMITTED` | 제출됨 — 서명·전파 준비 중, 아직 체인 미등장 (출금만 관찰) | 아직 없음 → 전파되면 Pending | PENDING_SIGNATURE · QUEUED · BROADCASTING | — | 서명 단계엔 없음 → BROADCASTING |\n| `CONFIRMED` | 전파 후 체인 등장, 컨펌 누적 중 (미확정) | Confirmed — 블록에 포함, finality 전 | CONFIRMING | PENDING_BLOCKCHAIN_CONFIRMATIONS | CONFIRMING |\n| `FINALIZED` | 확정 — 확정 정책(DCCP) 임계 컨펌 도달 | Finalized | COMPLETED | CONFIRMED | CONFIRMED |\n| `REJECTED` | 거부·차단 — 정책·스크리닝에 막힘. 영구 실패가 아니라 사람 개입 여지 | 출금 차단은 체인에 없음 · 입금 동결은 Finalized | REJECTED · BLOCKED | AUTO_FREEZE · FROZEN_MANUALLY · REJECTED_AML_SCREENING | 출금(전파 전 차단)은 없음 · 입금 동결은 CONFIRMED |\n| `FAILED` | 영구 실패 — 사유 동반 (수수료 부족·revert 등) | Pending 에서 증발 · revert 는 Confirmed 이후 | FAILED | DROPPED_BY_BLOCKCHAIN (reorg 증발) · 그 외 | FAILED (revert) · DROPPED (mempool 누락) |\n\n판단은 다섯(`status`)으로 한다. `REJECTED`(일시적) ≠ `FAILED`(영구) 구분이 원장·화면 처리를 가른다.\n\n이 다섯은 매니저와 호출 쪽 사이의 **계약 어휘**다 — 이 문서에 남아 있는 `CONFIRMING`·`COMPLETED` 표기는 전부 **벤더(Fireblocks) 원어**다.\n\n- ★ **`CONFIRMED` 는 미확정이다** — 벤더 subStatus/networkStatus 의 `CONFIRMED`(임계 도달, COMPLETED 동반)와 철자가 같지만 가리키는 단계가 다르다. 확정은 `FINALIZED` 다.\n- ★ **`FINALIZED` 는 체인 finality 가 아니다** — DCCP 정책 임계 도달일 뿐이고, `FINALIZED` → `FAILED`(reorg 증발, `DROPPED_BY_BLOCKCHAIN`) 전이가 존재한다. 상태에 서열을 매겨 \"뒤로 가면 무시\"로 구현하면 안 된다.\n"
   },
@@ -911,6 +911,168 @@ window.OPENAPI = {
         }
       }
     },
+    "/admin/transaction-investigations/{identifier}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "거래 운영 조사",
+        "description": "root txId, active·대체 txId, externalTxId 또는 sweep executionId 하나로 같은 논리 거래의\n제출·웹훅·공통 상태·outbox 발행·대사·boost·sweep·allowance·당시 fee quote를 연결한다.\n수신 원문 payload와 서명, 제출 calldata, 벤더 자산 id는 응답하지 않는다.\n",
+        "operationId": "transactionInvestigationOf",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "구조화된 거래 운영 조사 결과",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTransactionInvestigationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/admin/contracts": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Admin 컨트랙트 레지스트리 조회",
+        "description": "불변 컨트랙트 버전, 현재 binding, 최신 독립 2-RPC evidence 상태를 조회한다. RPC URL·credential은 반환하지 않는다.",
+        "operationId": "adminContracts",
+        "responses": {
+          "200": {
+            "description": "컨트랙트 버전 목록",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminContractListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/policies": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Admin 실행 정책 조회",
+        "description": "불변 정책 버전의 파생 상태와 배포 hard ceiling 통과 여부를 조회한다.",
+        "operationId": "adminPolicies",
+        "responses": {
+          "200": {
+            "description": "정책 버전 목록",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPolicyListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/band-s": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Admin 밴드S 운영 원장 조회",
+        "description": "DAW-CORE가 계산해 등록한 최신 100개 밴드S snapshot·simulation·이동안과 승인·실행 상태를\n같은 policy/input/proposal hash 문맥으로 조회한다. 상태와 실행 금지 사유는 서버가 파생하며,\n이 읽기 API는 실행·승인 기능이나 원문 credential을 노출하지 않는다.\n",
+        "operationId": "adminBandS",
+        "responses": {
+          "200": {
+            "description": "밴드S 제안과 실행 원장 목록",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBandSListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/execution-gates": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Admin 비상 실행 게이트 조회",
+        "description": "채택 네트워크별 출금·sweep·정상 allowance approve의 신규 실행 가능 상태를 조회한다.\n행이 없는 범위도 `OPEN`으로 포함하며, 기존 실행 복구와 비상 `approve(0)` 허용 여부는 서버가 계산한다.\n최신 TAP batch 차단·컨트랙트 pause·운영자 제거 외부 관찰 증적도 함께 반환한다.\n최대 300개 게이트와 네트워크별 최신 증적 100개를 반환하고 초과 여부는 `truncated`로 알린다.\n이 읽기 API는 중지·외부 조치·재개 mutation을 노출하지 않는다.\n",
+        "operationId": "adminExecutionGates",
+        "responses": {
+          "200": {
+            "description": "서버 계산 실행 게이트 현황",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminExecutionGateOverviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/change-requests/{requestId}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Admin 변경 요청 상세 조회",
+        "description": "요청 snapshot, 서버 계산 diff·영향, 승인 정족수, 판단, 활성화 가능 여부와 금지 사유를 조회한다.",
+        "operationId": "adminChangeRequestOf",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 36
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "변경 요청 상세",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminChangeRequestResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/transactions": {
       "post": {
         "tags": [
@@ -1421,6 +1583,2343 @@ window.OPENAPI = {
           },
           "meta": {
             "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminTransactionInvestigationResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminTransactionInvestigation"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminTransactionInvestigation": {
+        "type": "object",
+        "required": [
+          "summary",
+          "timeline",
+          "boosts",
+          "sweepExecution",
+          "allowances",
+          "feeQuotes",
+          "truncatedSources"
+        ],
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/AdminTransactionInvestigationSummary"
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTransactionTimelineEntry"
+            }
+          },
+          "boosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTransactionBoost"
+            }
+          },
+          "sweepExecution": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminTransactionSweepExecution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allowances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTransactionAllowance"
+            }
+          },
+          "feeQuotes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTransactionFeeQuote"
+            }
+          },
+          "truncatedSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "상세당 100건 상한으로 일부만 반환된 원장 이름"
+          }
+        }
+      },
+      "AdminTransactionInvestigationSummary": {
+        "type": "object",
+        "required": [
+          "rootTransactionId",
+          "activeTransactionId",
+          "externalTransactionId",
+          "transactionHash",
+          "accountId",
+          "network",
+          "symbol",
+          "transactionType",
+          "status",
+          "confirmationCount",
+          "vendorSubStatus",
+          "vendorNetworkStatus",
+          "submissionStatus",
+          "amount",
+          "senderAccountId",
+          "receiverType",
+          "receiverValue",
+          "sweepExecutionId",
+          "submissionRequestedAt",
+          "submissionRespondedAt",
+          "vendorCreatedAt",
+          "firstDetectedAt",
+          "lastChangedAt",
+          "reconciliationCheckedAt",
+          "reconciliationCheckCount",
+          "reconciliationStoppedAt"
+        ],
+        "properties": {
+          "rootTransactionId": {
+            "type": "string"
+          },
+          "activeTransactionId": {
+            "type": "string"
+          },
+          "externalTransactionId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transactionHash": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "transactionType": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "confirmationCount": {
+            "type": "integer"
+          },
+          "vendorSubStatus": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorNetworkStatus": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submissionStatus": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "정밀 십진 문자열"
+          },
+          "senderAccountId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receiverType": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receiverValue": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sweepExecutionId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submissionRequestedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submissionRespondedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorCreatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "firstDetectedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastChangedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reconciliationCheckedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reconciliationCheckCount": {
+            "type": "integer"
+          },
+          "reconciliationStoppedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminTransactionTimelineEntry": {
+        "type": "object",
+        "required": [
+          "source",
+          "code",
+          "status",
+          "observedAt",
+          "identifier"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "identifier": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminTransactionBoost": {
+        "type": "object",
+        "required": [
+          "attemptSequence",
+          "externalTransactionId",
+          "status",
+          "replacedTransactionId",
+          "replacedTransactionHash",
+          "newTransactionId",
+          "feeLevel",
+          "gasless",
+          "requestedAt",
+          "respondedAt"
+        ],
+        "properties": {
+          "attemptSequence": {
+            "type": "integer"
+          },
+          "externalTransactionId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "replacedTransactionId": {
+            "type": "string"
+          },
+          "replacedTransactionHash": {
+            "type": "string"
+          },
+          "newTransactionId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feeLevel": {
+            "type": "string"
+          },
+          "gasless": {
+            "type": "boolean"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "respondedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminTransactionSweepExecution": {
+        "type": "object",
+        "required": [
+          "executionId",
+          "externalTransactionId",
+          "status",
+          "operatorAccountId",
+          "contractAddress",
+          "requestedTotalAmount",
+          "actualTotalAmount",
+          "transactionId",
+          "transactionHash",
+          "requestedAt",
+          "finishedAt",
+          "items"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string"
+          },
+          "externalTransactionId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "operatorAccountId": {
+            "type": "string"
+          },
+          "contractAddress": {
+            "type": "string"
+          },
+          "requestedTotalAmount": {
+            "type": "string"
+          },
+          "actualTotalAmount": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transactionId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transactionHash": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTransactionSweepItem"
+            }
+          }
+        }
+      },
+      "AdminTransactionSweepItem": {
+        "type": "object",
+        "required": [
+          "sequence",
+          "accountId",
+          "sourceAddress",
+          "requestedAmount",
+          "actualAmount",
+          "status",
+          "failureCode",
+          "logIndex"
+        ],
+        "properties": {
+          "sequence": {
+            "type": "integer"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "sourceAddress": {
+            "type": "string"
+          },
+          "requestedAmount": {
+            "type": "string"
+          },
+          "actualAmount": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "failureCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logIndex": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminTransactionAllowance": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "network",
+          "symbol",
+          "contractAddress",
+          "cap",
+          "observedAllowance",
+          "status",
+          "checkedAt"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "contractAddress": {
+            "type": "string"
+          },
+          "cap": {
+            "type": "string"
+          },
+          "observedAllowance": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminTransactionFeeQuote": {
+        "type": "object",
+        "required": [
+          "context",
+          "level",
+          "observedAt",
+          "feePerByte",
+          "gasPrice",
+          "networkFee",
+          "baseFee",
+          "priorityFee"
+        ],
+        "properties": {
+          "context": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "feePerByte": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gasPrice": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "networkFee": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseFee": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priorityFee": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminContractListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminContract"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminContract": {
+        "type": "object",
+        "required": [
+          "versionId",
+          "scopeId",
+          "network",
+          "use",
+          "version",
+          "address",
+          "state",
+          "runtimeCodeHash",
+          "evidenceStatus",
+          "evidenceValidUntil",
+          "active"
+        ],
+        "properties": {
+          "versionId": {
+            "type": "string"
+          },
+          "scopeId": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "use": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "CANDIDATE",
+              "VERIFIED",
+              "ACTIVE",
+              "PAUSED",
+              "RETIRED"
+            ]
+          },
+          "runtimeCodeHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "evidenceStatus": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "VALID",
+                  "INVALID",
+                  "STALE",
+                  "ERROR"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceValidUntil": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminPolicyListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPolicy"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminPolicy": {
+        "type": "object",
+        "required": [
+          "versionId",
+          "scopeId",
+          "versionNumber",
+          "schemaVersion",
+          "state",
+          "policyHash",
+          "ceilingPassed",
+          "active",
+          "registeredAt"
+        ],
+        "properties": {
+          "versionId": {
+            "type": "string"
+          },
+          "scopeId": {
+            "type": "string"
+          },
+          "versionNumber": {
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "APPROVED",
+              "ACTIVE",
+              "SUPERSEDED"
+            ]
+          },
+          "policyHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "ceilingPassed": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "registeredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminBandSListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminBandS"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminBandS": {
+        "type": "object",
+        "required": [
+          "proposalId",
+          "sourceProposalId",
+          "snapshotId",
+          "sourceRequestId",
+          "policyVersionId",
+          "snapshotHash",
+          "inputHash",
+          "observedAt",
+          "expiresAt",
+          "inputComplete",
+          "issueCodes",
+          "totalAssetKrwAmount",
+          "observedHotKrwAmount",
+          "observedColdKrwAmount",
+          "effectiveHotKrwAmount",
+          "hotRatio",
+          "lowerRatio",
+          "targetRatio",
+          "upperRatio",
+          "direction",
+          "proposalHash",
+          "totalKrwAmount",
+          "afterHotRatio",
+          "state",
+          "requestId",
+          "requestState",
+          "approvalCount",
+          "requiredApprovals",
+          "executionId",
+          "executionStatus",
+          "reservedAt",
+          "executionReady",
+          "disabledReasons",
+          "items"
+        ],
+        "properties": {
+          "proposalId": {
+            "type": "string"
+          },
+          "sourceProposalId": {
+            "type": "string"
+          },
+          "snapshotId": {
+            "type": "string"
+          },
+          "sourceRequestId": {
+            "type": "string"
+          },
+          "policyVersionId": {
+            "type": "string"
+          },
+          "snapshotHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "inputHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inputComplete": {
+            "type": "boolean"
+          },
+          "issueCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalAssetKrwAmount": {
+            "type": "string"
+          },
+          "observedHotKrwAmount": {
+            "type": "string"
+          },
+          "observedColdKrwAmount": {
+            "type": "string"
+          },
+          "effectiveHotKrwAmount": {
+            "type": "string"
+          },
+          "hotRatio": {
+            "type": "string"
+          },
+          "lowerRatio": {
+            "type": "string"
+          },
+          "targetRatio": {
+            "type": "string"
+          },
+          "upperRatio": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "HOT_TO_COLD",
+              "COLD_TO_HOT"
+            ]
+          },
+          "proposalHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "totalKrwAmount": {
+            "type": "string"
+          },
+          "afterHotRatio": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PROPOSED",
+              "BLOCKED",
+              "STALE",
+              "PENDING",
+              "APPROVED",
+              "REJECTED",
+              "EXPIRED",
+              "EXECUTING",
+              "PARTIAL",
+              "COMPLETED",
+              "FAILED"
+            ]
+          },
+          "requestId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requestState": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "APPROVED",
+                  "REJECTED",
+                  "EXPIRED",
+                  "EXECUTED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approvalCount": {
+            "type": "integer"
+          },
+          "requiredApprovals": {
+            "type": "integer"
+          },
+          "executionId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executionStatus": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "EXECUTING",
+                  "PARTIAL",
+                  "COMPLETED",
+                  "FAILED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reservedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executionReady": {
+            "type": "boolean",
+            "description": "인증 경계를 제외한 도메인 예약 조건 충족 여부"
+          },
+          "disabledReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminBandSItem"
+            }
+          }
+        }
+      },
+      "AdminBandSItem": {
+        "type": "object",
+        "required": [
+          "sequence",
+          "dependsOnSequence",
+          "legType",
+          "network",
+          "tokenSymbol",
+          "sourceVaultId",
+          "destinationVaultId",
+          "destinationAddress",
+          "amount",
+          "krwAmount",
+          "expectedFeeAmount",
+          "itemHash",
+          "executable",
+          "blockReason",
+          "executionStatus"
+        ],
+        "properties": {
+          "sequence": {
+            "type": "integer"
+          },
+          "dependsOnSequence": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "legType": {
+            "type": "string",
+            "enum": [
+              "INTERNAL_TO_EGRESS",
+              "EXTERNAL_COLD",
+              "COLD_DEPOSIT",
+              "HOT_REDISTRIBUTE"
+            ],
+            "description": "INTERNAL_TO_EGRESS는 영속/API 호환 코드명이며 1차 설계에서는 출금 풀 등 hot vault에서 omnibus로 회수하는 내부이체를 뜻한다."
+          },
+          "network": {
+            "type": "string"
+          },
+          "tokenSymbol": {
+            "type": "string"
+          },
+          "sourceVaultId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destinationVaultId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destinationAddress": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "type": "string"
+          },
+          "krwAmount": {
+            "type": "string"
+          },
+          "expectedFeeAmount": {
+            "type": "string"
+          },
+          "itemHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "executable": {
+            "type": "boolean"
+          },
+          "blockReason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executionStatus": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "RESERVED",
+                  "SUBMIT_INTENT",
+                  "SUBMITTED",
+                  "FINALIZED",
+                  "FAILED",
+                  "RECONCILED",
+                  "RELEASED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminExecutionGateOverviewResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminExecutionGateOverview"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminExecutionGateOverview": {
+        "type": "object",
+        "required": [
+          "observedAt",
+          "truncated",
+          "gates",
+          "externalControls",
+          "allowanceRevocations",
+          "webhookRecoveries",
+          "resumes"
+        ],
+        "properties": {
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "gates": {
+            "type": "array",
+            "maxItems": 300,
+            "items": {
+              "$ref": "#/components/schemas/AdminExecutionGate"
+            }
+          },
+          "externalControls": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminExternalControlEvidence"
+            }
+          },
+          "allowanceRevocations": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminAllowanceRevocation"
+            }
+          },
+          "webhookRecoveries": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminWebhookRecovery"
+            }
+          },
+          "resumes": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminExecutionGateResume"
+            }
+          }
+        }
+      },
+      "AdminExecutionGateResume": {
+        "type": "object",
+        "required": [
+          "resumeId",
+          "requestId",
+          "network",
+          "type",
+          "state",
+          "stoppedEventId",
+          "contractVersionId",
+          "contractEvidenceId",
+          "revocationExecutionId",
+          "causeEvidenceUri",
+          "causeEvidenceHash",
+          "requestedAt",
+          "expiresAt",
+          "requestedByEmployeeNo",
+          "approvalCount",
+          "requiredApprovals",
+          "securityApprovalCount",
+          "latestCheckStatus",
+          "latestCheckObservedAt",
+          "latestCheckValidUntil",
+          "issues",
+          "resumeReady",
+          "disabledReasons",
+          "retryable",
+          "retryCondition",
+          "statusPath"
+        ],
+        "properties": {
+          "resumeId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "requestId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "network": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "WITHDRAWAL",
+              "SWEEP",
+              "APPROVE"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "BLOCKED",
+              "READY",
+              "RESUMED"
+            ]
+          },
+          "stoppedEventId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "contractVersionId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "contractEvidenceId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "revocationExecutionId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "causeEvidenceUri": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "causeEvidenceHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestedByEmployeeNo": {
+            "type": "string",
+            "maxLength": 6
+          },
+          "approvalCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requiredApprovals": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 2
+          },
+          "securityApprovalCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latestCheckStatus": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "READY",
+                  "DRIFT",
+                  "STALE",
+                  "UNCONFIRMED",
+                  "ERROR"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latestCheckObservedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latestCheckValidUntil": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resumeReady": {
+            "type": "boolean"
+          },
+          "disabledReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "retryCondition": {
+            "type": "string"
+          },
+          "statusPath": {
+            "type": "string",
+            "enum": [
+              "/admin/execution-gates"
+            ]
+          }
+        }
+      },
+      "AdminWebhookRecovery": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "webhookId",
+          "state",
+          "scope",
+          "requiredEvents",
+          "requestedAt",
+          "requestedByEmployeeNo",
+          "approvedAt",
+          "approvedByEmployeeNo",
+          "reason",
+          "workTicket",
+          "latestEvent",
+          "callType",
+          "calledAt",
+          "resultAt",
+          "previousStatus",
+          "currentStatus",
+          "missingRequiredEvents",
+          "scopeFrom",
+          "scopeTo",
+          "scheduledNotificationCount",
+          "errorCode",
+          "retryable",
+          "retryCondition",
+          "statusPath"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "webhookId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ACCEPTED",
+              "IN_PROGRESS",
+              "AMBIGUOUS",
+              "FAILED",
+              "COMPLETED"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "FAILED_LAST_24H"
+            ]
+          },
+          "requiredEvents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestedByEmployeeNo": {
+            "type": "string",
+            "maxLength": 6
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvedByEmployeeNo": {
+            "type": "string",
+            "maxLength": 6
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "workTicket": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "latestEvent": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "STATUS_INTENT",
+                  "STATUS_OBSERVED",
+                  "ACTIVATE_INTENT",
+                  "ACTIVATED",
+                  "RESEND_INTENT",
+                  "RESEND_ACCEPTED",
+                  "FAILED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "callType": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "STATUS_QUERY",
+                  "ACTIVATE",
+                  "RESEND_FAILED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calledAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resultAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previousStatus": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentStatus": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missingRequiredEvents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopeFrom": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scopeTo": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scheduledNotificationCount": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "errorCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "retryCondition": {
+            "type": "string"
+          },
+          "statusPath": {
+            "type": "string",
+            "enum": [
+              "/admin/execution-gates"
+            ]
+          }
+        }
+      },
+      "AdminExecutionGate": {
+        "type": "object",
+        "required": [
+          "network",
+          "type",
+          "state",
+          "stoppedAt",
+          "reason",
+          "workTicket",
+          "actorEmployeeNo",
+          "sequence",
+          "newExecutionAllowed",
+          "existingExecutionRecoveryAllowed",
+          "emergencyRevocationAllowed",
+          "disabledReasons"
+        ],
+        "properties": {
+          "network": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "WITHDRAWAL",
+              "SWEEP",
+              "APPROVE"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "STOPPED"
+            ]
+          },
+          "stoppedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workTicket": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actorEmployeeNo": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sequence": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "newExecutionAllowed": {
+            "type": "boolean"
+          },
+          "existingExecutionRecoveryAllowed": {
+            "type": "boolean"
+          },
+          "emergencyRevocationAllowed": {
+            "type": "boolean"
+          },
+          "disabledReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AdminExternalControlEvidence": {
+        "type": "object",
+        "required": [
+          "evidenceId",
+          "network",
+          "contractVersionId",
+          "status",
+          "completionReady",
+          "snapshotHash",
+          "tapSourceId",
+          "tapBlocked",
+          "pinnedBlockNumber",
+          "expectedOperatorSetHash",
+          "firstEndpointId",
+          "firstPaused",
+          "firstOperatorSetHash",
+          "secondEndpointId",
+          "secondPaused",
+          "secondOperatorSetHash",
+          "observedAt",
+          "validUntil",
+          "reason",
+          "workTicket",
+          "actorEmployeeNo",
+          "issues"
+        ],
+        "properties": {
+          "evidenceId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "network": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "contractVersionId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED",
+              "DRIFT",
+              "STALE",
+              "UNCONFIRMED",
+              "ERROR"
+            ]
+          },
+          "completionReady": {
+            "type": "boolean"
+          },
+          "snapshotHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "tapSourceId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "tapBlocked": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pinnedBlockNumber": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "expectedOperatorSetHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "firstEndpointId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "firstPaused": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstOperatorSetHash": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondEndpointId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "secondPaused": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondOperatorSetHash": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "workTicket": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "actorEmployeeNo": {
+            "type": "string",
+            "maxLength": 6
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AdminAllowanceRevocation": {
+        "type": "object",
+        "required": [
+          "executionId",
+          "requestId",
+          "network",
+          "contractVersionId",
+          "contractBindingRevision",
+          "sweepContractAddress",
+          "targetSnapshotHash",
+          "status",
+          "totalCount",
+          "zeroConfirmedCount",
+          "submittingCount",
+          "failedCount",
+          "registeredAt",
+          "items",
+          "retryable",
+          "retryCondition",
+          "statusPath"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "requestId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "network": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "contractVersionId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "contractBindingRevision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "sweepContractAddress": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "targetSnapshotHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "IN_PROGRESS",
+              "PARTIAL",
+              "COMPLETED"
+            ]
+          },
+          "totalCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "zeroConfirmedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "submittingCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "registeredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/AdminAllowanceRevocationItem"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "retryCondition": {
+            "type": "string"
+          },
+          "statusPath": {
+            "type": "string",
+            "enum": [
+              "/admin/execution-gates"
+            ]
+          }
+        }
+      },
+      "AdminAllowanceRevocationItem": {
+        "type": "object",
+        "required": [
+          "sequence",
+          "accountId",
+          "network",
+          "symbol",
+          "sourceVaultId",
+          "ownerAddress",
+          "tokenContractAddress",
+          "beforeObservedAllowance",
+          "externalTransactionId",
+          "latestStatus",
+          "vendorTransactionId",
+          "observedAllowance",
+          "observedAt",
+          "errorCode",
+          "occurredAt"
+        ],
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "accountId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "network": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 16
+          },
+          "sourceVaultId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "ownerAddress": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "tokenContractAddress": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "beforeObservedAllowance": {
+            "type": "string"
+          },
+          "externalTransactionId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "latestStatus": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "RESERVED",
+                  "SUBMIT_INTENT",
+                  "SUBMITTED",
+                  "ZERO_CONFIRMED",
+                  "FAILED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorTransactionId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAllowance": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "errorCode": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "occurredAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminChangeRequestResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminChangeRequest"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminChangeRequest": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "targetType",
+          "scopeId",
+          "targetVersionId",
+          "state",
+          "risk",
+          "snapshotHash",
+          "diff",
+          "impact",
+          "reason",
+          "workTicket",
+          "requesterEmployeeNo",
+          "requestedAt",
+          "expiresAt",
+          "requiredApprovals",
+          "approvalCount",
+          "securityApprovalRequired",
+          "securityApprovalCount",
+          "activationReady",
+          "disabledReasons",
+          "decisions"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "POLICY",
+              "CONTRACT",
+              "BAND_S",
+              "ALLOWANCE_REVOKE",
+              "EXECUTION_GATE"
+            ]
+          },
+          "scopeId": {
+            "type": "string"
+          },
+          "targetVersionId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED",
+              "EXPIRED",
+              "CANCELLED",
+              "ACTIVATED",
+              "EXECUTED"
+            ]
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "GENERAL",
+              "SECURITY",
+              "RESUME",
+              "FUND"
+            ]
+          },
+          "snapshotHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "diff": {
+            "type": "string",
+            "description": "서버가 생성한 JSON diff snapshot"
+          },
+          "impact": {
+            "type": "string",
+            "description": "서버가 생성한 JSON 영향 snapshot"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "workTicket": {
+            "type": "string"
+          },
+          "requesterEmployeeNo": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requiredApprovals": {
+            "type": "integer"
+          },
+          "approvalCount": {
+            "type": "integer"
+          },
+          "securityApprovalRequired": {
+            "type": "boolean"
+          },
+          "securityApprovalCount": {
+            "type": "integer"
+          },
+          "activationReady": {
+            "type": "boolean"
+          },
+          "disabledReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminChangeDecision"
+            }
+          }
+        }
+      },
+      "AdminChangeDecision": {
+        "type": "object",
+        "required": [
+          "employeeNo",
+          "role",
+          "decision",
+          "opinion",
+          "decidedAt"
+        ],
+        "properties": {
+          "employeeNo": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "BCM_APPROVER",
+              "BCM_SECURITY_APPROVER"
+            ]
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "APPROVE",
+              "REJECT"
+            ]
+          },
+          "opinion": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

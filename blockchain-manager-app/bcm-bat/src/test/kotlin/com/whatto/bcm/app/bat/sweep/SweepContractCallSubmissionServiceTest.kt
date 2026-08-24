@@ -49,6 +49,25 @@ class SweepContractCallSubmissionServiceTest {
     }
 
     @Test
+    fun `추가 실행 intent는 제출 원장 REQUESTED와 같은 트랜잭션에서 벤더 호출 전에 기록한다`() {
+        val submissions = FakeContractCallSubmissions()
+        val vendor = FakeVendorContractCalls(VendorTransactionSubmission.Accepted("vendor-tx-1"))
+        val runner = TrackingContractCallTransactionRunner()
+        val service = service(submissions, vendor, runner)
+        var intentInsideTransaction = false
+        var vendorSawIntent = false
+
+        service.submit(command()) {
+            intentInsideTransaction = runner.active
+            vendorSawIntent = true
+        }
+
+        assertThat(intentInsideTransaction).isTrue()
+        assertThat(vendorSawIntent).isTrue()
+        assertThat(submissions.required().status).isEqualTo(SubmissionStatus.SUBMITTED)
+    }
+
+    @Test
     fun `batch contract call은 실행 식별자를 제출 원장에 함께 기록한다`() {
         val submissions = FakeContractCallSubmissions()
         val vendor = FakeVendorContractCalls(VendorTransactionSubmission.Accepted("vendor-batch-1"))
@@ -164,10 +183,11 @@ class SweepContractCallSubmissionServiceTest {
     private fun service(
         submissions: SubmissionRecordRepository,
         vendor: VendorContractCallPort,
+        transactionRunner: TransactionRunner = ContractCallImmediateTransactionRunner,
     ) = SweepContractCallSubmissionService(
         submissions,
         vendor,
-        ContractCallImmediateTransactionRunner,
+        transactionRunner,
         Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC),
         SweepProperties(claimTtlSeconds = 120),
     )
@@ -330,4 +350,19 @@ private class FakeVendorContractCalls(
 
 private object ContractCallImmediateTransactionRunner : TransactionRunner {
     override fun <T> run(block: () -> T): T = block()
+}
+
+private class TrackingContractCallTransactionRunner : TransactionRunner {
+    var active = false
+        private set
+
+    override fun <T> run(block: () -> T): T {
+        check(!active)
+        active = true
+        return try {
+            block()
+        } finally {
+            active = false
+        }
+    }
 }

@@ -18,6 +18,8 @@ status: To Do
 | [컴플라이언스 게이트 — DB](05-compliance-db.md) | ERD · 테이블 4개(레지스트리·확인·사전 검증·outbox) · 필드 |
 | [sweep 설계 — 정책 적용](06-sweep.md) | 입금 모으기·핫콜드 밴드S — 트리거·건별 실행·비채택 배치 대안·Fireblocks 대응 (정책 일부 수신 — 진행 중) |
 | [벤더 자산 매핑](07-asset-master.md) | 우리 (네트워크, 토큰) ↔ 벤더 assetId · 등록 관문 · Admin API |
+| [블록체인 매니저 Admin](08-bcm-admin.md) | 운영 조사·컨트랙트·실행 정책·밴드S·승인·비상 운영과 UI/UX 경계 |
+| [자산 이동 지도](09-asset-map.md) | 시나리오별 vault 간 이동 한 장 — 확정 이동·미정 이동·자산 경계 (조립 문서) |
 
 ## 구성 요소 — 한 장
 
@@ -25,7 +27,9 @@ status: To Do
 flowchart TB
   subgraph OURS["사내 인프라"]
     direction TB
-    CORE["DAW-CORE<br/>Service · Admin 백엔드"]
+    CORE["DAW-CORE<br/>Service 백엔드"]
+    AF["Blockchain Manager Admin<br/>Frontend"]
+    AB["Blockchain Manager Admin<br/>BFF"]
     subgraph BC["BC"]
       direction TB
       subgraph BMZ["블록체인 매니저 — 자산 이동"]
@@ -43,6 +47,7 @@ flowchart TB
     PADM["정책 관리<br/>벤더 정책 편집·게시"]
     MQ[("메시지 큐<br/>deposit·withdrawal·internal·compliance")]
     CORE ~~~ MQ
+    AF --> AB
   end
 
   subgraph EXTZ["외부 벤더·네트워크"]
@@ -53,7 +58,7 @@ flowchart TB
   end
 
   CORE -->|API| BM
-  CORE -->|운영 — 자산 매핑 · 네트워크 채택| BM
+  AB -->|private listener<br/>mTLS + 단기 JWT| BM
   BM -.->|publish| MQ
   GATE -.->|settled 발행| MQ
   MQ -.->|consume| CORE
@@ -76,7 +81,7 @@ flowchart TB
   classDef mq fill:#fef9c3,stroke:#ca8a04;
   classDef vendor fill:#f5f5f7,stroke:#86868b;
   classDef chain fill:#eef2ff,stroke:#818cf8;
-  class CORE,BM,GATE,FBCLI,PADM ours
+  class CORE,AF,AB,BM,GATE,FBCLI,PADM ours
   class COS,EN selfhost
   class MQ mq
   class FB,TRNET vendor
@@ -88,7 +93,8 @@ flowchart TB
 
 | 구성 요소 | 역할 |
 |---|---|
-| DAW-CORE | 고객 원장·업무 유스케이스. Service·Admin 두 백엔드 |
+| DAW-CORE Service | 고객 원장·업무 유스케이스 |
+| Blockchain Manager Admin Frontend·BFF | 매니저 저장소의 독립 운영·기능 테스트 콘솔. 브라우저 요청을 BCM Admin API 계약으로 중계 |
 | 블록체인 매니저 | 온체인 자산 이동의 단일 창구. 벤더 원어를 공통 상태(TxStatus)로 번역 |
 | API Co-signer + Callback Handler | MPC 공동서명. 서명 직전 검증(승인·거부) |
 | 정책 관리 | 벤더 정책(TAP) 편집·게시 대행 |
@@ -102,7 +108,9 @@ flowchart TB
 - **PUBLIC 인바운드는 둘** — VerifyVASP Enclave(상대 VASP 발신), 블록체인 매니저 웹훅 수신(Fireblocks 발신 · 서명 검증). 밖으로 여는 인바운드는 이 둘뿐이고, 나머지 구성 요소는 아웃바운드만 연다.
 - **벤더 API user 는 셋으로 분리** — 블록체인 매니저(거래 제출) · 정책 관리(정책 편집) · 스크리닝 클라이언트(validate/full).
 - **서명은 벤더 단독으로 되지 않는다** — MPC share 하나는 API Co-signer(SGX/TEE)에 있고, 서명 직전에 Callback Handler 가 승인·거부를 판단한다.
-- **매니저의 `/admin/*` 는 Admin 백엔드만 부를 수 있어야 한다** — 매니저 API 는 인증 없이 내부망을 신뢰하는 구성이라, 경로를 나눈 것만으로는 경계가 생기지 않는다. 이 경로로 자산 매핑과 네트워크 채택이 바뀌므로 **망 수준 제한**(방화벽 규칙·별도 리스너 등)이 필요하다. 수단은 배포 환경에서 정한다. 상세는 [벤더 자산 매핑](07-asset-master.md).
+- **일반 내부 API는 내부망 경계를 신뢰한다** — DAW-CORE Service↔매니저·게이트의 일반 업무 API에는 애플리케이션 인증을 추가하지 않는다.
+- **매니저의 `/admin/*` 는 강화된 별도 경계다** — 같은 `bcm-api` 애플리케이션의 private listener/ingress로 분리하고 Blockchain Manager Admin BFF만 접근시킨다. 공유 환경에서는 BFF와 BCM이 mTLS 서비스 신원과 5분 이하 단기 JWT를 함께 검증하며 직원번호·부점코드 헤더만으로 인증하지 않는다. T10.2의 읽기 전용 기능 테스트 profile은 frontend·BFF와 대상 BCM을 loopback에만 바인딩하고 상태 변경 API를 노출하지 않는다. 상세는 [Admin](08-bcm-admin.md).
+- **밴드S 외부 출구는 옴니버스 하나다** — 고객 vault는 기존 sweep으로, 출금 풀 초과분은 회수 내부이체로 옴니버스에 모은 뒤 TAP allowlist의 고정 외부 콜드 주소로만 전송한다. cold→hot 서명은 Admin 밖의 외부 콜드 절차다. (treasury egress vault 는 1차 설계에서 제외 — 외부 전송 권한을 별도 vault 로 격리할 필요가 생기면 재검토, [sweep](06-sweep.md))
 
 ## 메시지 큐 — 4 토픽
 
@@ -222,6 +230,5 @@ sequenceDiagram
 
 ## 미확정
 
-- **서비스 간 인증 방식** — DAW-CORE↔매니저·DAW-CORE↔게이트·인바운드 내부 API 의 인증은 인프라 결정과 함께 확정한다.
 - **막힘 경보 채널의 구체 수단** — 운영 알림·모니터링·별도 큐 중 무엇으로 흘릴지는 운영 설계에서 정한다.
-- **콜드월렛 계층** — 핫·콜드 균형(밴드S)이 콜드월렛을 전제하는데 **현 설계에 그 계층이 없다.** 무엇으로 둘지(별도 워크스페이스·별도 vault 등) 확정되면 구성 요소와 DB 에 반영한다. 후보는 [sweep 설계](06-sweep.md).
+- **Admin 역할 그룹 매핑** — 실제 사내 인증 제공자 그룹을 [Admin](08-bcm-admin.md)의 BCM 역할 claim에 연결하는 배포 환경별 값.

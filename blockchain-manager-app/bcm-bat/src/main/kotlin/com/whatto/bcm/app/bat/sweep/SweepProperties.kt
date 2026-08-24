@@ -111,29 +111,62 @@ data class SweepSecurityProperties(
     val callbackVerified: Boolean = false,
     val universalGaslessVerified: Boolean = false,
     val sweepContractVerified: Boolean = false,
+    val normalApprovalEnabledNetworks: Set<String> = emptySet(),
+    val emergencyRevocationEnabledNetworks: Set<String> = emptySet(),
+    val batchSubmissionEnabledNetworks: Set<String> = emptySet(),
 ) {
-    fun requireNormalApprovalReady() {
+    init {
+        requireNoBlankNetwork(normalApprovalEnabledNetworks, "normal approval")
+        requireNoBlankNetwork(emergencyRevocationEnabledNetworks, "emergency revocation")
+        requireNoBlankNetwork(batchSubmissionEnabledNetworks, "batch submission")
+    }
+
+    fun requireNormalApprovalReady(network: String) {
         check(normalApprovalEnabled) { "normal sweep approval gate is disabled" }
+        requireNetworkEnabled(network, normalApprovalEnabledNetworks, "normal sweep approval")
         check(tapApprovalPolicyVerified) { "TAP approval policy is not verified" }
         requireCommonGates()
     }
 
-    fun requireEmergencyRevocationReady() {
+    fun requireEmergencyRevocationReady(network: String) {
         check(emergencyRevocationEnabled) { "emergency sweep revocation gate is disabled" }
+        requireNetworkEnabled(network, emergencyRevocationEnabledNetworks, "emergency sweep revocation")
         check(tapRevocationPolicyVerified) { "TAP revocation policy is not verified" }
         requireCommonGates()
     }
 
-    fun requireBatchSubmissionReady() {
+    fun requireBatchSubmissionEnabled() {
         check(batchSubmissionEnabled) { "sweep batch submission gate is disabled" }
+    }
+
+    fun requireBatchSubmissionReady(network: String) {
+        requireBatchSubmissionEnabled()
+        requireNetworkEnabled(network, batchSubmissionEnabledNetworks, "sweep batch submission")
         check(tapBatchPolicyVerified) { "TAP batch policy is not verified" }
         check(sweepContractVerified) { "sweep contract is not verified" }
         requireCommonGates()
     }
 
+    fun isBatchSubmissionNetworkEnabled(network: String): Boolean = network in batchSubmissionEnabledNetworks
+
     private fun requireCommonGates() {
         check(callbackVerified) { "Co-signer Callback is not verified" }
         check(universalGaslessVerified) { "Universal Gasless is not verified" }
+    }
+
+    private fun requireNetworkEnabled(
+        network: String,
+        enabledNetworks: Set<String>,
+        operation: String,
+    ) {
+        check(network in enabledNetworks) { "$operation is not released for network=$network" }
+    }
+
+    private fun requireNoBlankNetwork(
+        networks: Set<String>,
+        operation: String,
+    ) {
+        require(networks.none(String::isBlank)) { "$operation enabled networks must not contain blank values" }
     }
 }
 

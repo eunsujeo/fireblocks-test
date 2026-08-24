@@ -6,6 +6,40 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
 
 bcm:
+  admin-api:
+    access:
+      mode: ${BCM_ADMIN_API_ACCESS_MODE:FUNCTION_TEST}
+  admin-policy:
+    hard-ceiling:
+      execution-enabled: ${BCM_SWEEP_EXECUTION_ENABLED:false}
+      maximum-batch-size: ${BCM_SWEEP_MAXIMUM_BATCH_SIZE:0}
+      maximum-allowance: ${BCM_SWEEP_MAXIMUM_ALLOWANCE:0}
+      maximum-item-amount: ${BCM_SWEEP_MAXIMUM_ITEM_AMOUNT:0}
+      maximum-batch-amount: ${BCM_SWEEP_MAXIMUM_BATCH_AMOUNT:0}
+      maximum-boost-attempts: ${BCM_SWEEP_MAXIMUM_BOOST_ATTEMPTS:0}
+  sweep:
+    security:
+      normal-approval-enabled: false
+      emergency-revocation-enabled: false
+      batch-submission-enabled: false
+      tap-approval-policy-verified: false
+      tap-revocation-policy-verified: false
+      tap-batch-policy-verified: false
+      callback-verified: false
+      universal-gasless-verified: false
+      sweep-contract-verified: false
+      normal-approval-enabled-networks: []
+      emergency-revocation-enabled-networks: []
+      batch-submission-enabled-networks: []
+  operational-metrics:
+    fixed-delay-millis: ${BCM_OPERATIONAL_METRICS_FIXED_DELAY_MILLIS:60000}
+    initial-delay-millis: ${BCM_OPERATIONAL_METRICS_INITIAL_DELAY_MILLIS:60000}
+  operational-alert:
+    enabled: ${BCM_OPERATIONAL_ALERT_ENABLED:false}
+    endpoint: ${BCM_OPERATIONAL_ALERT_ENDPOINT:}
+    bearer-token: ${BCM_OPERATIONAL_ALERT_BEARER_TOKEN:}
+    connect-timeout-millis: ${BCM_OPERATIONAL_ALERT_CONNECT_TIMEOUT_MILLIS:1000}
+    read-timeout-millis: ${BCM_OPERATIONAL_ALERT_READ_TIMEOUT_MILLIS:2000}
   webhook-worker:
     enabled: ${BCM_WEBHOOK_WORKER_ENABLED:true}
     fixed-delay-millis: ${BCM_WEBHOOK_WORKER_FIXED_DELAY_MILLIS:500}
@@ -34,3 +68,12 @@ server:
   tomcat:
     # 가상 스레드에서는 threads.max가 무효다. 수신 연결이 무한히 쌓이지 않도록 명시 상한을 둔다.
     max-connections: ${BCM_HTTP_MAX_CONNECTIONS:100}
+
+management:
+  server:
+    port: ${BCM_MANAGEMENT_PORT:9090}
+    address: ${BCM_MANAGEMENT_ADDRESS:127.0.0.1}
+  endpoints:
+    web:
+      exposure:
+        include: ${BCM_MANAGEMENT_ENDPOINTS:health,metrics}

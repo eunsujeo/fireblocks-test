@@ -88,6 +88,28 @@ Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다
 **Q.** 키 생성 절차를 우리가 다시 진행해 볼 수 있나?
 **A.** 미답. 참고 문서 3건(Owner MPC key generation · Fireblocks' MPC wallet infrastructure · Fireblocks Wallets Overview)만 안내받았다 — 재수행 가능 여부·절차는 재문의 대상.
 
+## Gasless Relay 과금 — 담당자 확답 (2026-08-18)
+
+Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblocks-support/2026-08-18](../../../sources/fireblocks-support/2026-08-18__gasless-relay-billing-conversation.md), 설계 반영은 [가스대납 — 결정 포인트](../../블록체인매니저/가스대납/05-decision.md).
+
+**Q.** Universal Gasless 는 Boost 를 지원하나? Boost·실패·재시도 비용은 어떻게 처리되나?
+**A.** 자동 boost 없음 — 막힌 거래는 수동 RBF 로 올린다(공개 문서와 일치). 비용은 셋으로 갈린다.
+- **온체인에서 revert 된 거래 — 청구된다.** 네트워크가 gas 를 이미 소비했기 때문.
+- 브로드캐스트 전 차단(정책 차단·검증 실패) — 미청구. 네트워크에 도달한 것이 없다.
+- **RBF 재제출 — 교체 거래분이 청구된다.** 같은 nonce 로 원본이 드랍되므로 이중 청구는 없다.
+
+**Q.** Fireblocks 가 gas 를 선지불하고 월별로 청구하나?
+**A.** 맞다. 선지불 후 월말 통합 인보이스.
+
+**Q.** 청구 통화는 USD 인가? 결제 수단은?
+**A.** **USD.** 네이티브 토큰이나 벤더가 매입한 ETH 기준의 가격 책정은 수탁 지위(custodian)로 비칠 수 있어 의도적으로 배제했다고 밝혔다. 결제는 기존 Fireblocks 계약 프로세스를 따른다.
+
+**Q.** gas 비용은 누가 어떻게 정하나? 상한을 걸 수 있나?
+**A.** **네트워크가 정한다** — 전송 시점의 base fee + priority fee 와 그 거래가 소비한 gas. 벤더 마크업 없음 — **청구액 = relay 가 실제 지불한 금액 그대로.** **Relay 사용 시 건별 gas 상한은 지정할 수 없다.**
+
+**Q.** gas 실비 외 추가 수수료가 있나?
+**A.** 프리미엄 기능이라 청구는 두 항목 — **월 구독료 + gas 실비 상환.** 건별 relay 수수료 없음, gas 에 대한 퍼센트 마크업 없음.
+
 ## 공식 문서로 확인한 사실 (참고)
 
 담당자 메신저 답변이 아니라 Fireblocks 공식 문서에서 확인한 것 — 답변마다 원본 출처 링크를 단다.
@@ -96,7 +118,7 @@ Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다
 **A.** 지수 백오프로 총 10회 재시도(합산 약 8시간) 후 failed 로 마킹한다. ([Responses & retries](https://developers.fireblocks.com/reference/webhooks-gettingstarted-responsesretries))
 
 **Q.** 실패 처리된 알림을 다시 받을 수 있나?
-**A.** 재전송 API `resend_failed` 로 다시 받는다 — 원 이벤트로부터 30일 내, 같은 이벤트는 5분에 1회. ([Resend webhook notifications](https://developers.fireblocks.com/reference/resend-webhook-notifications))
+**A.** Webhooks V2의 `resend_failed`는 호출 시점 기준 최근 24시간 안의 실패 알림을 다시 배차한다. migration guide의 최대 30일은 resource/query 기반 재전송까지 포함한 상위 설명이므로 이 endpoint의 범위와 구분한다. 24시간보다 오래된 공백은 거래 조회·대사로 복구한다. ([Resend failed webhook notifications](https://developers.fireblocks.com/reference/resend-failed-webhook-notifications))
 
 **Q.** 수신 오류율이 높으면?
 **A.** 오류율이 높은 endpoint 는 벤더가 자동 비활성화한다(circuit breaker). 재활성화 전까지 웹훅이 오지 않는다. ([Responses & retries](https://developers.fireblocks.com/reference/webhooks-gettingstarted-responsesretries))
@@ -182,7 +204,7 @@ Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다
 **A.** 미확인. 위 1,000/1,500 은 거래 조회 두 엔드포인트 한정이라, 출금·sweep·boost 제출량의 근거가 아직 없다 — 후속 문의 대상.
 
 **Q.** Universal Gasless로 제출된 EVM 토큰 거래에 `replaceTxByHash`와 `useGasless=true`를 함께 넣어 RBF할 수 있고, 관리형 relay가 대체 거래의 gas도 부담하나?
-**A.** 미확인. 공개 RBF 예시는 gasless 조합을 다루지 않고 Gas Station Autoboost는 별도 기능이다. sandbox 실측 또는 담당자 확답 전에는 자동 boost 기능 게이트를 기본 비활성으로 두고 경보만 한다.
+**A.** **비용 측면은 확답을 받았다**(위 Gasless Relay 과금) — 막힌 거래는 수동 RBF 로 올리고, relay 가 교체 거래의 gas 를 내며 그 분량이 청구된다(원본은 드랍, 이중 청구 없음). **API 파라미터 조합**(`replaceTxByHash` + `useGasless=true`)이 실제로 동작하는지는 여전히 미확인 — sandbox 실측 전에는 자동 boost 기능 게이트를 기본 비활성으로 두고 경보만 한다.
 
 **Q.** RBF Create Transaction에 최초 전송의 `travelRuleMessage`를 다시 실어야 하나, 아니면 `replaceTxByHash`가 원 거래의 컴플라이언스 맥락을 승계하나?
 **A.** 미확인. 매니저는 개인정보 보관 경계를 지키기 위해 `travelRuleMessage` 원문을 제출 원장에 저장하지 않는다. 재전달이 필수라면 현재의 무인 자동 boost는 성립하지 않으므로 함께 확인한다.

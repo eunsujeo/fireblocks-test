@@ -13,6 +13,7 @@ import org.springframework.dao.DuplicateKeyException
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 
 @Repository
@@ -20,7 +21,11 @@ class SubmissionJdbcAdapter(
     private val jdbc: NamedParameterJdbcTemplate,
 ) : SubmissionRecordRepository,
     PendingSubmissionRecoveryRepository {
+    @Transactional
     override fun insert(record: SubmissionRecord): SubmissionRecord {
+        if (record.transactionType == SubmissionTransactionType.WITHDRAWAL) {
+            requireExecutionGateOpen(record.network)
+        }
         try {
             jdbc.update(
                 """
@@ -45,27 +50,56 @@ class SubmissionJdbcAdapter(
         return record
     }
 
+    @Transactional
     override fun tryClaim(
         externalTransactionId: String,
         claimId: String,
         claimExpiresAt: String,
         now: String,
     ): SubmissionRecord? {
-        val updated =
+        val current = findByExternalTransactionId(externalTransactionId) ?: return null
+        val withdrawalGateStatus =
+            if (current.transactionType == SubmissionTransactionType.WITHDRAWAL) {
+                lockExecutionGate(current.network)
+            } else {
+                null
+            }
+        val parameters =
+            lifecycleParameters(externalTransactionId) +
+                mapOf("claimId" to claimId, "claimExpiresAt" to claimExpiresAt, "now" to now)
+        val requestedUpdated =
+            jdbc.update(
+                """
+                UPDATE bcm_sbmt_l
+                SET claim_id = :claimId, claim_exp_dttm = :claimExpiresAt,
+                    last_chng_empno = :employeeNo, last_chng_brcd = :branchCode
+                WHERE ext_tx_id = :externalTransactionId
+                  AND sbmt_stcd = 'REQUESTED'
+                  AND (claim_id IS NULL OR claim_exp_dttm IS NULL OR claim_exp_dttm <= :now)
+                """.trimIndent(),
+                parameters,
+            )
+        if (requestedUpdated == 1) return required(externalTransactionId)
+
+        val latest = findByExternalTransactionId(externalTransactionId)
+        if (latest?.status != SubmissionStatus.FAILED) return null
+        if (latest.transactionType == SubmissionTransactionType.WITHDRAWAL && withdrawalGateStatus == "STOPPED") {
+            throw ConflictException("executionGate", "${latest.network}:WITHDRAWAL")
+        }
+        val failedUpdated =
             jdbc.update(
                 """
                 UPDATE bcm_sbmt_l
                 SET sbmt_stcd = 'REQUESTED', claim_id = :claimId, claim_exp_dttm = :claimExpiresAt,
-                    rsp_dttm = CASE WHEN sbmt_stcd = 'FAILED' THEN NULL ELSE rsp_dttm END,
+                    rsp_dttm = NULL,
                     last_chng_empno = :employeeNo, last_chng_brcd = :branchCode
                 WHERE ext_tx_id = :externalTransactionId
-                  AND sbmt_stcd IN ('REQUESTED', 'FAILED')
+                  AND sbmt_stcd = 'FAILED'
                   AND (claim_id IS NULL OR claim_exp_dttm IS NULL OR claim_exp_dttm <= :now)
                 """.trimIndent(),
-                lifecycleParameters(externalTransactionId) +
-                    mapOf("claimId" to claimId, "claimExpiresAt" to claimExpiresAt, "now" to now),
+                parameters,
             )
-        return if (updated == 1) required(externalTransactionId) else null
+        return if (failedUpdated == 1) required(externalTransactionId) else null
     }
 
     override fun findByExternalTransactionId(externalTransactionId: String): SubmissionRecord? =
@@ -256,6 +290,34 @@ class SubmissionJdbcAdapter(
             "employeeNo" to SystemAudit.EMPNO,
             "branchCode" to SystemAudit.BRCD,
         )
+
+    private fun requireExecutionGateOpen(network: String) {
+        if (lockExecutionGate(network) == "STOPPED") {
+            throw ConflictException("executionGate", "$network:WITHDRAWAL")
+        }
+    }
+
+    private fun lockExecutionGate(network: String): String? {
+        jdbc.queryForObject(
+            "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0)) IS NULL",
+            mapOf("key" to "BCM:EXECUTION_GATE:$network:WITHDRAWAL"),
+            Boolean::class.java,
+        )
+        val status =
+            jdbc
+                .queryForList(
+                    """
+                    SELECT gate_stcd
+                      FROM bcm_exec_gate_evt_l
+                     WHERE ntwk_cd = :network AND gate_dvcd = 'WITHDRAWAL'
+                     ORDER BY evt_seq DESC
+                     LIMIT 1
+                    """.trimIndent(),
+                    mapOf("network" to network),
+                    String::class.java,
+                ).firstOrNull()
+        return status
+    }
 
     private fun required(externalTransactionId: String): SubmissionRecord =
         checkNotNull(findByExternalTransactionId(externalTransactionId)) {

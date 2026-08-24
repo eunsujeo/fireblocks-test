@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":blockchain-manager-support"))
     implementation(project(":blockchain-manager-infra:persistence"))
     implementation(project(":blockchain-manager-infra:client"))
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter")
     implementation(kotlin("reflect"))
 

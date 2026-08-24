@@ -36,6 +36,11 @@ interface SweepAuthorizationRepository {
 
     fun findByKeyForUpdate(key: SweepAuthorizationKey): SweepAuthorization?
 
+    fun findByNetworkAndContract(
+        network: String,
+        sweepContractAddress: String,
+    ): List<SweepAuthorization>
+
     fun update(authorization: SweepAuthorization): SweepAuthorization
 }
 

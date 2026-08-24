@@ -16,6 +16,10 @@ fun interface SweepExecutionIdGenerator {
     fun nextId(): String
 }
 
+fun interface AllowanceRevocationIdGenerator {
+    fun nextId(): String
+}
+
 @Component
 class UuidV7SweepExternalTransactionIdGenerator(
     clock: Clock,
@@ -38,6 +42,15 @@ class UuidV7SweepApprovalExternalTransactionIdGenerator(
 class UuidV7SweepExecutionIdGenerator(
     clock: Clock,
 ) : SweepExecutionIdGenerator {
+    private val delegate = UuidV7Generator(clock)
+
+    override fun nextId(): String = delegate.nextId()
+}
+
+@Component
+class UuidV7AllowanceRevocationIdGenerator(
+    clock: Clock,
+) : AllowanceRevocationIdGenerator {
     private val delegate = UuidV7Generator(clock)
 
     override fun nextId(): String = delegate.nextId()

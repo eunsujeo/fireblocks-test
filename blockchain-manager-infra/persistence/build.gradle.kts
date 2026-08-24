@@ -13,7 +13,7 @@ dependencies {
     implementation(kotlin("reflect")) // Spring Data 의 Kotlin data class 매핑 요구
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
-    runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly(libs.postgresql)
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     // Boot 4 모듈화 — @DataJdbcTest 는 별도 스타터 (org.springframework.boot.data.jdbc.test.autoconfigure)

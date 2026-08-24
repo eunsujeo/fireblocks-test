@@ -7,13 +7,16 @@ import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.OutboxEventRepository
 import com.whatto.bcm.domain.job.JobStateRepository
+import com.whatto.bcm.domain.monitoring.NoOpOperationalMetricsPort
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.StallCandidate
+import com.whatto.bcm.domain.tx.TxReconciliationMissingWebhookAlertPort
 import com.whatto.bcm.domain.tx.TxReconciliationReport
 import com.whatto.bcm.domain.tx.TxReconciliationReportPort
 import com.whatto.bcm.domain.tx.TxReconciliationRepository
+import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlertPort
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
@@ -188,6 +191,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 statusTranslator = FireblocksStatusTranslator { 1 },
                 terminalObservations = handler(vendor),
                 reports = TxReconciliationReportPort(reports::add),
+                missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort { },
+                trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
+                metrics = NoOpOperationalMetricsPort,
                 jobs = jobs,
                 clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
                 properties = TransactionReconciliationProperties(enabled = true),
@@ -325,18 +331,26 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
         )
 
     private fun insertSweepExecution() {
+        val snapshot = insertActiveSweepSnapshot(jdbc)
         jdbc.update(
             """
             INSERT INTO bcm_swp_exec_l
               (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
+               plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id,
                swp_exec_stcd, item_cnt, req_tot_amt, actl_tot_amt, gasless_yn, vndr_tx_id, tx_hash,
                req_dttm, fnsh_dttm, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
-              ('sweep-exec-1', 'swb-1', ?, 'ETHEREUM', 'USDC', 'operator-1', '0xSweeper',
+              ('sweep-exec-1', 'swb-1', ?, 'ETHEREUM', 'USDC', 'operator-1',
+               '0x4444444444444444444444444444444444444444',
+               ?, ?, ?, ?,
                'SUBMITTED', 1, 1, NULL, 'Y', 'tx-root', NULL,
                '20260807110000', NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             "a".repeat(64),
+            snapshot.policyVersionId,
+            snapshot.policySnapshotHash,
+            snapshot.contractVersionId,
+            snapshot.contractEvidenceId,
         )
     }
 

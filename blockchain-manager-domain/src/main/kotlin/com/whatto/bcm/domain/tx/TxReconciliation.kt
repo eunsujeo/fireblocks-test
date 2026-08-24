@@ -26,6 +26,7 @@ interface TxReconciliationRepository {
         changedAtOrBefore: String,
         checkedAt: String,
         limit: Int,
+        excludedVendorTransactionIds: Set<String>,
     ): List<TxReconciliationRecord>
 }
 
@@ -68,6 +69,25 @@ data class TxReconciliationReport(
 
 fun interface TxReconciliationReportPort {
     fun report(report: TxReconciliationReport)
+}
+
+data class TxReconciliationMissingWebhookAlert(
+    val from: String,
+    val to: String,
+    val recoveredCount: Int,
+)
+
+fun interface TxReconciliationMissingWebhookAlertPort {
+    fun alert(alert: TxReconciliationMissingWebhookAlert)
+}
+
+data class TxReconciliationTrackingStoppedAlert(
+    val stoppedAt: String,
+    val count: Int,
+)
+
+fun interface TxReconciliationTrackingStoppedAlertPort {
+    fun alert(alert: TxReconciliationTrackingStoppedAlert)
 }
 
 object TxReconciliationPolicy {

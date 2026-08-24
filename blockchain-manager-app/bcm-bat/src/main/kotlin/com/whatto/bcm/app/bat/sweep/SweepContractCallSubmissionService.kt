@@ -48,6 +48,14 @@ data class SweepContractCallResult(
 
 fun interface SweepContractCallSubmitter {
     fun submit(command: SweepContractCallCommand): SweepContractCallResult
+
+    fun submit(
+        command: SweepContractCallCommand,
+        recordIntent: () -> Unit,
+    ): SweepContractCallResult {
+        recordIntent()
+        return submit(command)
+    }
 }
 
 @Service
@@ -58,7 +66,17 @@ class SweepContractCallSubmissionService(
     private val clock: Clock,
     private val properties: SweepProperties,
 ) : SweepContractCallSubmitter {
-    override fun submit(command: SweepContractCallCommand): SweepContractCallResult {
+    override fun submit(command: SweepContractCallCommand): SweepContractCallResult = submitInternal(command, null)
+
+    override fun submit(
+        command: SweepContractCallCommand,
+        recordIntent: () -> Unit,
+    ): SweepContractCallResult = submitInternal(command, recordIntent)
+
+    private fun submitInternal(
+        command: SweepContractCallCommand,
+        recordIntent: (() -> Unit)?,
+    ): SweepContractCallResult {
         val fingerprint =
             SubmissionRequestHashes.contractCallV1(
                 command.senderAccountId,
@@ -72,7 +90,12 @@ class SweepContractCallSubmissionService(
         val requested = requestedRecord(command, fingerprint, claim)
         val attempt =
             try {
-                SubmissionAttempt(transactionRunner.run { submissions.insert(requested) }, isNew = true)
+                SubmissionAttempt(
+                    transactionRunner.run {
+                        submissions.insert(requested).also { recordIntent?.invoke() }
+                    },
+                    isNew = true,
+                )
             } catch (conflict: ConflictException) {
                 SubmissionAttempt(
                     submissions.findByExternalTransactionId(command.externalTransactionId) ?: throw conflict,

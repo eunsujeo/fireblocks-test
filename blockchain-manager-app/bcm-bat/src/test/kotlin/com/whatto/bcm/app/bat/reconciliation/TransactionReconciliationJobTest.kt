@@ -3,11 +3,17 @@ package com.whatto.bcm.app.bat.reconciliation
 import com.whatto.bcm.app.bat.stall.StallTerminalObservationHandler
 import com.whatto.bcm.domain.job.JobState
 import com.whatto.bcm.domain.job.JobStateRepository
+import com.whatto.bcm.domain.monitoring.NoOpOperationalMetricsPort
+import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.tx.TxReconciliationMissingWebhookAlert
+import com.whatto.bcm.domain.tx.TxReconciliationMissingWebhookAlertPort
 import com.whatto.bcm.domain.tx.TxReconciliationRecord
 import com.whatto.bcm.domain.tx.TxReconciliationReport
 import com.whatto.bcm.domain.tx.TxReconciliationReportPort
 import com.whatto.bcm.domain.tx.TxReconciliationRepository
+import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlert
+import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlertPort
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.VendorPage
@@ -77,6 +83,8 @@ class TransactionReconciliationJobTest {
         val jobs = RecordingJobs(JobState(JOB_NAME, "20260807114000", "20260807115000"))
         val reports = mutableListOf<TxReconciliationReport>()
         val recovered = mutableListOf<String>()
+        val metrics = RecordingOperationalMetrics()
+        val missingAlerts = mutableListOf<TxReconciliationMissingWebhookAlert>()
         val job =
             TransactionReconciliationJob(
                 vendor = vendor,
@@ -84,6 +92,9 @@ class TransactionReconciliationJobTest {
                 statusTranslator = TestStatusTranslator,
                 terminalObservations = StallTerminalObservationHandler { candidate, _, _ -> recovered += candidate.record.vendorTxId },
                 reports = TxReconciliationReportPort(reports::add),
+                missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort(missingAlerts::add),
+                trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
+                metrics = metrics,
                 jobs = jobs,
                 clock = CLOCK,
                 properties = TransactionReconciliationProperties(enabled = true),
@@ -116,13 +127,24 @@ class TransactionReconciliationJobTest {
         )
         assertThat(reports.single().recoveredCount).isEqualTo(2)
         assertThat(reports.single().stoppedTrackingCount).isZero()
+        assertThat(metrics.recoveredCounts).containsExactly(2)
+        assertThat(missingAlerts).containsExactly(
+            TxReconciliationMissingWebhookAlert("20260807115000", "20260807115500", 2),
+        )
         assertThat(jobs.started).containsExactly(JOB_NAME to NOW)
         assertThat(jobs.succeeded).containsExactly(JOB_NAME to "20260807115500")
         assertThat(repository.createdWindows).containsExactly("20260807115000" to "20260807115500")
         assertThat(repository.stopRequests)
             .containsExactly("20260731120000" to NOW)
-        assertThat(repository.claimRequests)
-            .containsExactly(ReconciliationClaimRequest("20260807115000", NOW, 100))
+        assertThat(repository.claimRequests).containsExactly(
+            ReconciliationClaimRequest(
+                changedAtOrBefore = "20260807115000",
+                checkedAt = NOW,
+                limit = 100,
+                excludedVendorTransactionIds =
+                    setOf("tx-match", "tx-status", "tx-terminal-mismatch", "tx-vendor-only"),
+            ),
+        )
     }
 
     @Test
@@ -143,6 +165,9 @@ class TransactionReconciliationJobTest {
                 statusTranslator = TestStatusTranslator,
                 terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("not expected") },
                 reports = TxReconciliationReportPort { error("not expected") },
+                missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort { error("not expected") },
+                trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
+                metrics = NoOpOperationalMetricsPort,
                 jobs = jobs,
                 clock = CLOCK,
                 properties = TransactionReconciliationProperties(enabled = true, initialLookbackSeconds = 600),
@@ -153,6 +178,121 @@ class TransactionReconciliationJobTest {
             .hasMessageContaining("repeated")
 
         assertThat(vendor.pageRequests.first().afterEpochMillis).isEqualTo(epochMillis("20260807114500") - 1)
+        assertThat(jobs.succeeded).isEmpty()
+    }
+
+    @Test
+    fun `대사 누락이 0이면 메트릭을 0으로 갱신하고 운영 알림 없이 성공 창을 전진시킨다`() {
+        val metrics = RecordingOperationalMetrics()
+        val missingAlerts = mutableListOf<TxReconciliationMissingWebhookAlert>()
+        val jobs = RecordingJobs(JobState(JOB_NAME, "20260807114000", "20260807115000"))
+        val job =
+            TransactionReconciliationJob(
+                vendor = RecordingVendor(mapOf(null to VendorPage(emptyList(), null))),
+                reconciliation = RecordingReconciliationRepository(),
+                statusTranslator = TestStatusTranslator,
+                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("not expected") },
+                reports = TxReconciliationReportPort { assertThat(it.recoveredCount).isZero() },
+                missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort(missingAlerts::add),
+                trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
+                metrics = metrics,
+                jobs = jobs,
+                clock = CLOCK,
+                properties = TransactionReconciliationProperties(enabled = true),
+            )
+
+        job.run()
+
+        assertThat(metrics.recoveredCounts).containsExactly(0)
+        assertThat(missingAlerts).isEmpty()
+        assertThat(jobs.succeeded).containsExactly(JOB_NAME to "20260807115500")
+    }
+
+    @Test
+    fun `창 밖 미종결 단건 조회가 실패하면 성공 창을 전진시키지 않는다`() {
+        val pending = record("tx-stuck", TxStatus.CONFIRMED, "20260806120000")
+        val jobs = RecordingJobs(null)
+        val job =
+            TransactionReconciliationJob(
+                vendor =
+                    RecordingVendor(
+                        pages = mapOf(null to VendorPage(emptyList(), null)),
+                        failingSingleId = "tx-stuck",
+                    ),
+                reconciliation = RecordingReconciliationRepository(pending = listOf(reconciliation(pending))),
+                statusTranslator = TestStatusTranslator,
+                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("not expected") },
+                reports = TxReconciliationReportPort { error("not expected") },
+                missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort { error("not expected") },
+                trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
+                metrics = NoOpOperationalMetricsPort,
+                jobs = jobs,
+                clock = CLOCK,
+                properties = TransactionReconciliationProperties(enabled = true),
+            )
+
+        assertThatThrownBy(job::run)
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("single lookup")
+        assertThat(jobs.succeeded).isEmpty()
+    }
+
+    @Test
+    fun `대사 누락 복구 처리가 실패하면 메트릭과 알림 및 성공 창을 기록하지 않는다`() {
+        val pending = record("tx-status", TxStatus.CONFIRMED, "20260807115300")
+        val jobs = RecordingJobs(null)
+        val metrics = RecordingOperationalMetrics()
+        val missingAlerts = mutableListOf<TxReconciliationMissingWebhookAlert>()
+        val job =
+            TransactionReconciliationJob(
+                vendor =
+                    RecordingVendor(
+                        mapOf(null to VendorPage(listOf(transaction("tx-status", "COMPLETED")), null)),
+                    ),
+                reconciliation =
+                    RecordingReconciliationRepository(
+                        byPhysical = mapOf("tx-status" to reconciliation(pending)),
+                    ),
+                statusTranslator = TestStatusTranslator,
+                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("recovery failed") },
+                reports = TxReconciliationReportPort { error("not expected") },
+                missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort(missingAlerts::add),
+                trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
+                metrics = metrics,
+                jobs = jobs,
+                clock = CLOCK,
+                properties = TransactionReconciliationProperties(enabled = true),
+            )
+
+        assertThatThrownBy(job::run)
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("recovery failed")
+        assertThat(metrics.recoveredCounts).isEmpty()
+        assertThat(missingAlerts).isEmpty()
+        assertThat(jobs.succeeded).isEmpty()
+    }
+
+    @Test
+    fun `최대 나이 초과로 새로 중단한 거래는 뒤의 벤더 목록 조회가 실패해도 즉시 알린다`() {
+        val stoppedAlerts = mutableListOf<TxReconciliationTrackingStoppedAlert>()
+        val jobs = RecordingJobs(null)
+        val job =
+            TransactionReconciliationJob(
+                vendor = RecordingVendor(emptyMap()),
+                reconciliation = RecordingReconciliationRepository(stoppedCount = 2),
+                statusTranslator = TestStatusTranslator,
+                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("not expected") },
+                reports = TxReconciliationReportPort { error("not expected") },
+                missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort { error("not expected") },
+                trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort(stoppedAlerts::add),
+                metrics = NoOpOperationalMetricsPort,
+                jobs = jobs,
+                clock = CLOCK,
+                properties = TransactionReconciliationProperties(enabled = true),
+            )
+
+        assertThatThrownBy(job::run).isInstanceOf(IllegalStateException::class.java)
+        assertThat(stoppedAlerts).containsExactly(TxReconciliationTrackingStoppedAlert(NOW, 2))
         assertThat(jobs.succeeded).isEmpty()
     }
 
@@ -283,8 +423,9 @@ private class RecordingReconciliationRepository(
         changedAtOrBefore: String,
         checkedAt: String,
         limit: Int,
+        excludedVendorTransactionIds: Set<String>,
     ): List<TxReconciliationRecord> {
-        claimRequests += ReconciliationClaimRequest(changedAtOrBefore, checkedAt, limit)
+        claimRequests += ReconciliationClaimRequest(changedAtOrBefore, checkedAt, limit, excludedVendorTransactionIds)
         return pending.take(limit)
     }
 }
@@ -293,11 +434,13 @@ private data class ReconciliationClaimRequest(
     val changedAtOrBefore: String,
     val checkedAt: String,
     val limit: Int,
+    val excludedVendorTransactionIds: Set<String>,
 )
 
 private class RecordingVendor(
     private val pages: Map<String?, VendorPage<VendorTransaction>>,
     private val singles: Map<String, VendorTransaction> = emptyMap(),
+    private val failingSingleId: String? = null,
 ) : VendorTransactionPort {
     val pageRequests = mutableListOf<VendorTransactionPageRequest>()
     val singleLookups = mutableListOf<String>()
@@ -309,12 +452,21 @@ private class RecordingVendor(
 
     override fun transaction(transactionId: String): VendorTransaction? {
         singleLookups += transactionId
+        check(transactionId != failingSingleId) { "single lookup failed: $transactionId" }
         return singles[transactionId]
     }
 
     override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? = error("not used")
 
     override fun submitTransaction(request: VendorTransactionRequest): VendorTransactionSubmission = error("not used")
+}
+
+private class RecordingOperationalMetrics : OperationalMetricsPort by NoOpOperationalMetricsPort {
+    val recoveredCounts = mutableListOf<Int>()
+
+    override fun recordReconciliation(recoveredCount: Int) {
+        recoveredCounts += recoveredCount
+    }
 }
 
 private class RecordingJobs(

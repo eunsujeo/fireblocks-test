@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":blockchain-manager-infra:persistence"))
     implementation(project(":blockchain-manager-infra:client"))
     implementation(project(":blockchain-manager-infra:messaging"))
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation(kotlin("reflect"))

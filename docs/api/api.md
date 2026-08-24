@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.6.0`
+`v0.7.0`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -1504,6 +1504,618 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/transaction-investigations/{identifier}
+
+**거래 운영 조사**
+
+root txId, active·대체 txId, externalTxId 또는 sweep executionId 하나로 같은 논리 거래의
+제출·웹훅·공통 상태·outbox 발행·대사·boost·sweep·allowance·당시 fee quote를 연결한다.
+수신 원문 payload와 서명, 제출 calldata, 벤더 자산 id는 응답하지 않는다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/transaction-investigations/{identifier}"
+```
+
+_파라미터_
+
+| 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
+|---|---|---|---|---|---|
+| `identifier` | path | string | 필수 |  |  |
+
+
+_응답_
+
+`200` — 구조화된 거래 운영 조사 결과
+
+```json
+{
+  "data": {
+    "summary": {
+      "rootTransactionId": "string",
+      "activeTransactionId": "string",
+      "externalTransactionId": "string",
+      "transactionHash": "string",
+      "accountId": "string",
+      "network": "string",
+      "symbol": "string",
+      "transactionType": "string",
+      "status": "string",
+      "confirmationCount": 0,
+      "vendorSubStatus": "string",
+      "vendorNetworkStatus": "string",
+      "submissionStatus": "string",
+      "amount": "string",
+      "senderAccountId": "string",
+      "receiverType": "string",
+      "receiverValue": "string",
+      "sweepExecutionId": "string",
+      "submissionRequestedAt": "2026-07-13T04:05:06.789Z",
+      "submissionRespondedAt": "2026-07-13T04:05:06.789Z",
+      "vendorCreatedAt": "2026-07-13T04:05:06.789Z",
+      "firstDetectedAt": "2026-07-13T04:05:06.789Z",
+      "lastChangedAt": "2026-07-13T04:05:06.789Z",
+      "reconciliationCheckedAt": "2026-07-13T04:05:06.789Z",
+      "reconciliationCheckCount": 0,
+      "reconciliationStoppedAt": "2026-07-13T04:05:06.789Z"
+    },
+    "timeline": [
+      {
+        "source": "string",
+        "code": "string",
+        "status": "string",
+        "observedAt": "2026-07-13T04:05:06.789Z",
+        "identifier": "string"
+      }
+    ],
+    "boosts": [
+      {
+        "attemptSequence": 0,
+        "externalTransactionId": "string",
+        "status": "string",
+        "replacedTransactionId": "string",
+        "replacedTransactionHash": "string",
+        "newTransactionId": "string",
+        "feeLevel": "string",
+        "gasless": false,
+        "requestedAt": "2026-07-13T04:05:06.789Z",
+        "respondedAt": "2026-07-13T04:05:06.789Z"
+      }
+    ],
+    "sweepExecution": {
+      "executionId": "string",
+      "externalTransactionId": "string",
+      "status": "string",
+      "operatorAccountId": "string",
+      "contractAddress": "string",
+      "requestedTotalAmount": "string",
+      "actualTotalAmount": "string",
+      "transactionId": "string",
+      "transactionHash": "string",
+      "requestedAt": "2026-07-13T04:05:06.789Z",
+      "finishedAt": "2026-07-13T04:05:06.789Z",
+      "items": [
+        {
+          "sequence": 0,
+          "accountId": "string",
+          "sourceAddress": "string",
+          "requestedAmount": "string",
+          "actualAmount": "string",
+          "status": "string",
+          "failureCode": "string",
+          "logIndex": 0
+        }
+      ]
+    },
+    "allowances": [
+      {
+        "accountId": "string",
+        "network": "string",
+        "symbol": "string",
+        "contractAddress": "string",
+        "cap": "string",
+        "observedAllowance": "string",
+        "status": "string",
+        "checkedAt": "2026-07-13T04:05:06.789Z"
+      }
+    ],
+    "feeQuotes": [
+      {
+        "context": "string",
+        "level": "string",
+        "observedAt": "2026-07-13T04:05:06.789Z",
+        "feePerByte": "string",
+        "gasPrice": "string",
+        "networkFee": "string",
+        "baseFee": "string",
+        "priorityFee": "string"
+      }
+    ],
+    "truncatedSources": [
+      "string"
+    ]
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminTransactionInvestigation | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`404` — 리소스 없음
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "transaction not found"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/contracts
+
+**Admin 컨트랙트 레지스트리 조회**
+
+불변 컨트랙트 버전, 현재 binding, 최신 독립 2-RPC evidence 상태를 조회한다. RPC URL·credential은 반환하지 않는다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/contracts"
+```
+
+_응답_
+
+`200` — 컨트랙트 버전 목록
+
+```json
+{
+  "data": [
+    {
+      "versionId": "string",
+      "scopeId": "string",
+      "network": "string",
+      "use": "string",
+      "version": "string",
+      "address": "string",
+      "state": "CANDIDATE",
+      "runtimeCodeHash": "string",
+      "evidenceStatus": "VALID",
+      "evidenceValidUntil": "2026-07-13T04:05:06.789Z",
+      "active": false
+    }
+  ],
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminContract[] | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/policies
+
+**Admin 실행 정책 조회**
+
+불변 정책 버전의 파생 상태와 배포 hard ceiling 통과 여부를 조회한다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/policies"
+```
+
+_응답_
+
+`200` — 정책 버전 목록
+
+```json
+{
+  "data": [
+    {
+      "versionId": "string",
+      "scopeId": "string",
+      "versionNumber": 0,
+      "schemaVersion": "string",
+      "state": "DRAFT",
+      "policyHash": "string",
+      "ceilingPassed": false,
+      "active": false,
+      "registeredAt": "2026-07-13T04:05:06.789Z"
+    }
+  ],
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminPolicy[] | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/band-s
+
+**Admin 밴드S 운영 원장 조회**
+
+DAW-CORE가 계산해 등록한 최신 100개 밴드S snapshot·simulation·이동안과 승인·실행 상태를
+같은 policy/input/proposal hash 문맥으로 조회한다. 상태와 실행 금지 사유는 서버가 파생하며,
+이 읽기 API는 실행·승인 기능이나 원문 credential을 노출하지 않는다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/band-s"
+```
+
+_응답_
+
+`200` — 밴드S 제안과 실행 원장 목록
+
+```json
+{
+  "data": [
+    {
+      "proposalId": "string",
+      "sourceProposalId": "string",
+      "snapshotId": "string",
+      "sourceRequestId": "string",
+      "policyVersionId": "string",
+      "snapshotHash": "string",
+      "inputHash": "string",
+      "observedAt": "2026-07-13T04:05:06.789Z",
+      "expiresAt": "2026-07-13T04:05:06.789Z",
+      "inputComplete": false,
+      "issueCodes": [
+        "string"
+      ],
+      "totalAssetKrwAmount": "string",
+      "observedHotKrwAmount": "string",
+      "observedColdKrwAmount": "string",
+      "effectiveHotKrwAmount": "string",
+      "hotRatio": "string",
+      "lowerRatio": "string",
+      "targetRatio": "string",
+      "upperRatio": "string",
+      "direction": "HOT_TO_COLD",
+      "proposalHash": "string",
+      "totalKrwAmount": "string",
+      "afterHotRatio": "string",
+      "state": "PROPOSED",
+      "requestId": "string",
+      "requestState": "PENDING",
+      "approvalCount": 0,
+      "requiredApprovals": 0,
+      "executionId": "string",
+      "executionStatus": "EXECUTING",
+      "reservedAt": "2026-07-13T04:05:06.789Z",
+      "executionReady": false,
+      "disabledReasons": [
+        "string"
+      ],
+      "items": [
+        {
+          "sequence": 0,
+          "dependsOnSequence": 0,
+          "legType": "INTERNAL_TO_EGRESS",
+          "network": "string",
+          "tokenSymbol": "string",
+          "sourceVaultId": "string",
+          "destinationVaultId": "string",
+          "destinationAddress": "string",
+          "amount": "string",
+          "krwAmount": "string",
+          "expectedFeeAmount": "string",
+          "itemHash": "string",
+          "executable": false,
+          "blockReason": "string",
+          "executionStatus": "RESERVED"
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminBandS[] | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/execution-gates
+
+**Admin 비상 실행 게이트 조회**
+
+채택 네트워크별 출금·sweep·정상 allowance approve의 신규 실행 가능 상태를 조회한다.
+행이 없는 범위도 `OPEN`으로 포함하며, 기존 실행 복구와 비상 `approve(0)` 허용 여부는 서버가 계산한다.
+최신 TAP batch 차단·컨트랙트 pause·운영자 제거 외부 관찰 증적도 함께 반환한다.
+최대 300개 게이트와 네트워크별 최신 증적 100개를 반환하고 초과 여부는 `truncated`로 알린다.
+이 읽기 API는 중지·외부 조치·재개 mutation을 노출하지 않는다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/execution-gates"
+```
+
+_응답_
+
+`200` — 서버 계산 실행 게이트 현황
+
+```json
+{
+  "data": {
+    "observedAt": "2026-07-13T04:05:06.789Z",
+    "truncated": false,
+    "gates": [
+      {
+        "network": "string",
+        "type": "WITHDRAWAL",
+        "state": "OPEN",
+        "stoppedAt": "2026-07-13T04:05:06.789Z",
+        "reason": "string",
+        "workTicket": "string",
+        "actorEmployeeNo": "string",
+        "sequence": 0,
+        "newExecutionAllowed": false,
+        "existingExecutionRecoveryAllowed": false,
+        "emergencyRevocationAllowed": false,
+        "disabledReasons": [
+          "string"
+        ]
+      }
+    ],
+    "externalControls": [
+      {
+        "evidenceId": "string",
+        "network": "string",
+        "contractVersionId": "string",
+        "status": "CONFIRMED",
+        "completionReady": false,
+        "snapshotHash": "string",
+        "tapSourceId": "string",
+        "tapBlocked": false,
+        "pinnedBlockNumber": "string",
+        "expectedOperatorSetHash": "string",
+        "firstEndpointId": "string",
+        "firstPaused": false,
+        "firstOperatorSetHash": "string",
+        "secondEndpointId": "string",
+        "secondPaused": false,
+        "secondOperatorSetHash": "string",
+        "observedAt": "2026-07-13T04:05:06.789Z",
+        "validUntil": "2026-07-13T04:05:06.789Z",
+        "reason": "string",
+        "workTicket": "string",
+        "actorEmployeeNo": "string",
+        "issues": [
+          "string"
+        ]
+      }
+    ],
+    "allowanceRevocations": [
+      {
+        "executionId": "string",
+        "requestId": "string",
+        "network": "string",
+        "contractVersionId": "string",
+        "contractBindingRevision": 0,
+        "sweepContractAddress": "string",
+        "targetSnapshotHash": "string",
+        "status": "READY",
+        "totalCount": 0,
+        "zeroConfirmedCount": 0,
+        "submittingCount": 0,
+        "failedCount": 0,
+        "registeredAt": "2026-07-13T04:05:06.789Z",
+        "items": [
+          {
+            "sequence": 0,
+            "accountId": "string",
+            "network": "string",
+            "symbol": "string",
+            "sourceVaultId": "string",
+            "ownerAddress": "string",
+            "tokenContractAddress": "string",
+            "beforeObservedAllowance": "string",
+            "externalTransactionId": "string",
+            "latestStatus": "RESERVED",
+            "vendorTransactionId": "string",
+            "observedAllowance": "string",
+            "observedAt": "2026-07-13T04:05:06.789Z",
+            "errorCode": "string",
+            "occurredAt": "2026-07-13T04:05:06.789Z"
+          }
+        ],
+        "retryable": false,
+        "retryCondition": "string",
+        "statusPath": "/admin/execution-gates"
+      }
+    ],
+    "webhookRecoveries": [
+      {
+        "requestId": "string",
+        "webhookId": "string",
+        "state": "ACCEPTED",
+        "scope": "FAILED_LAST_24H",
+        "requiredEvents": [
+          "string"
+        ],
+        "requestedAt": "2026-07-13T04:05:06.789Z",
+        "requestedByEmployeeNo": "string",
+        "approvedAt": "2026-07-13T04:05:06.789Z",
+        "approvedByEmployeeNo": "string",
+        "reason": "string",
+        "workTicket": "string",
+        "latestEvent": "STATUS_INTENT",
+        "callType": "STATUS_QUERY",
+        "calledAt": "2026-07-13T04:05:06.789Z",
+        "resultAt": "2026-07-13T04:05:06.789Z",
+        "previousStatus": "string",
+        "currentStatus": "string",
+        "missingRequiredEvents": [
+          "string"
+        ],
+        "scopeFrom": "2026-07-13T04:05:06.789Z",
+        "scopeTo": "2026-07-13T04:05:06.789Z",
+        "scheduledNotificationCount": 0,
+        "errorCode": "string",
+        "retryable": false,
+        "retryCondition": "string",
+        "statusPath": "/admin/execution-gates"
+      }
+    ],
+    "resumes": [
+      {
+        "resumeId": "string",
+        "requestId": "string",
+        "network": "string",
+        "type": "WITHDRAWAL",
+        "state": "PENDING",
+        "stoppedEventId": "string",
+        "contractVersionId": "string",
+        "contractEvidenceId": "string",
+        "revocationExecutionId": "string",
+        "causeEvidenceUri": "string",
+        "causeEvidenceHash": "string",
+        "requestedAt": "2026-07-13T04:05:06.789Z",
+        "expiresAt": "2026-07-13T04:05:06.789Z",
+        "requestedByEmployeeNo": "string",
+        "approvalCount": 0,
+        "requiredApprovals": 0,
+        "securityApprovalCount": 0,
+        "latestCheckStatus": "READY",
+        "latestCheckObservedAt": "2026-07-13T04:05:06.789Z",
+        "latestCheckValidUntil": "2026-07-13T04:05:06.789Z",
+        "issues": [
+          "string"
+        ],
+        "resumeReady": false,
+        "disabledReasons": [
+          "string"
+        ],
+        "retryable": false,
+        "retryCondition": "string",
+        "statusPath": "/admin/execution-gates"
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminExecutionGateOverview | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/change-requests/{requestId}
+
+**Admin 변경 요청 상세 조회**
+
+요청 snapshot, 서버 계산 diff·영향, 승인 정족수, 판단, 활성화 가능 여부와 금지 사유를 조회한다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/change-requests/{requestId}"
+```
+
+_파라미터_
+
+| 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
+|---|---|---|---|---|---|
+| `requestId` | path | string | 필수 |  |  |
+
+
+_응답_
+
+`200` — 변경 요청 상세
+
+```json
+{
+  "data": {
+    "requestId": "string",
+    "targetType": "POLICY",
+    "scopeId": "string",
+    "targetVersionId": "string",
+    "state": "PENDING",
+    "risk": "GENERAL",
+    "snapshotHash": "string",
+    "diff": "string",
+    "impact": "string",
+    "reason": "string",
+    "workTicket": "string",
+    "requesterEmployeeNo": "string",
+    "requestedAt": "2026-07-13T04:05:06.789Z",
+    "expiresAt": "2026-07-13T04:05:06.789Z",
+    "requiredApprovals": 0,
+    "approvalCount": 0,
+    "securityApprovalRequired": false,
+    "securityApprovalCount": 0,
+    "activationReady": false,
+    "disabledReasons": [
+      "string"
+    ],
+    "decisions": [
+      {
+        "employeeNo": "string",
+        "role": "BCM_APPROVER",
+        "decision": "APPROVE",
+        "opinion": "string",
+        "decidedAt": "2026-07-13T04:05:06.789Z"
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminChangeRequest | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`404` — 리소스 없음
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "transaction not found"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
 ## 타입
 
 ### Network
@@ -1592,6 +2204,483 @@ _응답_
 |---|---|---|---|
 | `data` | AssetMapping | 필수 |  |
 | `meta` | Meta | 필수 |  |
+
+
+### AdminTransactionInvestigationResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminTransactionInvestigation | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminTransactionInvestigation
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `summary` | AdminTransactionInvestigationSummary | 필수 |  |
+| `timeline` | AdminTransactionTimelineEntry[] | 필수 |  |
+| `boosts` | AdminTransactionBoost[] | 필수 |  |
+| `sweepExecution` | AdminTransactionSweepExecution \\| null | 필수 |  |
+| `allowances` | AdminTransactionAllowance[] | 필수 |  |
+| `feeQuotes` | AdminTransactionFeeQuote[] | 필수 |  |
+| `truncatedSources` | string[] | 필수 | 상세당 100건 상한으로 일부만 반환된 원장 이름 |
+
+
+### AdminTransactionInvestigationSummary
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `rootTransactionId` | string | 필수 |  |
+| `activeTransactionId` | string | 필수 |  |
+| `externalTransactionId` | string \\| null | 필수 |  |
+| `transactionHash` | string \\| null | 필수 |  |
+| `accountId` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `transactionType` | string \\| null | 필수 |  |
+| `status` | string | 필수 |  |
+| `confirmationCount` | integer | 필수 |  |
+| `vendorSubStatus` | string \\| null | 필수 |  |
+| `vendorNetworkStatus` | string \\| null | 필수 |  |
+| `submissionStatus` | string \\| null | 필수 |  |
+| `amount` | string \\| null | 필수 | 정밀 십진 문자열 |
+| `senderAccountId` | string \\| null | 필수 |  |
+| `receiverType` | string \\| null | 필수 |  |
+| `receiverValue` | string \\| null | 필수 |  |
+| `sweepExecutionId` | string \\| null | 필수 |  |
+| `submissionRequestedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `submissionRespondedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `vendorCreatedAt` | string (ISO 8601) | 필수 |  |
+| `firstDetectedAt` | string (ISO 8601) | 필수 |  |
+| `lastChangedAt` | string (ISO 8601) | 필수 |  |
+| `reconciliationCheckedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `reconciliationCheckCount` | integer | 필수 |  |
+| `reconciliationStoppedAt` | string (ISO 8601) \\| null | 필수 |  |
+
+
+### AdminTransactionTimelineEntry
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `source` | string | 필수 |  |
+| `code` | string | 필수 |  |
+| `status` | string \\| null | 필수 |  |
+| `observedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `identifier` | string \\| null | 필수 |  |
+
+
+### AdminTransactionBoost
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `attemptSequence` | integer | 필수 |  |
+| `externalTransactionId` | string | 필수 |  |
+| `status` | string | 필수 |  |
+| `replacedTransactionId` | string | 필수 |  |
+| `replacedTransactionHash` | string | 필수 |  |
+| `newTransactionId` | string \\| null | 필수 |  |
+| `feeLevel` | string | 필수 |  |
+| `gasless` | boolean | 필수 |  |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `respondedAt` | string (ISO 8601) \\| null | 필수 |  |
+
+
+### AdminTransactionSweepExecution
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `executionId` | string | 필수 |  |
+| `externalTransactionId` | string | 필수 |  |
+| `status` | string | 필수 |  |
+| `operatorAccountId` | string | 필수 |  |
+| `contractAddress` | string | 필수 |  |
+| `requestedTotalAmount` | string | 필수 |  |
+| `actualTotalAmount` | string \\| null | 필수 |  |
+| `transactionId` | string \\| null | 필수 |  |
+| `transactionHash` | string \\| null | 필수 |  |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `finishedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `items` | AdminTransactionSweepItem[] | 필수 |  |
+
+
+### AdminTransactionSweepItem
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `sequence` | integer | 필수 |  |
+| `accountId` | string | 필수 |  |
+| `sourceAddress` | string | 필수 |  |
+| `requestedAmount` | string | 필수 |  |
+| `actualAmount` | string \\| null | 필수 |  |
+| `status` | string | 필수 |  |
+| `failureCode` | string \\| null | 필수 |  |
+| `logIndex` | integer \\| null | 필수 |  |
+
+
+### AdminTransactionAllowance
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `accountId` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `contractAddress` | string | 필수 |  |
+| `cap` | string | 필수 |  |
+| `observedAllowance` | string | 필수 |  |
+| `status` | string | 필수 |  |
+| `checkedAt` | string (ISO 8601) | 필수 |  |
+
+
+### AdminTransactionFeeQuote
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `context` | string | 필수 |  |
+| `level` | string | 필수 |  |
+| `observedAt` | string (ISO 8601) | 필수 |  |
+| `feePerByte` | string \\| null | 필수 |  |
+| `gasPrice` | string \\| null | 필수 |  |
+| `networkFee` | string \\| null | 필수 |  |
+| `baseFee` | string \\| null | 필수 |  |
+| `priorityFee` | string \\| null | 필수 |  |
+
+
+### AdminContractListResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminContract[] | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminContract
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `versionId` | string | 필수 |  |
+| `scopeId` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `use` | string | 필수 |  |
+| `version` | string | 필수 |  |
+| `address` | string | 필수 |  |
+| `state` | string | 필수 | `CANDIDATE` `VERIFIED` `ACTIVE` `PAUSED` `RETIRED` |
+| `runtimeCodeHash` | string | 필수 |  |
+| `evidenceStatus` | string \\| null | 필수 |  |
+| `evidenceValidUntil` | string (ISO 8601) \\| null | 필수 |  |
+| `active` | boolean | 필수 |  |
+
+
+### AdminPolicyListResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminPolicy[] | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminPolicy
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `versionId` | string | 필수 |  |
+| `scopeId` | string | 필수 |  |
+| `versionNumber` | integer | 필수 |  |
+| `schemaVersion` | string | 필수 |  |
+| `state` | string | 필수 | `DRAFT` `IN_REVIEW` `APPROVED` `ACTIVE` `SUPERSEDED` |
+| `policyHash` | string | 필수 |  |
+| `ceilingPassed` | boolean | 필수 |  |
+| `active` | boolean | 필수 |  |
+| `registeredAt` | string (ISO 8601) | 필수 |  |
+
+
+### AdminBandSListResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminBandS[] | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminBandS
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `proposalId` | string | 필수 |  |
+| `sourceProposalId` | string | 필수 |  |
+| `snapshotId` | string | 필수 |  |
+| `sourceRequestId` | string | 필수 |  |
+| `policyVersionId` | string | 필수 |  |
+| `snapshotHash` | string | 필수 |  |
+| `inputHash` | string | 필수 |  |
+| `observedAt` | string (ISO 8601) | 필수 |  |
+| `expiresAt` | string (ISO 8601) | 필수 |  |
+| `inputComplete` | boolean | 필수 |  |
+| `issueCodes` | string[] | 필수 |  |
+| `totalAssetKrwAmount` | string | 필수 |  |
+| `observedHotKrwAmount` | string | 필수 |  |
+| `observedColdKrwAmount` | string | 필수 |  |
+| `effectiveHotKrwAmount` | string | 필수 |  |
+| `hotRatio` | string | 필수 |  |
+| `lowerRatio` | string | 필수 |  |
+| `targetRatio` | string | 필수 |  |
+| `upperRatio` | string | 필수 |  |
+| `direction` | string | 필수 | `HOT_TO_COLD` `COLD_TO_HOT` |
+| `proposalHash` | string | 필수 |  |
+| `totalKrwAmount` | string | 필수 |  |
+| `afterHotRatio` | string | 필수 |  |
+| `state` | string | 필수 | `PROPOSED` `BLOCKED` `STALE` `PENDING` `APPROVED` `REJECTED` `EXPIRED` `EXECUTING` `PARTIAL` `COMPLETED` `FAILED` |
+| `requestId` | string \\| null | 필수 |  |
+| `requestState` | string \\| null | 필수 |  |
+| `approvalCount` | integer | 필수 |  |
+| `requiredApprovals` | integer | 필수 |  |
+| `executionId` | string \\| null | 필수 |  |
+| `executionStatus` | string \\| null | 필수 |  |
+| `reservedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `executionReady` | boolean | 필수 | 인증 경계를 제외한 도메인 예약 조건 충족 여부 |
+| `disabledReasons` | string[] | 필수 |  |
+| `items` | AdminBandSItem[] | 필수 |  |
+
+
+### AdminBandSItem
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `sequence` | integer | 필수 |  |
+| `dependsOnSequence` | integer \\| null | 필수 |  |
+| `legType` | string | 필수 | INTERNAL_TO_EGRESS는 영속/API 호환 코드명이며 1차 설계에서는 출금 풀 등 hot vault에서 omnibus로 회수하는 내부이체를 뜻한다. `INTERNAL_TO_EGRESS` `EXTERNAL_COLD` `COLD_DEPOSIT` `HOT_REDISTRIBUTE` |
+| `network` | string | 필수 |  |
+| `tokenSymbol` | string | 필수 |  |
+| `sourceVaultId` | string \\| null | 필수 |  |
+| `destinationVaultId` | string \\| null | 필수 |  |
+| `destinationAddress` | string \\| null | 필수 |  |
+| `amount` | string | 필수 |  |
+| `krwAmount` | string | 필수 |  |
+| `expectedFeeAmount` | string | 필수 |  |
+| `itemHash` | string | 필수 |  |
+| `executable` | boolean | 필수 |  |
+| `blockReason` | string \\| null | 필수 |  |
+| `executionStatus` | string \\| null | 필수 |  |
+
+
+### AdminExecutionGateOverviewResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminExecutionGateOverview | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminExecutionGateOverview
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `observedAt` | string (ISO 8601) | 필수 |  |
+| `truncated` | boolean | 필수 |  |
+| `gates` | AdminExecutionGate[] | 필수 |  |
+| `externalControls` | AdminExternalControlEvidence[] | 필수 |  |
+| `allowanceRevocations` | AdminAllowanceRevocation[] | 필수 |  |
+| `webhookRecoveries` | AdminWebhookRecovery[] | 필수 |  |
+| `resumes` | AdminExecutionGateResume[] | 필수 |  |
+
+
+### AdminExecutionGateResume
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `resumeId` | string | 필수 |  |
+| `requestId` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `type` | string | 필수 | `WITHDRAWAL` `SWEEP` `APPROVE` |
+| `state` | string | 필수 | `PENDING` `APPROVED` `BLOCKED` `READY` `RESUMED` |
+| `stoppedEventId` | string | 필수 |  |
+| `contractVersionId` | string | 필수 |  |
+| `contractEvidenceId` | string | 필수 |  |
+| `revocationExecutionId` | string | 필수 |  |
+| `causeEvidenceUri` | string | 필수 |  |
+| `causeEvidenceHash` | string | 필수 |  |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `expiresAt` | string (ISO 8601) | 필수 |  |
+| `requestedByEmployeeNo` | string | 필수 |  |
+| `approvalCount` | integer | 필수 |  |
+| `requiredApprovals` | integer | 필수 |  |
+| `securityApprovalCount` | integer | 필수 |  |
+| `latestCheckStatus` | string \\| null | 필수 |  |
+| `latestCheckObservedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `latestCheckValidUntil` | string (ISO 8601) \\| null | 필수 |  |
+| `issues` | string[] | 필수 |  |
+| `resumeReady` | boolean | 필수 |  |
+| `disabledReasons` | string[] | 필수 |  |
+| `retryable` | boolean | 필수 |  |
+| `retryCondition` | string | 필수 |  |
+| `statusPath` | string | 필수 | `/admin/execution-gates` |
+
+
+### AdminWebhookRecovery
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `requestId` | string | 필수 |  |
+| `webhookId` | string | 필수 |  |
+| `state` | string | 필수 | `ACCEPTED` `IN_PROGRESS` `AMBIGUOUS` `FAILED` `COMPLETED` |
+| `scope` | string | 필수 | `FAILED_LAST_24H` |
+| `requiredEvents` | string[] | 필수 |  |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `requestedByEmployeeNo` | string | 필수 |  |
+| `approvedAt` | string (ISO 8601) | 필수 |  |
+| `approvedByEmployeeNo` | string | 필수 |  |
+| `reason` | string | 필수 |  |
+| `workTicket` | string | 필수 |  |
+| `latestEvent` | string \\| null | 필수 |  |
+| `callType` | string \\| null | 필수 |  |
+| `calledAt` | string (ISO 8601) \\| null | 필수 |  |
+| `resultAt` | string (ISO 8601) \\| null | 필수 |  |
+| `previousStatus` | string \\| null | 필수 |  |
+| `currentStatus` | string \\| null | 필수 |  |
+| `missingRequiredEvents` | string[] | 필수 |  |
+| `scopeFrom` | string (ISO 8601) \\| null | 필수 |  |
+| `scopeTo` | string (ISO 8601) \\| null | 필수 |  |
+| `scheduledNotificationCount` | integer \\| null | 필수 |  |
+| `errorCode` | string \\| null | 필수 |  |
+| `retryable` | boolean | 필수 |  |
+| `retryCondition` | string | 필수 |  |
+| `statusPath` | string | 필수 | `/admin/execution-gates` |
+
+
+### AdminExecutionGate
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `network` | string | 필수 |  |
+| `type` | string | 필수 | `WITHDRAWAL` `SWEEP` `APPROVE` |
+| `state` | string | 필수 | `OPEN` `STOPPED` |
+| `stoppedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `reason` | string \\| null | 필수 |  |
+| `workTicket` | string \\| null | 필수 |  |
+| `actorEmployeeNo` | string \\| null | 필수 |  |
+| `sequence` | integer \\| null | 필수 |  |
+| `newExecutionAllowed` | boolean | 필수 |  |
+| `existingExecutionRecoveryAllowed` | boolean | 필수 |  |
+| `emergencyRevocationAllowed` | boolean | 필수 |  |
+| `disabledReasons` | string[] | 필수 |  |
+
+
+### AdminExternalControlEvidence
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `evidenceId` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `contractVersionId` | string | 필수 |  |
+| `status` | string | 필수 | `CONFIRMED` `DRIFT` `STALE` `UNCONFIRMED` `ERROR` |
+| `completionReady` | boolean | 필수 |  |
+| `snapshotHash` | string | 필수 |  |
+| `tapSourceId` | string | 필수 |  |
+| `tapBlocked` | boolean \\| null | 필수 |  |
+| `pinnedBlockNumber` | string | 필수 |  |
+| `expectedOperatorSetHash` | string | 필수 |  |
+| `firstEndpointId` | string | 필수 |  |
+| `firstPaused` | boolean \\| null | 필수 |  |
+| `firstOperatorSetHash` | string \\| null | 필수 |  |
+| `secondEndpointId` | string | 필수 |  |
+| `secondPaused` | boolean \\| null | 필수 |  |
+| `secondOperatorSetHash` | string \\| null | 필수 |  |
+| `observedAt` | string (ISO 8601) | 필수 |  |
+| `validUntil` | string (ISO 8601) | 필수 |  |
+| `reason` | string | 필수 |  |
+| `workTicket` | string | 필수 |  |
+| `actorEmployeeNo` | string | 필수 |  |
+| `issues` | string[] | 필수 |  |
+
+
+### AdminAllowanceRevocation
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `executionId` | string | 필수 |  |
+| `requestId` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `contractVersionId` | string | 필수 |  |
+| `contractBindingRevision` | integer | 필수 |  |
+| `sweepContractAddress` | string | 필수 |  |
+| `targetSnapshotHash` | string | 필수 |  |
+| `status` | string | 필수 | `READY` `IN_PROGRESS` `PARTIAL` `COMPLETED` |
+| `totalCount` | integer | 필수 |  |
+| `zeroConfirmedCount` | integer | 필수 |  |
+| `submittingCount` | integer | 필수 |  |
+| `failedCount` | integer | 필수 |  |
+| `registeredAt` | string (ISO 8601) | 필수 |  |
+| `items` | AdminAllowanceRevocationItem[] | 필수 |  |
+| `retryable` | boolean | 필수 |  |
+| `retryCondition` | string | 필수 |  |
+| `statusPath` | string | 필수 | `/admin/execution-gates` |
+
+
+### AdminAllowanceRevocationItem
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `sequence` | integer | 필수 |  |
+| `accountId` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `sourceVaultId` | string | 필수 |  |
+| `ownerAddress` | string | 필수 |  |
+| `tokenContractAddress` | string | 필수 |  |
+| `beforeObservedAllowance` | string | 필수 |  |
+| `externalTransactionId` | string | 필수 |  |
+| `latestStatus` | string \\| null | 필수 |  |
+| `vendorTransactionId` | string \\| null | 필수 |  |
+| `observedAllowance` | string | 필수 |  |
+| `observedAt` | string (ISO 8601) | 필수 |  |
+| `errorCode` | string \\| null | 필수 |  |
+| `occurredAt` | string (ISO 8601) \\| null | 필수 |  |
+
+
+### AdminChangeRequestResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminChangeRequest | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminChangeRequest
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `requestId` | string | 필수 |  |
+| `targetType` | string | 필수 | `POLICY` `CONTRACT` `BAND_S` `ALLOWANCE_REVOKE` `EXECUTION_GATE` |
+| `scopeId` | string | 필수 |  |
+| `targetVersionId` | string | 필수 |  |
+| `state` | string | 필수 | `PENDING` `APPROVED` `REJECTED` `EXPIRED` `CANCELLED` `ACTIVATED` `EXECUTED` |
+| `risk` | string | 필수 | `GENERAL` `SECURITY` `RESUME` `FUND` |
+| `snapshotHash` | string | 필수 |  |
+| `diff` | string | 필수 | 서버가 생성한 JSON diff snapshot |
+| `impact` | string | 필수 | 서버가 생성한 JSON 영향 snapshot |
+| `reason` | string | 필수 |  |
+| `workTicket` | string | 필수 |  |
+| `requesterEmployeeNo` | string | 필수 |  |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `expiresAt` | string (ISO 8601) | 필수 |  |
+| `requiredApprovals` | integer | 필수 |  |
+| `approvalCount` | integer | 필수 |  |
+| `securityApprovalRequired` | boolean | 필수 |  |
+| `securityApprovalCount` | integer | 필수 |  |
+| `activationReady` | boolean | 필수 |  |
+| `disabledReasons` | string[] | 필수 |  |
+| `decisions` | AdminChangeDecision[] | 필수 |  |
+
+
+### AdminChangeDecision
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `employeeNo` | string | 필수 |  |
+| `role` | string | 필수 | `BCM_APPROVER` `BCM_SECURITY_APPROVER` |
+| `decision` | string | 필수 | `APPROVE` `REJECT` |
+| `opinion` | string \\| null | 필수 |  |
+| `decidedAt` | string (ISO 8601) | 필수 |  |
 
 
 ### RegisterAssetMappingRequest

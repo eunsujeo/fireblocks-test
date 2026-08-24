@@ -5,6 +5,7 @@ import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
+import com.whatto.bcm.domain.sweep.ActiveSweepRuntimeContext
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
 import com.whatto.bcm.domain.sweep.SweepExecutionAlertPort
 import com.whatto.bcm.domain.sweep.SweepExecutionStage
@@ -39,15 +40,17 @@ class SweepCandidateSelectionService(
     private val sweepTransactionStatuses: SweepTransactionStatusRepository,
     private val executionAlerts: SweepExecutionAlertPort,
     private val properties: SweepProperties,
+    private val runtimeGuard: SweepRuntimeGuard,
 ) : SweepCandidateSelector {
     override fun selectCandidates(): List<SweepCandidate> {
         val omnibus = requiredOmnibusAccount()
-        val candidates =
+        val candidatesWithRuntime =
             sweepTargets
-                .findPending(properties.scanLimit)
+                .findPending(properties.security.batchSubmissionEnabledNetworks, properties.scanLimit)
                 .mapNotNull { target ->
                     try {
-                        selectIfEligible(target, omnibus)
+                        val runtime = runtimeGuard.requireReady(target.network, target.symbol)
+                        selectIfEligible(target, omnibus, runtime)?.let { RuntimeCandidate(it, runtime) }
                     } catch (exception: RuntimeException) {
                         executionAlerts.alert(
                             SweepExecutionAlert(SweepExecutionStage.SELECTION, target.key, exception),
@@ -55,30 +58,29 @@ class SweepCandidateSelectionService(
                         null
                     }
                 }
-        return candidates
-            .sortedWith(
-                compareByDescending<SweepCandidate> { BigDecimal(it.amount) }
-                    .thenBy { it.target.registeredAt }
-                    .thenBy { it.target.accountId }
-                    .thenBy { it.target.network }
-                    .thenBy { it.target.symbol },
-            ).take(properties.batchSize)
+        val sorted =
+            candidatesWithRuntime
+                .sortedWith(
+                    compareByDescending<RuntimeCandidate> { BigDecimal(it.candidate.amount) }
+                        .thenBy { it.candidate.target.registeredAt }
+                        .thenBy { it.candidate.target.accountId }
+                        .thenBy { it.candidate.target.network }
+                        .thenBy { it.candidate.target.symbol },
+                )
+        val first = sorted.firstOrNull() ?: return emptyList()
+        val group = first.candidate.target.network to first.candidate.target.symbol
+        return selectWithinBatchAmountCap(
+            sorted.filter { it.candidate.target.network to it.candidate.target.symbol == group },
+            first.runtime,
+        )
     }
 
     private fun selectIfEligible(
         target: SweepTarget,
         omnibus: Account,
+        runtime: ActiveSweepRuntimeContext,
     ): SweepCandidate? {
-        val minimumAmount = properties.minimumAmount(target.network, target.symbol)
-        if (minimumAmount == null) {
-            logger.warn(
-                "sweep target skipped because minimum amount is not configured: accountId={} network={} symbol={}",
-                target.accountId,
-                target.network,
-                target.symbol,
-            )
-            return null
-        }
+        val minimumAmount = runtime.policy.minimumAmount
         val source =
             checkNotNull(accounts.findByAccountId(target.accountId)) {
                 "sweep source account not found: accountId=${target.accountId}"
@@ -98,11 +100,30 @@ class SweepCandidateSelectionService(
         check(available.signum() >= 0) {
             "vendor available balance must not be negative: accountId=${target.accountId}"
         }
+        check(available <= runtime.policy.itemAmountCap) {
+            "sweep amount exceeds active policy item cap: accountId=${target.accountId}"
+        }
         if (available < minimumAmount) {
             deleteIfStillBelow(target, finalizedBeforeBalance)
             return null
         }
         return candidate(target, source, omnibus, mapping.vendorAssetId, available.stripTrailingZeros().toPlainString())
+    }
+
+    private fun selectWithinBatchAmountCap(
+        candidates: List<RuntimeCandidate>,
+        runtime: ActiveSweepRuntimeContext,
+    ): List<SweepCandidate> {
+        var total = BigDecimal.ZERO
+        return buildList {
+            for (candidate in candidates) {
+                if (size == runtime.policy.batchSize) break
+                val amount = BigDecimal(candidate.candidate.amount)
+                if (total + amount > runtime.policy.batchAmountCap) continue
+                add(candidate.candidate)
+                total += amount
+            }
+        }
     }
 
     private fun candidate(
@@ -148,4 +169,9 @@ class SweepCandidateSelectionService(
     private companion object {
         val logger = LoggerFactory.getLogger(SweepCandidateSelectionService::class.java)
     }
+
+    private data class RuntimeCandidate(
+        val candidate: SweepCandidate,
+        val runtime: ActiveSweepRuntimeContext,
+    )
 }

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.ktlint) apply false
     alias(libs.plugins.git.properties) apply false
     alias(libs.plugins.sonarqube)
+    alias(libs.plugins.dependency.check)
     `jacoco-report-aggregation`
 }
 
@@ -14,6 +15,7 @@ description = "whatto blockchain-manager"
 // subprojects {} 안에서는 version catalog accessor 가 안 잡히므로 여기서 캡처한다
 val jacocoVersion = libs.versions.jacoco.get()
 val sentryBom = libs.sentry.bom
+val log4jBom = libs.log4j.bom
 
 allprojects {
     group = "com.whatto.bcm"
@@ -39,6 +41,7 @@ subprojects {
 
     dependencies {
         "implementation"(platform(sentryBom))
+        "implementation"(platform(log4jBom))
     }
 
     dependencyLocking {
@@ -85,4 +88,29 @@ tasks.register("jacocoRootReport") {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     description = "test code coverage report for sonarqube"
     dependsOn(subprojects.filter { it.childProjects.isEmpty() }.map { "${it.path}:jacocoTestReport" })
+}
+
+// ----------------------------------------------------------------------------
+//  Supply-chain security — 전체 leaf 모듈의 배포 의존성을 한 보고서로 검사한다
+// ----------------------------------------------------------------------------
+configure<org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension> {
+    failBuildOnCVSS = 7.0f
+    junitFailOnCVSS = 7.0f
+    failOnError = true
+    failBuildOnUnusedSuppressionRule = true
+    formats = listOf("HTML", "JSON", "SARIF", "JUNIT")
+    outputDirectory.set(layout.buildDirectory.dir("reports/dependency-check"))
+    scanConfigurations = listOf("runtimeClasspath")
+    suppressionFiles = listOf(layout.projectDirectory.file("config/dependency-check-suppressions.xml").asFile.absolutePath)
+
+    nvd.datafeedUrl =
+        providers.environmentVariable("NVD_DATAFEED_URL")
+            .orElse("https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-{0}.json.gz")
+            .get()
+
+    // 이 저장소는 JVM 프로젝트다. 인증 없는 원격 생태계 analyzer의 가변성은 게이트에서 제외한다.
+    analyzers.ossIndex.enabled = false
+    analyzers.nodeAudit.enabled = false
+    analyzers.retirejs.enabled = false
+    analyzers.assemblyEnabled = false
 }

@@ -751,19 +751,26 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
     }
 
     private fun insertSweepFixture(externalTransactionId: String) {
+        val snapshot = insertActiveSweepSnapshot(jdbc)
         jdbc.update(
             """
             INSERT INTO bcm_swp_exec_l
               (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
+               plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id,
                swp_exec_stcd, item_cnt, req_tot_amt, actl_tot_amt, gasless_yn, vndr_tx_id, tx_hash,
                req_dttm, fnsh_dttm, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES (?, ?, ?, 'ETHEREUM', 'USDC', 'acct-pool', '0xSweeper',
+                    ?, ?, ?, ?,
                     'SUBMITTED', 1, 100, NULL, 'Y', ?, NULL,
                     '20260807115900', NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             SWEEP_EXECUTION_ID,
             externalTransactionId,
             "a".repeat(64),
+            snapshot.policyVersionId,
+            snapshot.policySnapshotHash,
+            snapshot.contractVersionId,
+            snapshot.contractEvidenceId,
             VENDOR_TX_ID,
         )
         jdbc.update(

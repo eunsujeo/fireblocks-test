@@ -7,6 +7,7 @@ import com.whatto.bcm.app.application.asset.RegisterVendorAssetMappingCommand
 import com.whatto.bcm.app.application.asset.VendorAssetMappingService
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import io.mockk.every
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -16,6 +17,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.io.File
+import java.nio.file.Files
 
 @WebMvcTest(AdminAssetController::class)
 class AdminAssetSpecComplianceTest {
@@ -51,6 +53,14 @@ class AdminAssetSpecComplianceTest {
             .perform(get("/admin/asset-candidates").param("symbol", "USDC"))
             .andExpect(status().isOk)
             .andExpect(openApi().isValid(SPEC))
+    }
+
+    @Test
+    fun `재개 변경 요청 target type은 OpenAPI enum에 포함된다`() {
+        val spec = Files.readString(File(SPEC).toPath())
+
+        assertThat(spec)
+            .contains("enum: [POLICY, CONTRACT, BAND_S, ALLOWANCE_REVOKE, EXECUTION_GATE]")
     }
 
     companion object {

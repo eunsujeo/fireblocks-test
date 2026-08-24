@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd
+                                  https://dependency-check.github.io/DependencyCheck/dependency-suppression.1.4.xsd">
+    <suppress until="2026-09-30Z">
+        <notes><![CDATA[
+        Tracking: PLAN unresolved #41.
+        CVE-2026-53914 affects Kotlin build cache metadata deserialization. This gate scans runtimeClasspath,
+        and the matched kotlin-stdlib/kotlin-reflect JARs contain no Gradle or build-cache implementation.
+        The actual build-cache surface is disabled in gradle.properties and scripts/ci.sh until Kotlin 2.4.20 GA.
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/org\.jetbrains\.kotlin/kotlin-(stdlib|reflect)@2\.3\.21$</packageUrl>
+        <cve>CVE-2026-53914</cve>
+    </suppress>
+</suppressions>

@@ -3,11 +3,15 @@ package com.whatto.bcm.app.bat.sweep
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.DepositAddressRepository
+import com.whatto.bcm.domain.admin.ExecutionGateRepository
+import com.whatto.bcm.domain.admin.ExecutionGateStatus
+import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.sweep.ActiveSweepRuntimeContext
 import com.whatto.bcm.domain.sweep.Erc20ContractPort
 import com.whatto.bcm.domain.sweep.SweepAllowanceDecision
 import com.whatto.bcm.domain.sweep.SweepAllowanceObservation
@@ -36,6 +40,10 @@ sealed interface SweepAllowancePreparationResult {
         val executionId: String,
         val itemSequence: Int,
     ) : SweepAllowancePreparationResult
+
+    data class BlockedByExecutionGate(
+        val network: String,
+    ) : SweepAllowancePreparationResult
 }
 
 fun interface SweepAllowancePreparer {
@@ -55,21 +63,44 @@ class SweepAllowancePreparationService(
     private val externalIds: SweepApprovalExternalTransactionIdGenerator,
     private val clock: Clock,
     private val properties: SweepProperties,
+    private val executionGates: ExecutionGateRepository,
+    private val runtimeGuard: SweepRuntimeGuard,
 ) : SweepAllowancePreparer {
     override fun prepare(candidate: SweepCandidate): SweepAllowancePreparationResult {
-        properties.security.requireNormalApprovalReady()
-        val context = context(candidate.target.key)
+        properties.security.requireNormalApprovalReady(candidate.target.network)
+        val runtime = runtimeGuard.requireReady(candidate.target.network, candidate.target.symbol)
+        val gateStopped =
+            executionGates.findCurrent(candidate.target.network, ExecutionGateType.APPROVE)?.status ==
+                ExecutionGateStatus.STOPPED
+        if (gateStopped && !hasPendingAction(candidate.target.key)) {
+            return SweepAllowancePreparationResult.BlockedByExecutionGate(candidate.target.network)
+        }
+        val context = context(candidate.target.key, runtime = runtime)
         val observation = observe(context)
         val authorization = storeObservation(context, observation)
-        return executeDecision(context, observation, authorization, candidate.amount, emergency = false)
+        return executeDecision(
+            context,
+            observation,
+            authorization,
+            candidate.amount,
+            emergency = false,
+            newActionsAllowed = !gateStopped,
+        )
     }
 
     fun revoke(key: SweepAuthorizationKey): SweepAllowancePreparationResult {
-        properties.security.requireEmergencyRevocationReady()
+        properties.security.requireEmergencyRevocationReady(key.network)
         val context = context(SweepTargetKey(key.accountId, key.network, key.symbol), key.sweepContractAddress)
         val observation = observe(context)
         val authorization = storeObservation(context, observation)
-        return executeDecision(context, observation, authorization, requiredAmount = null, emergency = true)
+        return executeDecision(
+            context,
+            observation,
+            authorization,
+            requiredAmount = null,
+            emergency = true,
+            newActionsAllowed = true,
+        )
     }
 
     private fun executeDecision(
@@ -78,6 +109,7 @@ class SweepAllowancePreparationService(
         authorization: SweepAuthorization,
         requiredAmount: String?,
         emergency: Boolean,
+        newActionsAllowed: Boolean,
     ): SweepAllowancePreparationResult {
         val decision =
             if (emergency) {
@@ -101,9 +133,44 @@ class SweepAllowancePreparationService(
                 if (emergency) markRevoked(authorization) else SweepAllowancePreparationResult.Ready
 
             SweepAllowanceDecision.WaitingForChain -> resumePending(context, observation, authorization)
-            is SweepAllowanceDecision.Approve -> startAction(context, observation, authorization, decision.amount, revoke = false)
-            SweepAllowanceDecision.RevokeFirst -> startAction(context, observation, authorization, "0", revoke = true)
+            is SweepAllowanceDecision.Approve ->
+                if (newActionsAllowed) {
+                    startAction(
+                        context,
+                        observation,
+                        authorization,
+                        decision.amount,
+                        revoke = false,
+                        executionGateRequired = !emergency,
+                    )
+                } else {
+                    SweepAllowancePreparationResult.BlockedByExecutionGate(context.targetKey.network)
+                }
+
+            SweepAllowanceDecision.RevokeFirst ->
+                if (newActionsAllowed) {
+                    startAction(
+                        context,
+                        observation,
+                        authorization,
+                        "0",
+                        revoke = true,
+                        executionGateRequired = !emergency,
+                    )
+                } else {
+                    SweepAllowancePreparationResult.BlockedByExecutionGate(context.targetKey.network)
+                }
         }
+    }
+
+    private fun hasPendingAction(key: SweepTargetKey): Boolean {
+        val sweepContractAddress = properties.contracts.firstOrNull { it.network == key.network }?.address ?: return false
+        val current =
+            authorizations.findByKey(
+                SweepAuthorizationKey(key.accountId, key.network, key.symbol, sweepContractAddress),
+            )
+        return current?.status == SweepAuthorizationStatus.APPROVING ||
+            current?.status == SweepAuthorizationStatus.REVOKING
     }
 
     private fun startAction(
@@ -112,9 +179,22 @@ class SweepAllowancePreparationService(
         observed: SweepAuthorization,
         amount: String,
         revoke: Boolean,
+        executionGateRequired: Boolean,
     ): SweepAllowancePreparationResult {
         val prepared =
             transactionRunner.run {
+                val currentGate =
+                    if (executionGateRequired) {
+                        executionGates.lockAndFindCurrent(
+                            context.targetKey.network,
+                            ExecutionGateType.APPROVE,
+                        )
+                    } else {
+                        null
+                    }
+                if (currentGate?.status == ExecutionGateStatus.STOPPED) {
+                    return@run PreparedAllowanceAction.ExecutionGateBlocked(context.targetKey.network)
+                }
                 val current =
                     authorizations.findByKeyForUpdate(observed.key)
                         ?: throw ConflictException(
@@ -146,6 +226,9 @@ class SweepAllowancePreparationService(
                 PreparedAllowanceAction.Submit(command(context, observation, updated, amount))
             }
         return when (prepared) {
+            is PreparedAllowanceAction.ExecutionGateBlocked ->
+                SweepAllowancePreparationResult.BlockedByExecutionGate(prepared.network)
+
             is PreparedAllowanceAction.Blocked ->
                 SweepAllowancePreparationResult.BlockedByActiveExecution(prepared.executionId, prepared.itemSequence)
 
@@ -257,6 +340,7 @@ class SweepAllowancePreparationService(
     private fun context(
         key: SweepTargetKey,
         expectedSweepContractAddress: String? = null,
+        runtime: ActiveSweepRuntimeContext? = null,
     ): AllowanceContext {
         val account = checkNotNull(accounts.findByAccountId(key.accountId)) { "sweep source account not found: accountId=${key.accountId}" }
         val address =
@@ -265,14 +349,19 @@ class SweepAllowancePreparationService(
             }
         val mapping = checkNotNull(mappings.find(key.network, key.symbol)) { "sweep asset mapping not found" }
         val tokenContract = checkNotNull(mapping.contractAddress) { "native asset does not support ERC-20 allowance" }
-        val sweepContract = expectedSweepContractAddress ?: properties.requiredContractAddress(key.network)
+        val sweepContract = expectedSweepContractAddress ?: checkNotNull(runtime).contractAddress
         return AllowanceContext(
             key,
             account.vendorVaultId,
             address.address,
             tokenContract,
             sweepContract,
-            properties.requiredAllowanceCap(key.network, key.symbol),
+            runtime
+                ?.policy
+                ?.allowanceCap
+                ?.stripTrailingZeros()
+                ?.toPlainString()
+                ?: properties.requiredAllowanceCap(key.network, key.symbol),
         )
     }
 
@@ -286,6 +375,10 @@ class SweepAllowancePreparationService(
     )
 
     private sealed interface PreparedAllowanceAction {
+        data class ExecutionGateBlocked(
+            val network: String,
+        ) : PreparedAllowanceAction
+
         data class Submit(
             val command: SweepContractCallCommand,
         ) : PreparedAllowanceAction

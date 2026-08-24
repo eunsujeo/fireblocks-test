@@ -86,7 +86,7 @@ sequenceDiagram
 | 순서 | 보는 값 | 판정 |
 |---|---|---|
 | 1 | `data.source.type` 이 vault 가 **아니다** (외부 발신) | 목적지 주소를 주소 매핑에서 찾는다 — 있으면 `DEPOSIT`, 없으면 **귀속 불명**(발행 없음 · 알림 채널 통지) |
-| 2 | `data.source.type` 이 **vault** (우리가 낸 전송) | `data.externalTxId` 로 [제출 원장](03-bcm-db.md) 을 찾는다 — 행의 `tx_dvcd` 가 곧 계열이다. `WITHDRAWAL`·`INTERNAL` 은 해당 토픽으로 발행, **`SWEEP` 은 발행하지 않는다**(매니저 내부 이동) |
+| 2 | `data.source.type` 이 **vault** (우리가 낸 전송) | `data.externalTxId` 로 [제출 원장](03-bcm-db.md) 을 찾는다 — 행의 `tx_dvcd` 가 곧 계열이다. `WITHDRAWAL`·`INTERNAL` 은 해당 토픽으로 발행, **`SWEEP_APPROVE`·`SWEEP_BATCH`·`BAND_S`는 발행하지 않는다**(매니저 내부 실행) |
 | 3 | vault 발신인데 제출 원장에 없다 | 우리가 내지 않은 전송(콘솔 수동 조작 등) — **발행하지 않고** 별도 알림 채널로 통지 |
 
 - ★ **주소로 계열을 추론하지 않는다.** 출금·내부이체·sweep 은 셋 다 우리 vault 에서 나가고, 내부이체와 sweep 은 목적지까지 우리 vault 라 주소만으로는 갈리지 않는다. 잘못 가르면 sweep 이 고객 토픽에 실려 유령 이벤트가 되고 대사가 어긋난다. **제출 시점에 우리가 아는 값을 못박아 두는 것이 유일하게 확실한 기준**이라, 제출하는 쪽(출금·내부이체·sweep 전부)이 `bcm_sbmt_l` 에 행을 남긴다.
@@ -99,7 +99,7 @@ sequenceDiagram
 |---|---|
 | 서명 검증 | 모든 알림은 서명을 검증하고 통과한 것만 받는다 — JWKS 방식(`Fireblocks-Webhook-Signature` 헤더 · 공개키 자동 조회·로테이션). 발신 IP allowlist 를 겹친다 |
 | 수신 확인 | 2xx 를 돌려줘야 전달 완료 — 아니면 벤더가 지수 백오프로 재시도한다(총 10회 시도 후 failed 마킹). 오류율이 높은 수신 endpoint 는 벤더가 자동 비활성화하므로 즉시 2xx + 비동기 처리 분리가 필수 |
-| 유실 복구 | 재시도로도 못 받은 알림은 재전송 API(`resend_failed` — v2 는 30일)로 다시 받는다. 수신기 재기동 후 1회 호출한다 |
+| 유실 복구 | `resend_failed`는 호출 시점 기준 최근 24시간 안의 실패 알림만 다시 배차한다. 자동 호출하지 않고 운영자가 구독 상태·필수 이벤트를 재확인한 뒤 수동 요청하며, 24시간보다 오래된 공백은 tx 대사로 복구한다 |
 | 상태 전이만 outbox 적재 | 마지막 발행 상태와 **허용 전이 표**(아래 상태 절)를 대조해 표에 있는 전이만 넣는다 |
 | 원자 기록 (outbox) | bcm_tx_l 갱신·outbox 적재·처리 완료를 **한 트랜잭션**으로 — relay 가 큐로 발행(at-least-once)하고 재발송분은 아래 중복 반영 방지가 거른다 |
 | 중복 반영 방지 | dedup 은 **이벤트 id(`evnt_id`)** 단위다 — tx 단위로 가리면 확정이 버려진다 |
@@ -460,6 +460,57 @@ sequenceDiagram
 finalize 된 트랜잭션 원본을 일 배치로 매니저 DB(`bcm_raw_tx_l`)에 보관한다. 원본은 수신 인박스(`bcm_whk_l`)에서 그 tx 의 마지막 COMPLETED 알림 payload 를 옮긴다 — 벤더 재조회 없음. 기존 웹훅 수신 → 번역 → 이벤트 경로는 건드리지 않는다. 성공 커서를 하한으로 삼지 않고, 실행 경계보다 오래됐으면서 아직 같은 tx의 동일하거나 더 최신 원문이 보관되지 않은 모든 적격 행을 매번 다시 찾는다. 그래서 처리 완료 뒤 늦게 FINALIZED가 된 원문도 다음 실행에서 빠지지 않는다.
 
 `bcm_raw_tx_l` 월별 파티션은 **대상 월이 시작되기 전에 배포 역할이 선생성**한다. 애플리케이션 실행 역할에는 DDL 권한을 주지 않고 보관 배치는 이미 있는 파티션에 DML만 수행한다. 보관은 기본 500건씩, 실행당 최대 20배치로 나눠 각 배치를 독립 트랜잭션으로 커밋한다. 실패 전에 안전하게 보관한 배치는 유지하고, 멱등한 미보관 재탐색으로 다음 실행이 이어받는다. 파티션 누락·적재 실패·최대 배치 도달로 적체를 모두 비우지 못한 실행은 처리 완료 인박스를 정리하지 않고 성공 heartbeat도 남기지 않는다. 적격 원본이 더 없음을 확인한 뒤에만 별도 마지막 트랜잭션으로 보존 기간이 지난 처리 완료(`S`) 인박스를 정리하고 성공 heartbeat를 기록한다. 단, 원어가 COMPLETED인 인박스는 현재 root가 아직 FINALIZED가 아니더라도 동일하거나 더 최신 `rcv_dttm` 원문이 보관됐음을 확인하기 전에는 삭제하지 않는다 — 늦게 FINALIZED가 된 뒤 재탐색할 원문을 남겨야 한다.
+
+## Admin 변경·승인·실행 흐름 (2026-08-17 확정)
+
+브라우저는 독립 Blockchain Manager Admin BFF만 호출한다. 공유 환경에서는 BFF가 mTLS와 단기 JWT로 BCM private Admin API를 호출하고,
+T10.2 읽기 전용 기능 테스트 profile은 loopback에서만 실행하며 상태 변경 API를 노출하지 않는다.
+직원번호·부점코드는 감사값이며 인증·인가 판단은 BCM 역할 claim과 서버 상태가 맡는다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 운영자
+    participant B as BCM Admin BFF
+    participant M as BCM Admin API
+    participant D as BCM DB
+    participant E as Fireblocks · RPC · 정책관리
+
+    U->>B: 변경 요청 · 사유 · 작업 티켓
+    B->>M: mTLS + 단기 JWT
+    M->>D: 불변 version·요청·대상 snapshot 선기록
+    M-->>B: 요청 ID · 필요한 정족수 · 가능한 action
+    U->>B: 승인 또는 거절
+    B->>M: 승인자 신원 · 요청 ID
+    M->>D: 요청자 분리·역할·중복·snapshot 재검사
+    M->>E: TAP·Callback·code·불변값 재조회
+    alt 정족수 충족 · 외부 상태 일치
+      M->>D: 승인 기록 추가
+      U->>B: 별도 활성화·실행 요청
+      B->>M: 요청 ID · 멱등 키
+      M->>D: 활성화·실행 intent 선기록
+      M->>E: 외부 실행
+      M->>D: 응답·대사·감사 기록
+    else stale · drift · 권한/정족수 부족
+      M-->>B: 금지 사유 · 필요한 선행조건
+    end
+```
+
+- 요청 생성, 승인·거절, 활성화·실행은 서로 다른 오퍼레이션이다.
+- 일반 변경은 요청자 외 독립 승인자 1명, 보안 변경·재개는 요청자 외 서로 다른 승인자 2명과 보안 승인자 1명이 필요하다.
+- 출금·sweep·approve 신규 실행 중지는 운영자 1명이 즉시 수행할 수 있고 범위·사유·작업자·시각을 추가 전용 감사에 남긴다.
+- 재개는 원인 해소, 최신 snapshot, 외부 drift 없음, 강화 정족수를 모두 재검사한다.
+- 화면을 연 뒤 snapshot이 바뀌면 기존 승인을 재사용하지 않고 새 diff와 요청을 만든다.
+
+### 밴드S 실행·복구
+
+1. DAW-CORE Treasury/Admin 백엔드가 환율·NAV·원장과 관찰 잔액을 immutable snapshot으로 묶고 simulation·이동안을 계산한다.
+2. BCM은 정책 version·snapshot hash·만료·목적지 registry·예약 충돌·출금 풀 최소잔액을 검증한다.
+3. 승인된 hot→cold는 고객 vault→옴니버스 sweep, 출금 풀→옴니버스 회수 내부이체,
+   옴니버스→TAP 고정 외부 cold 순서로 각 단계 FINALIZED 뒤 진행한다.
+4. cold→hot은 외부 콜드 서명으로 옴니버스 입금을 완료한 사실을 재조회한 뒤 강화 정족수로 출금 풀 보충을 승인한다.
+5. 각 item은 제출 전에 `SUBMIT_INTENT`와 같은 `externalTxId`의 제출 원장 `BAND_S` 행을 선기록한다. 응답 유실은 기존 claim·조회 경계로 회수하며 고객 토픽에는 발행하지 않는다.
+6. 실행마다 정책 version·input snapshot hash·이동안 hash·각 벤더 거래를 남기고 완료 뒤 잔액을 대사한다.
 
 ## 매니저가 내보내는 신호
 

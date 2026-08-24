@@ -34,6 +34,7 @@ enum class SubmissionTransactionType {
     INTERNAL,
     SWEEP_APPROVE,
     SWEEP_BATCH,
+    BAND_S,
 
     ;
 
@@ -41,7 +42,7 @@ enum class SubmissionTransactionType {
         when (this) {
             WITHDRAWAL -> EventType.WITHDRAWAL
             INTERNAL -> EventType.INTERNAL
-            SWEEP_APPROVE, SWEEP_BATCH -> null
+            SWEEP_APPROVE, SWEEP_BATCH, BAND_S -> null
         }
 }
 

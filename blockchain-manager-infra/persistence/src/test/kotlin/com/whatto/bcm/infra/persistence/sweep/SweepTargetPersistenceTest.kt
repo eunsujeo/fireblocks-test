@@ -39,9 +39,20 @@ class SweepTargetPersistenceTest : PersistenceTestSupport() {
         sweepTargets.insertIfAbsent(oldest)
         sweepTargets.insertIfAbsent(middle)
 
-        val pending = sweepTargets.findPending(2)
+        val pending = sweepTargets.findPending(setOf("ETHEREUM"), 2)
 
         assertThat(pending).containsExactly(oldest, middle)
+    }
+
+    @Test
+    fun `제한 출시 네트워크를 DB limit 전에 적용한다`() {
+        repeat(3) { index ->
+            sweepTargets.insertIfAbsent(fixture(accountId = "base-$index", network = "BASE", registeredAt = "20260810120${index}00"))
+        }
+        sweepTargets.insertIfAbsent(fixture(accountId = "eth-enabled", network = "ETHEREUM", registeredAt = "20260810130000"))
+
+        assertThat(sweepTargets.findPending(setOf("ETHEREUM"), 1).map { it.accountId })
+            .containsExactly("eth-enabled")
     }
 
     @Test

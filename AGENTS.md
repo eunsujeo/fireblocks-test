@@ -8,6 +8,8 @@
 1. [CLAUDE.md](CLAUDE.md) — 금지 사항(0절)·확정 결정(3절)·아키텍처(4절)·작업 규율(6절)
 2. [PLAN.md](PLAN.md) 현재 Phase + [PROGRESS.md](PROGRESS.md) — 세션 시작 리추얼
 3. `.claude/rules/` — interaction·testing·error-handling 규칙 (Claude Code 전용 아님 — 내용은 도구 무관)
+4. `.claude/skills/` — 요청과 맞는 저장소 전용 절차. Admin 기능은 `admin-feature`, 정책·컨트랙트 변경은
+   `admin-policy-change`를 Claude Code 밖에서도 직접 읽고 따른다.
 
 ## Claude Code 밖에서는 자동 강제가 없다 — 수동 준수 필수
 
@@ -17,8 +19,10 @@
 - **docs/design/ 수정 절대 금지** — read-only 설계 사본 (byte-동일 유지). 설계 변경은 `../waas-wiki` 에서.
 - **ktlint** — 커밋 전 `./gradlew ktlintCheck` 를 직접 돌린다.
 - **docs/api 생성물** — `openapi.yaml` 수정 시 `python3 docs/api/build.py` 재생성. `api.md`·`api.html`·`spec.js` 직접 수정 금지.
-- Phase converge(설계 정합 재검사·코드 리뷰)는 Claude Code 의 design-sync·code-reviewer agent 소관 —
-  다른 도구로 구현했더라도 converge 는 Claude Code 세션에서 돌린다.
+- Phase converge는 **구현 세션과 분리된 읽기 전용 리뷰 세션**에서 design-sync→code-reviewer 순서로 수행한다.
+  Claude Code는 `.claude/agents/`와 `scripts/converge-review.sh`를 사용하고, Codex는 같은 agent 문서를 읽은 별도
+  reviewer agent/session으로 대체할 수 있다. 세부 기준은 `docs/ai/converge-review.md`다. 특정 벤더의 사용량 한도가
+  converge를 막아서는 안 된다.
 
 git pre-commit(gitleaks — `.githooks/`)은 도구 무관하게 걸린다. 우회 금지.
 

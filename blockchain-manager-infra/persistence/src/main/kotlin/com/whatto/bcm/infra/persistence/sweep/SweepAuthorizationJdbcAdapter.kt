@@ -42,6 +42,17 @@ class SweepAuthorizationJdbcAdapter(
 
     override fun findByKeyForUpdate(key: SweepAuthorizationKey): SweepAuthorization? = query(key, forUpdate = true)
 
+    override fun findByNetworkAndContract(
+        network: String,
+        sweepContractAddress: String,
+    ): List<SweepAuthorization> =
+        jdbc.query(
+            "$SELECT_COLUMNS WHERE ntwk_cd = :network AND lower(swp_ctrt_addr) = lower(:sweepContractAddress) " +
+                "ORDER BY acnt_id, ntwk_cd, tkn_smbl, swp_ctrt_addr",
+            mapOf("network" to network, "sweepContractAddress" to sweepContractAddress),
+            ROW_MAPPER,
+        )
+
     override fun update(authorization: SweepAuthorization): SweepAuthorization {
         val updated =
             jdbc.update(

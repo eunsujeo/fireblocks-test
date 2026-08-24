@@ -65,7 +65,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `V1 마이그레이션이 bcm_ 16테이블을 전부 만든다 — 03-bcm-db와 07-asset-master 그대로`() {
+    fun `V1 코어와 V2부터 V8까지의 Admin 원장 39개를 전부 만든다`() {
         val tables =
             jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'bcm_%'",
@@ -88,6 +88,29 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             "bcm_job_m",
             "bcm_fee_qt_l",
             "bcm_raw_tx_l",
+            "bcm_ctrt_vrsn_l",
+            "bcm_ctrt_evdc_l",
+            "bcm_plcy_vrsn_l",
+            "bcm_chng_req_l",
+            "bcm_chng_dcsn_l",
+            "bcm_adm_actn_l",
+            "bcm_ctrt_bind_m",
+            "bcm_plcy_bind_m",
+            "bcm_bnds_snps_l",
+            "bcm_bnds_prop_l",
+            "bcm_bnds_prop_item_l",
+            "bcm_bnds_exec_l",
+            "bcm_bnds_exec_item_key",
+            "bcm_bnds_exec_evt_l",
+            "bcm_exec_gate_evt_l",
+            "bcm_ext_ctrl_evdc_l",
+            "bcm_alwnc_rvok_exec_l",
+            "bcm_alwnc_rvok_item_l",
+            "bcm_alwnc_rvok_evt_l",
+            "bcm_whk_rcvr_req_l",
+            "bcm_whk_rcvr_evt_l",
+            "bcm_exec_gate_rsm_l",
+            "bcm_exec_gate_rsm_chk_l",
         )
     }
 

@@ -3,11 +3,13 @@ package com.whatto.bcm.app.bat.asset
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
 import com.whatto.bcm.domain.exception.VendorApiException
+import com.whatto.bcm.domain.monitoring.OperationalAlert
+import com.whatto.bcm.domain.monitoring.OperationalAlertChannel
+import com.whatto.bcm.domain.monitoring.OperationalAlertRoute
 import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.domain.vendor.VendorBlockchain
 import com.whatto.bcm.domain.vendor.VendorBlockchainCatalogAlertPort
 import com.whatto.bcm.support.time.CoreDateTimes
-import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
@@ -73,21 +75,26 @@ class VendorBlockchainCatalogSyncService(
         )
 }
 
-/** 운영 알림 채널이 확정되기 전의 기본 경보 어댑터. */
 @Component
-class LoggingVendorBlockchainCatalogAlert : VendorBlockchainCatalogAlertPort {
-    private val logger = LoggerFactory.getLogger(javaClass)
-
+class OperationalVendorBlockchainCatalogAlertAdapter(
+    private val channel: OperationalAlertChannel,
+) : VendorBlockchainCatalogAlertPort {
     override fun chainIdChanged(
         candidateId: String,
         storedChainId: Long?,
         observedChainId: Long?,
     ) {
-        logger.warn(
-            "vendor blockchain chainId changed; catalog update skipped: candidateId={} storedChainId={} observedChainId={}",
-            candidateId,
-            storedChainId,
-            observedChainId,
+        channel.publish(
+            OperationalAlert(
+                route = OperationalAlertRoute.ASSET,
+                type = "asset.alert.chain-id-changed",
+                identifiers = mapOf("candidateId" to candidateId),
+                context =
+                    buildMap {
+                        storedChainId?.let { put("storedChainId", it.toString()) }
+                        observedChainId?.let { put("observedChainId", it.toString()) }
+                    },
+            ),
         )
     }
 }
