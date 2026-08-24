@@ -8,6 +8,7 @@
 
 ## 최근 완료
 - Admin 자산 화면은 통합 검색·`Advanced` 필터와 Fireblocks형 등록 모달로 심볼·이름·contract address 후보를 비교한다.
+- 자산 목록 검색의 label 내부 보조 문구를 제거해 검색 input·action 버튼의 하단 정렬을 복원했다.
 - V11은 자산 현재 매핑 활성 상태와 등록·논리 해제·재활성·교체의 전후 snapshot 원장을 추가했다.
 - V12 `bcm_vndr_ast_ctlg_m`은 채택 네트워크별 Fireblocks 자산 snapshot을 보관한다. 성공 시 한 트랜잭션으로
   upsert하고 사라진 행은 `prst_yn=N`; 네트워크 하나가 실패하면 기존 snapshot을 보존하고 다른 네트워크는 계속한다.
@@ -25,6 +26,7 @@
 - V12 PostgreSQL schema/index·검색 순위·snapshot rollback·stale/never source persistence 테스트 통과.
 - BAT 전체 page·채택 네트워크 한정·부분 실패 계속·응답 blockchain mismatch·one-shot 종료 테스트 통과.
 - API service/controller/spec, Admin functional E2E, 브라우저 상태 23건, local shell 안전 계약 통과.
+- 자산 검색 정렬 회귀를 브라우저 정적 계약으로 고정했고 Admin frontend 23건이 통과했다.
 - OpenAPI 생성물 paths 19/schemas 69 재생성; Python compile·ktlint·`git diff --check`·`./scripts/ci.sh` 전체 green.
 - system smoke `20260824T005932Z-cfab3910` 10/10 PASSED: 블록체인 sync→네트워크 채택→자산 cache sync→매핑→
   입금/Webhook/Kafka/Admin 조사→잔존 리소스 정리를 실제 독립 프로세스로 통과했다.

@@ -220,6 +220,7 @@ test("자산 등록은 검색·후보 선택·검증 요약을 한 모달에서 
   assert.match(appSource, /이미 BCM에 등록됨/);
   assert.match(appSource, /data-discover-symbol/);
   assert.match(appSource, /<details class="asset-advanced-filters"/);
+  assert.doesNotMatch(appSource, /네트워크를 몰라도 됩니다\.<\/small>/);
   assert.match(styleSource, /\.asset-dialog::backdrop/);
 });
 
