@@ -100,6 +100,18 @@ class AdminBffController(
         request: HttpServletRequest,
     ) = respond(request, service.transaction(identifier))
 
+    @GetMapping("/bff/admin/sweeps/operations")
+    fun sweepOperations(request: HttpServletRequest) = respond(request, service.sweepOperations())
+
+    @GetMapping("/bff/admin/sweeps/{identifier}")
+    fun sweepRequest(
+        @PathVariable
+        @NotBlank
+        @Size(max = 128)
+        identifier: String,
+        request: HttpServletRequest,
+    ) = respond(request, service.sweepRequest(identifier))
+
     @GetMapping("/bff/admin/vaults")
     fun vaults(
         @RequestParam(required = false) @Size(max = 128) q: String?,
@@ -175,7 +187,7 @@ class AdminBffExceptionHandler(
                         },
                         when {
                             forbidden -> "조회 권한이 없습니다."
-                            notFound -> "거래를 찾을 수 없습니다."
+                            notFound -> "요청한 운영 데이터를 찾을 수 없습니다."
                             failure.status == 400 -> "자산 후보와 등록 값이 일치하지 않습니다."
                             failure.status == 409 -> "이미 등록되었거나 다른 매핑과 충돌합니다."
                             else -> "BCM 조회 소스를 사용할 수 없습니다."

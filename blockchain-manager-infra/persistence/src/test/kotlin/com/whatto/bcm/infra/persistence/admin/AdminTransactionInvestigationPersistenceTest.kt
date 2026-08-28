@@ -22,8 +22,11 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
     @AfterEach
     fun cleanUp() {
         listOf(
+            "bcm_evnt_cmpl_l",
             "bcm_swp_item_l",
             "bcm_swp_exec_l",
+            "bcm_swp_req_item_l",
+            "bcm_swp_req_l",
             "bcm_swp_auth_m",
             "bcm_outbox_l",
             "bcm_whk_l",
@@ -31,6 +34,7 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
             "bcm_tx_l",
             "bcm_sbmt_l",
             "bcm_fee_qt_l",
+            "bcm_acnt_m",
         ).forEach { table -> jdbc.update("DELETE FROM $table") }
     }
 
@@ -43,6 +47,7 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
         insertWebhook("noti-new", "tx-new", "20260817120600")
         insertOutbox("0198b8ad-2e00-7000-8000-000000000001", "TXCK", "CONFIRMED", "20260817120200")
         insertOutbox("0198b8ad-2e00-7000-8000-000000000002", "TXCF", "FINALIZED", "20260817120700")
+        insertCompletion("0198b8ad-2e00-7000-8000-000000000001")
         insertFee("20260817115900", "MEDIUM", "2.1")
         insertFee("20260817120400", "HIGH", "3.1")
 
@@ -59,6 +64,10 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
         assertThat(byExternal.timeline.mapNotNull { it.identifier })
             .contains("noti-root", "noti-new")
             .doesNotContain("raw-payload", "signature")
+        assertThat(byExternal.timeline.single { it.identifier == "0198b8ad-2e00-7000-8000-000000000001" }.dawCompletedAt)
+            .isNotNull()
+        assertThat(byExternal.timeline.single { it.identifier == "0198b8ad-2e00-7000-8000-000000000002" }.dawCompletedAt)
+            .isNull()
         assertThat(byExternal.boosts.single().newTransactionId).isEqualTo("tx-new")
         assertThat(byExternal.feeQuotes.map { it.context }).containsExactly("SUBMISSION", "BOOST_1")
         assertThat(byExternal.feeQuotes.map { it.gasPrice }).containsExactly("2.1".toBigDecimal(), "3.1".toBigDecimal())
@@ -248,6 +257,18 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
         )
     }
 
+    private fun insertCompletion(eventId: String) {
+        jdbc.update(
+            """
+            INSERT INTO bcm_evnt_cmpl_l
+              (evnt_id, cnsmr_dvcd, cmpl_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, 'DAW_CORE', '20260817120300', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            eventId,
+        )
+    }
+
     private fun insertSweepExecution() {
         val snapshot = insertActiveSweepAdminSnapshot(jdbc, "BASE", "USDC", "0xsweeper")
         jdbc.update(
@@ -278,14 +299,57 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
         actualAmount: String?,
         status: String,
     ) {
+        val requestId = "admin-swp-req-$sequence"
+        val requestItemId = "admin-swp-item-$sequence"
+        val requestItemStatus = if (status == "SUCCEEDED") "COMPLETED" else "PENDING"
+        val requestStatus = if (status == "SUCCEEDED") "COMPLETED" else "ACCEPTED"
+        jdbc.update(
+            """
+            INSERT INTO bcm_acnt_m
+              (acnt_id, acnt_typ_dvcd, ref, vndr_vlt_id, reg_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, 'CU', ?, ?, '20260817115900', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (acnt_id) DO NOTHING
+            """.trimIndent(),
+            accountId,
+            "ref-$accountId",
+            "vault-$accountId",
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_req_l
+              (swp_req_id, ext_swp_req_id, req_hash, ntwk_cd, tkn_smbl, swp_req_stcd,
+               item_cnt, req_dttm, fnsh_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, ?, 'BASE', 'USDC', ?, 1, '20260817115900', NULL,
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            requestId,
+            "admin-swp-request-$sequence",
+            "d".repeat(64),
+            requestStatus,
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_req_item_l
+              (swp_req_item_id, swp_req_id, item_seq, acnt_id, swp_req_item_stcd, last_fail_cd,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, 1, ?, ?, NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            requestItemId,
+            requestId,
+            accountId,
+            requestItemStatus,
+        )
         jdbc.update(
             """
             INSERT INTO bcm_swp_item_l
-              (swp_exec_id, item_seq, acnt_id, src_addr, req_amt, actl_amt, swp_item_stcd,
+              (swp_exec_id, item_seq, swp_req_item_id, acnt_id, src_addr, req_amt, actl_amt, swp_item_stcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('swx-1', ?, ?, ?, ?, ?, ?, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            VALUES ('swx-1', ?, ?, ?, ?, ?, ?, ?, 'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             sequence,
+            requestItemId,
             accountId,
             sourceAddress,
             requestedAmount.toBigDecimal(),

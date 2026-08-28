@@ -11,8 +11,12 @@ import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
+import com.whatto.bcm.domain.sweep.SweepEventPublisher
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
 import com.whatto.bcm.domain.sweep.SweepExecutionAlertPort
+import com.whatto.bcm.domain.sweep.SweepItemOutcome
+import com.whatto.bcm.domain.sweep.SweepItemOutcomeEvent
+import com.whatto.bcm.domain.sweep.SweepNoSweepRequiredCompletion
 import com.whatto.bcm.domain.sweep.SweepTarget
 import com.whatto.bcm.domain.sweep.SweepTargetKey
 import com.whatto.bcm.domain.sweep.SweepTargetRepository
@@ -24,6 +28,9 @@ import com.whatto.bcm.domain.vendor.WalletVendorPort
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 
 class SweepCandidateSelectionServiceTest {
     @Test
@@ -80,6 +87,95 @@ class SweepCandidateSelectionServiceTest {
         assertThat(selected).isEmpty()
         assertThat(wallet.calls).isEmpty()
         assertThat(targets.findByKey(unsupported.key)).isEqualTo(unsupported)
+    }
+
+    @Test
+    fun `최소 금액 미달이어도 미완료 DAW 요청이 있으면 target을 보존한다`() {
+        val pending = target().copy(pendingSweepRequestItemId = "request-item-customer-1")
+        val targets = FakeSweepTargets(pending)
+        val accounts = FakeAccounts(account("omnibus", AccountType.SYSTEM), account("customer-1"))
+        val wallet = FakeWallet(mapOf(("vault-customer-1" to "USDC_ERC20") to balance("9")))
+        val service = service(targets, accounts, FakeMappings(mapping()), wallet, properties())
+
+        assertThat(service.selectCandidates()).isEmpty()
+        assertThat(targets.findByKey(pending.key)).isEqualTo(pending)
+    }
+
+    @Test
+    fun `가용 잔액이 0인 후속 요청은 온체인 실행 없이 완료 이벤트를 발행하고 target을 정리한다`() {
+        val pending =
+            target().copy(
+                pendingSweepRequestItemId = "request-item-customer-1",
+                pendingSweepRequestId = "request-customer-1",
+                pendingSweepRequestedAt = "20260828090000",
+            )
+        val targets = FakeSweepTargets(pending)
+        val accounts = FakeAccounts(account("omnibus", AccountType.SYSTEM), account("customer-1"))
+        val wallet = FakeWallet(mapOf(("vault-customer-1" to "USDC_ERC20") to balance("0")))
+        val events = mutableListOf<SweepItemOutcomeEvent>()
+        val service =
+            service(
+                targets,
+                accounts,
+                FakeMappings(mapping()),
+                wallet,
+                properties(),
+                eventPublisher = SweepEventPublisher(events::addAll),
+            )
+
+        assertThat(service.selectCandidates()).isEmpty()
+        assertThat(targets.findByKey(pending.key)).isNull()
+        val event = events.single()
+        assertThat(event.sweepRequestId).isEqualTo("request-customer-1")
+        assertThat(event.sweepItemId).isEqualTo("request-item-customer-1")
+        assertThat(event.executionId).isNull()
+        assertThat(event.txId).isNull()
+        assertThat(event.requestedAmount).isEqualTo("0")
+        assertThat(event.actualAmount).isEqualTo("0")
+        assertThat(event.chainStatus.name).isEqualTo("NOT_SUBMITTED")
+        assertThat(event.itemOutcome).isEqualTo(SweepItemOutcome.NO_SWEEP_REQUIRED)
+    }
+
+    @Test
+    fun `오래된 DAW 요청을 먼저 고르고 같은 요청 안에서는 잔액이 큰 항목을 먼저 고른다`() {
+        val oldestSmall =
+            target("customer-old-small").copy(
+                pendingSweepRequestItemId = "item-old-small",
+                pendingSweepRequestId = "request-old",
+                pendingSweepRequestedAt = "20260811080000",
+            )
+        val oldestLarge =
+            target("customer-old-large").copy(
+                pendingSweepRequestItemId = "item-old-large",
+                pendingSweepRequestId = "request-old",
+                pendingSweepRequestedAt = "20260811080000",
+            )
+        val newestLargest =
+            target("customer-new-largest").copy(
+                pendingSweepRequestItemId = "item-new-largest",
+                pendingSweepRequestId = "request-new",
+                pendingSweepRequestedAt = "20260811090000",
+            )
+        val targets = FakeSweepTargets(oldestSmall, oldestLarge, newestLargest)
+        val accounts =
+            FakeAccounts(
+                account("omnibus", AccountType.SYSTEM),
+                account("customer-old-small"),
+                account("customer-old-large"),
+                account("customer-new-largest"),
+            )
+        val wallet =
+            FakeWallet(
+                mapOf(
+                    ("vault-customer-old-small" to "USDC_ERC20") to balance("11"),
+                    ("vault-customer-old-large" to "USDC_ERC20") to balance("20"),
+                    ("vault-customer-new-largest" to "USDC_ERC20") to balance("99"),
+                ),
+            )
+        val service = service(targets, accounts, FakeMappings(mapping()), wallet, properties(batchSize = 2))
+
+        assertThat(service.selectCandidates().map { it.target.accountId })
+            .containsExactly("customer-old-large", "customer-old-small")
     }
 
     @Test
@@ -228,6 +324,7 @@ class SweepCandidateSelectionServiceTest {
         wallet: FakeWallet,
         properties: SweepProperties,
         executionAlerts: SweepExecutionAlertPort = SweepExecutionAlertPort { },
+        eventPublisher: SweepEventPublisher = SweepEventPublisher { },
         statuses: SweepTransactionStatusRepository = SelectionSweepTransactionStatuses(),
         runtimeGuard: SweepRuntimeGuard =
             SweepRuntimeFixtures.guard(
@@ -240,7 +337,9 @@ class SweepCandidateSelectionServiceTest {
         wallet,
         ImmediateTransactionRunner,
         statuses,
+        eventPublisher,
         executionAlerts,
+        Clock.fixed(Instant.parse("2026-08-28T00:00:00Z"), ZoneOffset.UTC),
         properties,
         runtimeGuard,
     )
@@ -277,6 +376,24 @@ private class FakeSweepTargets(
             .take(limit)
 
     override fun findPendingForUpdate(key: SweepTargetKey): SweepTarget? = rows[key]?.takeIf { it.activeSweepExecutionId == null }
+
+    override fun hasUnfinishedRequest(key: SweepTargetKey): Boolean = rows[key]?.pendingSweepRequestItemId != null
+
+    override fun completeOldestPendingWithoutExecution(
+        key: SweepTargetKey,
+        completedAt: String,
+    ): SweepNoSweepRequiredCompletion? {
+        val target = rows[key] ?: return null
+        val requestId = target.pendingSweepRequestId ?: return null
+        val requestItemId = target.pendingSweepRequestItemId ?: return null
+        rows[key] =
+            target.copy(
+                pendingSweepRequestItemId = null,
+                pendingSweepRequestId = null,
+                pendingSweepRequestedAt = null,
+            )
+        return SweepNoSweepRequiredCompletion(requestId, requestItemId)
+    }
 
     override fun releaseClaim(
         key: SweepTargetKey,

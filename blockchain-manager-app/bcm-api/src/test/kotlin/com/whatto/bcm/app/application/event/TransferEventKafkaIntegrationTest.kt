@@ -386,6 +386,27 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
         val snapshot = insertActiveSweepSnapshot(jdbc)
         jdbc.update(
             """
+            INSERT INTO bcm_swp_req_l
+              (swp_req_id, ext_swp_req_id, req_hash, ntwk_cd, tkn_smbl, swp_req_stcd,
+               item_cnt, req_dttm, fnsh_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('kafka-sweep-request', 'kafka-sweep-request', ?, 'ETHEREUM', 'USDC', 'PROCESSING',
+                    1, '20260807115900', NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            "b".repeat(64),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_req_item_l
+              (swp_req_item_id, swp_req_id, item_seq, acnt_id, swp_req_item_stcd, last_fail_cd,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('kafka-sweep-request-item', 'kafka-sweep-request', 1, ?, 'PROCESSING', NULL,
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            SOURCE_ACCOUNT_ID,
+        )
+        jdbc.update(
+            """
             INSERT INTO bcm_swp_exec_l
               (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
                plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id,
@@ -409,9 +430,10 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_swp_item_l
-              (swp_exec_id, item_seq, acnt_id, src_addr, req_amt, actl_amt, swp_item_stcd, fail_cd, log_idx,
+              (swp_exec_id, item_seq, swp_req_item_id, acnt_id, src_addr, req_amt, actl_amt,
+               swp_item_stcd, fail_cd, log_idx,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES (?, 1, ?, '0xSource', 3, NULL, 'READY', NULL, NULL,
+            VALUES (?, 1, 'kafka-sweep-request-item', ?, '0xSource', 3, NULL, 'READY', NULL, NULL,
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             SWEEP_EXECUTION_ID,
@@ -449,6 +471,8 @@ class TransferEventKafkaIntegrationTest : IntegrationTestSupport() {
         jdbc.update("DELETE FROM bcm_swp_trgt")
         jdbc.update("DELETE FROM bcm_swp_item_l")
         jdbc.update("DELETE FROM bcm_swp_exec_l")
+        jdbc.update("DELETE FROM bcm_swp_req_item_l WHERE swp_req_id = 'kafka-sweep-request'")
+        jdbc.update("DELETE FROM bcm_swp_req_l WHERE swp_req_id = 'kafka-sweep-request'")
         jdbc.update("DELETE FROM bcm_outbox_l")
         jdbc.update("DELETE FROM bcm_tx_l")
         jdbc.update("DELETE FROM bcm_sbmt_l")

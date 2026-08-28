@@ -142,19 +142,12 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         assertThat(rows.map { it["evt_typ_dvcd"] }).containsExactly("TXCK", "TXCF")
         assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)["last_pub_stcd"])
             .isEqualTo("FINALIZED")
-        val sweepTarget = jdbc.queryForMap("SELECT * FROM bcm_swp_trgt")
-        assertThat(sweepTarget["acnt_id"]).isEqualTo("acct-deposit")
-        assertThat(sweepTarget["ntwk_cd"]).isEqualTo("ETHEREUM")
-        assertThat(sweepTarget["tkn_smbl"]).isEqualTo("USDC")
-        assertThat(sweepTarget["reg_dttm"]).isEqualTo("20260807120000")
-        assertThat(sweepTarget["actv_swp_exec_id"]).isNull()
-        assertThat(sweepTarget["actv_item_seq"]).isNull()
-        assertThat(sweepTarget["try_cnt"]).isEqualTo(0)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_swp_trgt", Long::class.java)).isZero()
         assertThat(inboxRow("noti-finalized")["prcs_stcd"]).isEqualTo("S")
     }
 
     @Test
-    fun `중복 FINALIZED와 같은 자산의 다른 입금은 최초 sweep 대상 하나로 합쳐진다`() {
+    fun `DAW 요청 전에는 여러 FINALIZED 입금도 sweep 대상을 만들지 않는다`() {
         insertAddress()
         inbox.insertIfAbsent(notification("noti-finalized-1", finalizedPayload("noti-finalized-1")))
         processor.processNext()
@@ -177,9 +170,7 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
 
         processor.processNext()
 
-        val targets = jdbc.queryForList("SELECT * FROM bcm_swp_trgt")
-        assertThat(targets).hasSize(1)
-        assertThat(targets.single()["reg_dttm"]).isEqualTo("20260807120000")
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_swp_trgt", Long::class.java)).isZero()
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_tx_l", Long::class.java)).isEqualTo(2)
     }
 
@@ -754,6 +745,36 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         val snapshot = insertActiveSweepSnapshot(jdbc)
         jdbc.update(
             """
+            INSERT INTO bcm_acnt_m
+              (acnt_id, acnt_typ_dvcd, ref, vndr_vlt_id, reg_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('acct-pool', 'CU', 'sweep-fixture', 'vault-sweep-fixture', '20260807115900',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (acnt_id) DO NOTHING
+            """.trimIndent(),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_req_l
+              (swp_req_id, ext_swp_req_id, req_hash, ntwk_cd, tkn_smbl, swp_req_stcd,
+               item_cnt, req_dttm, fnsh_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('webhook-sweep-request', 'webhook-sweep-request', ?, 'ETHEREUM', 'USDC', 'PROCESSING',
+                    1, '20260807115900', NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            "b".repeat(64),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_req_item_l
+              (swp_req_item_id, swp_req_id, item_seq, acnt_id, swp_req_item_stcd, last_fail_cd,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('webhook-sweep-request-item', 'webhook-sweep-request', 1, 'acct-pool', 'PROCESSING', NULL,
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+        )
+        jdbc.update(
+            """
             INSERT INTO bcm_swp_exec_l
               (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
                plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id,
@@ -776,9 +797,10 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_swp_item_l
-              (swp_exec_id, item_seq, acnt_id, src_addr, req_amt, actl_amt, swp_item_stcd, fail_cd, log_idx,
+              (swp_exec_id, item_seq, swp_req_item_id, acnt_id, src_addr, req_amt, actl_amt,
+               swp_item_stcd, fail_cd, log_idx,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES (?, 1, 'acct-pool', '0xSource', 100, NULL, 'READY', NULL, NULL,
+            VALUES (?, 1, 'webhook-sweep-request-item', 'acct-pool', '0xSource', 100, NULL, 'READY', NULL, NULL,
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             SWEEP_EXECUTION_ID,
@@ -930,6 +952,8 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         jdbc.update("DELETE FROM bcm_swp_trgt")
         jdbc.update("DELETE FROM bcm_swp_item_l")
         jdbc.update("DELETE FROM bcm_swp_exec_l")
+        jdbc.update("DELETE FROM bcm_swp_req_item_l WHERE swp_req_id = 'webhook-sweep-request'")
+        jdbc.update("DELETE FROM bcm_swp_req_l WHERE swp_req_id = 'webhook-sweep-request'")
         jdbc.update("DELETE FROM bcm_outbox_l")
         jdbc.update("DELETE FROM bcm_boost_l")
         jdbc.update("DELETE FROM bcm_tx_l")
@@ -938,6 +962,7 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         jdbc.update("DELETE FROM bcm_addr_m")
         jdbc.update("DELETE FROM bcm_vndr_ast_m")
         jdbc.update("DELETE FROM bcm_blkc_m")
+        jdbc.update("DELETE FROM bcm_acnt_m WHERE acnt_id = 'acct-pool'")
     }
 
     private companion object {

@@ -14,7 +14,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
 /**
- * 에러 응답 계약 — error.code 8종 · HTTP status · envelope (openapi v0.6.0 에러 표 · error-handling.md).
+ * 에러 응답 계약 — error.code 9종 · HTTP status · envelope (OpenAPI 에러 표 · error-handling.md).
  */
 @WebMvcTest(EnvelopeTestController::class)
 class ApiExceptionHandlerTest {

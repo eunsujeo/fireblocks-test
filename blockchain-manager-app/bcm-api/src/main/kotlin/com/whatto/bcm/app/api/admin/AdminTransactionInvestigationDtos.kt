@@ -100,6 +100,8 @@ data class AdminTransactionTimelineEntryData(
     val status: String?,
     val observedAt: String?,
     val identifier: String?,
+    val deliveryStatus: String?,
+    val dawCompletedAt: String?,
 ) {
     companion object {
         fun from(entry: TransactionTimelineEntry) =
@@ -109,6 +111,8 @@ data class AdminTransactionTimelineEntryData(
                 entry.status,
                 entry.observedAt?.toString(),
                 entry.identifier,
+                entry.deliveryStatus,
+                entry.dawCompletedAt?.toString(),
             )
     }
 }

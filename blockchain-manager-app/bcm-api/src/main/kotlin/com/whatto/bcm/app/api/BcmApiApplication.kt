@@ -20,7 +20,12 @@ import org.springframework.scheduling.annotation.EnableScheduling
         ComponentScan.Filter(type = FilterType.CUSTOM, classes = [AutoConfigurationExcludeFilter::class]),
         ComponentScan.Filter(type = FilterType.REGEX, pattern = ["com\\.whatto\\.bcm\\.testsupport\\..*"]),
         ComponentScan.Filter(type = FilterType.REGEX, pattern = ["com\\.whatto\\.bcm\\.app\\.application\\.webhook\\..*"]),
-        ComponentScan.Filter(type = FilterType.REGEX, pattern = ["com\\.whatto\\.bcm\\.app\\.application\\.event\\..*"]),
+        ComponentScan.Filter(
+            type = FilterType.REGEX,
+            pattern = [
+                "com\\.whatto\\.bcm\\.app\\.application\\.event\\.(OperationalPoisonOutboxAlertAdapter|OutboxRelay.*)",
+            ],
+        ),
         ComponentScan.Filter(type = FilterType.REGEX, pattern = ["com\\.whatto\\.bcm\\.app\\.webhook\\..*"]),
     ],
 )

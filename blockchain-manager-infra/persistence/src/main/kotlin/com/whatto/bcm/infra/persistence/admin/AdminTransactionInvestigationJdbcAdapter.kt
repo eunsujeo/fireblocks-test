@@ -123,11 +123,14 @@ class AdminTransactionInvestigationJdbcAdapter(
         val rows =
             jdbc.query(
                 """
-                SELECT evnt_id, evt_typ_dvcd, evnt_stcd, payload ->> 'status' AS payload_status,
-                       pub_dttm, last_rtry_dttm
-                  FROM bcm_outbox_l
-                 WHERE vndr_tx_id = :rootTransactionId
-                 ORDER BY evnt_id
+                SELECT outbox.evnt_id, outbox.evt_typ_dvcd, outbox.evnt_stcd,
+                       outbox.payload ->> 'status' AS payload_status,
+                       outbox.pub_dttm, outbox.last_rtry_dttm, completion.cmpl_dttm
+                  FROM bcm_outbox_l outbox
+                  LEFT JOIN bcm_evnt_cmpl_l completion
+                    ON completion.evnt_id = outbox.evnt_id AND completion.cnsmr_dvcd = 'DAW_CORE'
+                 WHERE outbox.vndr_tx_id = :rootTransactionId
+                 ORDER BY outbox.evnt_id
                  LIMIT ${MAX_DETAIL_ROWS + 1}
                 """.trimIndent(),
                 mapOf("rootTransactionId" to rootTransactionId),
@@ -138,6 +141,8 @@ class AdminTransactionInvestigationJdbcAdapter(
                     status = rs.getString("payload_status") ?: rs.getString("evnt_stcd"),
                     observedAt = rs.nullableInstant("pub_dttm") ?: rs.nullableInstant("last_rtry_dttm"),
                     identifier = rs.getString("evnt_id"),
+                    deliveryStatus = rs.getString("evnt_stcd"),
+                    dawCompletedAt = rs.nullableInstant("cmpl_dttm"),
                 )
             }
         return rows.bounded()

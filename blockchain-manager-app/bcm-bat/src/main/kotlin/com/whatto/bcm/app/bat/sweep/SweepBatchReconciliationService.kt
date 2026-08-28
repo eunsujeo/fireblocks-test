@@ -8,6 +8,8 @@ import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.sweep.Erc20ContractPort
 import com.whatto.bcm.domain.sweep.SweepBatchReceiptPort
+import com.whatto.bcm.domain.sweep.SweepChainStatus
+import com.whatto.bcm.domain.sweep.SweepEventPublisher
 import com.whatto.bcm.domain.sweep.SweepExecution
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
 import com.whatto.bcm.domain.sweep.SweepExecutionAlertPort
@@ -15,6 +17,8 @@ import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.sweep.SweepExecutionStage
 import com.whatto.bcm.domain.sweep.SweepExecutionStatus
 import com.whatto.bcm.domain.sweep.SweepItem
+import com.whatto.bcm.domain.sweep.SweepItemOutcome
+import com.whatto.bcm.domain.sweep.SweepItemOutcomeEvent
 import com.whatto.bcm.domain.sweep.SweepItemReconciliation
 import com.whatto.bcm.domain.sweep.SweepItemStatus
 import com.whatto.bcm.domain.sweep.SweepLegObservation
@@ -59,6 +63,7 @@ class SweepBatchReconciliationService(
     private val targets: SweepTargetRepository,
     private val transactionStatuses: SweepTransactionStatusRepository,
     private val transactionRunner: TransactionRunner,
+    private val eventPublisher: SweepEventPublisher,
     private val alerts: SweepExecutionAlertPort,
     private val clock: Clock,
     private val properties: SweepProperties,
@@ -94,7 +99,7 @@ class SweepBatchReconciliationService(
         val transaction = vendorTransactions.transaction(vendorTransactionId) ?: return ReconciliationResult.PENDING
         validateTransactionIdentity(execution, transaction)
         if (transaction.rawStatus in FAILED_VENDOR_STATUSES) {
-            executions.markFailedAndRelease(execution.executionId, CoreDateTimes.now(clock))
+            fail(execution, VENDOR_FAILED_CODE)
             return ReconciliationResult.COMPLETED
         }
         if (transaction.rawStatus != "COMPLETED") return ReconciliationResult.PENDING
@@ -111,7 +116,7 @@ class SweepBatchReconciliationService(
                 tokenDecimals,
             ) ?: return ReconciliationResult.PENDING
         if (!receipt.successful) {
-            executions.markFailedAndRelease(execution.executionId, CoreDateTimes.now(clock))
+            fail(execution, RECEIPT_FAILED_CODE)
             return ReconciliationResult.COMPLETED
         }
         val items = executions.findItems(execution.executionId)
@@ -262,10 +267,11 @@ class SweepBatchReconciliationService(
                 actualTotal,
                 CoreDateTimes.now(clock),
             )
+            eventPublisher.publish(reconciledEvents(execution, items, reconciled))
             items.forEach { item ->
                 val key = key(execution, item)
                 val changed =
-                    if (deletable[item] == true) {
+                    if (deletable[item] == true && !targets.hasUnfinishedRequest(key)) {
                         targets.deleteClaim(key, execution.executionId, item.sequence)
                     } else {
                         targets.releaseClaim(key, execution.executionId, item.sequence)
@@ -273,6 +279,88 @@ class SweepBatchReconciliationService(
                 if (!changed) throw ConflictException("sweepTarget", item.accountId)
             }
         }
+    }
+
+    private fun fail(
+        execution: SweepExecution,
+        failureCode: String,
+    ) {
+        val items = executions.findItems(execution.executionId)
+        transactionRunner.run {
+            val current = executions.findByIdForUpdate(execution.executionId)
+            if (current?.status != SweepExecutionStatus.RECONCILING) {
+                throw ConflictException("sweepExecution", execution.executionId)
+            }
+            executions.markFailedAndRelease(execution.executionId, failureCode, CoreDateTimes.now(clock))
+            eventPublisher.publish(failedEvents(execution, items, failureCode))
+        }
+    }
+
+    private fun reconciledEvents(
+        execution: SweepExecution,
+        items: List<SweepItem>,
+        reconciled: List<SweepItemReconciliation>,
+    ): List<SweepItemOutcomeEvent> {
+        val outcomes = reconciled.associateBy(SweepItemReconciliation::sequence)
+        return items.map { item ->
+            val outcome = requireNotNull(outcomes[item.sequence])
+            outcomeEvent(
+                execution = execution,
+                item = item,
+                actualAmount = outcome.actualAmount,
+                chainStatus = SweepChainStatus.FINALIZED,
+                itemOutcome =
+                    if (outcome.status == SweepItemStatus.SUCCEEDED) {
+                        SweepItemOutcome.SUCCEEDED
+                    } else {
+                        SweepItemOutcome.FAILED
+                    },
+                failureCode = outcome.failureCode,
+            )
+        }
+    }
+
+    private fun failedEvents(
+        execution: SweepExecution,
+        items: List<SweepItem>,
+        failureCode: String,
+    ): List<SweepItemOutcomeEvent> =
+        items.map { item ->
+            outcomeEvent(
+                execution = execution,
+                item = item,
+                actualAmount = null,
+                chainStatus = SweepChainStatus.FAILED,
+                itemOutcome = SweepItemOutcome.FAILED,
+                failureCode = failureCode,
+            )
+        }
+
+    private fun outcomeEvent(
+        execution: SweepExecution,
+        item: SweepItem,
+        actualAmount: String?,
+        chainStatus: SweepChainStatus,
+        itemOutcome: SweepItemOutcome,
+        failureCode: String?,
+    ): SweepItemOutcomeEvent {
+        val transactionId = checkNotNull(execution.vendorTransactionId) { "sweep result has no vendor transaction id" }
+        return SweepItemOutcomeEvent(
+            sweepRequestId = item.sweepRequestId,
+            sweepItemId = item.sweepRequestItemId,
+            executionId = execution.executionId,
+            txId = transactionId,
+            vendorTxId = transactionId,
+            txHash = execution.transactionHash,
+            accountId = item.accountId,
+            network = execution.network,
+            symbol = execution.symbol,
+            requestedAmount = item.requestedAmount,
+            actualAmount = actualAmount,
+            chainStatus = chainStatus,
+            itemOutcome = itemOutcome,
+            failureCode = failureCode,
+        )
     }
 
     private fun requiredAccount(accountId: String): Account =
@@ -294,6 +382,8 @@ class SweepBatchReconciliationService(
     }
 
     private companion object {
+        const val VENDOR_FAILED_CODE = "SWEEP_VENDOR_FAILED"
+        const val RECEIPT_FAILED_CODE = "SWEEP_RECEIPT_FAILED"
         val FAILED_VENDOR_STATUSES = setOf("FAILED", "REJECTED", "BLOCKED")
         val ZERO_FAILURE_CODE = "0".repeat(64)
     }

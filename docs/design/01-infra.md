@@ -141,16 +141,17 @@ Anvil·Stub·bootstrap을 버전 고정 파일로 배포하며 Docker와 번들 
 - **매니저의 `/admin/*` 는 강화된 별도 경계다** — 같은 `bcm-api` 애플리케이션의 private listener/ingress로 분리하고 Blockchain Manager Admin BFF만 접근시킨다. 공유 환경에서는 BFF와 BCM이 mTLS 서비스 신원과 5분 이하 단기 JWT를 함께 검증하며 직원번호·부점코드 헤더만으로 인증하지 않는다. T10.2의 읽기 전용 기능 테스트 profile은 frontend·BFF와 대상 BCM을 loopback에만 바인딩하고 상태 변경 API를 노출하지 않는다. 상세는 [Admin](08-bcm-admin.md).
 - **밴드S 외부 출구는 옴니버스 하나다** — 고객 vault는 기존 sweep으로, 출금 풀 초과분은 회수 내부이체로 옴니버스에 모은 뒤 TAP allowlist의 고정 외부 콜드 주소로만 전송한다. cold→hot 서명은 Admin 밖의 외부 콜드 절차다. (treasury egress vault 는 1차 설계에서 제외 — 외부 전송 권한을 별도 vault 로 격리할 필요가 생기면 재검토, [sweep](06-sweep.md))
 
-## 메시지 큐 — 4 토픽
+## 메시지 큐 — 5 토픽
 
 | 토픽 | 담는 것 | 파티션 키 | 발행 | 소비 |
 |---|---|---|---|---|
 | `deposit-events` | 고객 입금 (DEPOSIT) | 고객 accountId | 매니저 | DAW-CORE 입금 컨슈머 |
 | `withdrawal-events` | 외부 출금 (WITHDRAWAL) | 출금 풀 vault 의 accountId | 매니저 | DAW-CORE 출금 컨슈머 |
 | `internal-events` | delta 정산 (INTERNAL) | 출발 계정 accountId | 매니저 | DAW-CORE 정산 컨슈머 |
+| `sweep-events` | DAW 요청 sweep 항목의 체인 상태·항목 결과 | 고객 accountId | 매니저 | DAW-CORE sweep 컨슈머 |
 | `compliance` | withdrawal-check.settled | accountId | 게이트 | DAW-CORE |
 
-**파티션 키는 수신자가 아니라 순서 보장 단위다** — 네 토픽 모두 소비자는 DAW-CORE 다.
+**파티션 키는 수신자가 아니라 순서 보장 단위다** — 다섯 토픽 모두 소비자는 DAW-CORE 다.
 
 - 출금의 키가 출금 풀인 이유 — 출금은 고객 vault 가 아니라 공용 출금 풀에서 나가므로, 매니저가 아는 계정이 그 풀뿐이다.
 - "어느 고객의 출금인가"는 DAW-CORE 가 이벤트의 `externalTxId` 로 자기 출금 지시와 대응한다.
@@ -166,6 +167,8 @@ Anvil·Stub·bootstrap을 버전 고정 파일로 배포하며 Docker와 번들 
 
 - **at-least-once** — 같은 이벤트가 드물게 두 번 온다. DAW-CORE는 두 번 받아도 한 번만 반영한다 — 매니저 이벤트는 **이벤트 id(`evnt_id`)** 로, 게이트의 settled 이벤트는 `checkId` 로 이미 처리한 건지 가린다. 매니저 이벤트를 `txId` 로 가리면 한 tx 의 감지·확정·무효화가 같은 키가 되어 **확정이 버려진다** — 이벤트 단위로 가린다.
 - **오프셋 커밋은 처리 성공 후에만** 한다. 실패하면 커밋하지 않아 재소비된다.
+- 매니저 이벤트는 DAW-CORE 업무 트랜잭션 커밋 뒤 `eventId` 처리 완료 확인까지 성공한 다음 오프셋을 커밋한다.
+  outbox 발행 성공과 소비 완료는 별도 원장이다.
 - **같은 계정의 순서는 파티션 키가 보장**한다.
 - **컨슈머 그룹은 토픽마다 하나** — 인스턴스가 여러 대여도 분배는 큐가 한다.
 - 막힘 경보와 귀속 불명 입금(매핑에 없는 주소)은 데이터 토픽이 아니라 **별도 알림 채널**로 흐른다.
@@ -255,7 +258,7 @@ sequenceDiagram
     BE->>CP: POST /compliance/travel-rule/deposit-checks (Create Deposit Check) — 사전 검증 대조
     CP-->>BE: 대조 결과 (senderVerified)
     BE->>BE: 가용 전이 또는 입금대기·동결
-    Note over WH: 입금 확정 = sweep 대상 마킹 · 주기 작업이 allowance 준비 후 approve + transferFrom 배치 제출 (블록체인 매니저 — 흐름)
+    Note over BE,WH: DAW-CORE가 입금 FINALIZED 업무 반영·eventId 완료 확인 뒤 batch sweep 요청<br/>매니저 주기 작업이 allowance 준비 후 approve + transferFrom 제출
 ```
 
 ## 미확정

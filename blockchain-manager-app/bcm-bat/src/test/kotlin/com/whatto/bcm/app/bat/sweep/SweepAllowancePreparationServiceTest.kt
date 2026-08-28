@@ -404,6 +404,13 @@ private class FakeAllowanceTargets(
 
     override fun findPendingForUpdate(key: SweepTargetKey): SweepTarget? = error("not used")
 
+    override fun hasUnfinishedRequest(key: SweepTargetKey): Boolean = false
+
+    override fun completeOldestPendingWithoutExecution(
+        key: SweepTargetKey,
+        completedAt: String,
+    ): com.whatto.bcm.domain.sweep.SweepNoSweepRequiredCompletion? = error("not used")
+
     override fun releaseClaim(
         key: SweepTargetKey,
         executionId: String,

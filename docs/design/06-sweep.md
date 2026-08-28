@@ -86,15 +86,19 @@ DAW-CORE가 양방향 미정산을 같은 snapshot에서 계산하고, 분자는
 
 ## ① 입금 모으기 — 어떻게 처리하나
 
-### 그대로 되는 것 — Finalized 조건
+### Finalized와 DAW-CORE 요청 조건
 
-현행 설계가 이미 정책과 일치한다 — 입금 **확정(벤더 COMPLETED = DCCP 임계 도달, 계약 상태 `FINALIZED`)** 관찰 시에만 `bcm_swp_trgt` 에 마킹한다. 벤더 가이드도 같은 순서(COMPLETED 수신 → sweep 트리거)를 권장한다 ([Sweep to Omnibus](https://developers.fireblocks.com/reference/sweep-to-omnibus-1)).
+입금 **확정(벤더 COMPLETED = DCCP 임계 도달, 계약 상태 `FINALIZED`)**은 필요조건이지만 그 관찰만으로 실행 후보를
+만들지 않는다. DAW-CORE가 해당 `FINALIZED eventId`를 자기 원장에 반영하고 BCM에 처리 완료를 확인한 뒤 같은
+eventId를 근거로 batch sweep을 요청해야 `bcm_swp_trgt`가 생긴다. 이 순서는 벤더 권장
+(COMPLETED 수신 → sweep 트리거)을 지키면서 고객 원장과 업무 완료 전 자산 이동을 막는다
+([Sweep to Omnibus](https://developers.fireblocks.com/reference/sweep-to-omnibus-1)).
 
 ### 바뀌는 것 — 트리거 기준
 
 | | 현행 | 정책 적용 |
 |---|---|---|
-| 트리거 | 주기 배치 + **최소 금액**(운영 설정값) | 자산별 — 고객 vault 잔액이 **총자산 대비 비율**(예: 1%) 이상 |
+| 트리거 | DAW-CORE batch 요청 + 주기 실행 + **최소 금액**(운영 설정값) | DAW-CORE가 자산별 고객 vault 잔액의 **총자산 대비 비율**(예: 1%)을 판단해 요청 |
 | 가스비 | 조건 없음 | **가스비 한도** — 비싼 타이밍 회피 (수수료 관측 주기 작업의 시계열을 판단 입력으로 씀) |
 
 벤더 가이드의 권장 트리거 요인(잔액 임계·주기·네트워크 수수료 여건)과 같은 축이라 벤더 모델과 충돌이 없다. 비율 트리거의 분모(총자산합)는 원화환산이 필요해 아래 "환산 입력" 문제와 같이 걸린다.
@@ -114,7 +118,7 @@ sequenceDiagram
     participant S as Sweep 컨트랙트
     participant O as 옴니버스
 
-    BM->>DB: Finalized 대상 M개 claim
+    BM->>DB: 완료 확인된 DAW 요청 대상 M개 claim
     BM->>T: allowance(owner, sweepContract) 조회
     alt allowance 부족
       BM->>FB: CONTRACT_CALL approve(cap) · gasless
@@ -183,7 +187,7 @@ event SweepDone(
 
 | 구분 | 블록체인 매니저 책임 | 별도 경계 |
 |---|---|---|
-| 실행 | 대상 선정·claim, allowance 실측, approve·batch 제출, 항목별 대사, 실패 재시도 | — |
+| 실행 | DAW 요청 검증·claim, 실제 잔액·allowance 실측, approve·batch 제출, 항목별 대사, 실패 재시도 | sweep 필요 여부·요청 대상 선정은 DAW-CORE |
 | 실행 의도 | `SweepExecution 1 : N SweepItem` 선기록, canonical hash·`externalTxId` 생성 | — |
 | 긴급 회수 | 승인된 비상 모드에서 vault 별 `approve(sweeper, 0)` 제출·진행 추적 | Admin 이 Fireblocks에서 직접 실행하는 독립 경로도 유지 |
 | TAP | 활성 정책을 전제로 거래를 제출할 뿐 편집하지 않음 | 정책 관리 서비스의 별도 API user + Admin Quorum·Owner 승인 |
@@ -249,7 +253,33 @@ Fireblocks 접수·거래 완료나 로컬 `REVOKED` 상태는 회수 완료 근
 
 운영 계정의 배치 거래 논스는 Fireblocks가 관리한다. 같은 실행의 중복 제출은 제출 원장의 멱등·claim 경계와 컨트랙트의 `executionId` 소진 기록으로 이중 차단한다. 같은 운영 계정의 동시 제출은 직렬화한다.
 
-`bcm_swp_trgt`에서 같은 네트워크·토큰이고 트리거 조건을 만족한 대상을 보유량 많은 순으로 고른다. 예상 gas가 블록 gas limit 대비 운영 상한을 넘지 않는 최대 M개만 고른 뒤, 실행 의도와 calldata는 위 ABI 규칙대로 원천 주소 오름차순으로 다시 정렬해 `SweepExecution` 하나에 넣는다. 성공 항목은 잔액을 재확인해 정리하고, 실패·잔액 잔존 항목은 다음 실행 대상으로 되돌린 뒤 loop한다. 항목 하나인 경우도 같은 1:N 모델에서 N=1로 처리한다.
+`bcm_swp_trgt`에서 같은 네트워크·토큰의 접수된 DAW 요청을 오래된 요청 순으로 읽고, 요청 안에서는 실제 보유량 많은
+순으로 후보를 고른다. 예상 gas가 블록 gas limit 대비 운영 상한을 넘지 않는 최대 M개만 고른 뒤, 실행 의도와 calldata는
+위 ABI 규칙대로 원천 주소 오름차순으로 다시 정렬해 `SweepExecution` 하나에 넣는다. 한 DAW 요청이 M보다 크면 여러
+실행으로 분할한다. 성공 항목은 잔액을 재확인해 요청 항목을 완료하고, 실패·잔액 잔존 항목은 같은 요청 항목의 다음 실행으로
+되돌린 뒤 loop한다. 앞 요청의 실제 sweep이 후속 요청 source event의 입금까지 함께 옮겨 가장 오래된 대기 항목을 평가할
+때 가용 잔액이 정확히 0이면 실행·항목·calldata를 새로 만들지 않고 요청 항목을 `COMPLETED`로 종결한다. 이는 요청 항목을
+금액 귀속이 아니라 source event 처리 후 vault sweep 완료 보장으로 정의한 결과다. 0보다 크지만 최소 금액 미만인 dust는
+`PENDING`으로 유지한다. 항목 하나인 경우도 같은 1:N 모델에서 N=1로 처리한다. DAW 요청 없이 잔액만 발견한 계정은
+경보·조회 대상일 뿐 자동 실행하지 않는다.
+
+### DAW 요청·이벤트 결과 계약
+
+- `POST /sweeps`는 한 network·symbol의 계정 1..N개를 받는다. 각 계정은 판단 근거인
+  `sourceEventIds[]`를 반드시 제공한다. amount와 주소는 받지 않는다.
+- source event는 같은 계정·network·symbol의 `DEPOSIT/FINALIZED`이고 `DAW_CORE` 처리 완료가 있어야 한다. 한
+  eventId를 두 요청에서 소비하지 않는다.
+- 같은 `externalSweepRequestId`와 canonical body는 멱등하고 다른 body는 conflict다. 요청 배열 순서는 canonical hash에
+  영향을 주지 않는다.
+- 실행 중지 상태에서도 요청은 `BLOCKED`로 접수할 수 있으나 allowance 준비·제출은 하지 않는다. 재개 때 활성 정책,
+  컨트랙트 binding·증적, hard ceiling, 실제 잔액을 모두 다시 확인한다.
+- 항목 상태 이벤트는 `sweep-events`에 accountId 파티션으로 보낸다. `chainStatus`와 `itemOutcome`을 분리해 최상위 거래
+  FINALIZED와 leg 실패를 동시에 표현한다. 상태 전이마다 BCM이 새 `eventId`를 발급하고 DAW-CORE 업무 처리 뒤
+  `PUT /events/{eventId}/completion`으로 확인한다.
+- 온체인 제출 없이 0잔액으로 완료한 항목도 같은 topic에 `chainStatus=NOT_SUBMITTED`,
+  `itemOutcome=NO_SWEEP_REQUIRED`, 요청·실제 금액 `0`, 물리 거래 식별자 `null`인 최종 이벤트를 보낸다.
+- 실행 실패는 주기 작업 간격으로 재시도하되 `bcm_swp_trgt.try_cnt`가 운영 임계에 도달하면 별도 gauge와 경보를 올린다.
+  자금 이동 필요성을 숨기는 자동 성공·실패 종결은 하지 않으며 운영자는 실행 게이트를 중지하고 원인을 조치한다.
 
 ## ② 밴드S — 어떻게 처리하나
 

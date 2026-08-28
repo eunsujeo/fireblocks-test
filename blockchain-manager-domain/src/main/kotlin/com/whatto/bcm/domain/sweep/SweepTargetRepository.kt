@@ -17,6 +17,15 @@ interface SweepTargetRepository {
     /** 제출 준비 트랜잭션에서 같은 대상의 열린 원장 생성을 직렬화한다. */
     fun findPendingForUpdate(key: SweepTargetKey): SweepTarget?
 
+    /** target 삭제 전에 같은 계정·자산에 남은 DAW 요청 항목이 있는지 확인한다. */
+    fun hasUnfinishedRequest(key: SweepTargetKey): Boolean
+
+    /** 가용 잔액이 0인 가장 오래된 요청 항목을 온체인 실행 없이 완료한다. 호출자는 target 행 잠금을 보유해야 한다. */
+    fun completeOldestPendingWithoutExecution(
+        key: SweepTargetKey,
+        completedAt: String,
+    ): SweepNoSweepRequiredCompletion?
+
     /** 실패·잔액 잔존 항목만 같은 실행 claim에서 다시 선정 가능하게 푼다. */
     fun releaseClaim(
         key: SweepTargetKey,

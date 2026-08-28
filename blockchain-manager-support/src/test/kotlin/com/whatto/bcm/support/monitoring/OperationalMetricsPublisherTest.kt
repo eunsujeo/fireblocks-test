@@ -3,6 +3,7 @@ package com.whatto.bcm.support.monitoring
 import com.whatto.bcm.domain.monitoring.JobHeartbeat
 import com.whatto.bcm.domain.monitoring.OperationalBacklog
 import com.whatto.bcm.domain.monitoring.OperationalSignalRepository
+import com.whatto.bcm.domain.monitoring.SweepOperationalSignals
 import com.whatto.bcm.domain.monitoring.VendorCallMetricOutcome
 import com.whatto.bcm.domain.monitoring.WebhookIngestionMetricOutcome
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -28,6 +29,14 @@ class OperationalMetricsPublisherTest {
         assertThat(gauge("bcm.outbox.oldest.age.seconds")).isEqualTo(300.0)
         assertThat(gauge("bcm.tx.reconciliation.stopped")).isEqualTo(4.0)
         assertThat(gauge("bcm.webhook.completed.unarchived")).isEqualTo(5.0)
+        assertThat(gauge("bcm.sweep.request.pending")).isEqualTo(6.0)
+        assertThat(gauge("bcm.sweep.request.oldest.age.seconds")).isEqualTo(480.0)
+        assertThat(gauge("bcm.sweep.request.blocked")).isEqualTo(1.0)
+        assertThat(gauge("bcm.sweep.target.repeated.failure")).isEqualTo(2.0)
+        assertThat(gauge("bcm.sweep.event.pending")).isEqualTo(2.0)
+        assertThat(gauge("bcm.sweep.event.failed")).isEqualTo(3.0)
+        assertThat(gauge("bcm.sweep.completion.waiting")).isEqualTo(4.0)
+        assertThat(gauge("bcm.sweep.completion.oldest.age.seconds")).isEqualTo(240.0)
         assertThat(gauge("bcm.job.last.run.timestamp.seconds", "job", "tx-reconciliation"))
             .isEqualTo(1_786_928_760.0)
         assertThat(gauge("bcm.job.last.success.timestamp.seconds", "job", "tx-reconciliation"))
@@ -103,6 +112,19 @@ class OperationalMetricsPublisherTest {
         override fun stoppedReconciliationCount() = 4L
 
         override fun unarchivedCompletedWebhookCount() = 5L
+
+        override fun sweepOperationalSignals() =
+            SweepOperationalSignals(
+                pendingRequestCount = 6,
+                oldestPendingRequestAt = "20260817010200",
+                blockedRequestCount = 1,
+                failedRequestCount = 0,
+                repeatedFailureTargetCount = 2,
+                pendingEventCount = 2,
+                failedEventCount = 3,
+                awaitingCompletionCount = 4,
+                oldestAwaitingCompletionAt = "20260817010600",
+            )
 
         override fun heartbeats() =
             listOf(

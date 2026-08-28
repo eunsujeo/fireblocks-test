@@ -93,7 +93,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun `manifest의 V1부터 V13까지 실행해 BCM 테이블 41개를 전부 만든다`() {
+    fun `manifest의 V1부터 V14까지 실행해 BCM 테이블 45개를 전부 만든다`() {
         val tables =
             jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'bcm_%'",
@@ -141,6 +141,10 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             "bcm_whk_rcvr_evt_l",
             "bcm_exec_gate_rsm_l",
             "bcm_exec_gate_rsm_chk_l",
+            "bcm_evnt_cmpl_l",
+            "bcm_swp_req_l",
+            "bcm_swp_req_item_l",
+            "bcm_swp_req_src_l",
         )
     }
 

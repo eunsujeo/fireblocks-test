@@ -9,6 +9,8 @@ import com.whatto.bcm.admin.client.AdminExternalControlEvidence
 import com.whatto.bcm.admin.client.AdminNetwork
 import com.whatto.bcm.admin.client.AdminPolicy
 import com.whatto.bcm.admin.client.AdminRuntimeReadiness
+import com.whatto.bcm.admin.client.AdminSweepOperations
+import com.whatto.bcm.admin.client.AdminSweepRequestInvestigation
 import com.whatto.bcm.admin.client.AdminTransactionInvestigation
 import com.whatto.bcm.admin.client.AdminVault
 import com.whatto.bcm.admin.client.AdminWebhookRuntime
@@ -94,6 +96,7 @@ data class AssetFilters(
 
 enum class SearchKind {
     TRANSACTION,
+    SWEEP_REQUEST,
     NETWORK,
     ASSET,
 }
@@ -299,6 +302,36 @@ class AdminReadService(
         return ViewResult(investigation, state, issues)
     }
 
+    fun sweepRequest(identifier: String): ViewResult<AdminSweepRequestInvestigation> {
+        val investigation = gateway.sweepRequestInvestigation(identifier)
+        val issues =
+            investigation.truncatedSources.map { source ->
+                SourceIssue(source, "DETAIL_TRUNCATED", "상세 조회 상한 100건을 초과해 일부만 표시합니다.")
+            }
+        return ViewResult(
+            investigation,
+            if (issues.isEmpty()) ViewState.FRESH else ViewState.PARTIAL,
+            issues,
+        )
+    }
+
+    fun sweepOperations(): ViewResult<AdminSweepOperations> {
+        val overview = gateway.sweepOperations()
+        val issues =
+            buildList {
+                if (overview.blockedRequestCount > 0) {
+                    add(SourceIssue("sweepRequests", "BLOCKED", "실행 gate 해제를 기다리는 Sweep 요청이 있습니다."))
+                }
+                if (overview.failedRequestCount > 0 || overview.failedEventCount > 0) {
+                    add(SourceIssue("sweepEvents", "FAILED", "운영 확인이 필요한 Sweep 요청 또는 event가 있습니다."))
+                }
+                if (overview.awaitingDawCompletionCount > 0) {
+                    add(SourceIssue("dawCompletion", "WAITING", "DAW-CORE 완료 확인을 기다리는 Sweep event가 있습니다."))
+                }
+            }
+        return ViewResult(overview, if (issues.isEmpty()) ViewState.FRESH else ViewState.PARTIAL, issues)
+    }
+
     fun contracts(): ViewResult<List<AdminContract>> {
         val data = gateway.contracts()
         val issues =
@@ -441,6 +474,7 @@ class AdminReadService(
         val query = rawQuery.trim()
         val issues = mutableListOf<SourceIssue>()
         val transaction = optionalTransaction(query, issues)
+        val sweepRequest = optionalSweepRequest(query, issues)
         val networks = capture("networks", issues) { gateway.networks(query, null, null, null) }
         val mappings = capture("assets", issues) { gateway.assetMappings(null, null) }
         if (networks == null && mappings == null) {
@@ -456,6 +490,16 @@ class AdminReadService(
                             investigation.summary.rootTransactionId,
                             "거래 · ${investigation.summary.status} · ${investigation.summary.network}/${investigation.summary.symbol}",
                             AdminAction("/admin/transactions/${encode(investigation.summary.rootTransactionId)}"),
+                        ),
+                    )
+                }
+                sweepRequest?.let { investigation ->
+                    add(
+                        SearchResult(
+                            SearchKind.SWEEP_REQUEST,
+                            investigation.sweepRequestId,
+                            "Sweep request · ${investigation.status} · ${investigation.network}/${investigation.symbol}",
+                            AdminAction("/admin/sweeps/${encode(investigation.sweepRequestId)}"),
                         ),
                     )
                 }
@@ -509,6 +553,21 @@ class AdminReadService(
                         if (failure.status == 403) "FORBIDDEN" else "UPSTREAM_UNAVAILABLE",
                         "거래 조회를 불러오지 못했습니다.",
                     )
+                null
+            }
+        }
+
+    private fun optionalSweepRequest(
+        identifier: String,
+        issues: MutableList<SourceIssue>,
+    ): AdminSweepRequestInvestigation? =
+        try {
+            gateway.sweepRequestInvestigation(identifier)
+        } catch (failure: SourceFailure) {
+            if (failure.status == 404) {
+                null
+            } else {
+                issues += SourceIssue(failure.source, "SOURCE_UNAVAILABLE", "Sweep 요청 검색 소스를 사용할 수 없습니다.")
                 null
             }
         }

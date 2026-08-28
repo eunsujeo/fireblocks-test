@@ -166,6 +166,7 @@ class AdminReadServiceTest {
     @Test
     fun `통합 검색은 네트워크와 자산을 서버에서 합쳐 action과 금지 사유를 돌려준다`() {
         every { gateway.transactionInvestigation("base") } throws SourceFailure("transaction", 404, "not found")
+        every { gateway.sweepRequestInvestigation("base") } throws SourceFailure("sweepRequest", 404, "not found")
         every { gateway.networks("base", null, null, null) } returns listOf(network(code = "BASE"))
         every { gateway.assetMappings(null, null) } returns
             listOf(AdminAssetMapping("BASE", "USDC", "USDC_BASE", "0x8335", "20260817080000"))
@@ -182,6 +183,7 @@ class AdminReadServiceTest {
     @Test
     fun `통합 검색은 컨트랙트 주소로 자산 매핑을 찾고 전체 주소를 근거로 보여준다`() {
         every { gateway.transactionInvestigation("0x8335") } throws SourceFailure("transaction", 404, "not found")
+        every { gateway.sweepRequestInvestigation("0x8335") } throws SourceFailure("sweepRequest", 404, "not found")
         every { gateway.networks("0x8335", null, null, null) } returns emptyList()
         every { gateway.assetMappings(null, null) } returns
             listOf(AdminAssetMapping("BASE", "USDC", "USDC_BASE", "0x8335aBcD", "20260817080000"))
@@ -198,6 +200,7 @@ class AdminReadServiceTest {
     @Test
     fun `거래 식별자 검색은 root 거래 상세 action을 가장 먼저 돌려준다`() {
         every { gateway.transactionInvestigation("tx-new") } returns investigation(truncatedSources = listOf("WEBHOOK"))
+        every { gateway.sweepRequestInvestigation("tx-new") } throws SourceFailure("sweepRequest", 404, "not found")
         every { gateway.networks("tx-new", null, null, null) } returns emptyList()
         every { gateway.assetMappings(null, null) } returns emptyList()
 

@@ -15,9 +15,6 @@ import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.sweep.SweepExecutionRepository
-import com.whatto.bcm.domain.sweep.SweepTarget
-import com.whatto.bcm.domain.sweep.SweepTargetKey
-import com.whatto.bcm.domain.sweep.SweepTargetRepository
 import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.FinalityPolicyConfigurationException
 import com.whatto.bcm.domain.tx.TxObservation
@@ -91,7 +88,6 @@ class WebhookDecisionTransaction(
     private val submissions: SubmissionRecordRepository,
     private val boosts: BoostAttemptRepository,
     private val sweepExecutions: SweepExecutionRepository,
-    private val sweepTargets: SweepTargetRepository,
     private val parser: WebhookTransactionParser,
     private val statusTranslator: VendorStatusTranslator,
     private val eventIdGenerator: EventIdGenerator,
@@ -149,15 +145,6 @@ class WebhookDecisionTransaction(
                 ?: return unattributed(inboxItem, transaction, mapping.network, mapping.symbol)
         val sourceAddress = transaction.sourceAddress ?: throw WebhookPayloadException("missing data.sourceAddress")
         val status = statusTranslator.translate(transaction.statusObservation, mapping.network)
-        val sweepTargetKey =
-            SweepTargetKey(
-                accountId = depositAddress.accountId,
-                network = depositAddress.network,
-                symbol = depositAddress.symbol,
-            )
-        if (status == TxStatus.FINALIZED) {
-            sweepTargets.findByKeyForUpdate(sweepTargetKey)
-        }
         val stateChange =
             txStates.observe(
                 TxObservation(
@@ -186,20 +173,6 @@ class WebhookDecisionTransaction(
                     eventType = EventType.DEPOSIT,
                 )
             }
-        if (TxStatus.FINALIZED in stateChange.statusesToPublish) {
-            sweepTargets.insertIfAbsent(
-                SweepTarget(
-                    accountId = sweepTargetKey.accountId,
-                    network = sweepTargetKey.network,
-                    symbol = sweepTargetKey.symbol,
-                    registeredAt = inboxItem.receivedAt,
-                    activeSweepExecutionId = null,
-                    activeItemSequence = null,
-                    attemptCount = 0,
-                    lastAttemptedAt = null,
-                ),
-            )
-        }
         outboxEvents.enqueue(events)
         markProcessed(inboxItem)
         return WebhookDecisionOutcome.Processed(inboxItem.notificationId, events.size)

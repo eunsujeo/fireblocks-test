@@ -62,6 +62,7 @@ bcm:
     enabled: false
     fixed-delay-millis: 60000
     reconciliation-batch-size: 50
+    repeated-failure-alert-threshold: ${BCM_SWEEP_REPEATED_FAILURE_ALERT_THRESHOLD:3}
     security:
       normal-approval-enabled: false
       emergency-revocation-enabled: false

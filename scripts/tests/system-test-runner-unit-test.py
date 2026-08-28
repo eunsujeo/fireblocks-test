@@ -206,6 +206,7 @@ def test_step_observations_preserve_repeated_identifiers() -> None:
         def observe() -> None:
             ledger.set_related_id("externalTxId", "external-1")
             ledger.set_related_id("externalTxId", "external-2")
+            ledger.set_related_id("sweepRequestId", "0198c7d5-7a30-7000-8000-000000000001")
 
         runner.run_step(ledger, 1, "vendor-submit", "벤더 제출", observe, classification=("SIMULATED_VENDOR",))
 
@@ -214,8 +215,10 @@ def test_step_observations_preserve_repeated_identifiers() -> None:
         assert [(item["type"], item["value"]) for item in step["observations"]] == [
             ("externalTxId", "external-1"),
             ("externalTxId", "external-2"),
+            ("sweepRequestId", "0198c7d5-7a30-7000-8000-000000000001"),
         ]
         assert ledger.snapshot["relatedIds"]["externalTxId"] == "external-2"
+        assert ledger.snapshot["relatedIds"]["sweepRequestId"] == "0198c7d5-7a30-7000-8000-000000000001"
 
 
 def test_runtime_collision_is_recorded_as_environment_step_failure() -> None:

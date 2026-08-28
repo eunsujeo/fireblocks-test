@@ -57,6 +57,11 @@ sealed interface SweepBatchExecutionResult {
         val externalTransactionId: String,
     ) : SweepBatchExecutionResult
 
+    data class Prepared(
+        val executionId: String,
+        val externalTransactionId: String,
+    ) : SweepBatchExecutionResult
+
     data class Submitted(
         val executionId: String,
         val externalTransactionId: String,
@@ -66,6 +71,10 @@ sealed interface SweepBatchExecutionResult {
 
 fun interface SweepBatchExecutionCommand {
     fun execute(): SweepBatchExecutionResult
+}
+
+fun interface SweepBatchPreparationCommand {
+    fun prepare(): SweepBatchExecutionResult
 }
 
 @Service
@@ -85,16 +94,31 @@ class SweepBatchExecutionService(
     private val properties: SweepProperties,
     private val executionGates: SweepExecutionGatePort,
     private val runtimeGuard: SweepRuntimeGuard,
-) : SweepBatchExecutionCommand {
+) : SweepBatchExecutionCommand,
+    SweepBatchPreparationCommand {
     override fun execute(): SweepBatchExecutionResult = runOnce()
 
+    override fun prepare(): SweepBatchExecutionResult = prepareOnce()
+
     fun runOnce(): SweepBatchExecutionResult {
+        val preparation = prepareOnce()
+        if (preparation !is SweepBatchExecutionResult.Prepared) return preparation
+        val operator = requiredOperator()
+        val execution =
+            checkNotNull(executions.findPendingSubmission(operator.accountId)) {
+                "prepared sweep execution not found: executionId=${preparation.executionId}"
+            }
+        check(execution.executionId == preparation.executionId) { "prepared sweep execution changed before submission" }
+        return submit(execution, operator)
+    }
+
+    fun prepareOnce(): SweepBatchExecutionResult {
         properties.security.requireBatchSubmissionEnabled()
         val operator = requiredOperator()
         executions.findPendingSubmission(operator.accountId)?.let {
             properties.security.requireBatchSubmissionReady(it.network)
             validateRuntimeSnapshot(it, runtimeGuard.requireReady(it.network, it.symbol))
-            return submit(it, operator)
+            return SweepBatchExecutionResult.Prepared(it.executionId, it.externalTransactionId)
         }
         val selected = candidates.selectCandidates()
         if (selected.isEmpty()) return SweepBatchExecutionResult.NoCandidates
@@ -112,9 +136,9 @@ class SweepBatchExecutionService(
             executions.createAndClaim(prepared.execution, prepared.items)
         } catch (conflict: ConflictException) {
             val pending = executions.findPendingSubmission(operator.accountId) ?: throw conflict
-            return submit(pending, operator)
+            return SweepBatchExecutionResult.Prepared(pending.executionId, pending.externalTransactionId)
         }
-        return submit(prepared.execution, operator)
+        return SweepBatchExecutionResult.Prepared(prepared.execution.executionId, prepared.execution.externalTransactionId)
     }
 
     private fun prepareAllowance(candidate: SweepCandidate): Boolean =
@@ -196,6 +220,18 @@ class SweepBatchExecutionService(
                 SweepItem(
                     executionId = executionId,
                     sequence = index + 1,
+                    sweepRequestId =
+                        requireNotNull(
+                            requireNotNull(candidatesByAddress[item.sourceAddress]).target.pendingSweepRequestId,
+                        ) {
+                            "sweep candidate must reference a pending DAW request"
+                        },
+                    sweepRequestItemId =
+                        requireNotNull(
+                            requireNotNull(candidatesByAddress[item.sourceAddress]).target.pendingSweepRequestItemId,
+                        ) {
+                            "sweep candidate must reference a pending DAW request item"
+                        },
                     accountId = requireNotNull(candidatesByAddress[item.sourceAddress]).target.accountId,
                     sourceAddress = item.sourceAddress,
                     requestedAmount = item.amount,
@@ -241,7 +277,14 @@ class SweepBatchExecutionService(
                 sweepExecutionId = execution.executionId,
             )
         return try {
-            val result = contractCalls.submit(command)
+            val result =
+                contractCalls.submit(
+                    command,
+                    recordIntent = {},
+                    recordFailedRetry = {
+                        executions.recordSubmissionRetry(execution.executionId, CoreDateTimes.now(clock))
+                    },
+                )
             executions.markSubmitted(execution.executionId, result.vendorTransactionId)
             SweepBatchExecutionResult.Submitted(
                 execution.executionId,
@@ -322,6 +365,23 @@ class SweepBatchExecutionOnceRunner(
 
     private companion object {
         val logger = LoggerFactory.getLogger(SweepBatchExecutionOnceRunner::class.java)
+    }
+}
+
+/** 후보·allowance·claim까지만 한 번 실행해 제출 전 원장을 점검하거나 별도 제출 회차로 넘길 때 사용한다. */
+@Component
+@ConditionalOnProperty(prefix = "bcm", name = ["job"], havingValue = "sweep-preparation-once")
+class SweepBatchPreparationOnceRunner(
+    private val command: SweepBatchPreparationCommand,
+    private val context: ConfigurableApplicationContext,
+) : ApplicationRunner {
+    override fun run(args: ApplicationArguments) {
+        logger.info("one-shot batch sweep preparation completed result={}", command.prepare())
+        context.close()
+    }
+
+    private companion object {
+        val logger = LoggerFactory.getLogger(SweepBatchPreparationOnceRunner::class.java)
     }
 }
 

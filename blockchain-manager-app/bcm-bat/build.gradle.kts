@@ -7,6 +7,7 @@ val productionOnly = providers.gradleProperty("bcmProductionOnly").map(String::t
 
 dependencies {
     implementation(platform(libs.spring.boot.bom))
+    implementation(project(":blockchain-manager-application"))
     implementation(project(":blockchain-manager-domain"))
     implementation(project(":blockchain-manager-support"))
     implementation(project(":blockchain-manager-infra:persistence"))

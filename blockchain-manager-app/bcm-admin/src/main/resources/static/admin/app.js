@@ -14,6 +14,7 @@ import {
   resolveViewState,
   runSingleFlight,
   shouldRefreshTestRun,
+  sweepIdentifierFromPath,
   testRunIdFromPath,
   transactionIdentifierFromPath,
   toggleAssetSelection,
@@ -572,6 +573,95 @@ function transactionEmpty(identifierValue) {
   app.innerHTML = `<section class="state-panel" role="status"><span class="state-mark" aria-hidden="true">!</span><h1>거래를 찾지 못했습니다</h1><p><code>${escapeHtml(identifierValue)}</code>와 연결된 원거래·활성 거래·외부 거래·스윕 실행이 없습니다.</p><a class="button primary" href="/admin/search?q=${encodeURIComponent(identifierValue)}" data-link>통합 검색으로 돌아가기</a></section>`;
 }
 
+async function loadSweeps() {
+  const identifierValue = sweepIdentifierFromPath(window.location.pathname);
+  if (!identifierValue) return loadSweepOperations();
+  skeleton("Sweep 요청 조사");
+  try {
+    const payload = await request(`/bff/admin/sweeps/${encodeURIComponent(identifierValue)}`);
+    const data = payload.data;
+    app.innerHTML = `
+      <header class="page-head transaction-head"><div><p class="eyebrow">REQUEST → ITEM → EXECUTION → EVENT</p><h1>Sweep request investigation</h1><p class="subtitle">요청 접수부터 물리 거래, 항목별 결과 event와 DAW-CORE 완료 확인까지 한 흐름으로 추적합니다.</p></div><div class="timestamp">기준 시각<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      ${statusBanner(payload)}
+      <section class="panel identity-panel" aria-labelledby="sweep-request-identity">
+        <div><p class="eyebrow">BCM SWEEP REQUEST</p><h2 id="sweep-request-identity">${escapeHtml(data.sweepRequestId)}</h2><small>${escapeHtml(data.externalSweepRequestId)}</small></div>
+        <span class="status ${statusTone(data.status)}">${escapeHtml(data.status)}</span>
+        <button class="copy" data-copy="${escapeHtml(data.sweepRequestId)}" aria-label="Sweep 요청 ID 복사">전체 ID 복사</button>
+      </section>
+      <section class="panel detail-panel"><dl class="detail-list compact-details">
+        <div><dt>Network / Symbol</dt><dd>${escapeHtml(data.network)} / ${escapeHtml(data.symbol)}</dd></div>
+        <div><dt>요청자 / 감사</dt><dd>${escapeHtml(data.requester)}<small>${escapeHtml(data.requesterEmployeeNo)} · ${escapeHtml(data.requesterBranchCode)}</small></dd></div>
+        <div><dt>항목</dt><dd class="mono tabular">${escapeHtml(data.itemCount)}</dd></div>
+        <div><dt>다음 행동</dt><dd><strong>${escapeHtml(data.nextAction)}</strong><small>자동 재시도 ${data.retryable ? "가능" : "불가"}</small></dd></div>
+        <div><dt>접수</dt><dd>${dualTime(data.requestedAt)}</dd></div>
+        <div><dt>종료</dt><dd>${dualTime(data.finishedAt)}</dd></div>
+      </dl></section>
+      ${data.items.map(sweepRequestItemPanel).join("")}
+    `;
+    bindCopy();
+    announce(`Sweep 요청 ${data.sweepRequestId} 조사 조회 완료`);
+  } catch (error) {
+    if (error.status === 404) return sweepRequestEmpty(identifierValue);
+    statePanel(error.status === 403 ? "forbidden" : "error", loadSweeps);
+  }
+}
+
+async function loadSweepOperations() {
+  skeleton("Sweep 운영 현황");
+  try {
+    const payload = await request("/bff/admin/sweeps/operations");
+    const data = payload.data;
+    app.innerHTML = `
+      <header class="page-head"><div><p class="eyebrow">DAW REQUESTED SWEEP</p><h1>Sweeps</h1><p class="subtitle">요청 적체, 실행 상태, event 발행과 DAW-CORE 완료 지연을 구분해서 확인합니다.</p></div><div class="timestamp">기준 시각<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
+      ${statusBanner(payload)}
+      <form class="panel filters compact" id="sweep-search" role="search">
+        <label><span>Sweep 식별자</span><input name="identifier" required maxlength="128" placeholder="Request, Item, Execution, Tx 또는 Event ID"></label>
+        <button class="button primary" type="submit">요청 추적</button>
+      </form>
+      <section class="panel"><div class="section-head"><div><p class="eyebrow">REQUEST QUEUE</p><h2>요청과 항목</h2></div><span>가장 오래된 요청 ${dualTime(data.oldestPendingRequestedAt)}</span></div>
+        <div class="band-metrics">
+          ${sweepMetric("Accepted", data.acceptedRequestCount)}${sweepMetric("Blocked", data.blockedRequestCount)}${sweepMetric("Processing", data.processingRequestCount)}${sweepMetric("Partial", data.partialRequestCount)}${sweepMetric("Failed", data.failedRequestCount)}${sweepMetric("Pending items", data.pendingItemCount)}${sweepMetric("Processing items", data.processingItemCount)}
+        </div>
+      </section>
+      <section class="panel"><div class="section-head"><div><p class="eyebrow">SWEEP EVENTS</p><h2>발행과 DAW completion</h2></div><span>최장 대기 ${dualTime(data.oldestAwaitingDawCompletionAt)}</span></div>
+        <div class="band-metrics">${sweepMetric("Publish pending", data.pendingEventCount)}${sweepMetric("Publish failed", data.failedEventCount)}${sweepMetric("DAW waiting", data.awaitingDawCompletionCount)}</div>
+      </section>`;
+    document.querySelector("#sweep-search").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = new FormData(event.currentTarget).get("identifier")?.toString().trim();
+      if (value) navigate(`/admin/sweeps/${encodeURIComponent(value)}`);
+    });
+  } catch (error) {
+    statePanel(error.status === 403 ? "forbidden" : "error", loadSweepOperations);
+  }
+}
+
+function sweepMetric(label, value) {
+  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+}
+
+function sweepRequestItemPanel(item) {
+  return `<section class="panel related-panel" aria-labelledby="sweep-item-${escapeHtml(item.sequence)}"><div class="section-head"><div><p class="eyebrow">ITEM ${escapeHtml(item.sequence)} · ${escapeHtml(item.accountId)}</p><h2 id="sweep-item-${escapeHtml(item.sequence)}">${escapeHtml(item.sweepItemId)}</h2></div><div><span class="status ${statusTone(item.status)}">${escapeHtml(item.status)}</span><small>${escapeHtml(item.nextAction)}</small></div></div>
+    ${sweepEventTable("Source events", item.sourceEvents)}
+    ${sweepExecutionTable(item.executions)}
+    ${sweepEventTable("Result events / DAW completion", item.resultEvents)}
+  </section>`;
+}
+
+function sweepExecutionTable(executions) {
+  if (!executions.length) return '<div class="section-empty">아직 조립된 실행이 없습니다.</div>';
+  return `<div class="table-wrap"><table><caption>Execution / transaction</caption><thead><tr><th>Execution</th><th>Policy / Contract snapshot</th><th>Amount / Item</th><th>Transaction</th><th>시각</th></tr></thead><tbody>${executions.map((execution) => `<tr><td>${identifier(execution.executionId, "Sweep 실행 ID")}<small><span class="status ${statusTone(execution.status)}">${escapeHtml(execution.status)}</span></small></td><td>${identifier(execution.policyVersionId, "Policy version ID")}<small>${identifier(execution.contractVersionId, "Contract version ID")}</small><small><code>${escapeHtml(execution.contractAddress)}</code></small></td><td class="mono tabular">${escapeHtml(execution.requestedAmount)}<small>${escapeHtml(execution.actualAmount || "—")} · ${escapeHtml(execution.itemStatus)}</small></td><td>${identifier(execution.transactionId, "Transaction ID")}<small>${identifier(execution.transactionHash, "Transaction hash")}</small></td><td>${dualTime(execution.requestedAt)}<small>${dualTime(execution.finishedAt)}</small></td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function sweepEventTable(title, events) {
+  if (!events.length) return `<div class="section-empty">${escapeHtml(title)} 기록이 없습니다.</div>`;
+  return `<div class="table-wrap"><table><caption>${escapeHtml(title)}</caption><thead><tr><th>Event</th><th>Chain / Item</th><th>Outbox</th><th>Published</th><th>DAW completed</th></tr></thead><tbody>${events.map((event) => `<tr><td>${identifier(event.eventId, "Event ID")}<small>${escapeHtml(event.eventType)}</small></td><td>${escapeHtml(event.chainStatus || "—")}<small>${escapeHtml(event.itemOutcome || event.failureCode || "—")}</small></td><td><span class="status ${event.outboxStatus === "S" ? "success" : event.outboxStatus === "F" ? "danger" : "warning"}">${escapeHtml(event.outboxStatus)}</span></td><td>${dualTime(event.publishedAt)}</td><td>${event.dawCompletedAt ? dualTime(event.dawCompletedAt) : '<span class="status warning">WAITING</span>'}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function sweepRequestEmpty(identifierValue) {
+  app.innerHTML = `<section class="state-panel" role="status"><span class="state-mark" aria-hidden="true">!</span><h1>Sweep 요청을 찾지 못했습니다</h1><p><code>${escapeHtml(identifierValue)}</code>와 연결된 request, item, execution, transaction 또는 event가 없습니다.</p><a class="button primary" href="/admin/sweeps" data-link>Sweep 현황으로 돌아가기</a></section>`;
+}
+
 function statusTone(status) {
   if (["COMPLETED", "CONFIRMED", "SUCCESS", "PASSED", "UP", "ACTIVE", "VALID", "VERIFIED", "APPROVED", "ACTIVATED", "OPEN", "READY"].includes(status)) return "success";
   if (["FAILED", "CANCELLED", "REJECTED", "INVALID", "ERROR", "EXPIRED", "STOPPED"].includes(status)) return "danger";
@@ -1054,7 +1144,7 @@ function diagnosisPanel(summary) {
 }
 
 function timelinePanel(entries) {
-  return `<section class="panel timeline-panel" aria-labelledby="transaction-timeline"><div class="section-head"><div><p class="eyebrow">시간순 증적</p><h2 id="transaction-timeline">거래 타임라인</h2></div><span>${entries.length}건</span></div>${entries.length ? `<ol class="timeline">${entries.map((entry) => `<li><div class="timeline-rail" aria-hidden="true"></div><div class="timeline-source">${escapeHtml(entry.source)}</div><div class="timeline-body"><strong>${escapeHtml(entry.code)}</strong>${entry.status ? `<span class="status ${statusTone(entry.status)}">${escapeHtml(entry.status)}</span>` : ""}${entry.identifier ? identifier(entry.identifier, "타임라인 식별자") : ""}</div><time datetime="${escapeHtml(entry.observedAt || "")}">${dualTime(entry.observedAt)}</time></li>`).join("")}</ol>` : '<p class="section-empty">기록된 타임라인이 없습니다.</p>'}</section>`;
+  return `<section class="panel timeline-panel" aria-labelledby="transaction-timeline"><div class="section-head"><div><p class="eyebrow">시간순 증적</p><h2 id="transaction-timeline">거래 타임라인</h2></div><span>${entries.length}건</span></div>${entries.length ? `<ol class="timeline">${entries.map((entry) => `<li><div class="timeline-rail" aria-hidden="true"></div><div class="timeline-source">${escapeHtml(entry.source)}</div><div class="timeline-body"><strong>${escapeHtml(entry.code)}</strong>${entry.status ? `<span class="status ${statusTone(entry.status)}">${escapeHtml(entry.status)}</span>` : ""}${entry.deliveryStatus ? `<small>Outbox ${escapeHtml(entry.deliveryStatus)} · DAW ${entry.dawCompletedAt ? "COMPLETED" : "WAITING"}</small>` : ""}${entry.identifier ? identifier(entry.identifier, "타임라인 식별자") : ""}</div><time datetime="${escapeHtml(entry.observedAt || "")}">${dualTime(entry.observedAt)}${entry.dawCompletedAt ? `<small>DAW ${dualTime(entry.dawCompletedAt)}</small>` : ""}</time></li>`).join("")}</ol>` : '<p class="section-empty">기록된 타임라인이 없습니다.</p>'}</section>`;
 }
 
 function boostPanel(boosts) {
@@ -1124,7 +1214,7 @@ function render() {
   const current = route();
   if (current !== "networks") document.querySelector("#network-adopt-dialog")?.remove();
   setActiveNav(current);
-  ({ dashboard: loadDashboard, transaction: loadTransaction, networks: loadNetworks, assets: loadAssets, vaults: loadVaults, contracts: loadContracts, policies: loadPolicies, bandS: loadBandS, emergency: loadEmergency, changeRequest: loadChangeRequest, search: loadSearch, testRuns: loadTestRuns, testRun: loadTestRun })[current]();
+  ({ dashboard: loadDashboard, transaction: loadTransaction, sweeps: loadSweeps, networks: loadNetworks, assets: loadAssets, vaults: loadVaults, contracts: loadContracts, policies: loadPolicies, bandS: loadBandS, emergency: loadEmergency, changeRequest: loadChangeRequest, search: loadSearch, testRuns: loadTestRuns, testRun: loadTestRun })[current]();
 }
 
 document.addEventListener("click", (event) => {

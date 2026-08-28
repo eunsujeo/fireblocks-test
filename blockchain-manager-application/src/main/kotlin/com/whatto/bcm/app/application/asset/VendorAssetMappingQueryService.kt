@@ -17,5 +17,12 @@ class VendorAssetMappingQueryService(
         repository.find(network, symbol)
             ?: throw AssetNotSupportedException(network, symbol)
 
+    fun requiredCurrentMapping(
+        network: String,
+        symbol: String,
+    ): VendorAssetMapping =
+        repository.findCurrent(network, symbol)?.takeIf(VendorAssetMapping::active)
+            ?: throw AssetNotSupportedException(network, symbol)
+
     fun findByVendorAssetId(vendorAssetId: String): VendorAssetMapping? = repository.findByVendorAssetId(vendorAssetId)
 }

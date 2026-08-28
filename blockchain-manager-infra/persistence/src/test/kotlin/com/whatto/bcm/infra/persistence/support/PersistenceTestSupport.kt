@@ -143,7 +143,11 @@ abstract class PersistenceTestSupport {
         @JvmStatic
         @DynamicPropertySource
         fun limitConnectionPool(registry: DynamicPropertyRegistry) {
-            registry.add("spring.datasource.hikari.maximum-pool-size") { 4 }
+            // DataJdbcTest context마다 별도 pool을 캐시하므로 기본 minimumIdle을 두면
+            // 전체 suite 후반에 PostgreSQL max_connections를 소진한다.
+            // gate/row 잠금 순서 검증에 필요한 세 연결만 허용하고 idle 연결은 선점하지 않는다.
+            registry.add("spring.datasource.hikari.maximum-pool-size") { 3 }
+            registry.add("spring.datasource.hikari.minimum-idle") { 0 }
         }
     }
 }

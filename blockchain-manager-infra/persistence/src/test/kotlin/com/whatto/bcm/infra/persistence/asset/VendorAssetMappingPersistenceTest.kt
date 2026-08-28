@@ -95,7 +95,7 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
         } finally {
             jdbc.update("DELETE FROM bcm_vndr_ast_chng_l")
             jdbc.update("DELETE FROM bcm_vndr_ast_m")
-            jdbc.update("DELETE FROM bcm_blkc_m")
+            jdbc.update("DELETE FROM bcm_blkc_m WHERE vndr_blkc_id IN ('ethereum-id', 'base-id')")
         }
     }
 

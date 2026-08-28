@@ -9,11 +9,15 @@ import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.sweep.Erc20ContractPort
 import com.whatto.bcm.domain.sweep.SweepBatchReceipt
 import com.whatto.bcm.domain.sweep.SweepBatchReceiptPort
+import com.whatto.bcm.domain.sweep.SweepChainStatus
+import com.whatto.bcm.domain.sweep.SweepEventPublisher
 import com.whatto.bcm.domain.sweep.SweepExecution
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
 import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.sweep.SweepExecutionStatus
 import com.whatto.bcm.domain.sweep.SweepItem
+import com.whatto.bcm.domain.sweep.SweepItemOutcome
+import com.whatto.bcm.domain.sweep.SweepItemOutcomeEvent
 import com.whatto.bcm.domain.sweep.SweepItemReconciliation
 import com.whatto.bcm.domain.sweep.SweepItemStatus
 import com.whatto.bcm.domain.sweep.SweepLegObservation
@@ -49,6 +53,11 @@ class SweepBatchReconciliationServiceTest {
         assertThat(fixture.executions.items.map { it.status }).containsExactly(SweepItemStatus.SUCCEEDED, SweepItemStatus.FAILED)
         assertThat(fixture.executions.items.map { it.actualAmount }).containsExactly("3", "0")
         assertThat(fixture.executions.items[1].failureCode).isEqualTo(FAILURE_CODE)
+        assertThat(fixture.events.map(SweepItemOutcomeEvent::chainStatus)).containsOnly(SweepChainStatus.FINALIZED)
+        assertThat(fixture.events.map(SweepItemOutcomeEvent::itemOutcome))
+            .containsExactly(SweepItemOutcome.SUCCEEDED, SweepItemOutcome.FAILED)
+        assertThat(fixture.events.map(SweepItemOutcomeEvent::sweepRequestId))
+            .containsExactly("01987654-3210-7abc-8def-012345678911", "01987654-3210-7abc-8def-012345678912")
         assertThat(fixture.targets.row(ACCOUNT_A)).isNull()
         assertThat(fixture.targets.row(ACCOUNT_B)?.activeSweepExecutionId).isNull()
     }
@@ -87,6 +96,8 @@ class SweepBatchReconciliationServiceTest {
         assertThat(fixture.executions.execution.status).isEqualTo(SweepExecutionStatus.FAILED)
         assertThat(fixture.executions.items).allMatch { it.status == SweepItemStatus.RETRY }
         assertThat(fixture.targets.rows()).allMatch { it.activeSweepExecutionId == null }
+        assertThat(fixture.events.map(SweepItemOutcomeEvent::chainStatus)).containsOnly(SweepChainStatus.FAILED)
+        assertThat(fixture.events.map(SweepItemOutcomeEvent::failureCode)).containsOnly("SWEEP_VENDOR_FAILED")
     }
 
     @Test
@@ -115,6 +126,7 @@ class SweepBatchReconciliationServiceTest {
         val accounts = ReconciliationAccounts(account(ACCOUNT_A, "vault-a"), account(ACCOUNT_B, "vault-b"))
         val wallet = ReconciliationWallet
         val alerts = mutableListOf<SweepExecutionAlert>()
+        val events = mutableListOf<SweepItemOutcomeEvent>()
         val service =
             SweepBatchReconciliationService(
                 executions,
@@ -127,6 +139,7 @@ class SweepBatchReconciliationServiceTest {
                 targets,
                 statuses,
                 ImmediateReconciliationTransactionRunner,
+                SweepEventPublisher(events::addAll),
                 alerts::add,
                 Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC),
                 SweepProperties(
@@ -134,7 +147,7 @@ class SweepBatchReconciliationServiceTest {
                     thresholds = listOf(SweepAssetThreshold(NETWORK, SYMBOL, "1", "100")),
                 ),
             )
-        return ReconciliationFixture(service, executions, targets, alerts)
+        return ReconciliationFixture(service, executions, targets, alerts, events)
     }
 
     private fun vendorTransaction(
@@ -186,6 +199,7 @@ class SweepBatchReconciliationServiceTest {
         val executions: FakeReconciliationExecutions,
         val targets: FakeReconciliationTargets,
         val alerts: List<SweepExecutionAlert>,
+        val events: List<SweepItemOutcomeEvent>,
     )
 
     private companion object {
@@ -233,6 +247,11 @@ private class FakeReconciliationExecutions(
 
     override fun markSubmitting(executionId: String): SweepExecution = error("not used")
 
+    override fun recordSubmissionRetry(
+        executionId: String,
+        attemptedAt: String,
+    ): SweepExecution = error("not used")
+
     override fun markSubmitted(
         executionId: String,
         vendorTransactionId: String,
@@ -268,6 +287,7 @@ private class FakeReconciliationExecutions(
 
     override fun markFailedAndRelease(
         executionId: String,
+        failureCode: String,
         finishedAt: String,
     ): SweepExecution {
         execution = execution.copy(status = SweepExecutionStatus.FAILED, finishedAt = finishedAt)
@@ -320,6 +340,13 @@ private class FakeReconciliationTargets : SweepTargetRepository {
     ): List<SweepTarget> = error("not used")
 
     override fun findPendingForUpdate(key: SweepTargetKey): SweepTarget? = error("not used")
+
+    override fun hasUnfinishedRequest(key: SweepTargetKey): Boolean = false
+
+    override fun completeOldestPendingWithoutExecution(
+        key: SweepTargetKey,
+        completedAt: String,
+    ): com.whatto.bcm.domain.sweep.SweepNoSweepRequiredCompletion? = error("not used")
 
     override fun releaseClaim(
         key: SweepTargetKey,
@@ -493,6 +520,8 @@ private fun reconciliationItems() =
         SweepItem(
             "01987654-3210-7abc-8def-0123456789ab",
             1,
+            "01987654-3210-7abc-8def-012345678911",
+            "01987654-3210-7abc-8def-012345678901",
             "customer-a",
             "0x2222222222222222222222222222222222222222",
             "3",
@@ -504,6 +533,8 @@ private fun reconciliationItems() =
         SweepItem(
             "01987654-3210-7abc-8def-0123456789ab",
             2,
+            "01987654-3210-7abc-8def-012345678912",
+            "01987654-3210-7abc-8def-012345678902",
             "customer-b",
             "0x3333333333333333333333333333333333333333",
             "12.5",

@@ -10,6 +10,7 @@ import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
+import com.whatto.bcm.domain.exception.UnprocessableRequestException
 import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.exception.VendorAssetMappingRegistrationConflictException
 
@@ -28,6 +29,7 @@ object DomainExceptionResolver {
             is InvalidAssetMappingException -> ErrorCode.VALIDATION_FAILED
             is VendorAssetMappingRegistrationConflictException -> ErrorCode.CONFLICT
             is InvalidRequestException -> ErrorCode.VALIDATION_FAILED
+            is UnprocessableRequestException -> ErrorCode.UNPROCESSABLE_ENTITY
             is RelayRejectedException -> ErrorCode.RELAY_REJECTED
             is VendorApiException -> ErrorCode.INTERNAL // 벤더 실패용 별도 코드가 스펙에 없다 (RELAY_REJECTED 는 대납 relay 전용)
         }

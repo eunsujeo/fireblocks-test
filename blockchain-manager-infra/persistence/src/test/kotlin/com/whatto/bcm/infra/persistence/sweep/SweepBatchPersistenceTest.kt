@@ -1,6 +1,7 @@
 package com.whatto.bcm.infra.persistence.sweep
 
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.monitoring.OperationalSignalRepository
 import com.whatto.bcm.domain.sweep.SweepAuthorization
 import com.whatto.bcm.domain.sweep.SweepAuthorizationKey
 import com.whatto.bcm.domain.sweep.SweepAuthorizationStatus
@@ -9,6 +10,7 @@ import com.whatto.bcm.domain.sweep.SweepExecutionStatus
 import com.whatto.bcm.domain.sweep.SweepItem
 import com.whatto.bcm.domain.sweep.SweepItemReconciliation
 import com.whatto.bcm.domain.sweep.SweepItemStatus
+import com.whatto.bcm.infra.persistence.monitoring.OperationalSignalJdbcAdapter
 import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
 import com.whatto.bcm.infra.persistence.sweep.fixture.SweepTargetFixture.fixture
 import org.assertj.core.api.Assertions.assertThat
@@ -23,12 +25,18 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.sql.Connection
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
 
 @DataJdbcTest
-@Import(SweepAuthorizationJdbcAdapter::class, SweepExecutionJdbcAdapter::class, SweepTargetJdbcAdapter::class)
+@Import(
+    SweepAuthorizationJdbcAdapter::class,
+    SweepExecutionJdbcAdapter::class,
+    SweepTargetJdbcAdapter::class,
+    OperationalSignalJdbcAdapter::class,
+)
 class SweepBatchPersistenceTest : PersistenceTestSupport() {
     @Autowired
     lateinit var authorizations: SweepAuthorizationJdbcAdapter
@@ -38,6 +46,9 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
 
     @Autowired
     lateinit var targets: SweepTargetJdbcAdapter
+
+    @Autowired
+    lateinit var signals: OperationalSignalRepository
 
     @Autowired
     lateinit var jdbc: JdbcTemplate
@@ -193,6 +204,48 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `실행 항목의 DAW 요청 항목 참조는 NOT NULL 외래키다`() {
+        val nullable =
+            jdbc.queryForObject(
+                """
+                SELECT is_nullable
+                FROM information_schema.columns
+                WHERE table_name = 'bcm_swp_item_l' AND column_name = 'swp_req_item_id'
+                """.trimIndent(),
+                String::class.java,
+            )
+        val foreignKeys =
+            jdbc.queryForList(
+                """
+                SELECT constraint_name
+                FROM information_schema.table_constraints
+                WHERE table_name = 'bcm_swp_item_l' AND constraint_type = 'FOREIGN KEY'
+                """.trimIndent(),
+                String::class.java,
+            )
+
+        assertThat(nullable).isEqualTo("NO")
+        assertThat(foreignKeys).contains("fk_bcm_swp_item_request_item")
+    }
+
+    @Test
+    fun `요청 항목과 계정 네트워크 자산이 맞지 않으면 실행을 선기록하지 않는다`() {
+        val accountId = "request-mismatch-customer"
+        val execution =
+            execution(executionId = "swx-request-mismatch", externalTransactionId = "swp-request-mismatch")
+                .copy(itemCount = 1, requestedTotalAmount = "20")
+        targets.insertIfAbsent(fixture(accountId = accountId))
+        authorizations.insert(authorization(accountId, "20"))
+        val mismatched =
+            item(1, accountId, "0xrequestmismatch", "20", execution.executionId)
+                .copy(accountId = "another-account")
+
+        assertThatThrownBy { executions.createAndClaim(execution, listOf(mismatched)) }
+            .isInstanceOf(ConflictException::class.java)
+        assertThat(executions.findById(execution.executionId)).isNull()
+    }
+
+    @Test
     fun `활성 policy binding snapshot과 다른 실행은 선기록하지 않는다`() {
         val execution = execution().copy(policySnapshotHash = "b".repeat(64))
         targets.insertIfAbsent(fixture(accountId = "customer-1"))
@@ -294,6 +347,34 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
 
         assertThatThrownBy { executions.markSubmitting(execution.executionId) }
             .isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `실패 submission 재획득 기록은 target 시도 횟수와 반복 실패 신호를 누적한다`() {
+        val accountId = "customer-repeated-submission"
+        val execution =
+            execution(executionId = "swx-repeated-submission", externalTransactionId = "swp-repeated-submission")
+                .copy(itemCount = 1, requestedTotalAmount = "20")
+        val target = fixture(accountId = accountId)
+        targets.insertIfAbsent(target)
+        authorizations.insert(authorization(accountId, "20"))
+        executions.createAndClaim(
+            execution,
+            listOf(item(1, accountId, "0xrepeatedsource", "20", execution.executionId)),
+        )
+
+        val claimed = requireNotNull(targets.findByKey(target.key))
+        assertThat(claimed.attemptCount).isEqualTo(1)
+        assertThat(claimed.lastAttemptedAt).isEqualTo(execution.requestedAt)
+
+        executions.markSubmitting(execution.executionId)
+        executions.recordSubmissionRetry(execution.executionId, "20260813100100")
+        executions.recordSubmissionRetry(execution.executionId, "20260813100200")
+
+        val retried = requireNotNull(targets.findByKey(target.key))
+        assertThat(retried.attemptCount).isEqualTo(3)
+        assertThat(retried.lastAttemptedAt).isEqualTo("20260813100200")
+        assertThat(signals.sweepOperationalSignals().repeatedFailureTargetCount).isEqualTo(1)
     }
 
     @Test
@@ -531,6 +612,8 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
 
         assertThat(executions.findById(execution.executionId)).isEqualTo(execution)
         assertThat(executions.findItems(execution.executionId)).containsExactlyElementsOf(items)
+        assertThat(items.map(::requestItemStatus)).containsOnly("PROCESSING")
+        assertThat(items.map(::requestStatus)).containsOnly("PROCESSING")
         assertThat(targets.findByKey(fixture(accountId = "customer-1").key))
             .extracting("activeSweepExecutionId", "activeItemSequence")
             .containsExactly(execution.executionId, 1)
@@ -628,7 +711,8 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
             }.isInstanceOf(ConflictException::class.java)
 
             assertThat(executions.findPendingSubmission("operator-1")?.executionId).isEqualTo(first.executionId)
-            assertThat(executions.markSubmitting(first.executionId).status).isEqualTo(SweepExecutionStatus.SUBMITTING)
+            assertThat(executions.markSubmitting(first.executionId).status)
+                .isEqualTo(SweepExecutionStatus.SUBMITTING)
             assertThat(executions.markSubmitted(first.executionId, "vendor-batch-1").status)
                 .isEqualTo(SweepExecutionStatus.SUBMITTED)
             executions.createAndClaim(second, listOf(item(1, "operator-lock-2", "0xsource2", "20", second.executionId)))
@@ -657,11 +741,15 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
                 listOf(item(1, accountId, "0xrejectedsource", "20", failed.executionId)),
             )
 
-            val result = executions.markFailedAndRelease(failed.executionId, "20260812150100")
+            val result = executions.markFailedAndRelease(failed.executionId, "SWEEP_VENDOR_FAILED", "20260812150100")
 
             assertThat(result.status).isEqualTo(SweepExecutionStatus.FAILED)
             assertThat(result.finishedAt).isEqualTo("20260812150100")
             assertThat(executions.findItems(failed.executionId).single().status).isEqualTo(SweepItemStatus.RETRY)
+            assertThat(requestItemStatus(item(1, accountId, "0xrejectedsource", "20", failed.executionId)))
+                .isEqualTo("PENDING")
+            assertThat(requestStatus(item(1, accountId, "0xrejectedsource", "20", failed.executionId)))
+                .isEqualTo("ACCEPTED")
             assertThat(targets.findByKey(fixture(accountId = accountId).key)?.activeSweepExecutionId).isNull()
         } finally {
             jdbc.update("UPDATE bcm_swp_trgt SET actv_swp_exec_id = NULL, actv_item_seq = NULL WHERE acnt_id = ?", accountId)
@@ -717,6 +805,11 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
             assertThat(completed.status).isEqualTo(SweepExecutionStatus.PARTIAL)
             assertThat(completed.actualTotalAmount).isEqualTo("20")
             assertThat(completed.finishedAt).isEqualTo("20260812150200")
+            val storedItems = executions.findItems(execution.executionId)
+            assertThat(requestItemStatus(storedItems[0])).isEqualTo("COMPLETED")
+            assertThat(requestStatus(storedItems[0])).isEqualTo("COMPLETED")
+            assertThat(requestItemStatus(storedItems[1])).isEqualTo("PENDING")
+            assertThat(requestStatus(storedItems[1])).isEqualTo("ACCEPTED")
             assertThat(
                 executions.markReconciling(execution.executionId, "vendor-reconcile", "0xhash-reconcile").status,
             ).isEqualTo(SweepExecutionStatus.PARTIAL)
@@ -866,17 +959,95 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
         sourceAddress: String,
         amount: String,
         executionId: String = "swx-1",
-    ) = SweepItem(
-        executionId = executionId,
-        sequence = sequence,
-        accountId = accountId,
-        sourceAddress = sourceAddress,
-        requestedAmount = amount,
-        actualAmount = null,
-        status = SweepItemStatus.READY,
-        failureCode = null,
-        logIndex = null,
-    )
+    ): SweepItem {
+        val target =
+            jdbc.queryForMap(
+                """
+                SELECT ntwk_cd, tkn_smbl, reg_dttm
+                FROM bcm_swp_trgt
+                WHERE acnt_id = ?
+                """.trimIndent(),
+                accountId,
+            )
+        val requestId = stableId("request:$executionId:$accountId")
+        val requestItemId = stableId("request-item:$executionId:$accountId")
+        jdbc.update(
+            """
+            INSERT INTO bcm_acnt_m
+              (acnt_id, acnt_typ_dvcd, ref, vndr_vlt_id, reg_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, 'CU', ?, ?, ?, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (acnt_id) DO NOTHING
+            """.trimIndent(),
+            accountId,
+            stableId("ref:$accountId"),
+            stableId("vault:$accountId"),
+            target.getValue("reg_dttm"),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_req_l
+              (swp_req_id, ext_swp_req_id, req_hash, ntwk_cd, tkn_smbl, swp_req_stcd,
+               item_cnt, req_dttm, fnsh_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, ?, ?, ?, 'ACCEPTED', 1, ?, NULL,
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (swp_req_id) DO NOTHING
+            """.trimIndent(),
+            requestId,
+            "batch-fixture:$executionId:$accountId",
+            "a".repeat(64),
+            target.getValue("ntwk_cd"),
+            target.getValue("tkn_smbl"),
+            target.getValue("reg_dttm"),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_req_item_l
+              (swp_req_item_id, swp_req_id, item_seq, acnt_id, swp_req_item_stcd, last_fail_cd,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, 1, ?, 'PENDING', NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            ON CONFLICT (swp_req_item_id) DO NOTHING
+            """.trimIndent(),
+            requestItemId,
+            requestId,
+            accountId,
+        )
+        return SweepItem(
+            executionId = executionId,
+            sequence = sequence,
+            sweepRequestId = requestId,
+            sweepRequestItemId = requestItemId,
+            accountId = accountId,
+            sourceAddress = sourceAddress,
+            requestedAmount = amount,
+            actualAmount = null,
+            status = SweepItemStatus.READY,
+            failureCode = null,
+            logIndex = null,
+        )
+    }
+
+    private fun stableId(seed: String): String = UUID.nameUUIDFromBytes(seed.toByteArray()).toString()
+
+    private fun requestItemStatus(item: SweepItem): String =
+        jdbc.queryForObject(
+            "SELECT swp_req_item_stcd FROM bcm_swp_req_item_l WHERE swp_req_item_id = ?",
+            String::class.java,
+            item.sweepRequestItemId,
+        )!!
+
+    private fun requestStatus(item: SweepItem): String =
+        jdbc.queryForObject(
+            """
+            SELECT request.swp_req_stcd
+            FROM bcm_swp_req_l request
+            JOIN bcm_swp_req_item_l item ON item.swp_req_id = request.swp_req_id
+            WHERE item.swp_req_item_id = ?
+            """.trimIndent(),
+            String::class.java,
+            item.sweepRequestItemId,
+        )!!
 
     private fun hash(seed: String): String =
         java.security.MessageDigest

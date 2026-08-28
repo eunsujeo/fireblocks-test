@@ -21,6 +21,7 @@
 - [x] Phase 13 — Webhook 독립 경계 + 로컬 기능 점검 UX (2026-08-21)
 - [x] Phase 14 — 실행 가능한 API 개발자 포털 + 로컬 시나리오 콘솔 (2026-08-21)
 - [x] Phase 14 후속 — Admin 운영 등록·진단 UX 수렴 (2026-08-24)
+- [x] Phase 14 후속 — DAW 요청 기반 Sweep·이벤트 완료 확인 (2026-08-28)
 - [ ] Phase 15 — Production 배포 준비 계획 (보류 — 운영 논의 재개 시 착수)
 
 ## 작업 규칙 (모든 Phase 공통)
@@ -50,6 +51,71 @@ Phase 0~14의 task·완료 기준·검증 증적은 [완료 Phase 0~14 상세 �
   OpenAPI 실행 문서와 회귀 테스트를 갱신한다.
 - [x] **T14.10 사본 동기화·converge** — waas-wiki 06·07·08·10을 `docs/design/`에 byte 동일하게 복사하고 전체 CI 후
   독립 design-sync→code-reviewer를 순차 통과한다.
+
+## Phase 14 후속 — DAW 요청 기반 Sweep·이벤트 완료 확인
+
+Phase 15와 분리해 기능 계약부터 수렴한다. DAW-CORE가 고객 vault 자산의 Sweep 필요를 요청하고 BCM은 요청을 불변 원장에
+접수한 뒤 온체인 잔액·입금 FINALIZED·활성 정책/컨트랙트·hard ceiling·실행 gate를 독립적으로 검증해 실행한다.
+DAW 요청은 실행 승인을 대신하거나 금액·allowance·TAP/Callback·컨트랙트 안전 조건을 완화하지 않는다. DAW-ADMIN은
+정책·컨트랙트 관리 workflow 소유자이며 런타임 Sweep 요청자는 아니다.
+BCM이 Kafka에 발행한 입금·출금·내부이체와 새 Sweep 결과는 DAW-CORE가 업무 transaction까지 반영한 뒤 BCM의 완료 확인
+API를 호출한다. 체인 `CONFIRMED/FINALIZED`, outbox 발행 성공, DAW-CORE 처리 완료는 서로 다른 상태로 보존한다.
+
+식별자는 역할을 섞지 않는다. `eventId`는 DAW-CORE가 실제 소비한 **상태 전이 1건**의 dedup·완료 키, `txId`는 한 온체인
+거래의 상태 이벤트들을 묶는 조회 키다. `externalTxId/externalSweepRequestId`는 DAW 요청 멱등·업무 상관관계, `sweepRequestId`는
+BCM 접수 원장, `sweepItemId`는 BCM이 부여한 고객 계정 항목, `executionId`는 BCM이 같은 network·symbol로 조립한 온체인 batch 실행을 뜻한다.
+완료 원장은 eventId를 PK로 쓰되 txId·요청/항목/실행 ID를 join해 운영자가 한 세로줄로 조회할 수 있게 한다.
+Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutcome(SUCCEEDED/FAILED)`을 분리한다. 일부 leg가 실패해도
+온체인 transaction은 FINALIZED일 수 있으므로 공통 `FAILED` 하나로 두 의미를 합치지 않는다.
+
+### 계획 task
+
+- [x] **T14.11 DAW batch 요청 계약 결정** — `POST /sweeps`는 `externalSweepRequestId`, 단일 `network/symbol`, 1~N개의
+  `{accountId, sourceEventIds[]}`를 받으며 같은 요청 안의 accountId 중복은 거절한다. sourceEvent는 해당 account/network/symbol의
+  DEPOSIT+FINALIZED이고 DAW 완료 확인까지 기록된 event만 허용하며, 같은 sourceEvent를 다른 유효 요청에 중복 귀속하지 않는다.
+  DAW는 금액·vault 주소·컨트랙트를 지정하지 않고 BCM이 `sweepItemId`를 부여해 실행 직전 실제 available balance와 활성 정책으로
+  금액을 결정한다. 요청이 정책 batch 상한보다 크면 여러 `executionId`로 분할하되 각 항목·sourceEvent 관계를 보존한다. 동일 외부
+  요청 ID+동일 hash는 같은 접수 결과, 다른 payload는 409다.
+- [x] **T14.12 DAW 이벤트 완료 확인 계약** — `PUT /events/{eventId}/completion`을 DAW-CORE의 멱등 acknowledgement로 둔다.
+  최초·응답 유실 후 재호출은 같은 성공을 반환하고, 미존재 event·아직 발행되지 않은 event·다른 consumer의 위조 완료는 거절한다.
+  완료는 체인 상태나 `bcm_outbox_l.evnt_stcd`를 덮어쓰지 않고 `(eventId, consumer)` 별도 불변 원장과 BCM 수신 시각으로 남긴다.
+  응답에는 대응 `txId/status`와 Sweep이면 request/item/execution ID를 반환한다. `FINALIZED` 완료 뒤 reorg `FAILED`가 새 eventId로
+  오면 DAW-CORE가 별도로 반영·완료해야 하며, txId 단위 완료로 앞선 event들을 일괄 완료하지 않는다.
+- [x] **T14.13 설계 정본 변경·사본 동기화** — waas-wiki 02 flow·03 DB·06 sweep·08 Admin에서 자동 target 생성과 주기 자율 선정을
+  DAW 요청 접수→검증→queue→batch 실행으로 바꾸고 `docs/design/` 사본을 byte 동일하게 동기화한다. 요청 중복·여러 입금 합류·
+  STOP 중 접수·실행 전 추가 입금·같은 account의 후속 요청 합류·부분 성공·취소 가능 시점과 Kafka 발행→DAW 반영→완료 확인 흐름도
+  명시한다. Sweep 결과는
+  체인 batch 1건이 아니라 고객 `sweepItemId`별 이벤트로 발행하고 partition key는 `accountId`로 고정한다.
+- [x] **T14.14 OpenAPI·실행 문서** — 멱등 `POST /sweeps`와 `PUT /events/{eventId}/completion`의 성공·400/404/409/422 응답,
+  Sweep request/item/result schema와 `eventId/txId/externalSweepRequestId/sweepRequestId/sweepItemId/executionId/vendorTxId/txHash`의
+  역할, `chainStatus`와 `itemOutcome/requestedAmount/actualAmount/failureCode`를 계약화하고 카테고리형 실행 문서를 재생성한다.
+  거래 조회는 txId, 소비 멱등·완료는 eventId라는 원칙을 예제에 고정한다.
+- [x] **T14.15 요청·완료 원장과 동시성 경계** — append-only `bcm_swp_req_l`·event/실행 연결 및 DAW 완료 원장, request hash·멱등
+  unique·claim을 추가한다. 완료 원장은 `eventId + consumer`를 유일키로 하고 발행 성공 event만 받으며 txId는 조회 projection으로 둔다.
+  여러 요청이 한 실행으로 합쳐지거나 한 요청이 여러 실행으로 나뉘어도 각 item 결과를 잃지 않고, 같은 계정·자산 동시 요청과 API
+  응답 유실에도 중복 실행을 만들지 않는다. 완료되지 않은 필수 consumer event는 outbox 정리 대상에서 제외하고, 완료 원장과 outbox를
+  함께 archive/보존하는 규칙도 확정한다. 기존 pending target의 전환·폐기 규칙도 SQL에 명시한다.
+- [x] **T14.16 API 접수·검증 세로줄** — DAW 서비스 신원과 Sweep/완료 입력을 검증하고 요청을 외부 호출 전에 저장한다. 계정 소유·지원 Network·
+  자산 mapping·source deposit FINALIZED를 확인하되, 최종 잔액·정책·컨트랙트·gate는 claim 및 제출 직전에 다시 확인한다.
+  공유 환경 인증이 준비되지 않은 동안 endpoint는 기본 비활성이고 로컬 profile만 명시적으로 연다.
+- [x] **T14.17 BAT 실행 경계 전환** — Webhook의 자동 `bcm_swp_trgt` 생성과 BAT의 무요청 자율 후보 선정을 제거한다. BAT는 접수된
+  요청만 grouping/claim해 기존 allowance·batch transferFrom·정책 snapshot·crash-safe 제출을 재사용하고, 이미 SUBMITTING인 실행의
+  회수와 제출 후 reconciliation은 계속 주기 실행한다.
+- [x] **T14.18 Admin·관측·실패 복구** (2026-08-28) — Admin은 요청자·요청 ID·queue/blocked/submitted/partial/finalized/failed 상태와 전체 관련 ID,
+  정책/컨트랙트 snapshot, 재시도 가능 여부를 조회 전용으로 표시한다. 요청 적체·오래된 claim·반복 실패·gate 차단을 metric/alert에
+  추가한다. txId 검색에서는 전체 상태 event와 각 eventId 완료 여부를, Sweep 요청 검색에서는 item→execution→tx→event→completion을
+  보여 준다. Kafka 발행 뒤 미완료 건수·최장 대기 시간도 보이되 로컬 Admin이 운영 완료를 대신 만들지 않는다.
+  항목별 결과는 상태 전이와 같은 트랜잭션의 `sweep-events` outbox에 넣고 accountId 파티션 payload를 고정했다. Admin의 Sweeps 화면은
+  request/external request/item/execution/tx/hash/source·result event 어느 식별자로도 같은 세로줄을 찾고 policy·contract snapshot,
+  outbox 상태, DAW completion, 서버 계산 `retryable/nextAction`을 표시한다. 요청·event·완료 적체와 최장 대기는 별도 gauge로 노출한다.
+- [x] **T14.19 테스트·전환 converge** (2026-08-28) — Sweep/완료 API 멱등·충돌, FINALIZED 부재, 동시 요청, STOP·정책 drift, 부분 성공, 응답 유실,
+  같은 txId의 CONFIRMED/FINALIZED 개별 완료, reorg 후 새 FAILED 완료, 다항목·다실행 분할, 재기동 회수를 고정한다. full 시스템 테스트는
+  DAW 역할의 batch API 요청에서 실제 Stub+Anvil sweep과 대사, 항목별 Kafka 소비 뒤 eventId 완료 확인까지 관통해야 하며,
+  FINALIZED batch의 일부 item 실패도 `chainStatus=FINALIZED/itemOutcome=FAILED`로 보존해야 한다. 요청이 없으면 FINALIZED 입금이 있어도
+  신규 sweep이 생기지 않음을 검증한다. 전체 CI 후 독립 design-sync→code-reviewer를 통과한다.
+
+**예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
+실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.
 
 ## Phase 15 — Production 배포 준비 계획
 

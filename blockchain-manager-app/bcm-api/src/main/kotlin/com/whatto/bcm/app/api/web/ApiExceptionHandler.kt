@@ -4,6 +4,7 @@ import com.whatto.bcm.domain.exception.BcmException
 import com.whatto.bcm.domain.exception.BulkAssetMappingException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import jakarta.servlet.http.HttpServletRequest
+import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
@@ -46,6 +47,7 @@ class ApiExceptionHandler {
     @ExceptionHandler(
         MethodArgumentNotValidException::class,
         HandlerMethodValidationException::class,
+        ConstraintViolationException::class,
         HttpMessageNotReadableException::class,
         MissingServletRequestParameterException::class,
         ServletRequestBindingException::class,

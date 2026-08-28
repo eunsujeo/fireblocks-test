@@ -28,8 +28,12 @@ group: 블록체인 매니저
 | `bcm_whk_l` | 수신 웹훅 알림 원본 — 인박스 | 수신부 적재 → 판단 워커 집기 · finalize 원본의 출처 |
 | `bcm_tx_l` | 거래 운영 상태 — 감지·발행 추적 | 판단 워커 → 발행 예약 · 막힘 점검 · 제출 중복 차단 |
 | `bcm_outbox_l` | 발행 대기 이벤트 — 상태 변경과 원자 기록 | 워커가 같은 트랜잭션에 적재 → relay 가 발송 |
+| `bcm_evnt_cmpl_l` | 소비자 처리 완료 확인 | DAW-CORE 업무 커밋 뒤 `eventId` 멱등 확인 |
 | `bcm_sbmt_l` | 제출 원장 — 우리가 벤더에 낸 건 | 출금·내부이체 제출의 멱등 판정 · sweep 제출 · 웹훅 분류의 기준 |
-| `bcm_swp_trgt` | sweep 대상 마킹 | 입금 확정 시 마킹 → 주기 배치가 제출 |
+| `bcm_swp_req_l` | DAW-CORE sweep 요청 | 외부 요청 멱등·상태·canonical hash |
+| `bcm_swp_req_item_l` | sweep 요청의 고객 계정 항목 | 한 요청 안의 1..N 계정·처리 상태 |
+| `bcm_swp_req_src_l` | 요청 항목의 근거 이벤트 | 완료된 DEPOSIT/FINALIZED `eventId` 소비 |
+| `bcm_swp_trgt` | sweep 실행 후보 projection | 접수된 요청 항목을 주기 배치가 claim |
 | `bcm_swp_auth_m` | 고객 vault별 sweep 승인 관찰 상태 | allowance 확인 · approve 준비 · 긴급 회수 추적 |
 | `bcm_swp_exec_l` | sweep 실행 — 최상위 배치 1건 | 실행 의도 선기록 · batch 제출·종결 |
 | `bcm_swp_item_l` | sweep 실행 항목 | 한 배치 아래 원천 vault N개의 요청·실제 결과 |
@@ -48,11 +52,15 @@ group: 블록체인 매니저
 entity: bcm_addr_m @1,1 :: 주소 매핑 — (계정, 네트워크, 토큰)당 입금 주소 하나 | acnt_id PK,FK :: 계정 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | dpst_addr :: 발급된 입금 주소
 entity: bcm_whk_l @2,1 :: 수신 웹훅 알림 원본 — 인박스 (처리 후 N일 정리) | noti_id PK :: 웹훅 알림 id (벤더 UUID) — 중복 수신 방어 | vndr_tx_id :: 벤더 tx id — 이 알림이 가리키는 거래 | prcs_stcd :: 판단 처리 상태 P/S/F — F 는 격리
 entity: bcm_outbox_l @3,1 :: 발행 대기 이벤트 — 워커가 상태 변경과 한 트랜잭션에 적재 | evnt_id PK :: 이벤트 id (UUID v7) · 컨슈머 dedup 키 | evt_typ_dvcd :: 이벤트유형 TXCK/TXCF/TXFL | evnt_stcd :: 발행상태 P/D/F/S
+entity: bcm_evnt_cmpl_l @4,1 :: 소비자 처리 완료 확인 | evnt_id PK,FK :: BCM 발행 이벤트 | cnsmr_dvcd PK :: DAW_CORE | cmpl_dttm :: 최초 완료 시각
 entity: bcm_sbmt_l @4,1 :: 제출 원장 — 우리가 벤더에 낸 건 (출금·내부이체·sweep) | ext_tx_id PK :: 우리 요청 키 = 멱등 키 | req_hash :: 요청 내용 SHA-256 — 같은 키 다른 내용 판별 | tx_dvcd :: WITHDRAWAL/INTERNAL/SWEEP_APPROVE/SWEEP_BATCH | vndr_tx_id UK :: 벤더 응답·웹훅으로 채운다 (NULL=미확인)
 entity: bcm_acnt_m @1,2 :: 계정 매핑 — ref ↔ vault | acnt_id PK :: 매니저가 발급하는 계정 매핑 id | acnt_typ_dvcd UK :: 계정유형 CU 고객 / SY 시스템 | ref UK :: 백엔드 참조 키 = 코어 계정 ID · 유형과 함께 유일 | vndr_vlt_id :: 벤더 vault id (백엔드 비노출)
 entity: bcm_tx_l @2,2 :: 거래 운영 상태 — 감지·발행 추적 | vndr_tx_id PK :: 최초 벤더 tx id = 논리 거래 id | actv_tx_id UK :: 현재 물리 벤더 tx id | vndr_crt_dttm :: 벤더 createdAt — 대사 시간축 | last_pub_stcd :: 마지막으로 발행한 TxStatus
 entity: bcm_boost_l @3,2 :: boost intent·이력 — 호출 전 선기록 | orig_tx_id PK :: root 논리 거래 id | try_seq PK :: 시도 순번 | ext_tx_id UK :: RBF 제출 멱등 키 | new_tx_id UK :: 대체 벤더 tx
-entity: bcm_swp_trgt @1,3 :: sweep 대상 마킹 — 작업 큐 | acnt_id PK,FK :: 고객 계정 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | actv_swp_exec_id FK :: 현재 claim한 실행 (NULL=선정 가능)
+entity: bcm_swp_req_l @1,3 :: DAW-CORE sweep 요청 | swp_req_id PK :: BCM id | ext_swp_req_id UK :: DAW 멱등 키 | req_hash :: canonical body hash | swp_req_stcd :: ACCEPTED/BLOCKED/PROCESSING/COMPLETED/PARTIAL/FAILED
+entity: bcm_swp_req_item_l @2,3 :: sweep 요청 계정 항목 | swp_req_item_id PK :: BCM id | swp_req_id FK :: 요청 | acnt_id :: 고객 계정 | swp_req_item_stcd :: PENDING/PROCESSING/COMPLETED/FAILED
+entity: bcm_swp_req_src_l @3,3 :: 요청 근거 입금 이벤트 | evnt_id PK,FK :: 완료된 DEPOSIT/FINALIZED 이벤트 | swp_req_item_id FK :: 이 이벤트를 소비한 요청 항목
+entity: bcm_swp_trgt @4,3 :: sweep 실행 후보 projection | acnt_id PK,FK :: 고객 계정 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | actv_swp_exec_id FK :: 현재 claim한 실행 (NULL=선정 가능)
 entity: bcm_swp_auth_m @2,3 :: sweep 승인 관찰 상태 | acnt_id PK,FK :: 고객 계정 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | swp_ctrt_addr PK :: 승인 대상 sweep 컨트랙트 | alwnc_cap :: 승인 상한 | obs_alwnc :: 마지막 온체인 관찰 allowance
 entity: bcm_swp_exec_l @3,3 :: sweep 실행 — 최상위 batch tx | swp_exec_id PK :: 실행 id | ext_tx_id UK :: batch 제출 멱등 키 | vndr_tx_id UK :: Fireblocks 최상위 tx | swp_exec_stcd :: 실행 상태
 entity: bcm_swp_item_l @4,3 :: sweep 실행 항목 | swp_exec_id PK,FK :: 실행 | item_seq PK :: 실행 안 순번 | acnt_id FK :: 원천 고객 계정 | req_amt :: 요청금액 | actl_amt :: 실제 이동금액 | swp_item_stcd :: 항목 상태
@@ -70,6 +78,10 @@ rel: bcm_swp_exec_l | bcm_swp_trgt | 활성 claim | one-many
 rel: bcm_whk_l | bcm_tx_l | 워커가 옮김 | one-many | dashed
 rel: bcm_sbmt_l | bcm_tx_l | 제출한 건이 웹훅으로 돌아옴 | one-one | dashed
 rel: bcm_tx_l | bcm_outbox_l | 같은 트랜잭션 발행 예약 | one-many
+rel: bcm_outbox_l | bcm_evnt_cmpl_l | 소비 완료 | one-many
+rel: bcm_swp_req_l | bcm_swp_req_item_l | 요청 항목 | one-many
+rel: bcm_swp_req_item_l | bcm_swp_req_src_l | 근거 이벤트 | one-many
+rel: bcm_outbox_l | bcm_swp_req_src_l | sweep 요청에 소비 | one-one
 rel: bcm_tx_l | bcm_boost_l | root 거래의 boost 시도 | one-many
 rel: bcm_tx_l | bcm_raw_tx_l | 확정 원본 | one-many | dashed
 rel: bcm_vndr_ast_m | bcm_fee_qt_l | 관측 당시 자산 매핑 | one-many | dashed
@@ -91,6 +103,10 @@ table: bcm_whk_l | noti_id | vndr_tx_id | prcs_stcd
 table: bcm_tx_l | vndr_tx_id | last_pub_stcd | cnfm_cnt
 table: bcm_outbox_l | evnt_id | evt_typ_dvcd | evnt_stcd
 queue: deposit-events | 이벤트 | txId
+table: bcm_evnt_cmpl_l | evnt_id | cnsmr_dvcd | cmpl_dttm
+table: bcm_swp_req_l | swp_req_id | ext_swp_req_id | swp_req_stcd
+table: bcm_swp_req_item_l | swp_req_item_id | acnt_id | swp_req_item_stcd
+table: bcm_swp_req_src_l | evnt_id | swp_req_item_id
 table: bcm_swp_trgt | acnt_id | ntwk_cd | tkn_smbl | actv_swp_exec_id
 table: bcm_swp_auth_m | acnt_id | alwnc_cap | obs_alwnc | auth_stcd
 table: bcm_swp_exec_l | swp_exec_id | ext_tx_id | swp_exec_stcd
@@ -114,7 +130,12 @@ ins: bcm_outbox_l | ev-02 | TXCF | P
 step: relay 발행 — 확정 | 확정 이벤트가 큐로 나간다
 ins: deposit-events | 입금 확정 | tx-91c
 upd: bcm_outbox_l | 2 | evnt_stcd=S
-step: sweep 대상 마킹 | 확정을 잡으면 그 (계정, 자산)을 sweep 대상으로 마킹한다 — 활성 실행은 비어 있음
+step: DAW-CORE 업무 완료 | DAW-CORE가 eventId로 입금 업무를 멱등 반영한 뒤 완료 확인한다
+ins: bcm_evnt_cmpl_l | ev-02 | DAW_CORE | 2026082709300000
+step: DAW-CORE sweep batch 요청 | 완료된 FINALIZED eventId와 계정으로 요청 원장·항목·근거를 함께 기록하고 실행 후보를 만든다
+ins: bcm_swp_req_l | swr-01 | DAW-SWEEP-01 | ACCEPTED
+ins: bcm_swp_req_item_l | swi-01 | acct_01H8X | PENDING
+ins: bcm_swp_req_src_l | ev-02 | swi-01
 ins: bcm_swp_trgt | acct_01H8X | ETHEREUM | USDC | 
 step: allowance 준비 | 온체인 allowance 가 부족하면 approve를 제출하고, 확정 뒤 다시 조회한 관찰값을 갱신한다
 ins: bcm_swp_auth_m | acct_01H8X | 1000 | 1000 | ACTIVE
@@ -476,6 +497,7 @@ CREATE TABLE bcm_outbox_l (
   last_chng_brcd  VARCHAR(4)  NOT NULL
 );
 CREATE INDEX idx_bcm_outbox_send ON bcm_outbox_l (evnt_stcd, evnt_id);  -- 미발행(P) 오래된 순 = 시간정렬 UUID v7
+CREATE INDEX idx_bcm_outbox_sweep_operations ON bcm_outbox_l (topic, evnt_stcd, evnt_id); -- sweep 운영 신호·완료 anti-join
 ```
 
 | 컬럼 | 뜻 |
@@ -487,9 +509,96 @@ CREATE INDEX idx_bcm_outbox_send ON bcm_outbox_l (evnt_stcd, evnt_id);  -- 미�
 | `evt_typ_dvcd` | 코어 이벤트 어휘와 통일 — TXCK(Checking)·TXCF(Confirmed)·TXFL(Failed)·**TXRJ(Rejected — 2026-08-06 신설 제안, 코어 확정 대기)**. BC→코어 계약이 한 어휘로 흐른다 |
 | `evnt_stcd` | 워커 적재 시 `P`, relay 발송 성공 시 `S`, 실패 누적 시 `F`. relay 는 `P` 를 `evnt_id` 순으로 집는다 |
 
+### bcm_evnt_cmpl_l — DAW-CORE 이벤트 처리 완료
+
+outbox의 발행 상태와 소비자의 업무 반영 완료를 분리한다. 완료 행은 최초 한 번만 추가하고 이벤트 상태나 payload를
+덮어쓰지 않는다.
+
+```sql
+CREATE TABLE bcm_evnt_cmpl_l (
+  evnt_id         VARCHAR(36)  NOT NULL REFERENCES bcm_outbox_l (evnt_id),
+  cnsmr_dvcd      VARCHAR(16)  NOT NULL,       -- 1차: DAW_CORE
+  cmpl_dttm       VARCHAR(16)  NOT NULL,       -- 서버가 기록한 최초 처리 완료 시각
+  frst_reg_empno  VARCHAR(6)   NOT NULL,
+  frst_reg_brcd   VARCHAR(4)   NOT NULL,
+  last_chng_empno VARCHAR(6)   NOT NULL,
+  last_chng_brcd  VARCHAR(4)   NOT NULL,
+  PRIMARY KEY (evnt_id, cnsmr_dvcd),
+  CHECK (cnsmr_dvcd IN ('DAW_CORE'))
+);
+
+CREATE INDEX idx_bcm_evnt_cmpl_consumer_time
+  ON bcm_evnt_cmpl_l (cnsmr_dvcd, cmpl_dttm, evnt_id);
+```
+
+- `PUT /events/{eventId}/completion`은 outbox 행을 잠근 뒤 `evnt_stcd='S'`이고 DAW-CORE 대상 topic인지 검사한다.
+- 같은 `(evnt_id, cnsmr_dvcd)` 재요청은 갱신하지 않고 최초 `cmpl_dttm`을 돌려준다.
+- 완료되지 않은 필수 소비자 이벤트는 정리하지 않는다. outbox를 아카이브할 때 완료 원장도 같은 보존 단위로 옮긴다.
+
+### bcm_swp_req_l · bcm_swp_req_item_l · bcm_swp_req_src_l — DAW-CORE sweep 요청
+
+DAW-CORE가 보낸 batch 요청과 각 계정 항목, 판단 근거인 입금 `FINALIZED eventId`를 불변으로 보존한다. 요청은
+온체인 실행보다 상위 원장이며 하나의 요청이 정책 최대 M에 따라 여러 `bcm_swp_exec_l`로 나뉠 수 있다.
+
+```sql
+CREATE TABLE bcm_swp_req_l (
+  swp_req_id       VARCHAR(36)  PRIMARY KEY,
+  ext_swp_req_id   VARCHAR(128) NOT NULL UNIQUE,
+  req_hash         CHAR(64)     NOT NULL,
+  ntwk_cd          VARCHAR(20)  NOT NULL,
+  tkn_smbl         VARCHAR(16)  NOT NULL,
+  swp_req_stcd     VARCHAR(16)  NOT NULL, -- ACCEPTED/BLOCKED/PROCESSING/COMPLETED/PARTIAL/FAILED
+  item_cnt         INT          NOT NULL CHECK (item_cnt > 0),
+  req_dttm         VARCHAR(16)  NOT NULL,
+  fnsh_dttm        VARCHAR(16)  NULL,
+  frst_reg_empno   VARCHAR(6)   NOT NULL,
+  frst_reg_brcd    VARCHAR(4)   NOT NULL,
+  last_chng_empno  VARCHAR(6)   NOT NULL,
+  last_chng_brcd   VARCHAR(4)   NOT NULL
+);
+
+CREATE TABLE bcm_swp_req_item_l (
+  swp_req_item_id  VARCHAR(36)  PRIMARY KEY,
+  swp_req_id       VARCHAR(36)  NOT NULL REFERENCES bcm_swp_req_l (swp_req_id),
+  item_seq         INT          NOT NULL,
+  acnt_id          VARCHAR(64)  NOT NULL REFERENCES bcm_acnt_m (acnt_id),
+  swp_req_item_stcd VARCHAR(16) NOT NULL, -- PENDING/PROCESSING/COMPLETED/FAILED
+  last_fail_cd     VARCHAR(64)  NULL,
+  frst_reg_empno   VARCHAR(6)   NOT NULL,
+  frst_reg_brcd    VARCHAR(4)   NOT NULL,
+  last_chng_empno  VARCHAR(6)   NOT NULL,
+  last_chng_brcd   VARCHAR(4)   NOT NULL,
+  UNIQUE (swp_req_id, item_seq),
+  UNIQUE (swp_req_id, acnt_id)
+);
+
+CREATE TABLE bcm_swp_req_src_l (
+  evnt_id          VARCHAR(36) PRIMARY KEY REFERENCES bcm_outbox_l (evnt_id),
+  swp_req_item_id  VARCHAR(36) NOT NULL REFERENCES bcm_swp_req_item_l (swp_req_item_id),
+  frst_reg_empno   VARCHAR(6)  NOT NULL,
+  frst_reg_brcd    VARCHAR(4)  NOT NULL,
+  last_chng_empno  VARCHAR(6)  NOT NULL,
+  last_chng_brcd   VARCHAR(4)  NOT NULL
+);
+
+CREATE INDEX idx_bcm_swp_req_src_item
+  ON bcm_swp_req_src_l (swp_req_item_id, evnt_id);
+```
+
+- `req_hash`는 `sweep-request-v1`·network·symbol과 `accountId` 오름차순, 각 계정의 `sourceEventId` 오름차순을 LF로
+  이은 UTF-8 바이트의 SHA-256 소문자 hex다. 배열 순서만 바꾼 재시도는 같은 요청이다.
+- 접수 트랜잭션에서 source eventId 오름차순으로 트랜잭션 advisory lock을 잡은 뒤 source outbox 행을 잠그고
+  `DEPOSIT/FINALIZED`, 계정·network·symbol 일치, `DAW_CORE` 완료 확인, 다른 요청 미소비를 모두 검사한 뒤 세
+  테이블과 실행 후보를 함께 기록한다. 서로 다른 외부 요청이 같은 source event를 동시에 제시해도 뒤 요청은 앞 요청 커밋
+  뒤 새 statement snapshot에서 소비 여부를 다시 읽어 `409`로 종결하며 PK 예외를 API 500으로 노출하지 않는다.
+- 실행 게이트가 중지됐으면 `BLOCKED`, 아니면 `ACCEPTED`로 접수한다. `BLOCKED`는 자금 실행 의도가 아니며 재개 뒤
+  BAT가 최신 정책·컨트랙트·증적·게이트를 다시 검사해야 `PROCESSING`으로 바뀐다.
+
 ### bcm_swp_trgt — sweep 대상
 
-입금 확정 관찰이 마킹하고, 주기 작업이 같은 네트워크·토큰의 대상을 묶는다. PK 가 (계정, 자산)이라 입금이 여러 번 와도 행 하나다. 실행과 항목을 먼저 만든 뒤 `actv_swp_exec_id + actv_item_seq`로 claim한다.
+접수된 sweep 요청 항목이 만들고, 주기 작업이 같은 네트워크·토큰의 대상을 묶는다. 입금 확정 관찰만으로는 만들지 않는다.
+PK가 (계정, 자산)이라 같은 계정의 후속 요청은 기존 실행이 종결된 뒤 순서대로 합류한다. 실행과 항목을 먼저 만든 뒤
+`actv_swp_exec_id + actv_item_seq`로 claim한다.
 
 ```sql
 CREATE TABLE bcm_swp_trgt (
@@ -513,10 +622,10 @@ CREATE TABLE bcm_swp_trgt (
 
 | 컬럼 | 뜻 |
 |---|---|
-| 삭제 기준 | batch 제출 성공이 아니라 **항목 성공 뒤 vault 잔액이 최소 미만임을 확인**했을 때 삭제한다. vault 잔액이 진실이고 이 테이블은 작업 큐다 |
-| 행 생성·삭제 | 확정 관찰 → insert(있으면 무시) · 실행/항목 선기록과 같은 트랜잭션에서 claim · 성공 후 잔액이 최소 미만이면 삭제 · 실패 또는 잔액 잔존이면 claim을 NULL로 풀어 재선정 |
+| 삭제 기준 | batch 제출 성공이 아니라 **항목 성공 뒤 vault 잔액이 최소 미만임을 확인**했을 때 삭제한다. 가용 잔액이 정확히 0이면 가장 오래된 미완료 요청 항목 하나를 온체인 실행 없이 완료한 뒤 나머지 요청을 다시 평가한다. vault 잔액이 진실이고 이 테이블은 작업 큐다 |
+| 행 생성·삭제 | 요청 접수 → insert(있으면 유지) · 실행/항목 선기록과 같은 트랜잭션에서 claim · 해당 계정의 미완료 요청 item과 잔액이 모두 없으면 삭제 · 실패 또는 양의 잔액 잔존이면 claim을 NULL로 풀어 재선정 |
 | `actv_swp_exec_id`·`actv_item_seq` | 한 최상위 batch tx 아래 어느 원천 이동으로 처리 중인지 가리키는 1:N 링크. 둘 다 NULL이거나 둘 다 값이어야 한다 |
-| `try_cnt` | 반복 실패가 임계(운영 설정값)를 넘으면 경보 — externalTxId 멱등이라 재제출은 안전하다 |
+| `try_cnt` | 최초 target claim을 첫 제출 시도 1회로 세고, 같은 `SUBMITTING` 실행의 실패 submission을 같은 externalTxId로 다시 획득할 때마다 target 행 잠금 아래 1씩 증가시켜 `last_try_dttm`도 갱신한다. 반복 실패가 임계(운영 설정값)를 넘으면 별도 gauge와 경보를 올린다. 재시도는 주기 작업 간격으로 제한되고 externalTxId 멱등으로 같은 실행의 중복 제출을 막는다. 자동 `FAILED` 종결은 자금 이동 필요성을 없애지 못하므로 하지 않으며 운영자는 실행 게이트 중지 뒤 원인을 조치한다 |
 
 ### bcm_swp_auth_m — sweep 승인 관찰 상태
 
@@ -587,6 +696,7 @@ CREATE UNIQUE INDEX uk_bcm_swp_exec_operator_pending
 CREATE TABLE bcm_swp_item_l (
   swp_exec_id      VARCHAR(36)    NOT NULL,
   item_seq         INT            NOT NULL,
+  swp_req_item_id  VARCHAR(36)    NOT NULL REFERENCES bcm_swp_req_item_l (swp_req_item_id),
   acnt_id          VARCHAR(64)    NOT NULL,        -- 원천 고객 계정
   src_addr         VARCHAR(128)   NOT NULL,        -- 실행 의도 시점 주소 snapshot
   req_amt          NUMERIC(36,18) NOT NULL,
@@ -610,12 +720,21 @@ ALTER TABLE bcm_swp_trgt
 ```
 
 - 실행과 모든 항목, `bcm_swp_trgt` claim은 한 DB 트랜잭션으로 선기록한다. calldata는 이 레코드에서만 만들고 Callback도 같은 실행 의도와 대조한다.
+- `swp_req_item_id`는 DAW 요청 항목과 실제 실행 시도를 잇는다. 실패 후 재시도하면 같은 요청 항목을 가리키는 새 실행 항목이
+  생기며 과거 실패 항목은 덮어쓰지 않는다.
 - 같은 운영 계정의 `READY`·`SUBMITTING` 실행은 부분 UNIQUE 인덱스로 하나만 허용한다. 새 후보를 claim하기 전에 이 실행을 먼저 회수하며, 벤더 접수를 기록해 `SUBMITTED`가 된 뒤에만 다음 실행을 만들 수 있다.
 - 항목은 EVM 원천 주소 20바이트 값 오름차순으로 정렬하고 `item_seq`를 1부터 부여한다. 같은 네트워크의 주소 중복은 허용하지 않는다.
 - `req_hash`의 첫 판은 `batch-v1`이다. LF로 `BATCH_V1` · network · symbol · token contract 소문자 · sweep contract 소문자 · 표준 36자 UUID executionId 소문자를 한 줄씩 잇고, 이어서 각 항목을 `item_seq|원천주소 소문자|정규화 십진금액` 한 줄로 붙인 UTF-8 바이트의 SHA-256 소문자 hex다. 마지막 LF는 붙이지 않는다. 재시도에서 내용이 달라지면 같은 `ext_tx_id`를 쓰지 못한다.
 - calldata는 [sweep 운영 ABI](06-sweep.md#운영-컨트랙트-abi)의 같은 순서를 쓰되 executionId는 UUID 원문 16바이트, 금액은 token decimals를 적용한 최소 단위 정수다. canonical hash의 금액은 DB와 같은 사람 단위 십진 정규화 값이라 ABI 단위와 섞지 않는다.
 - 최상위 거래가 `COMPLETED`여도 곧바로 실행을 완료하지 않는다. `RECONCILING`에서 요청 N개와 network records·receipt의 `SweepLeg` 이벤트를 대조한 뒤 `COMPLETED` 또는 `PARTIAL`로 종결한다.
 - 되돌려진 항목은 network records에 없을 수 있으므로 성공 레코드의 부재만으로 실패 사유를 추측하지 않는다. 컨트랙트 실패 이벤트와 실행 후 잔액을 함께 본다.
+- 항목 상태가 바뀔 때 `sweep-events`용 outbox를 같은 트랜잭션에 적재한다. payload에는 `eventId`, `sweepRequestId`,
+  `sweepItemId`, `executionId`, `txId`, `vendorTxId`, `txHash`, `accountId`, `network`, `symbol`, 요청·실제 금액,
+  `chainStatus`, `itemOutcome`, 실패 코드를 싣는다. 아직 결정되지 않은 값은 `null`이며 `chainStatus=FINALIZED`와
+  `itemOutcome=FAILED` 조합을 허용한다. 앞 실행이 잔액을 이미 모두 옮긴 후속 요청은 새 실행 항목을 만들지 않고 요청
+  항목과 요청 상태를 같은 트랜잭션에서 완료하며 `chainStatus=NOT_SUBMITTED`,
+  `itemOutcome=NO_SWEEP_REQUIRED`, 요청·실제 금액 `0`, 물리 거래 식별자 `null`인 이벤트를 적재한다. 이 경우 기존
+  outbox의 non-null 내부 정렬 키에는 `sweepItemId`를 사용하지만 고객 payload에 가짜 거래 식별자를 만들지 않는다.
 
 ### bcm_boost_l — boost 이력
 

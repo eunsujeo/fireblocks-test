@@ -71,6 +71,7 @@ class OperationalSignalPersistenceTest : PersistenceTestSupport() {
         ).isEqualTo(OperationalBacklog(1, "20260817010200"))
         assertThat(signals.stoppedReconciliationCount()).isZero()
         assertThat(signals.unarchivedCompletedWebhookCount()).isZero()
+        assertThat(signals.sweepOperationalSignals().pendingRequestCount).isZero()
         assertThat(signals.heartbeats()).containsExactly(
             JobHeartbeat(
                 jobName = "tx-reconciliation",

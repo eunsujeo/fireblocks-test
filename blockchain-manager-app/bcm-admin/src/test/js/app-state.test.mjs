@@ -18,6 +18,7 @@ import {
   resolveViewState,
   runSingleFlight,
   shouldRefreshTestRun,
+  sweepIdentifierFromPath,
   testRunIdFromPath,
   transactionIdentifierFromPath,
 } from "../../main/resources/static/admin/app-state.js";
@@ -50,6 +51,13 @@ test("밴드S 경로는 독립 운영 원장 화면으로 해석된다", () => {
   assert.equal(adminRouteFromPath("/admin/band-s/"), "bandS");
   assert.equal(adminRouteFromPath("/admin/policies"), "policies");
   assert.equal(adminRouteFromPath("/admin/vaults"), "vaults");
+});
+
+test("Sweep 운영 목록과 어떤 관련 식별자든 받는 상세 경로를 구분한다", () => {
+  assert.equal(adminRouteFromPath("/admin/sweeps"), "sweeps");
+  assert.equal(adminRouteFromPath("/admin/sweeps/event%3A1"), "sweeps");
+  assert.equal(sweepIdentifierFromPath("/admin/sweeps/event%3A1"), "event:1");
+  assert.equal(sweepIdentifierFromPath("/admin/sweeps"), null);
 });
 
 test("비상 운영 경로는 실행 게이트 원장 화면으로 해석된다", () => {

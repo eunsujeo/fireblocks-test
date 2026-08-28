@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.bat
 
 import com.whatto.bcm.app.bat.sweep.OperationalSweepExecutionAlertAdapter
+import com.whatto.bcm.app.config.ClockConfig
 import com.whatto.bcm.domain.monitoring.OperationalAlertChannel
 import com.whatto.bcm.domain.sweep.SweepExecutionAlertPort
 import org.assertj.core.api.Assertions.assertThat
@@ -25,7 +26,7 @@ class BcmBatApplicationTest {
 
     @Test
     fun `배치 절대시각 원천은 UTC다`() {
-        assertThat(BcmBatApplication().clock().zone).isEqualTo(ZoneOffset.UTC)
+        assertThat(ClockConfig().clock().zone).isEqualTo(ZoneOffset.UTC)
     }
 
     @Test

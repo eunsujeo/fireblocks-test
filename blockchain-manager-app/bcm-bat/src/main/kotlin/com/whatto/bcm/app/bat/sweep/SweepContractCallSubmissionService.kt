@@ -56,6 +56,15 @@ fun interface SweepContractCallSubmitter {
         recordIntent()
         return submit(command)
     }
+
+    fun submit(
+        command: SweepContractCallCommand,
+        recordIntent: () -> Unit,
+        recordFailedRetry: () -> Unit,
+    ): SweepContractCallResult {
+        recordIntent()
+        return submit(command)
+    }
 }
 
 @Service
@@ -66,16 +75,23 @@ class SweepContractCallSubmissionService(
     private val clock: Clock,
     private val properties: SweepProperties,
 ) : SweepContractCallSubmitter {
-    override fun submit(command: SweepContractCallCommand): SweepContractCallResult = submitInternal(command, null)
+    override fun submit(command: SweepContractCallCommand): SweepContractCallResult = submitInternal(command, null, null)
 
     override fun submit(
         command: SweepContractCallCommand,
         recordIntent: () -> Unit,
-    ): SweepContractCallResult = submitInternal(command, recordIntent)
+    ): SweepContractCallResult = submitInternal(command, recordIntent, null)
+
+    override fun submit(
+        command: SweepContractCallCommand,
+        recordIntent: () -> Unit,
+        recordFailedRetry: () -> Unit,
+    ): SweepContractCallResult = submitInternal(command, recordIntent, recordFailedRetry)
 
     private fun submitInternal(
         command: SweepContractCallCommand,
         recordIntent: (() -> Unit)?,
+        recordFailedRetry: (() -> Unit)?,
     ): SweepContractCallResult {
         val fingerprint =
             SubmissionRequestHashes.contractCallV1(
@@ -108,12 +124,12 @@ class SweepContractCallSubmissionService(
         return when (current.status) {
             SubmissionStatus.SUBMITTED -> submitted(current)
             SubmissionStatus.REQUESTED -> {
-                val acquired = acquireClaim(command.externalTransactionId, claim)
+                val acquired = acquireClaim(command.externalTransactionId, claim, null)
                 if (acquired.status == SubmissionStatus.SUBMITTED) submitted(acquired) else recoverOrSubmit(command, claim.id)
             }
 
             SubmissionStatus.FAILED -> {
-                val acquired = acquireClaim(command.externalTransactionId, claim)
+                val acquired = acquireClaim(command.externalTransactionId, claim, recordFailedRetry)
                 if (acquired.status == SubmissionStatus.SUBMITTED) submitted(acquired) else submitToVendor(command, claim.id)
             }
         }
@@ -122,12 +138,16 @@ class SweepContractCallSubmissionService(
     private fun acquireClaim(
         externalTransactionId: String,
         claim: SubmissionClaim,
+        recordFailedRetry: (() -> Unit)?,
     ): SubmissionRecord {
         val now = CoreDateTimes.now(clock)
-        val acquired =
+        val acquisition =
             transactionRunner.run {
-                submissions.tryClaim(externalTransactionId, claim.id, claim.expiresAt, now)
+                val record = submissions.tryClaim(externalTransactionId, claim.id, claim.expiresAt, now)
+                if (record?.status == SubmissionStatus.REQUESTED) recordFailedRetry?.invoke()
+                ClaimAcquisition(record)
             }
+        val acquired = acquisition.record
         if (acquired != null) return acquired
         val current =
             submissions.findByExternalTransactionId(externalTransactionId)
@@ -293,5 +313,9 @@ class SweepContractCallSubmissionService(
     private data class SubmissionAttempt(
         val record: SubmissionRecord,
         val isNew: Boolean,
+    )
+
+    private data class ClaimAcquisition(
+        val record: SubmissionRecord?,
     )
 }

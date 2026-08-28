@@ -48,6 +48,8 @@ data class TransactionTimelineEntry(
     val status: String?,
     val observedAt: Instant?,
     val identifier: String?,
+    val deliveryStatus: String? = null,
+    val dawCompletedAt: Instant? = null,
 )
 
 data class TransactionBoostAttempt(

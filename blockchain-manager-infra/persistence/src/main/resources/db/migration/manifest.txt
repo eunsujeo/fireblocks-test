@@ -12,3 +12,4 @@ V10__execution_gate_sweep_submission_guards.sql
 V11__asset_mapping_change_snapshots.sql
 V12__vendor_asset_catalog_cache.sql
 V13__blockchain_asset_catalog_sync_time.sql
+V14__daw_sweep_request_and_event_completion.sql

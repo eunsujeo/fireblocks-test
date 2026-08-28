@@ -69,6 +69,12 @@ class InvalidRequestException(
     val field: String,
 ) : BcmException("invalid request: field=$field")
 
+/** 문법은 맞지만 현재 리소스 상태 때문에 처리할 수 없는 요청. */
+class UnprocessableRequestException(
+    val resource: String,
+    val key: String,
+) : BcmException("unprocessable request: resource=$resource key=$key")
+
 /** 대납 relay 가 전송을 못 대거나 거절 (openapi RELAY_REJECTED) — infra 가 벤더 에러를 변환해 던진다. */
 class RelayRejectedException(
     val reason: String,

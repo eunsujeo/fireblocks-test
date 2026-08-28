@@ -230,7 +230,7 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
                     NETWORK,
                     SYMBOL,
                 ),
-            ).isEqualTo(1)
+            ).isZero()
         }
     }
 

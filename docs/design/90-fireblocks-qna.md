@@ -110,90 +110,81 @@ Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblock
 **Q.** gas 실비 외 추가 수수료가 있나?
 **A.** 프리미엄 기능이라 청구는 두 항목 — **월 구독료 + gas 실비 상환.** 건별 relay 수수료 없음, gas 에 대한 퍼센트 마크업 없음.
 
-## 공식 문서로 확인한 사실 (참고)
+### 과금 후속 문의 — 확정 문안 (2026-08-27) · 회신 대기
 
-담당자 메신저 답변이 아니라 Fireblocks 공식 문서에서 확인한 것 — 답변마다 원본 출처 링크를 단다.
+기존 확답과 겹치지 않는 잔여 3건으로 추림 — 마크업·revert/RBF 청구·USD 청구·월말 인보이스는 이미 확답이라 제외.
 
-**Q.** 웹훅에 2xx 를 못 주면 어떻게 되나?
-**A.** 지수 백오프로 총 10회 재시도(합산 약 8시간) 후 failed 로 마킹한다. ([Responses & retries](https://developers.fireblocks.com/reference/webhooks-gettingstarted-responsesretries))
+> Hi, a few follow-up questions on Universal Gasless billing, building on your earlier answers (USD billing, no markup, monthly invoice).
+> 1. What is the exact monthly subscription fee, and is it charged per workspace?
+> 2. For the USD conversion of native gas, which price source and reference timestamp are used?
+> 3. Could you provide estimated monthly cost ranges for 100K / 1M / 10M Universal Gasless transactions per month on Ethereum and Base, separating the subscription fee from estimated gas, with the gas-price and per-transaction gas usage assumptions used — including first-time EIP-7702 account upgrade transactions? Ranges are sufficient.
 
-**Q.** 실패 처리된 알림을 다시 받을 수 있나?
-**A.** Webhooks V2의 `resend_failed`는 호출 시점 기준 최근 24시간 안의 실패 알림을 다시 배차한다. migration guide의 최대 30일은 resource/query 기반 재전송까지 포함한 상위 설명이므로 이 endpoint의 범위와 구분한다. 24시간보다 오래된 공백은 거래 조회·대사로 복구한다. ([Resend failed webhook notifications](https://developers.fireblocks.com/reference/resend-failed-webhook-notifications))
+**Q.** 월 구독료의 정확한 금액과 Workspace 단위 부과 여부는?
+**A.** 회신 대기.
 
-**Q.** 수신 오류율이 높으면?
-**A.** 오류율이 높은 endpoint 는 벤더가 자동 비활성화한다(circuit breaker). 재활성화 전까지 웹훅이 오지 않는다. ([Responses & retries](https://developers.fireblocks.com/reference/webhooks-gettingstarted-responsesretries))
+**Q.** 네이티브 가스 USD 환산의 가격 출처·기준 시각은?
+**A.** 회신 대기.
 
-**Q.** 웹훅 서명은 어떻게 검증하나?
-**A.** JWKS 방식이다 — `Fireblocks-Webhook-Signature` 헤더, 공개키는 자동 조회·로테이션. ([Validating webhooks](https://developers.fireblocks.com/reference/validating-webhooks))
+**Q.** Ethereum·Base 월 10만/100만/1,000만 건 시나리오의 월 비용 범위는? (구독료·가스 분리, 가스 가격·건당 가스 사용량 가정, 최초 EIP-7702 업그레이드 거래 포함)
+**A.** 회신 대기.
 
-**Q.** 확정으로 볼 컨펌 수는 어떻게 정해지나?
-**A.** DCCP(확정 정책)가 정한다. 기본은 대부분 체인 1(이더·Base 포함)·ETC 372·컨트랙트 호출 3 권장. 한도는 EVM 최소 1·이더 최대 100·신규 EVM L2 최대 30. 커스텀 임계는 정책 템플릿을 Support 에 제출해 승인 후 반영된다. ([About the DCCP](https://support.fireblocks.io/hc/en-us/articles/360013034359-About-the-Deposit-Control-and-Confirmation-Policy))
+## KeyLink — 공식 자료 확정·담당자 문의 (2026-08-27)
 
-**Q.** 일반 EVM 거래를 API로 boost할 수 있나?
-**A.** 가능하다. Create Transaction에 원 거래의 온체인 hash를 `replaceTxByHash`로 넣으면 같은 nonce의 더 높은 수수료 거래를 만든다. 새 거래는 원 거래가 CONTRACT_CALL이어도 TRANSFER로 생성된다. ([Boost Transactions](https://developers.fireblocks.com/reference/boost-transactions))
+예산 산정을 위한 문의다. "공식 자료로 확정한 내용"은 수집한 Fireblocks 공식 자료에서 확인한 것이고, 기술 4문항은 2026-08-28 담당자 확답으로 확정했다. 견적은 영업 담당 회신 대기.
 
-**Q.** Fireblocks가 일반 발신 거래를 자동 boost해 주나?
-**A.** 공식 문서에서 자동 boost가 명시된 것은 Gas Station의 auto-fueling 거래다. 일반 EVM 발신은 Console Boost 또는 API RBF 절차와 `transaction.alert.stuck`의 권장 조치 `BOOST_TRANSACTION`이 문서화돼 있어, 일반 거래의 자동 처리를 보장한다고 보지 않는다. ([Gas Station Autoboost](https://support.fireblocks.io/hc/en-us/articles/14406592622748-Gas-Station-Autoboost) · [Transaction events](https://developers.fireblocks.com/reference/webhooks-structures-eventtypes-transaction))
+### 공식 자료로 확정한 내용
 
-**Q.** stuck 이벤트는 무엇을 주나?
-**A.** EVM에서 vault+base asset의 거래가 `CONFIRMING`으로 막히면 `transaction.alert.stuck`이 발생할 수 있고, 가장 오래 막힌 Fireblocks tx id와 tx hash, 경과 블록·시간, 권장 `BOOST_TRANSACTION`을 준다. 알림은 개입 워크플로를 만드는 신호이고 자동 해결 완료 통지가 아니다. ([Transaction events](https://developers.fireblocks.com/reference/webhooks-structures-eventtypes-transaction))
+**Q.** KeyLink의 서명 경로는 어떻게 구성되나? API Co-Signer가 HSM에 직접 연결하나?
+**A. (공식 자료 확인)** 아니다. 경로는 **Fireblocks Co-Signer Engine → Fireblocks Agent → Customer Server → HSM**이다. Agent가 Fireblocks의 서명 요청을 폴링해 Customer Server로 전달하고, Customer Server가 HSM에 서명을 요청한 뒤 결과를 역경로로 반환한다. ([KeyLink Overview](../../../../sources/fireblocks/markdown/2026-05-22__support-fireblocks-io__fireblocks-key-link-overview-extracted.txt))
 
-## PoC 실측으로 확정한 사실 (2026-08)
+**Q.** Fireblocks Agent가 실제 개인키나 MPC key share를 보유하나?
+**A. (공식 자료 확인)** 보유하지 않는다. 개인키는 고객 HSM에 남고 HSM이 단독 서명한다. Fireblocks는 고객이 등록한 validation key와 proof of ownership으로 서명키를 확인하고 결과 서명을 검증한다. KeyLink는 일반 API Co-Signer의 MPC 공동서명 구조와 다르다. ([Getting Started with KeyLink](../../../../sources/fireblocks/markdown/2026-05-22__support-fireblocks-io__getting-started-with-fireblocks-key-link-extracted.txt))
 
-문서·답변이 아니라 **실물로 직접 관찰**한 것 — 상세는 [수신 PoC 결과보고](../설계/97-webhook-poc-result.md)와 [approve 배치 sweep PoC 결과보고](../설계/95-approve-pull-poc-result.md).
+**Q.** KeyLink Agent에 AWS Nitro나 Intel SGX가 필요한가?
+**A. (공식 자료 확인)** KeyLink 설치 절차에는 해당 요구가 없다. Nitro·SGX·Google Confidential Space는 MPC key share를 보관하는 API Co-Signer의 실행 환경이고, KeyLink Agent는 고객이 호스팅하는 오픈소스 TypeScript 중계 서비스다.
 
-**Q.** 재시도 간격은 실제로 얼마인가?
-**A.** 분 단위 배증이다 — 첫 재시도 +21~60초, 이후 1분 → 1분 → 3분 → 6분 → … 으로 벌어지고, 도착이 분 tick(:00)에 정렬된다. 공식 문서의 "지수 백오프 10회·~8시간" 원리는 맞지만 세부 간격 수치(10·30·120초…로 알려진 것)와는 다르다. (2026-08-03, 알림 2건×2회 실측)
+**Q.** Agent는 Fireblocks Workspace와 어떻게 연결되나?
+**A. (공식 자료 확인)** Signer 역할 API user를 만들고 Admin Quorum 승인을 거쳐 발급받은 pairing token으로 Agent를 연결한다. 각 Policy rule의 designated signer도 이 Agent와 페어링한 API user로 지정해야 한다. 재등록(re-enroll)은 Owner 승인이 필요하다. ([Getting Started with KeyLink](../../../../sources/fireblocks/markdown/2026-05-22__support-fireblocks-io__getting-started-with-fireblocks-key-link-extracted.txt))
 
-**Q.** `resend_failed` 는 실제로 어떻게 동작하나?
-**A.** `202 {"total":N}` 을 반환하는데 **N 은 호출 시점에 실패 상태인 알림 수만** 센다 — 벤더 재시도로 이미 전달돼 2xx 를 받은 알림은 제외된다. 재전송은 즉시가 아니라 **다음 분 tick** 에 도착했다(호출 51초 뒤). 회수 수단으로 유효함을 실측 확인.
+**Q.** Vault와 HSM signing key의 결합 제약은 무엇인가?
+**A. (공식 자료 확인)** KeyLink Vault Account에는 ECDSA key 하나와 EdDSA key 하나를 배정할 수 있고, 한 Vault에 배정한 key는 다른 Vault에 재사용할 수 없다. 따라서 필요한 HSM key 수는 Vault 수와 지원할 서명 알고리즘을 기준으로 산정해야 한다. ([Set Up Your Fireblocks Vault with KeyLink](../../../../sources/fireblocks/markdown/2026-05-22__support-fireblocks-io__set-up-your-fireblocks-vault-with-key-link-extracted.txt))
 
-**Q.** v2 알림 payload 의 실물 구조는?
-**A.** 최상위 `id`(알림 UUID)·`eventType`·`resourceId`(tx id)·`webhookId`·`workspaceId`·`createdAt`(epoch ms), tx 는 `data.{id,status,subStatus,numOfConfirmations,source,destination,txHash,blockInfo,amountInfo,…}`. `transaction.created` 가 이미 `CONFIRMING`+`txHash` 를 담고 온다(입금은 체인 감지 시점부터). 금액은 `amountInfo` 의 **문자열 값**을 쓰는 게 정밀도 안전. 원본 샘플은 fbhook 저장소 docs/payload-samples/.
+**Q.** 공식 자료에서 확인되는 HSM과 배치 방식은 어디까지인가?
+**A. (공식 자료 확인)** Thales Luna HSM 연동과 FIPS 140-3 Level 3 하드웨어 사용은 확인된다. Hot·Warm·Cold signing workflow를 지원하며 Cold 방식의 전달 수단으로 USB·SFTP·data diode가 제시돼 있다. 다만 정확한 Luna 모델·펌웨어, Hot·Warm의 네트워크 구성과 성능 기준은 공개 자료만으로 확정할 수 없다. ([Fireblocks and Thales](../../../../sources/fireblocks/markdown/2026-05-22__fireblocks-com__enterprise-digital-asset-security-thales.md))
 
-**Q.** payload 를 JSON/JSONB 컬럼에 저장하면?
-**A.** 키 재정렬·공백 정규화로 **와이어 바이트가 소실**된다 — DB 에서 꺼낸 값으로는 detached JWS 재검증이 불가했다(실측 401). 원문 해시·서명 재검증은 수신 시점 바이트로 해야 한다.
+### 담당자에게 보낸 메신저 (2026-08-27 확정 문안)
 
-**Q.** 배치 컨트랙트가 `transferFrom` 으로 여러 vault 의 잔액을 한 거래에 모을 때, vault 별 거래 기록과 웹훅이 어떻게 오나? (2026-08-10 이더리움 Sepolia · KBKRW · 이동 2건)
-**A.** 우리 vault 가 배치를 `CONTRACT_CALL` 로 제출한 경우로 확인했다. 그 거래의 `networkRecords` 에 **원천 vault 가 귀속되고 `netAmount` 도 나온다.** `transaction.network_records.processing_completed` 도 온다. 단 최상위 거래는 제출 1건뿐이고(원천 vault·옴니버스 각각의 최상위 거래는 생기지 않는다), 레코드마다 우리 vault 는 한쪽에만 채워진다 — 같은 이동이 받는 vault 관점과 보내는 vault 관점으로 두 번 들어오고, 토큰이 움직이지 않은 호출 관계까지 더해 이동 한 건당 레코드 3개가 된다.
+벤더만 답할 수 있는 항목으로 추려 5문항으로 확정 — 고객이 선택·산정할 항목(배치 토폴로지, Customer Server 사양, 구성 요소 수량, 원격 HSM 연결)과 구축 단계 세부(펌웨어·Luna Client·PKCS#11 조합, endpoint·port·timeout·재시도, failover·재페어링)는 뺐다.
 
-시사점 — 배치 sweep 의 감지·대사는 성립하지만 **network records 를 펼쳐 보낸 vault 기준 행만 골라 쓰는 처리가 필수**다. 서명만 넘겨 외부가 제출하는 모델에서도 같은지는 재보지 않았다.
+> We also have a few questions about KeyLink, covering both technical and pricing topics.
+> 1. Is there a supported or recommended Thales Luna model? If no specific model is required, what cryptographic algorithms and interface requirements must the HSM meet?
+> 2. Does Fireblocks provide either a production-ready Customer Server implementation or reference code with Thales Luna integration, or is the customer expected to build it based on the Fireblocks interface specifications?
+> 3. What are the recommended host specifications and supported operating systems for the Fireblocks Agent? Are there any restrictions on running it in a VM or container?
+> 4. Can multiple Agent instances be connected to one workspace for HA and DR? Do you have a reference architecture for production and DR deployments?
+> 5. Beyond our existing Fireblocks contract, are there any additional KeyLink fees or mandatory Professional Services costs? Could you provide an estimate for development, UAT, production, and DR workspaces?
 
-**Q.** ERC-20 `approve` 는 어떤 operation 으로 제출하나? 스키마 enum 의 `APPROVE` 를 쓰면 되나?
-**A.** **`APPROVE` 로는 제출할 수 없다** — `400 {"message":"Cannot perform transaction","code":1401}`(두 가지 body 형태 모두). `CONTRACT_CALL` 에 approve calldata 를 실어 보내면 통하고(200 → COMPLETED, 온체인 allowance 반영), **조회하면 그 거래의 `operation` 이 `APPROVE`** 로 나온다. 즉 `APPROVE` 는 제출용이 아니라 벤더가 calldata 를 보고 붙이는 분류 라벨이다. TAP 의 `APPROVE` transactionType·`applyForApprove` 도 이 분류 위에 있을 것으로 보이나 정책 적용은 미실측.
+### 담당자 확답 (2026-08-28)
 
-## 웹훅 이벤트 — network records (참고)
+가격(5번)만 영업 담당(Ben Han·Shane Verner) 회신으로 넘어갔고, 기술 4문항은 확답을 받았다. 원문: [CSM 답변](../../../../sources/fireblocks/markdown/2026-08-28__fireblocks-csm__key-link-thales-luna-qna.txt).
 
-`transaction.network_records.processing_completed` 가 어떤 거래에서 생기는지 공식 문서로 확인한 것과, 같은 원리를 우리 맥락에 적용한 예시.
+**Q.** 지원·권장 Thales Luna 모델이 있는가? 특정 모델 요건이 없다면 HSM 이 충족할 암호 알고리즘·인터페이스 조건은?
+**A.** 지정·인증된 Luna 모델은 없다 — KeyLink 는 의도적으로 HSM 종류를 가리지 않고, 요건은 하드웨어가 아니라 알고리즘·인터페이스 층에 있다. HSM 은 서명키용 **ECDSA secp256k1 과 EdDSA ed25519** 를 지원해야 하고(API 가 받는 알고리즘은 이 둘뿐), 이를 **PKCS#11** 로 노출해야 한다. trust root 인 validation key 는 **RSA-2048**.
+담당자가 Thales 의 Fireblocks 통합 가이드를 인용한 내용(Thales 문서는 직접 확인 전): secp256k1 은 Luna 7.x 전 펌웨어에서 동작, **ed25519 는 펌웨어 7.8.9 이상** 필요. Thales 는 Luna Network HSM 펌웨어 7.8.4 + Luna Client 10.3.0 으로 통합을 검증했고, 그 Client 와 호환되는 펌웨어면 다른 Luna 모델도 지원한다고 밝혔다. 담당자 권고 — 자산 범위가 비트코인·EVM 이면 현행 Luna 7.x 로 충분, Solana 같은 ed25519 체인을 지원할 계획이면 조달 시 7.8.9 이상을 명시.
 
-**Q.** network records 는 어떤 거래에서 생기나?
-**A.** 한 Fireblocks 거래가 여러 온체인 거래를 묶을 때(주로 컨트랙트 호출)다. 상위 거래의 자산은 **항상 그 네트워크의 기준 자산**(ETH 등)이고, 실제 토큰 이동은 network records 를 펼쳐야 드러난다. 단순 전송(단건 TRANSFER)이면 이 값이 비어 있어 이벤트가 뜨지 않는다. ([CONTRACT_CALL 특수 케이스](https://community.fireblocks.com/t/what-is-the-special-case-for-the-contract-call-transactions/707) · [networkRecords 정의](https://developers.fireblocks.com/reference/transaction-webhooks))
+**Q.** Thales Luna 연동이 구현된 production-ready Customer Server 구현체·레퍼런스 코드를 제공하는가, 고객이 인터페이스 스펙 기반으로 직접 구축하는가?
+**A.** 인터페이스 계약과 동작하는 참조 코드를 공개하고, 프로덕션 구현은 고객이 만들고 소유한다. 계약은 오픈소스 [fireblocks/fireblocks-agent](https://github.com/fireblocks/fireblocks-agent) 저장소의 `api/customer-server.api.yml`. 같은 저장소 `examples/server` 에 완전한 참조 서버가 있고 **Thales Luna 빌드가 포함**돼 있다. 이 코드는 명시적으로 참조용이며 프로덕션 소프트웨어가 아니다. 직접 구축을 원치 않으면 **KeyLink Flow** — 운영 콘솔을 갖춘 패키지형 온라인 서버 — 가 제품화된 대안으로, 맞춤 개발의 대부분을 대체한다. 참고 문서로 [Fireblocks Key Link Overview](https://support.fireblocks.io/hc/en-us/articles/14228517105052-Fireblocks-Key-Link-Overview) 를 안내받았다. KeyLink Flow 의 호스팅 주체·HSM 연결·과금은 확인 안 됨.
 
-**예시 1 — 스왑 (문서화된 벤더 사례).** Uniswap 에서 USDC → DAI 스왑, CONTRACT_CALL 한 건(자산 ETH):
+**Q.** Fireblocks Agent 의 권장 호스트 사양·지원 OS 와 VM·컨테이너 실행 제약은?
+**A.** 하드 최소치가 아닌 배포 가이드로: OS = Ubuntu 22.04 LTS 이상 또는 Docker 를 지원하는 Linux 배포판 · 메모리 = 환경당 8 GB · 스토리지 = 100 GB SSD, 암호화 · 런타임 = Docker · 네트워크 = Fireblocks 엔드포인트로 안정적인 아웃바운드, 방화벽은 그 엔드포인트로 한정. Luna client 는 Customer Server 호스트에 설치되므로 그 호스트는 어플라이언스와 NTLS 연결이 되고 Luna client 로 등록돼야 한다. 망분리 cold 환경은 완전 네트워크 격리, 전달은 암호화 매체·SFTP·data diode. VM·컨테이너는 완전 지원 — Docker 가 표준 배포 모델이고, Agent 는 stateless 설계라 재시작·재배포가 단순하다.
 
-| # | network record | 내용 |
-|---|---|---|
-| 1 | 나가는 USDC | 스왑에 넣은 토큰 |
-| 2 | 들어오는 DAI | 스왑으로 받은 토큰 |
-| 3 | 나가는 ETH | 수수료 |
+**Q.** 한 Workspace 에 다중 Agent 를 연결하는 HA·DR 구성이 가능한가? 운영·DR 레퍼런스 아키텍처가 있는가?
+**A.** 키 복구와 구성 요소 이중화를 나눠 답했다.
+키 복구 — MPC workspace 는 키 자료 백업·복구용 별도 DR 서비스가 필요하지만, KeyLink 는 키가 고객 HSM 안에만 있어 그 요건이 구조적으로 없다. 백업·복구는 Luna 자체 기능(HA group · partition cloning · Luna Backup HSM)으로 한다. Fireblocks 쪽 문제로 고객이 자기 키에 접근 못 하는 시나리오는 없다.
+구성 요소 이중화 — 한 workspace 에 여러 Agent 를 페어링할 수 있고 제약은 둘이다: Agent 마다 고유 identity 와 Fireblocks 측 전용 메시지 큐를 갖는다 · 서명키는 특정 Agent user 에 묶여 그 키의 요청은 그 Agent 로 간다. 이 때문에 현재 권장 토폴로지는 **active/active 가 아니라 active/passive**. KeyLink 에 이 구성 요소들의 내장 HA·DR 자동화는 없어 Agent·Customer Server 의 프로세스 감시와 failover 는 고객이 설계한다(Professional Services 범위). 미전달 서명 요청은 Fireblocks 측 큐에 **최대 7일 durable 보존, at-least-once 전달** — Agent 중단·재시작으로 요청이 사라지지 않고 재접속 시 재전달된다. 레퍼런스 아키텍처 문서 제공 여부는 답에 없었다.
+이 7일 큐와 Pending Signature 2시간 timeout 의 관계는 확인 안 됨 — 후속 문의 대상.
 
-> 아래 둘은 같은 원리를 우리 맥락에 적용한 예시 — 벤더가 문서화한 사례는 아니다.
-
-**예시 2 — 컨트랙트 기반 정산: 일괄 지급(disperse).** 여러 수취인에게 USDC 를 한 번에 지급, CONTRACT_CALL 한 건(자산 ETH). 수취인 N명이면 토큰 record N개 + gas 1개, 실제 "누구에게 얼마"는 network records 를 펼쳐야 보인다:
-
-| # | network record | 내용 |
-|---|---|---|
-| 1 | 나가는 USDC → 수취인 A | |
-| 2 | 나가는 USDC → 수취인 B | |
-| 3 | 나가는 USDC → 수취인 C | |
-| 4 | 나가는 ETH | 수수료 |
-
-**예시 3 — 브리지: 체인 간 이동.** USDC 를 이더리움 → Base 로 브리지, 소스 체인의 브리지 컨트랙트에 CONTRACT_CALL(자산 ETH). 목적지 체인 도착은 별개의 온체인 거래로 따로 관측:
-
-| # | network record | 내용 |
-|---|---|---|
-| 1 | 나가는 USDC | 브리지 컨트랙트로 lock/burn |
-| 2 | 나가는 ETH | 수수료 |
+**Q.** 기존 계약 외 KeyLink 추가 사용료·필수 Professional Services 비용이 있는가? 개발·UAT·운영·DR Workspace 기준 견적은?
+**A.** 견적은 영업 담당(Ben Han·Shane Verner) 회신 대기. 확답된 구조: KeyLink 는 Fireblocks 구독의 **유료 add-on** · Professional Services 구현 패키지는 **별도 견적** · Luna 하드웨어와 Thales 라이선스는 **Thales 에서 직접 구매**, Fireblocks 계약에 포함되지 않는다.
 
 ## 대기 중인 문의 (회신 전)
 

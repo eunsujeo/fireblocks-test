@@ -126,6 +126,8 @@ data class AdminTransactionTimelineEntry(
     val status: String? = null,
     val observedAt: String? = null,
     val identifier: String? = null,
+    val deliveryStatus: String? = null,
+    val dawCompletedAt: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -208,6 +210,101 @@ data class AdminTransactionInvestigation(
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class BcmAdminTransactionInvestigationResponse(
     val data: AdminTransactionInvestigation,
+    val meta: BcmMeta,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminSweepLinkedEvent(
+    val eventId: String,
+    val eventType: String,
+    val outboxStatus: String,
+    val chainStatus: String? = null,
+    val itemOutcome: String? = null,
+    val failureCode: String? = null,
+    val publishedAt: String? = null,
+    val dawCompletedAt: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminSweepExecution(
+    val executionId: String,
+    val externalTransactionId: String,
+    val status: String,
+    val operatorAccountId: String,
+    val contractAddress: String,
+    val policyVersionId: String,
+    val policySnapshotHash: String,
+    val contractVersionId: String,
+    val contractEvidenceId: String,
+    val requestedAmount: String,
+    val actualAmount: String? = null,
+    val itemStatus: String,
+    val failureCode: String? = null,
+    val logIndex: Int? = null,
+    val transactionId: String? = null,
+    val transactionHash: String? = null,
+    val requestedAt: String,
+    val finishedAt: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminSweepRequestItem(
+    val sweepItemId: String,
+    val sequence: Int,
+    val accountId: String,
+    val status: String,
+    val lastFailureCode: String? = null,
+    val retryable: Boolean,
+    val nextAction: String,
+    val sourceEvents: List<AdminSweepLinkedEvent>,
+    val executions: List<AdminSweepExecution>,
+    val resultEvents: List<AdminSweepLinkedEvent>,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminSweepRequestInvestigation(
+    val sweepRequestId: String,
+    val externalSweepRequestId: String,
+    val requester: String,
+    val requesterEmployeeNo: String,
+    val requesterBranchCode: String,
+    val network: String,
+    val symbol: String,
+    val status: String,
+    val itemCount: Int,
+    val requestedAt: String,
+    val finishedAt: String? = null,
+    val retryable: Boolean,
+    val nextAction: String,
+    val items: List<AdminSweepRequestItem>,
+    val truncatedSources: List<String>,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmAdminSweepRequestInvestigationResponse(
+    val data: AdminSweepRequestInvestigation,
+    val meta: BcmMeta,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminSweepOperations(
+    val acceptedRequestCount: Long,
+    val blockedRequestCount: Long,
+    val processingRequestCount: Long,
+    val partialRequestCount: Long,
+    val failedRequestCount: Long,
+    val pendingItemCount: Long,
+    val processingItemCount: Long,
+    val oldestPendingRequestedAt: String? = null,
+    val pendingEventCount: Long,
+    val failedEventCount: Long,
+    val awaitingDawCompletionCount: Long,
+    val oldestAwaitingDawCompletionAt: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmAdminSweepOperationsResponse(
+    val data: AdminSweepOperations,
     val meta: BcmMeta,
 )
 

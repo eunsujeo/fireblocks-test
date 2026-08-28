@@ -32,6 +32,15 @@ class OperationalMetricsPublisher(
     private val reconciliationMissing = AtomicLong()
     private val stoppedReconciliation = AtomicLong()
     private val unarchivedCompletedWebhooks = AtomicLong()
+    private val pendingSweepRequests = AtomicLong()
+    private val oldestPendingSweepRequestAgeSeconds = AtomicLong()
+    private val blockedSweepRequests = AtomicLong()
+    private val failedSweepRequests = AtomicLong()
+    private val repeatedFailureSweepTargets = AtomicLong()
+    private val pendingSweepEvents = AtomicLong()
+    private val failedSweepEvents = AtomicLong()
+    private val awaitingSweepCompletions = AtomicLong()
+    private val oldestAwaitingSweepCompletionAgeSeconds = AtomicLong()
     private val webhookIngestion =
         WebhookIngestionMetricOutcome.entries.associateWith { outcome ->
             Counter
@@ -95,6 +104,30 @@ class OperationalMetricsPublisher(
             "bcm.webhook.completed.unarchived",
             "Finalized transactions with a completed webhook not yet archived",
             unarchivedCompletedWebhooks,
+        )
+        gauge(registry, "bcm.sweep.request.pending", "Pending Sweep request depth", pendingSweepRequests)
+        gauge(
+            registry,
+            "bcm.sweep.request.oldest.age.seconds",
+            "Age of the oldest pending Sweep request",
+            oldestPendingSweepRequestAgeSeconds,
+        )
+        gauge(registry, "bcm.sweep.request.blocked", "Sweep requests blocked by an execution gate", blockedSweepRequests)
+        gauge(registry, "bcm.sweep.request.failed", "Failed Sweep requests", failedSweepRequests)
+        gauge(
+            registry,
+            "bcm.sweep.target.repeated.failure",
+            "Sweep targets whose submission attempts reached the operational alert threshold",
+            repeatedFailureSweepTargets,
+        )
+        gauge(registry, "bcm.sweep.event.pending", "Pending sweep-events outbox depth", pendingSweepEvents)
+        gauge(registry, "bcm.sweep.event.failed", "Failed sweep-events outbox depth", failedSweepEvents)
+        gauge(registry, "bcm.sweep.completion.waiting", "Published Sweep events awaiting DAW completion", awaitingSweepCompletions)
+        gauge(
+            registry,
+            "bcm.sweep.completion.oldest.age.seconds",
+            "Age of the oldest published Sweep event awaiting DAW completion",
+            oldestAwaitingSweepCompletionAgeSeconds,
         )
     }
 
@@ -160,6 +193,31 @@ class OperationalMetricsPublisher(
         }
         refreshSignal("completed-unarchived", { unarchivedCompletedWebhooks.set(UNAVAILABLE) }) {
             unarchivedCompletedWebhooks.set(signals.unarchivedCompletedWebhookCount())
+        }
+        refreshSignal(
+            "sweep-operations",
+            {
+                pendingSweepRequests.set(UNAVAILABLE)
+                oldestPendingSweepRequestAgeSeconds.set(UNAVAILABLE)
+                blockedSweepRequests.set(UNAVAILABLE)
+                failedSweepRequests.set(UNAVAILABLE)
+                repeatedFailureSweepTargets.set(UNAVAILABLE)
+                pendingSweepEvents.set(UNAVAILABLE)
+                failedSweepEvents.set(UNAVAILABLE)
+                awaitingSweepCompletions.set(UNAVAILABLE)
+                oldestAwaitingSweepCompletionAgeSeconds.set(UNAVAILABLE)
+            },
+        ) {
+            val sweep = signals.sweepOperationalSignals()
+            pendingSweepRequests.set(sweep.pendingRequestCount)
+            oldestPendingSweepRequestAgeSeconds.set(ageSeconds(sweep.oldestPendingRequestAt))
+            blockedSweepRequests.set(sweep.blockedRequestCount)
+            failedSweepRequests.set(sweep.failedRequestCount)
+            repeatedFailureSweepTargets.set(sweep.repeatedFailureTargetCount)
+            pendingSweepEvents.set(sweep.pendingEventCount)
+            failedSweepEvents.set(sweep.failedEventCount)
+            awaitingSweepCompletions.set(sweep.awaitingCompletionCount)
+            oldestAwaitingSweepCompletionAgeSeconds.set(ageSeconds(sweep.oldestAwaitingCompletionAt))
         }
         refreshSignal(
             "job-heartbeat",

@@ -3,7 +3,9 @@ package com.whatto.bcm.infra.persistence.monitoring
 import com.whatto.bcm.domain.monitoring.JobHeartbeat
 import com.whatto.bcm.domain.monitoring.OperationalBacklog
 import com.whatto.bcm.domain.monitoring.OperationalSignalRepository
+import com.whatto.bcm.domain.monitoring.SweepOperationalSignals
 import com.whatto.bcm.support.time.CoreDateTimes
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 import java.util.UUID
@@ -11,7 +13,13 @@ import java.util.UUID
 @Repository
 class OperationalSignalJdbcAdapter(
     private val jdbc: NamedParameterJdbcTemplate,
+    @param:Value("\${bcm.sweep.repeated-failure-alert-threshold:3}")
+    private val repeatedFailureAlertThreshold: Int,
 ) : OperationalSignalRepository {
+    init {
+        require(repeatedFailureAlertThreshold > 0) { "sweep repeated failure alert threshold must be positive" }
+    }
+
     override fun pendingWebhookBacklog(): OperationalBacklog =
         checkNotNull(
             jdbc.queryForObject(
@@ -69,6 +77,43 @@ class OperationalSignalJdbcAdapter(
                 emptyMap<String, Any>(),
                 Long::class.java,
             ),
+        )
+
+    override fun sweepOperationalSignals(): SweepOperationalSignals =
+        checkNotNull(
+            jdbc.queryForObject(
+                """
+                SELECT
+                  (SELECT count(*) FROM bcm_swp_req_l WHERE swp_req_stcd IN ('ACCEPTED', 'BLOCKED', 'PROCESSING', 'PARTIAL')) AS pending_request_count,
+                  (SELECT min(req_dttm) FROM bcm_swp_req_l WHERE swp_req_stcd IN ('ACCEPTED', 'BLOCKED', 'PROCESSING', 'PARTIAL')) AS oldest_request,
+                  (SELECT count(*) FROM bcm_swp_req_l WHERE swp_req_stcd = 'BLOCKED') AS blocked_request_count,
+                  (SELECT count(*) FROM bcm_swp_req_l WHERE swp_req_stcd = 'FAILED') AS failed_request_count,
+                  (SELECT count(*) FROM bcm_swp_trgt WHERE try_cnt >= :repeatedFailureAlertThreshold) AS repeated_failure_target_count,
+                  (SELECT count(*) FROM bcm_outbox_l WHERE topic = 'sweep-events' AND evnt_stcd = 'P') AS pending_event_count,
+                  (SELECT count(*) FROM bcm_outbox_l WHERE topic = 'sweep-events' AND evnt_stcd = 'F') AS failed_event_count,
+                  (SELECT count(*) FROM bcm_outbox_l outbox
+                    WHERE outbox.topic = 'sweep-events' AND outbox.evnt_stcd = 'S'
+                      AND NOT EXISTS (SELECT 1 FROM bcm_evnt_cmpl_l completion
+                                       WHERE completion.evnt_id = outbox.evnt_id AND completion.cnsmr_dvcd = 'DAW_CORE')) AS awaiting_completion_count,
+                  (SELECT min(outbox.pub_dttm) FROM bcm_outbox_l outbox
+                    WHERE outbox.topic = 'sweep-events' AND outbox.evnt_stcd = 'S'
+                      AND NOT EXISTS (SELECT 1 FROM bcm_evnt_cmpl_l completion
+                                       WHERE completion.evnt_id = outbox.evnt_id AND completion.cnsmr_dvcd = 'DAW_CORE')) AS oldest_completion
+                """.trimIndent(),
+                mapOf("repeatedFailureAlertThreshold" to repeatedFailureAlertThreshold),
+            ) { rs, _ ->
+                SweepOperationalSignals(
+                    pendingRequestCount = rs.getLong("pending_request_count"),
+                    oldestPendingRequestAt = rs.getString("oldest_request"),
+                    blockedRequestCount = rs.getLong("blocked_request_count"),
+                    failedRequestCount = rs.getLong("failed_request_count"),
+                    repeatedFailureTargetCount = rs.getLong("repeated_failure_target_count"),
+                    pendingEventCount = rs.getLong("pending_event_count"),
+                    failedEventCount = rs.getLong("failed_event_count"),
+                    awaitingCompletionCount = rs.getLong("awaiting_completion_count"),
+                    oldestAwaitingCompletionAt = rs.getString("oldest_completion"),
+                )
+            },
         )
 
     override fun heartbeats(): List<JobHeartbeat> =

@@ -30,6 +30,7 @@ class SweepExecutionJdbcAdapter(
         try {
             requireExecutionGateOpen(execution.network)
             lockAdminSnapshot(execution)
+            val requestIds = lockAndValidateRequestItems(execution, items)
             insertExecution(execution)
             lockAndValidateAuthorizations(execution, items)
             items.forEach(::insertItem)
@@ -56,6 +57,7 @@ class SweepExecutionJdbcAdapter(
                     )
                 if (claimed != 1) throw ConflictException("sweepTarget", item.accountId)
             }
+            markRequestItemsProcessing(items, requestIds)
         } catch (exception: DuplicateKeyException) {
             throw ConflictException("sweepExecution", execution.executionId, exception)
         }
@@ -79,7 +81,7 @@ class SweepExecutionJdbcAdapter(
 
     override fun findItems(executionId: String): List<SweepItem> =
         jdbc.query(
-            "$ITEM_COLUMNS WHERE swp_exec_id = :executionId ORDER BY item_seq",
+            ITEM_WITH_REQUEST_COLUMNS + " WHERE item.swp_exec_id = :executionId ORDER BY item.item_seq",
             mapOf("executionId" to executionId),
             ITEM_MAPPER,
         )
@@ -121,6 +123,29 @@ class SweepExecutionJdbcAdapter(
                 lifecycleParameters(executionId),
             )
         if (updated != 1) throw ConflictException("sweepExecution", executionId)
+        return required(executionId)
+    }
+
+    @Transactional
+    override fun recordSubmissionRetry(
+        executionId: String,
+        attemptedAt: String,
+    ): SweepExecution {
+        val current = findByIdForUpdate(executionId) ?: throw ResourceNotFoundException("sweepExecution", executionId)
+        if (current.status != SweepExecutionStatus.SUBMITTING) throw ConflictException("sweepExecution", executionId)
+        val retried =
+            jdbc.update(
+                """
+                UPDATE bcm_swp_trgt
+                SET try_cnt = try_cnt + 1,
+                    last_try_dttm = :attemptedAt,
+                    last_chng_empno = :employeeNo,
+                    last_chng_brcd = :branchCode
+                WHERE actv_swp_exec_id = :executionId
+                """.trimIndent(),
+                lifecycleParameters(executionId) + mapOf("attemptedAt" to attemptedAt),
+            )
+        if (retried != current.itemCount) throw ConflictException("sweepExecutionTargets", executionId)
         return required(executionId)
     }
 
@@ -235,6 +260,7 @@ class SweepExecutionJdbcAdapter(
         return required(executionId)
     }
 
+    @Transactional
     override fun completeReconciliation(
         executionId: String,
         items: List<SweepItemReconciliation>,
@@ -271,6 +297,7 @@ class SweepExecutionJdbcAdapter(
                         ),
                 )
             if (updated != 1) throw ConflictException("sweepItem", "$executionId:${item.sequence}")
+            updateRequestItemAfterReconciliation(executionId, item)
         }
         val updated =
             jdbc.update(
@@ -291,23 +318,26 @@ class SweepExecutionJdbcAdapter(
                     ),
             )
         if (updated != 1) throw ConflictException("sweepExecution", executionId)
+        refreshRequestStatuses(executionId, finishedAt)
         return required(executionId)
     }
 
     @Transactional
     override fun markFailedAndRelease(
         executionId: String,
+        failureCode: String,
         finishedAt: String,
     ): SweepExecution {
         jdbc.update(
             """
             UPDATE bcm_swp_item_l
             SET swp_item_stcd = 'RETRY',
+                fail_cd = :failureCode,
                 last_chng_empno = :employeeNo,
                 last_chng_brcd = :branchCode
             WHERE swp_exec_id = :executionId AND swp_item_stcd = 'READY'
             """.trimIndent(),
-            lifecycleParameters(executionId),
+            lifecycleParameters(executionId) + mapOf("failureCode" to failureCode),
         )
         jdbc.update(
             """
@@ -317,6 +347,20 @@ class SweepExecutionJdbcAdapter(
                 last_chng_empno = :employeeNo,
                 last_chng_brcd = :branchCode
             WHERE actv_swp_exec_id = :executionId
+            """.trimIndent(),
+            lifecycleParameters(executionId),
+        )
+        jdbc.update(
+            """
+            UPDATE bcm_swp_req_item_l request_item
+            SET swp_req_item_stcd = 'PENDING',
+                last_fail_cd = execution_item.fail_cd,
+                last_chng_empno = :employeeNo,
+                last_chng_brcd = :branchCode
+            FROM bcm_swp_item_l execution_item
+            WHERE execution_item.swp_exec_id = :executionId
+              AND execution_item.swp_req_item_id = request_item.swp_req_item_id
+              AND request_item.swp_req_item_stcd = 'PROCESSING'
             """.trimIndent(),
             lifecycleParameters(executionId),
         )
@@ -334,6 +378,7 @@ class SweepExecutionJdbcAdapter(
                 lifecycleParameters(executionId) + mapOf("finishedAt" to finishedAt),
             )
         if (updated != 1) throw ConflictException("sweepExecution", executionId)
+        refreshRequestStatuses(executionId, finishedAt)
         return required(executionId)
     }
 
@@ -346,6 +391,11 @@ class SweepExecutionJdbcAdapter(
         require(items.all { it.executionId == execution.executionId }) { "sweep item executionId must match" }
         require(items.map { it.sequence }.distinct().size == items.size) { "sweep item sequence must be unique" }
         require(items.map { it.accountId }.distinct().size == items.size) { "sweep item accountId must be unique" }
+        require(items.all { it.sweepRequestItemId.isNotBlank() }) { "sweep item must reference a DAW request item" }
+        require(items.all { it.sweepRequestId.isNotBlank() }) { "sweep item must reference a DAW request" }
+        require(items.map { it.sweepRequestItemId }.distinct().size == items.size) {
+            "sweep request item must be unique within an execution"
+        }
         require(execution.policySnapshotHash.matches(Regex("^[0-9a-f]{64}$"))) {
             "sweep execution must preserve the active Admin policy snapshot hash"
         }
@@ -386,6 +436,153 @@ class SweepExecutionJdbcAdapter(
         }
     }
 
+    private fun lockAndValidateRequestItems(
+        execution: SweepExecution,
+        items: List<SweepItem>,
+    ): Set<String> {
+        val rows =
+            jdbc
+                .queryForList(
+                    """
+                    SELECT request_item.swp_req_item_id, request.swp_req_id,
+                           request.ntwk_cd, request.tkn_smbl, request.swp_req_stcd,
+                           request_item.acnt_id, request_item.swp_req_item_stcd,
+                           NOT EXISTS (
+                             SELECT 1
+                             FROM bcm_swp_req_item_l older_item
+                             JOIN bcm_swp_req_l older_request ON older_request.swp_req_id = older_item.swp_req_id
+                             WHERE older_item.acnt_id = request_item.acnt_id
+                               AND older_request.ntwk_cd = request.ntwk_cd
+                               AND older_request.tkn_smbl = request.tkn_smbl
+                               AND older_item.swp_req_item_stcd = 'PENDING'
+                               AND older_request.swp_req_stcd IN ('ACCEPTED', 'BLOCKED', 'PROCESSING', 'PARTIAL')
+                               AND (older_request.req_dttm, older_request.swp_req_id, older_item.item_seq) <
+                                   (request.req_dttm, request.swp_req_id, request_item.item_seq)
+                           ) AS oldest_pending
+                    FROM bcm_swp_req_item_l request_item
+                    JOIN bcm_swp_req_l request ON request.swp_req_id = request_item.swp_req_id
+                    WHERE request_item.swp_req_item_id IN (:requestItemIds)
+                    ORDER BY request.swp_req_id, request_item.swp_req_item_id
+                    FOR UPDATE OF request, request_item
+                    """.trimIndent(),
+                    mapOf("requestItemIds" to items.map { it.sweepRequestItemId }),
+                ).associateBy { it.getValue("swp_req_item_id") as String }
+        return items
+            .map { item ->
+                val row = rows[item.sweepRequestItemId] ?: throw ConflictException("sweepRequestItem", item.sweepRequestItemId)
+                val valid =
+                    row["ntwk_cd"] == execution.network &&
+                        row["tkn_smbl"] == execution.symbol &&
+                        row["acnt_id"] == item.accountId &&
+                        row["swp_req_item_stcd"] == "PENDING" &&
+                        row["swp_req_stcd"] in setOf("ACCEPTED", "BLOCKED", "PROCESSING", "PARTIAL") &&
+                        row["oldest_pending"] == true
+                if (!valid) throw ConflictException("sweepRequestItem", item.sweepRequestItemId)
+                row.getValue("swp_req_id") as String
+            }.toSet()
+    }
+
+    private fun markRequestItemsProcessing(
+        items: List<SweepItem>,
+        requestIds: Set<String>,
+    ) {
+        items.forEach { item ->
+            val updated =
+                jdbc.update(
+                    """
+                    UPDATE bcm_swp_req_item_l
+                    SET swp_req_item_stcd = 'PROCESSING',
+                        last_fail_cd = NULL,
+                        last_chng_empno = :employeeNo,
+                        last_chng_brcd = :branchCode
+                    WHERE swp_req_item_id = :requestItemId AND swp_req_item_stcd = 'PENDING'
+                    """.trimIndent(),
+                    itemParameters(item),
+                )
+            if (updated != 1) throw ConflictException("sweepRequestItem", item.sweepRequestItemId)
+        }
+        jdbc.update(
+            """
+            UPDATE bcm_swp_req_l
+            SET swp_req_stcd = 'PROCESSING',
+                fnsh_dttm = NULL,
+                last_chng_empno = :employeeNo,
+                last_chng_brcd = :branchCode
+            WHERE swp_req_id IN (:requestIds)
+              AND swp_req_stcd IN ('ACCEPTED', 'BLOCKED', 'PROCESSING', 'PARTIAL')
+            """.trimIndent(),
+            mapOf(
+                "requestIds" to requestIds,
+                "employeeNo" to SystemAudit.EMPNO,
+                "branchCode" to SystemAudit.BRCD,
+            ),
+        )
+    }
+
+    private fun updateRequestItemAfterReconciliation(
+        executionId: String,
+        item: SweepItemReconciliation,
+    ) {
+        val updated =
+            jdbc.update(
+                """
+                UPDATE bcm_swp_req_item_l request_item
+                SET swp_req_item_stcd = :requestItemStatus,
+                    last_fail_cd = :failureCode,
+                    last_chng_empno = :employeeNo,
+                    last_chng_brcd = :branchCode
+                FROM bcm_swp_item_l execution_item
+                WHERE execution_item.swp_exec_id = :executionId
+                  AND execution_item.item_seq = :sequence
+                  AND execution_item.swp_req_item_id = request_item.swp_req_item_id
+                  AND request_item.swp_req_item_stcd = 'PROCESSING'
+                """.trimIndent(),
+                lifecycleParameters(executionId) +
+                    mapOf(
+                        "sequence" to item.sequence,
+                        "requestItemStatus" to
+                            if (item.status == SweepItemStatus.SUCCEEDED) "COMPLETED" else "PENDING",
+                        "failureCode" to item.failureCode,
+                    ),
+            )
+        if (updated != 1) throw ConflictException("sweepRequestItem", "$executionId:${item.sequence}")
+    }
+
+    private fun refreshRequestStatuses(
+        executionId: String,
+        finishedAt: String,
+    ) {
+        jdbc.update(
+            """
+            UPDATE bcm_swp_req_l request
+            SET swp_req_stcd = status.next_status,
+                fnsh_dttm = CASE WHEN status.next_status = 'COMPLETED' THEN :finishedAt ELSE NULL END,
+                last_chng_empno = :employeeNo,
+                last_chng_brcd = :branchCode
+            FROM (
+              SELECT request_item.swp_req_id,
+                     CASE
+                       WHEN bool_and(request_item.swp_req_item_stcd = 'COMPLETED') THEN 'COMPLETED'
+                       WHEN bool_or(request_item.swp_req_item_stcd = 'PROCESSING') THEN 'PROCESSING'
+                       WHEN bool_or(request_item.swp_req_item_stcd = 'COMPLETED') THEN 'PARTIAL'
+                       ELSE 'ACCEPTED'
+                     END AS next_status
+              FROM bcm_swp_req_item_l request_item
+              WHERE request_item.swp_req_id IN (
+                SELECT DISTINCT linked.swp_req_id
+                FROM bcm_swp_item_l execution_item
+                JOIN bcm_swp_req_item_l linked
+                  ON linked.swp_req_item_id = execution_item.swp_req_item_id
+                WHERE execution_item.swp_exec_id = :executionId
+              )
+              GROUP BY request_item.swp_req_id
+            ) status
+            WHERE request.swp_req_id = status.swp_req_id
+            """.trimIndent(),
+            lifecycleParameters(executionId) + mapOf("finishedAt" to finishedAt),
+        )
+    }
+
     private fun insertExecution(execution: SweepExecution) {
         jdbc.update(
             """
@@ -409,10 +606,11 @@ class SweepExecutionJdbcAdapter(
         jdbc.update(
             """
             INSERT INTO bcm_swp_item_l
-              (swp_exec_id, item_seq, acnt_id, src_addr, req_amt, actl_amt, swp_item_stcd, fail_cd, log_idx,
+              (swp_exec_id, item_seq, swp_req_item_id, acnt_id, src_addr, req_amt, actl_amt,
+               swp_item_stcd, fail_cd, log_idx,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
-              (:executionId, :sequence, :accountId, :sourceAddress, :requestedAmount, :actualAmount, :status,
+              (:executionId, :sequence, :requestItemId, :accountId, :sourceAddress, :requestedAmount, :actualAmount, :status,
                :failureCode, :logIndex, :employeeNo, :branchCode, :employeeNo, :branchCode)
             """.trimIndent(),
             itemParameters(item),
@@ -449,6 +647,7 @@ class SweepExecutionJdbcAdapter(
         mapOf(
             "executionId" to item.executionId,
             "sequence" to item.sequence,
+            "requestItemId" to item.sweepRequestItemId,
             "accountId" to item.accountId,
             "sourceAddress" to item.sourceAddress,
             "requestedAmount" to BigDecimal(item.requestedAmount),
@@ -478,8 +677,16 @@ class SweepExecutionJdbcAdapter(
                       req_dttm, fnsh_dttm
                FROM bcm_swp_exec_l"""
         const val ITEM_COLUMNS =
-            """SELECT swp_exec_id, item_seq, acnt_id, src_addr, req_amt, actl_amt, swp_item_stcd, fail_cd, log_idx
+            """SELECT swp_exec_id, item_seq, swp_req_item_id, acnt_id, src_addr, req_amt, actl_amt,
+                      swp_item_stcd, fail_cd, log_idx
                FROM bcm_swp_item_l"""
+        const val ITEM_WITH_REQUEST_COLUMNS =
+            """SELECT item.swp_exec_id, item.item_seq, request_item.swp_req_id, item.swp_req_item_id,
+                      item.acnt_id, item.src_addr, item.req_amt, item.actl_amt,
+                      item.swp_item_stcd, item.fail_cd, item.log_idx
+               FROM bcm_swp_item_l item
+               JOIN bcm_swp_req_item_l request_item
+                 ON request_item.swp_req_item_id = item.swp_req_item_id"""
         val EXECUTION_MAPPER =
             RowMapper { rs, _ ->
                 SweepExecution(
@@ -510,6 +717,8 @@ class SweepExecutionJdbcAdapter(
                 SweepItem(
                     executionId = rs.getString("swp_exec_id"),
                     sequence = rs.getInt("item_seq"),
+                    sweepRequestId = rs.getString("swp_req_id"),
+                    sweepRequestItemId = rs.getString("swp_req_item_id"),
                     accountId = rs.getString("acnt_id"),
                     sourceAddress = rs.getString("src_addr"),
                     requestedAmount = rs.getBigDecimal("req_amt").stripTrailingZeros().toPlainString(),

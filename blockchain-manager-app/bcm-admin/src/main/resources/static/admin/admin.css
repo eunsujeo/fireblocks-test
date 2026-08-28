@@ -436,6 +436,7 @@ main { min-width: 0; padding: var(--space-5) clamp(16px, 2.6vw, 36px) 64px; }
 
 .table-wrap { overflow-x: auto; scrollbar-gutter: stable; border-radius: 0 0 var(--radius-md) var(--radius-md); }
 table { width: 100%; border-collapse: collapse; font-size: var(--text-md); }
+caption { padding: var(--space-3) var(--space-4); color: var(--text-muted); font-size: var(--text-sm); font-weight: 700; text-align: left; }
 th {
   position: sticky; z-index: 1; top: 0;
   padding: var(--space-2) var(--space-4);

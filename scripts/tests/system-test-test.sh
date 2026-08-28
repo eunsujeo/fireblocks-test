@@ -77,7 +77,9 @@ for contract in \
     'webhook-duplicate' \
     'webhook-recovery' \
     'webhook-out-of-order' \
-    'sweep-partial-reconciliation' \
+    'daw-sweep-event-completion' \
+    'sweep-events' \
+    'complete_daw_event' \
     'reset-isolation'; do
     grep -q "$contract" scripts/internal/system-test-runner.py || {
         echo "full 실패·복구 계약이 없습니다: $contract" >&2

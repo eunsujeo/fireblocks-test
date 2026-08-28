@@ -618,6 +618,7 @@ up_fireblocks() {
         assert_port_free "$API_MANAGEMENT_PORT" "BCM management"
     fi
     export BCM_ADMIN_API_ACCESS_MODE=FUNCTION_TEST
+    export BCM_DAW_INTEGRATION_ENABLED=true
     export BCM_API_PORT="$API_PORT"
     export BCM_MANAGEMENT_PORT="$API_MANAGEMENT_PORT"
     export BCM_ADMIN_PORT="$ADMIN_PORT"
@@ -751,6 +752,7 @@ up_stub() {
         assert_port_free "$API_MANAGEMENT_PORT" "BCM management"
     fi
     export BCM_ADMIN_API_ACCESS_MODE=FUNCTION_TEST
+    export BCM_DAW_INTEGRATION_ENABLED=true
     export BCM_API_PORT="$API_PORT"
     export BCM_MANAGEMENT_PORT="$API_MANAGEMENT_PORT"
     export BCM_ADMIN_PORT="$ADMIN_PORT"

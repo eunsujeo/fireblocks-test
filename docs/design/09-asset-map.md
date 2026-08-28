@@ -93,7 +93,7 @@ flowchart LR
 | # | 시나리오 | 이동 | 누가 내나 | 감지 계열 | 상세 |
 |---|---|---|---|---|---|
 | 1 | 고객 입금 | 외부 → 고객 vault | 고객 | `DEPOSIT` → deposit-events | [흐름](02-bcm-flow.md) |
-| 2 | sweep — 입금 모으기 | 고객 vault → 옴니버스 | 매니저 — approve + transferFrom 배치 · gasless | `SWEEP` — 큐에 싣지 않음 | [sweep](06-sweep.md) |
+| 2 | sweep — 입금 모으기 | 고객 vault → 옴니버스 | DAW-CORE가 완료 처리한 FINALIZED eventId로 batch 요청, 매니저가 approve + transferFrom 실행 · gasless | `SWEEP` → sweep-events (항목별 상태·결과) | [sweep](06-sweep.md) |
 | 3 | 고객 출금 — 타VASP 송금 | 출금 풀 → 외부 주소 | DAW-CORE 가 매니저 API 로 제출 — gasless · 컴플라이언스 게이트 통과 후 | `WITHDRAWAL` → withdrawal-events | [흐름](02-bcm-flow.md) |
 | 4 | 델타 정산 — 온램프 대응 | 회사자산 vault → 옴니버스 | 델타 배치 — 원장 선반영 후 사후 이동 | `INTERNAL` → internal-events | [램프·스왑](../../블록체인매니저/설계/10-ramp-swap.md) |
 | 5 | 델타 정산 — 오프램프 대응 | 옴니버스 → 회사자산 vault | 〃 | 〃 | 〃 |

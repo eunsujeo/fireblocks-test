@@ -90,7 +90,7 @@ sequenceDiagram
 | 순서 | 보는 값 | 판정 |
 |---|---|---|
 | 1 | `data.source.type` 이 vault 가 **아니다** (외부 발신) | 목적지 주소를 주소 매핑에서 찾는다 — 있으면 `DEPOSIT`, 없으면 **귀속 불명**(발행 없음 · 알림 채널 통지) |
-| 2 | `data.source.type` 이 **vault** (우리가 낸 전송) | `data.externalTxId` 로 [제출 원장](03-bcm-db.md) 을 찾는다 — 행의 `tx_dvcd` 가 곧 계열이다. `WITHDRAWAL`·`INTERNAL` 은 해당 토픽으로 발행, **`SWEEP_APPROVE`·`SWEEP_BATCH`·`BAND_S`는 발행하지 않는다**(매니저 내부 실행) |
+| 2 | `data.source.type` 이 **vault** (우리가 낸 전송) | `data.externalTxId` 로 [제출 원장](03-bcm-db.md) 을 찾는다 — 행의 `tx_dvcd` 가 곧 계열이다. `WITHDRAWAL`·`INTERNAL` 은 해당 공통 토픽으로 발행한다. `SWEEP_APPROVE`·`SWEEP_BATCH`·`BAND_S`는 공통 `ChainEvent`를 발행하지 않는다. SWEEP_BATCH는 별도 항목 대사 뒤 `SweepEvent`를 `sweep-events`에 발행한다. |
 | 3 | vault 발신인데 제출 원장에 없다 | 우리가 내지 않은 전송(콘솔 수동 조작 등) — **발행하지 않고** 별도 알림 채널로 통지 |
 
 - ★ **주소로 계열을 추론하지 않는다.** 출금·내부이체·sweep 은 셋 다 우리 vault 에서 나가고, 내부이체와 sweep 은 목적지까지 우리 vault 라 주소만으로는 갈리지 않는다. 잘못 가르면 sweep 이 고객 토픽에 실려 유령 이벤트가 되고 대사가 어긋난다. **제출 시점에 우리가 아는 값을 못박아 두는 것이 유일하게 확실한 기준**이라, 제출하는 쪽(출금·내부이체·sweep 전부)이 `bcm_sbmt_l` 에 행을 남긴다.
@@ -168,6 +168,24 @@ sequenceDiagram
 | `WITHDRAWAL` | 외부 출금 | withdrawal-events |
 | `INTERNAL` | delta 정산 | internal-events |
 
+`eventId`는 블록체인 매니저가 상태 전이마다 만드는 UUID v7이다. `txId`는 논리 거래를 조회·상관하는 값이고,
+컨슈머 중복 제거와 처리 완료 확인의 키는 `eventId`다. 같은 거래가 `CONFIRMED → FINALIZED`로 바뀌면 서로 다른
+`eventId`가 발행된다. `FINALIZED → FAILED` reorg도 새 이벤트이므로 DAW-CORE는 각각을 독립 처리한다.
+
+### DAW-CORE 이벤트 처리 완료 확인
+
+outbox `S`는 Kafka broker 발행 성공일 뿐 DAW-CORE 업무 반영 완료가 아니다. DAW-CORE는 이벤트를 `eventId`로
+멱등 처리하고 자기 업무 트랜잭션을 커밋한 뒤 `PUT /events/{eventId}/completion`을 호출한다. 성공 응답을 받은 뒤에만
+Kafka offset을 커밋한다. 응답 유실 때 같은 요청을 반복하면 최초 완료 시각을 유지한 같은 결과를 돌려준다.
+
+- 완료 확인은 이벤트 상태를 바꾸거나 outbox 행을 덮어쓰지 않는 별도 추가 전용 원장이다.
+- 존재하지 않는 이벤트, 아직 broker 발행 성공이 아닌 이벤트, DAW-CORE 소비 대상이 아닌 이벤트는 거절한다.
+- 요청 본문으로 소비자 신원을 받지 않는다. 호출 주체는 인증된 서비스 신원에서 `DAW_CORE`로 결정한다. 서비스 인증이
+  도입되기 전 로컬 기능 테스트에서는 고정 소비자 하나만 허용하고 공유 환경 endpoint는 닫는다.
+- DAW-CORE 업무 커밋 뒤 완료 확인이 실패하면 offset을 커밋하지 않는다. 재전달 시 DAW-CORE도 `eventId`로 중복을 접고
+  완료 확인을 다시 호출한다.
+- 완료되지 않은 필수 소비자 이벤트는 outbox 정리 대상에서 제외한다. 보존·아카이브는 발행 성공과 소비 완료를 함께 본다.
+
 ## 확정 기준 — DCCP
 
 벤더 상태 CONFIRMING 을 COMPLETED 로 바꾸는 — 즉 계약 상태 `FINALIZED` 발행의 근거가 되는 — 임계 컨펌 수는 {{DCCP::Deposit Control & Confirmation Policy — 벤더 공식 약어. support 문서가 이 표기를 그대로 쓴다}}(확정 정책)가 정한다.
@@ -216,9 +234,12 @@ sequenceDiagram
 - **reorg 무효화(FAILED + `DROPPED_BY_BLOCKCHAIN`)** — 반영해 둔 잔액만 되돌리고 입금 기록은 보존한다. CONFIRMING 은 BROADCASTING 으로 되돌아가지 않는다.
 - **귀속 불명** — 매핑에 없는 주소의 입금은 큐에 싣지 않고 별도 알림 채널로 통지한다. 수동 매핑 해소를 기다린다.
 
-## sweep — 매니저 내부
+## sweep — DAW-CORE 요청, 매니저 실행
 
-입금이 확정되면 매니저가 내부에서 고객 vault 의 자산을 옴니버스 vault 로 옮긴다. 실행 방식은 `approve + transferFrom`이다. 확정 관찰은 sweep 대상만 마킹하고, 주기 작업이 allowance 준비와 `batchSweep` 제출을 수행한다. 백엔드는 sweep 을 호출하지 않고 큐 이벤트도 받지 않는다. 고객 원장은 불변이다.
+입금 확정만으로 sweep을 시작하지 않는다. DAW-CORE가 `deposit-events`의 `FINALIZED`를 자기 원장에 반영하고 해당
+`eventId`의 처리 완료를 확인한 뒤, 같은 네트워크·자산의 고객 계정 1..N개를 `POST /sweeps`로 요청한다. 블록체인
+매니저는 요청 원장을 멱등하게 접수하고 실제 vault 잔액·allowance·활성 정책·컨트랙트·실행 게이트를 재검사해
+`approve + transferFrom` 배치를 만든다. 고객 원장과 sweep 필요 여부 판단은 DAW-CORE, 온체인 실행 안전성은 BCM 소관이다.
 
 | vault | 역할 |
 |---|---|
@@ -229,8 +250,9 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
+    participant DC as DAW-CORE
     box rgb(220,252,231) 블록체인 매니저
-    participant BM as 매니저 sweep<br/>확정 마킹 + 주기 배치
+    participant BM as 매니저 sweep<br/>요청 접수 + 주기 실행
     participant MDB as 매니저 DB
     end
     participant FB as Fireblocks
@@ -240,9 +262,10 @@ sequenceDiagram
     participant SWC as Sweep 컨트랙트
     participant OMN as 옴니버스
 
-    Note over BM: 입금 확정(COMPLETED)을 잡으면 그 고객 vault 를 sweep 대상으로 마킹
-    BM->>MDB: sweep 대상 마킹
-    Note over BM,MDB: 이하 주기 작업 — 같은 네트워크·토큰의 대상을 M개까지 선정
+    DC->>BM: POST /sweeps<br/>externalSweepRequestId · network · symbol · items
+    BM->>MDB: SweepRequest + SweepRequestItem + source event 선기록
+    BM-->>DC: sweepRequestId · ACCEPTED/BLOCKED
+    Note over BM,MDB: 이하 주기 작업 — 접수 순서대로 같은 네트워크·토큰의 요청을 정책 M개까지 묶음
     BM->>FB: vault 잔액 조회
     BM->>TKN: allowance(vault, sweepContract) 조회
     alt allowance 부족
@@ -269,7 +292,21 @@ sequenceDiagram
 
 approve와 batchSweep 제출은 모두 [제출 원장](03-bcm-db.md)에 각각 `tx_dvcd = SWEEP_APPROVE`·`SWEEP_BATCH`로 선기록하고 `externalTxId`를 붙인다. batch 제출 원장은 `SweepExecution` 하나를 가리키고, 그 아래 N개 `SweepItem`이 원천 vault 이동을 나타낸다. 그래야 최상위 웹훅 한 건을 고객 거래로 잘못 발행하지 않고 항목별 결과로 펼칠 수 있다.
 
-최상위 batch 거래의 `COMPLETED`만으로 N개 항목을 모두 성공 처리하지 않는다. `transaction.network_records.processing_completed` 뒤 network records와 receipt의 항목별 이벤트를 요청 목록과 대조한다. 성공 항목은 잔액을 재확인해 대상에서 정리하고, 실패하거나 잔액이 남은 항목은 다음 회차 대상으로 되돌린다. sweep 거래도 막힘 점검 대상이지만 Universal Gasless + RBF는 별도 기능 게이트를 따른다.
+요청 본문은 `externalSweepRequestId`, 단일 `network`·`symbol`, `items[]`로 구성한다. 각 item은 `accountId`와
+그 계정의 sweep 판단 근거인 `sourceEventIds[]`를 가진다. amount·vault 주소·토큰/컨트랙트 주소는 DAW-CORE가 보내지
+않고 BCM이 실행 직전에 정본에서 구한다. source event는 같은 계정·네트워크·자산의 `DEPOSIT/FINALIZED`이고
+DAW-CORE 완료 확인이 끝나야 하며 다른 sweep 요청이 이미 소비한 이벤트면 거절한다. 같은
+`externalSweepRequestId`와 canonical body의 재시도는 최초 응답을 돌려주고 다른 body는 conflict다.
+
+실행 게이트가 중지된 동안에도 요청 원장은 `BLOCKED`로 안전하게 접수할 수 있으나 allowance·제출 intent를 만들지 않는다.
+재개 뒤 BAT가 다시 검증해 실행한다. 한 DAW 요청은 활성 정책의 batch 최대 M·가스 상한에 따라 여러 `executionId`로
+나뉠 수 있고, 같은 계정의 후속 요청은 기존 실행이 종결된 뒤 처리한다. 앞 요청의 실제 sweep이 후속 요청 source event의
+입금까지 함께 옮겨 후속 항목 처리 시점의 가용 잔액이 정확히 0이면 새 온체인 거래를 만들지 않고 그 항목을
+`NO_SWEEP_REQUIRED`로 완료한다. sweep 요청 항목은 특정 금액의 소유권이 아니라 "source event 반영 뒤 해당 vault가
+sweep 완료 상태임을 보장"하는 업무 의도다. 0보다 크지만 최소 금액 미만인 dust는 자동 완료하지 않고 후속 입금과 함께
+처리되도록 `PENDING`을 유지한다.
+
+최상위 batch 거래의 `COMPLETED`만으로 N개 항목을 모두 성공 처리하지 않는다. `transaction.network_records.processing_completed` 뒤 network records와 receipt의 항목별 이벤트를 요청 목록과 대조한다. 성공 항목은 잔액을 재확인해 완료하고 실패하거나 잔액이 남은 항목은 같은 요청 item의 다음 실행으로 재시도한다. 항목별 `sweep-events`는 `accountId`를 파티션 키로 사용하며 `chainStatus`와 `itemOutcome`을 분리한다. 거래가 FINALIZED여도 일부 leg는 `FAILED`일 수 있다. 온체인 제출이 필요 없던 0잔액 완료는 `chainStatus=NOT_SUBMITTED`, `itemOutcome=NO_SWEEP_REQUIRED`로 발행하고 물리 거래 식별자는 `null`이다. 각 전이 이벤트도 BCM이 새 `eventId`를 발급하며 DAW-CORE가 업무 반영 뒤 같은 완료 확인 API로 확인한다. sweep 거래도 막힘 점검 대상이지만 Universal Gasless + RBF는 별도 기능 게이트를 따른다.
 
 ## 출금
 

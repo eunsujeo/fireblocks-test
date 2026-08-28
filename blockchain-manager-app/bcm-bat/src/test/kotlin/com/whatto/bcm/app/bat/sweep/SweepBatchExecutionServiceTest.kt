@@ -84,6 +84,24 @@ class SweepBatchExecutionServiceTest {
     }
 
     @Test
+    fun `준비 전용 회차는 실제 후보를 claim하되 벤더 제출은 다음 실행 회차까지 미룬다`() {
+        val executions = FakeBatchExecutions()
+        val calls = FakeBatchContractCalls()
+        val selector = FakeBatchCandidates(candidate(ACCOUNT_A, "3"))
+        val service = service(selector = selector, executions = executions, calls = calls)
+
+        assertThat(service.prepareOnce()).isEqualTo(SweepBatchExecutionResult.Prepared(EXECUTION_ID, EXTERNAL_ID))
+        assertThat(executions.execution?.status).isEqualTo(SweepExecutionStatus.READY)
+        assertThat(executions.items.map { it.accountId }).containsExactly(ACCOUNT_A)
+        assertThat(calls.commands).isEmpty()
+
+        assertThat(service.runOnce())
+            .isEqualTo(SweepBatchExecutionResult.Submitted(EXECUTION_ID, EXTERNAL_ID, VENDOR_TX_ID))
+        assertThat(selector.calls).isEqualTo(1)
+        assertThat(calls.commands).hasSize(1)
+    }
+
+    @Test
     fun `sweep 실행 게이트가 중지되면 새 실행과 allowance 준비를 만들지 않는다`() {
         val executions = FakeBatchExecutions()
         val calls = FakeBatchContractCalls()
@@ -244,7 +262,20 @@ class SweepBatchExecutionServiceTest {
         accountId: String,
         amount: String,
     ) = SweepCandidate(
-        target = SweepTarget(accountId, NETWORK, SYMBOL, "20260812090000", null, null, 0, null),
+        target =
+            SweepTarget(
+                accountId,
+                NETWORK,
+                SYMBOL,
+                "20260812090000",
+                null,
+                null,
+                0,
+                null,
+                "request-item-$accountId",
+                "request-$accountId",
+                "20260812090000",
+            ),
         sourceVaultId = "vault-$accountId",
         omnibusAccountId = OMNIBUS_ID,
         omnibusVaultId = "vault-omnibus",
@@ -314,6 +345,11 @@ private class FakeBatchExecutions : SweepExecutionRepository {
     override fun markSubmitting(executionId: String): SweepExecution =
         requireExecution(executionId).copy(status = SweepExecutionStatus.SUBMITTING).also { execution = it }
 
+    override fun recordSubmissionRetry(
+        executionId: String,
+        attemptedAt: String,
+    ): SweepExecution = requireExecution(executionId)
+
     override fun markSubmitted(
         executionId: String,
         vendorTransactionId: String,
@@ -338,6 +374,7 @@ private class FakeBatchExecutions : SweepExecutionRepository {
 
     override fun markFailedAndRelease(
         executionId: String,
+        failureCode: String,
         finishedAt: String,
     ): SweepExecution =
         requireExecution(executionId)

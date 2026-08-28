@@ -142,6 +142,22 @@ class HttpBcmAdminReadGateway(
             responseType = BcmAdminTransactionInvestigationResponse::class.java,
         ).data
 
+    override fun sweepRequestInvestigation(identifier: String): AdminSweepRequestInvestigation =
+        get(
+            source = "sweepRequest",
+            path = "/admin/sweep-request-investigations/${encode(identifier)}",
+            query = emptyMap(),
+            responseType = BcmAdminSweepRequestInvestigationResponse::class.java,
+        ).data
+
+    override fun sweepOperations(): AdminSweepOperations =
+        get(
+            source = "sweepOperations",
+            path = "/admin/sweep-operations",
+            query = emptyMap(),
+            responseType = BcmAdminSweepOperationsResponse::class.java,
+        ).data
+
     override fun vaults(query: String?): List<AdminVault> =
         get(
             source = "vaults",

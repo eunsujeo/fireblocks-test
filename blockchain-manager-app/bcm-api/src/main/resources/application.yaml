@@ -6,6 +6,8 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
 
 bcm:
+  daw-integration:
+    enabled: ${BCM_DAW_INTEGRATION_ENABLED:false}
   admin-api:
     access:
       mode: ${BCM_ADMIN_API_ACCESS_MODE:FUNCTION_TEST}
@@ -18,6 +20,7 @@ bcm:
       maximum-batch-amount: ${BCM_SWEEP_MAXIMUM_BATCH_AMOUNT:0}
       maximum-boost-attempts: ${BCM_SWEEP_MAXIMUM_BOOST_ATTEMPTS:0}
   sweep:
+    repeated-failure-alert-threshold: ${BCM_SWEEP_REPEATED_FAILURE_ALERT_THRESHOLD:3}
     security:
       normal-approval-enabled: false
       emergency-revocation-enabled: false

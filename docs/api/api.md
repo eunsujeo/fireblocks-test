@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.8.0`
+`v0.9.0`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -26,7 +26,8 @@ DAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.
 1. `POST /accounts`의 (`accountType`, `ref`)를 안정적인 업무 키로 유지한다.
 2. `POST /accounts/{accountId}/addresses` 결과를 네트워크별로 저장하고 항목별 실패만 재시도한다.
 3. 출금은 `externalTxId`를 절대 재사용하지 않으며 응답 유실 때 같은 본문으로 재요청한다.
-4. Kafka 이벤트는 `eventId`로 멱등 처리하고 `FINALIZED` 뒤 `FAILED` 전이도 허용한다.
+4. Kafka 이벤트는 `eventId`로 멱등 처리하고 업무 원장 커밋 뒤 `PUT /events/{eventId}/completion`을 호출한다.
+   완료 확인 성공 뒤 Kafka offset을 커밋하며 `FINALIZED` 뒤 새 `eventId`의 `FAILED` 전이도 독립 처리한다.
 
 로컬 Kafka bootstrap 주소는 `127.0.0.1:9092`다. 토픽 이름과 파티션 키, `ChainEvent` 실전 payload는 아래
 **이벤트 (메시지 큐)** 절이 계약 정본이며, HTTP 실행 패널과 같은 문서 안에서 함께 확인한다.
@@ -102,6 +103,7 @@ DAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.
 | `ASSET_NOT_SUPPORTED` | 400 | 우리가 지원하지 않는 (네트워크, 토큰) — 요청 형식은 맞다 |
 | `NOT_FOUND` | 404 | 그 밖의 리소스 없음 |
 | `CONFLICT` | 409 | 같은 멱등 키에 다른 내용이 왔다 (예: 이미 쓴 externalTxId 로 금액·목적지가 다른 제출) |
+| `UNPROCESSABLE_ENTITY` | 422 | 요청 형식은 맞지만 source event가 FINALIZED/완료 조건을 충족하지 않음 |
 | `SUBMIT_IN_PROGRESS` | 503 | 같은 `externalTxId` 의 앞선 제출이 처리 중이다 — **오류가 아니라 지연**이다. `Retry-After` 뒤에 같은 요청을 그대로 다시 보낸다 |
 | `RELAY_REJECTED` | 502 | 대납 relay 가 전송을 못 대거나 거절 |
 | `INTERNAL` | 500 | 서버 내부 오류 |
@@ -137,9 +139,10 @@ DAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.
 sequenceDiagram
     체인->>Fireblocks: 온체인 상태 변경
     Fireblocks->>매니저: 웹훅 알림 push (서명 검증 후 수신)
-    매니저->>큐: publish (3 토픽)
+    매니저->>큐: publish (4 토픽)
     큐->>소비 쪽: consume
     소비 쪽->>원장: 반영 (멱등)
+    소비 쪽->>매니저: PUT /events/{eventId}/completion
     소비 쪽->>큐: 오프셋 커밋
 ```
 
@@ -147,7 +150,8 @@ sequenceDiagram
 |---|---|---|
 | `deposit-events` | 고객 입금 (`DEPOSIT`) | 고객 accountId |
 | `withdrawal-events` | 외부 출금 (`WITHDRAWAL`) | 출금 풀 vault 의 accountId |
-| `internal-events` | 내부 이체 (`INTERNAL` — delta 정산만 · sweep 은 매니저 내부라 싣지 않는다) | 출발 계정 accountId |
+| `internal-events` | 내부 이체 (`INTERNAL` — delta 정산) | 출발 계정 accountId |
+| `sweep-events` | DAW 요청 sweep 항목의 체인 상태·항목 결과 | 고객 accountId |
 
 귀속 불명 입금(매핑에 없는 주소)은 큐에 싣지 않는다 — 별도 알림 채널로 통지된다.
 
@@ -184,7 +188,7 @@ sequenceDiagram
 전달 보장:
 
 - **at-least-once** — 같은 이벤트가 드물게 두 번 올 수 있다. **`eventId` 유일 기준으로 중복을 버린다** — 한 거래(txId)에서 감지·확정·실패 이벤트가 각각 오므로 `txId` 로 중복 제거하면 뒤 이벤트가 버려진다.
-- **오프셋 커밋** — 원장 반영이 성공한 뒤에만.
+- **오프셋 커밋** — 원장 반영과 `eventId` 완료 확인이 모두 성공한 뒤에만.
 - **순서** — 같은 계정은 파티션 키가 보장.
 - ★ **한 거래의 순서는 매니저가 보장한다** — 한 `txId` 에 대해 받는 순서는 항상 `감지 → 확정` 또는 `감지 → 무효` 다. 매니저가 감지를 아직 발행하지 않은 상태에서 확정·거부 알림을 먼저 받으면 **감지 이벤트를 합성해 먼저 발행**한 뒤 그 상태를 발행한다. 소비 쪽은 "감지 없는 확정" 을 다루지 않는다.
 - **입금 시작 상태** — 입금은 `SUBMITTED` 없이 `CONFIRMED` 부터 온다 (`SUBMITTED` 는 우리가 제출하는 거래에서만 관찰).
@@ -1001,6 +1005,306 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
+### Events
+DAW-CORE가 업무 원장 반영을 마친 이벤트의 완료 확인
+
+#### `PUT` https://{baseUrl}/blockchain/manage-api/events/{eventId}/completion
+
+**이벤트 업무 처리 완료 확인**
+
+DAW-CORE가 Kafka 이벤트를 `eventId`로 멱등 반영하고 자기 업무 트랜잭션을 커밋한 뒤 호출한다.
+성공 응답을 받은 다음 Kafka offset을 커밋한다.
+
+- 같은 `eventId` 재호출은 최초 `completedAt`을 유지한 같은 결과를 반환한다.
+- `txId`는 한 거래의 상태 이벤트들을 잇는 조회 키일 뿐 완료 키가 아니다.
+- 같은 거래의 `CONFIRMED`, `FINALIZED`, reorg `FAILED`는 서로 다른 `eventId`라 각각 완료해야 한다.
+- 아직 Kafka broker 발행 성공 전인 이벤트는 `409`다. 잠시 뒤 같은 `eventId`로 다시 호출한다.
+- 이 endpoint는 `BCM_DAW_INTEGRATION_ENABLED=true`인 내부/로컬 환경에서만 열린다.
+
+```bash
+curl -X PUT "https://{baseUrl}/blockchain/manage-api/events/0198f9f2-6de2-7e5d-8bb0-8d65fb6e7891/completion"
+```
+
+_파라미터_
+
+| 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
+|---|---|---|---|---|---|
+| `eventId` | path | string | 필수 | 0198f9f2-6de2-7e5d-8bb0-8d65fb6e7891 | BCM이 상태 전이마다 발급한 UUID v7. 소비 dedup과 완료 확인의 유일 키 |
+
+
+_응답_
+
+`200` — 최초 또는 이미 완료된 같은 결과
+
+```json
+{
+  "data": {
+    "eventId": "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7891",
+    "consumer": "DAW_CORE",
+    "completedAt": "2026-08-27T01:02:03Z",
+    "txId": "tx-91c",
+    "status": "FINALIZED",
+    "sweepRequestId": null,
+    "sweepItemId": null,
+    "executionId": null
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | EventCompletion | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`400` — 요청 검증 실패
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "amount must be a decimal string"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`404` — 리소스 없음
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "transaction not found"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`409` — 상태·멱등 충돌
+
+```json
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "externalTxId already used"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### Sweeps
+DAW-CORE가 완료 처리한 입금 이벤트를 근거로 요청하는 고객 vault batch sweep
+
+#### `POST` https://{baseUrl}/blockchain/manage-api/sweeps
+
+**고객 vault batch sweep 요청**
+
+DAW-CORE가 `DEPOSIT/FINALIZED` 이벤트를 업무 원장에 반영하고 event completion까지 성공한 뒤 요청한다.
+금액·vault 주소·컨트랙트는 보내지 않는다. BCM이 실행 직전 실제 잔액과 활성 정책/컨트랙트를 다시 검증한다.
+
+- 한 요청은 하나의 `network/symbol`과 서로 다른 고객 계정 1..N개로 구성한다.
+- 각 `sourceEventIds`는 해당 계정/자산의 완료된 입금 FINALIZED 이벤트여야 하며 다른 요청에서 재사용할 수 없다.
+- 같은 `externalSweepRequestId`와 같은 canonical body는 최초 응답을 반환하고, 다른 body는 `409`다.
+- 실행 gate가 중지됐으면 안전하게 `BLOCKED`로 접수하며 allowance 또는 제출을 시작하지 않는다.
+- 이 endpoint는 `BCM_DAW_INTEGRATION_ENABLED=true`인 내부/로컬 환경에서만 열린다.
+
+```bash
+curl -X POST "https://{baseUrl}/blockchain/manage-api/sweeps" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "externalSweepRequestId": "daw-sweep-20260827-001",
+  "network": "BASE",
+  "symbol": "USDC",
+  "items": [
+    {
+      "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890",
+      "sourceEventIds": [
+        "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7891"
+      ]
+    },
+    {
+      "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7892",
+      "sourceEventIds": [
+        "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7892"
+      ]
+    }
+  ]
+}'
+```
+
+_요청 본문_
+
+```json
+{
+  "externalSweepRequestId": "daw-sweep-20260827-001",
+  "network": "BASE",
+  "symbol": "USDC",
+  "items": [
+    {
+      "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890",
+      "sourceEventIds": [
+        "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7891"
+      ]
+    },
+    {
+      "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7892",
+      "sourceEventIds": [
+        "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7892"
+      ]
+    }
+  ]
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `externalSweepRequestId` | string | 필수 | DAW-CORE 업무 요청 멱등 키 |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `items` | SweepRequestItem[] | 필수 |  |
+
+
+_응답_
+
+`202` — 신규 접수 또는 같은 본문의 멱등 재응답
+
+```json
+{
+  "data": {
+    "sweepRequestId": "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7801",
+    "externalSweepRequestId": "daw-sweep-20260827-001",
+    "network": "BASE",
+    "symbol": "USDC",
+    "status": "ACCEPTED",
+    "requestedAt": "2026-08-27T01:02:03Z",
+    "items": [
+      {
+        "sweepItemId": "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7811",
+        "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890",
+        "status": "PENDING"
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | SweepRequestResult | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`400` — 요청 검증 실패
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "amount must be a decimal string"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`404` — 리소스 없음
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "transaction not found"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`409` — 상태·멱등 충돌
+
+```json
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "externalTxId already used"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`422` — source event가 현재 sweep 요청 조건을 충족하지 않음
+
+```json
+{
+  "error": {
+    "code": "UNPROCESSABLE_ENTITY",
+    "message": "request cannot be processed in the current resource state"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
 ### Admin
 운영자 도구 — 네트워크 채택과 자산 매핑. 호출 주체를 Admin 백엔드로 한정하는 **망 수준 제한이 별도로 필요하다**
 (경로를 나눈 것만으로는 경계가 생기지 않는다).
@@ -1727,7 +2031,9 @@ _응답_
         "code": "string",
         "status": "string",
         "observedAt": "2026-07-13T04:05:06.789Z",
-        "identifier": "string"
+        "identifier": "string",
+        "deliveryStatus": "P",
+        "dawCompletedAt": "2026-07-13T04:05:06.789Z"
       }
     ],
     "boosts": [
@@ -1826,6 +2132,182 @@ _응답_
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/sweep-request-investigations/{identifier}
+
+**Sweep 요청 운영 조사**
+
+BCM sweepRequestId, DAW externalSweepRequestId, sweepItemId, executionId, txId, txHash,
+원천 eventId 또는 결과 eventId 하나로 요청부터 DAW 완료 확인까지 연결한다. 항목별 source event,
+실행 당시 policy·contract snapshot, 물리 거래, sweep 결과 event와 DAW completion을 조회 전용으로 반환한다.
+`retryable`과 `nextAction`은 화면이 추론하지 않고 서버가 현재 상태에서 계산한 값이다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/sweep-request-investigations/{identifier}"
+```
+
+_파라미터_
+
+| 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
+|---|---|---|---|---|---|
+| `identifier` | path | string | 필수 |  |  |
+
+
+_응답_
+
+`200` — Sweep 요청 세로줄 조사 결과
+
+```json
+{
+  "data": {
+    "sweepRequestId": "string",
+    "externalSweepRequestId": "string",
+    "requester": "DAW_CORE",
+    "requesterEmployeeNo": "string",
+    "requesterBranchCode": "string",
+    "network": "string",
+    "symbol": "string",
+    "status": "ACCEPTED",
+    "itemCount": 0,
+    "requestedAt": "2026-07-13T04:05:06.789Z",
+    "finishedAt": "2026-07-13T04:05:06.789Z",
+    "retryable": false,
+    "nextAction": "string",
+    "items": [
+      {
+        "sweepItemId": "string",
+        "sequence": 0,
+        "accountId": "string",
+        "status": "PENDING",
+        "lastFailureCode": "string",
+        "retryable": false,
+        "nextAction": "string",
+        "sourceEvents": [
+          {
+            "eventId": "string",
+            "eventType": "string",
+            "outboxStatus": "P",
+            "chainStatus": "string",
+            "itemOutcome": "string",
+            "failureCode": "string",
+            "publishedAt": "2026-07-13T04:05:06.789Z",
+            "dawCompletedAt": "2026-07-13T04:05:06.789Z"
+          }
+        ],
+        "executions": [
+          {
+            "executionId": "string",
+            "externalTransactionId": "string",
+            "status": "string",
+            "operatorAccountId": "string",
+            "contractAddress": "string",
+            "policyVersionId": "string",
+            "policySnapshotHash": "string",
+            "contractVersionId": "string",
+            "contractEvidenceId": "string",
+            "requestedAmount": "string",
+            "actualAmount": "string",
+            "itemStatus": "string",
+            "failureCode": "string",
+            "logIndex": 0,
+            "transactionId": "string",
+            "transactionHash": "string",
+            "requestedAt": "2026-07-13T04:05:06.789Z",
+            "finishedAt": "2026-07-13T04:05:06.789Z"
+          }
+        ],
+        "resultEvents": [
+          {
+            "eventId": "string",
+            "eventType": "string",
+            "outboxStatus": "P",
+            "chainStatus": "string",
+            "itemOutcome": "string",
+            "failureCode": "string",
+            "publishedAt": "2026-07-13T04:05:06.789Z",
+            "dawCompletedAt": "2026-07-13T04:05:06.789Z"
+          }
+        ]
+      }
+    ],
+    "truncatedSources": [
+      "string"
+    ]
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminSweepRequestInvestigation | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`404` — 리소스 없음
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "transaction not found"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/sweep-operations
+
+**Sweep 요청·이벤트 운영 적체**
+
+접수·차단·실행·부분 성공·실패 요청과 pending item, sweep-events 발행 실패,
+발행 성공 후 DAW completion이 없는 건수와 가장 오래된 시각을 읽기 전용으로 반환한다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/sweep-operations"
+```
+
+_응답_
+
+`200` — Sweep 운영 적체 요약
+
+```json
+{
+  "data": {
+    "acceptedRequestCount": 0,
+    "blockedRequestCount": 0,
+    "processingRequestCount": 0,
+    "partialRequestCount": 0,
+    "failedRequestCount": 0,
+    "pendingItemCount": 0,
+    "processingItemCount": 0,
+    "oldestPendingRequestedAt": "2026-07-13T04:05:06.789Z",
+    "pendingEventCount": 0,
+    "failedEventCount": 0,
+    "awaitingDawCompletionCount": 0,
+    "oldestAwaitingDawCompletionAt": "2026-07-13T04:05:06.789Z"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminSweepOperations | 필수 |  |
 | `meta` | Meta | 필수 |  |
 
 
@@ -2503,6 +2985,115 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 | `meta` | Meta | 필수 |  |
 
 
+### AdminSweepRequestInvestigationResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminSweepRequestInvestigation | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminSweepRequestInvestigation
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `sweepRequestId` | string | 필수 |  |
+| `externalSweepRequestId` | string | 필수 |  |
+| `requester` | string | 필수 | `DAW_CORE` |
+| `requesterEmployeeNo` | string | 필수 |  |
+| `requesterBranchCode` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `status` | string | 필수 | `ACCEPTED` `BLOCKED` `PROCESSING` `COMPLETED` `PARTIAL` `FAILED` |
+| `itemCount` | integer | 필수 |  |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `finishedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `retryable` | boolean | 필수 |  |
+| `nextAction` | string | 필수 |  |
+| `items` | AdminSweepRequestItem[] | 필수 |  |
+| `truncatedSources` | string[] | 필수 |  |
+
+
+### AdminSweepRequestItem
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `sweepItemId` | string | 필수 |  |
+| `sequence` | integer | 필수 |  |
+| `accountId` | string | 필수 |  |
+| `status` | string | 필수 | `PENDING` `PROCESSING` `COMPLETED` `FAILED` |
+| `lastFailureCode` | string \\| null | 필수 |  |
+| `retryable` | boolean | 필수 |  |
+| `nextAction` | string | 필수 |  |
+| `sourceEvents` | AdminSweepLinkedEvent[] | 필수 |  |
+| `executions` | AdminSweepExecution[] | 필수 |  |
+| `resultEvents` | AdminSweepLinkedEvent[] | 필수 |  |
+
+
+### AdminSweepExecution
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `executionId` | string | 필수 |  |
+| `externalTransactionId` | string | 필수 |  |
+| `status` | string | 필수 |  |
+| `operatorAccountId` | string | 필수 |  |
+| `contractAddress` | string | 필수 |  |
+| `policyVersionId` | string | 필수 |  |
+| `policySnapshotHash` | string | 필수 |  |
+| `contractVersionId` | string | 필수 |  |
+| `contractEvidenceId` | string | 필수 |  |
+| `requestedAmount` | string | 필수 |  |
+| `actualAmount` | string \\| null | 필수 |  |
+| `itemStatus` | string | 필수 |  |
+| `failureCode` | string \\| null | 필수 |  |
+| `logIndex` | integer \\| null | 필수 |  |
+| `transactionId` | string \\| null | 필수 |  |
+| `transactionHash` | string \\| null | 필수 |  |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `finishedAt` | string (ISO 8601) \\| null | 필수 |  |
+
+
+### AdminSweepLinkedEvent
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `eventId` | string | 필수 |  |
+| `eventType` | string | 필수 |  |
+| `outboxStatus` | string | 필수 | `P` `D` `F` `S` |
+| `chainStatus` | string \\| null | 필수 |  |
+| `itemOutcome` | string \\| null | 필수 |  |
+| `failureCode` | string \\| null | 필수 |  |
+| `publishedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `dawCompletedAt` | string (ISO 8601) \\| null | 필수 |  |
+
+
+### AdminSweepOperationsResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminSweepOperations | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminSweepOperations
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `acceptedRequestCount` | integer | 필수 |  |
+| `blockedRequestCount` | integer | 필수 |  |
+| `processingRequestCount` | integer | 필수 |  |
+| `partialRequestCount` | integer | 필수 |  |
+| `failedRequestCount` | integer | 필수 |  |
+| `pendingItemCount` | integer | 필수 |  |
+| `processingItemCount` | integer | 필수 |  |
+| `oldestPendingRequestedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `pendingEventCount` | integer | 필수 |  |
+| `failedEventCount` | integer | 필수 |  |
+| `awaitingDawCompletionCount` | integer | 필수 |  |
+| `oldestAwaitingDawCompletionAt` | string (ISO 8601) \\| null | 필수 |  |
+
+
 ### AdminTransactionInvestigation
 
 | 필드 | 타입 | 필수 | 설명 |
@@ -2557,6 +3148,8 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 | `status` | string \\| null | 필수 |  |
 | `observedAt` | string (ISO 8601) \\| null | 필수 |  |
 | `identifier` | string \\| null | 필수 |  |
+| `deliveryStatus` | string \\| null | 필수 |  |
+| `dawCompletedAt` | string (ISO 8601) \\| null | 필수 |  |
 
 
 ### AdminTransactionBoost
@@ -3152,6 +3745,33 @@ RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값�
 | `numOfConfirmations` | integer | 필수 | 누적 컨펌 수 |
 
 
+### SweepEvent
+
+`sweep-events` 토픽의 고객 항목 1건 결과. 최상위 batch 거래 상태인 `chainStatus`와
+고객 leg 결과인 `itemOutcome`은 서로 덮어쓰지 않는다. 따라서 FINALIZED 거래 안에서
+특정 항목이 FAILED일 수 있다. 앞 실행이 잔액을 이미 모두 옮긴 후속 요청은 온체인 제출 없이
+`NOT_SUBMITTED / NO_SWEEP_REQUIRED`로 완료하며 물리 거래 식별자는 null이다. Kafka 파티션 키는 `accountId`다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `eventId` | string | 필수 | 상태 전이 1건의 소비·완료 키(UUID v7) |
+| `type` | string | 필수 | `SWEEP` |
+| `sweepRequestId` | string | 필수 |  |
+| `sweepItemId` | string | 필수 |  |
+| `executionId` | string \\| null | 필수 | 온체인 제출 없는 완료면 null |
+| `txId` | string \\| null | 필수 | 같은 온체인 거래 상태를 묶는 조회 키. 온체인 제출 없는 완료면 null |
+| `vendorTxId` | string \\| null | 필수 | 물리 Fireblocks transaction id. 온체인 제출 없는 완료면 null |
+| `txHash` | string \\| null | 필수 |  |
+| `accountId` | string | 필수 | Kafka 파티션 키 |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `requestedAmount` | string | 필수 | 정밀 십진 문자열 |
+| `actualAmount` | string \\| null | 필수 | 체인 전체 실패면 null |
+| `chainStatus` | string | 필수 | `NOT_SUBMITTED` `FINALIZED` `FAILED` |
+| `itemOutcome` | string | 필수 | `NO_SWEEP_REQUIRED` `SUCCEEDED` `FAILED` |
+| `failureCode` | string \\| null | 필수 |  |
+
+
 ### TxStatus
 
 공통 상태 다섯 — 매니저와 호출 쪽 사이의 계약 어휘 (벤더 원어와 구분).
@@ -3191,6 +3811,76 @@ RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값�
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `txId` | string | 필수 | 벤더 tx id |
+
+
+### EventCompletion
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `eventId` | string | 필수 | 완료된 상태 전이 이벤트 UUID v7 |
+| `consumer` | string | 필수 | `DAW_CORE` |
+| `completedAt` | string (ISO 8601) | 필수 | BCM이 최초 완료 요청을 받은 UTC 시각. 재호출해도 바뀌지 않는다 |
+| `txId` | string \\| null | 필수 | 일반 거래 또는 sweep batch의 논리 거래 조회 키 |
+| `status` | string \\| null | 필수 | 일반 이벤트 status 또는 sweep event chainStatus |
+| `sweepRequestId` | string \\| null | 필수 |  |
+| `sweepItemId` | string \\| null | 필수 |  |
+| `executionId` | string \\| null | 필수 |  |
+
+
+### EventCompletionResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | EventCompletion | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### SweepRequest
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `externalSweepRequestId` | string | 필수 | DAW-CORE 업무 요청 멱등 키 |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `items` | SweepRequestItem[] | 필수 |  |
+
+
+### SweepRequestItem
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `accountId` | string | 필수 |  |
+| `sourceEventIds` | string[] | 필수 |  |
+
+
+### SweepRequestResult
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `sweepRequestId` | string | 필수 | BCM 접수 원장 ID |
+| `externalSweepRequestId` | string | 필수 |  |
+| `network` | string | 필수 |  |
+| `symbol` | string | 필수 |  |
+| `status` | string | 필수 | `ACCEPTED` `BLOCKED` `PROCESSING` `COMPLETED` `PARTIAL` `FAILED` |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `items` | SweepRequestItemResult[] | 필수 |  |
+
+
+### SweepRequestItemResult
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `sweepItemId` | string | 필수 | BCM이 부여한 고객 계정 항목 ID |
+| `accountId` | string | 필수 |  |
+| `status` | string | 필수 | `PENDING` `PROCESSING` `COMPLETED` `FAILED` |
+
+
+### SweepRequestResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | SweepRequestResult | 필수 |  |
+| `meta` | Meta | 필수 |  |
 
 
 ### CreateAccountRequest

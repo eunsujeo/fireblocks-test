@@ -28,6 +28,10 @@ interface BcmAdminReadGateway {
 
     fun transactionInvestigation(identifier: String): AdminTransactionInvestigation
 
+    fun sweepRequestInvestigation(identifier: String): AdminSweepRequestInvestigation
+
+    fun sweepOperations(): AdminSweepOperations
+
     fun contracts(): List<AdminContract>
 
     fun policies(): List<AdminPolicy>

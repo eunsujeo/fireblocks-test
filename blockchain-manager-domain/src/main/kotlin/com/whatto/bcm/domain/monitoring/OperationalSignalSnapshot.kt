@@ -11,6 +11,18 @@ data class OperationalBacklog(
     val oldestAt: String?,
 )
 
+data class SweepOperationalSignals(
+    val pendingRequestCount: Long,
+    val oldestPendingRequestAt: String?,
+    val blockedRequestCount: Long,
+    val failedRequestCount: Long,
+    val repeatedFailureTargetCount: Long,
+    val pendingEventCount: Long,
+    val failedEventCount: Long,
+    val awaitingCompletionCount: Long,
+    val oldestAwaitingCompletionAt: String?,
+)
+
 interface OperationalSignalRepository {
     fun pendingWebhookBacklog(): OperationalBacklog
 
@@ -19,6 +31,8 @@ interface OperationalSignalRepository {
     fun stoppedReconciliationCount(): Long
 
     fun unarchivedCompletedWebhookCount(): Long
+
+    fun sweepOperationalSignals(): SweepOperationalSignals
 
     fun heartbeats(): List<JobHeartbeat>
 }

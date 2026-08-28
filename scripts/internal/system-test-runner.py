@@ -372,6 +372,7 @@ class RunLedger:
             "vendorTxId",
             "txHash",
             "eventId",
+            "sweepRequestId",
             "executionId",
             "jobRunId",
             "accountId",
@@ -1371,9 +1372,9 @@ def sweep_bat_environment(
                 "hard-ceiling": {
                     "execution-enabled": True,
                     "maximum-batch-size": 2,
-                    "maximum-allowance": 20,
-                    "maximum-item-amount": 50,
-                    "maximum-batch-amount": 100,
+                    "maximum-allowance": 200,
+                    "maximum-item-amount": 200,
+                    "maximum-batch-amount": 400,
                     "maximum-boost-attempts": 1,
                 }
             },
@@ -1382,14 +1383,17 @@ def sweep_bat_environment(
                 "operator-account-id": operator_account_id,
                 "batch-size": 2,
                 "reconciliation-batch-size": 10,
-                "thresholds": [{"network": "LOCAL", "symbol": "TUSD", "minimum-amount": "10", "allowance-cap": "20"}],
+                "thresholds": [{"network": "LOCAL", "symbol": "TUSD", "minimum-amount": "10", "allowance-cap": "200"}],
                 "contracts": [{"network": "LOCAL", "address": sweep_contract}],
                 "security": {
+                    "normal-approval-enabled": True,
                     "batch-submission-enabled": True,
+                    "tap-approval-policy-verified": True,
                     "tap-batch-policy-verified": True,
                     "callback-verified": True,
                     "universal-gasless-verified": True,
                     "sweep-contract-verified": True,
+                    "normal-approval-enabled-networks": ["LOCAL"],
                     "batch-submission-enabled-networks": ["LOCAL"],
                 },
             },
@@ -1401,7 +1405,7 @@ def sweep_bat_environment(
     return bat_environment
 
 
-def prepare_partial_sweep_fixture(
+def prepare_daw_sweep_fixture(
     environment: SmokeEnvironment,
     ledger: RunLedger,
     first_account_id: str,
@@ -1431,50 +1435,18 @@ def prepare_partial_sweep_fixture(
         )
     token = str(manifest.get("tokenContractAddress", ""))
     sweep_contract = str(manifest.get("sweepContractAddress", ""))
-    approve_sweep_contract(first_address, token, sweep_contract, 20_000_000)
-    approve_sweep_contract(second_address, token, sweep_contract, 10_000_000)
+    approve_sweep_contract(first_address, token, sweep_contract, 200_000_000)
+    approve_sweep_contract(second_address, token, sweep_contract, 200_000_000)
 
-    execution_id = "0198c7d5-7a30-7000-8000-000000000141"
-    external_transaction_id = f"full-sweep-{ledger.run_id}"
     contract_version_id = "0198c7d5-7a30-7000-8000-000000000131"
     contract_evidence_id = "0198c7d5-7a30-7000-8000-000000000132"
     policy_version_id = "0198c7d5-7a30-7000-8000-000000000133"
     policy_snapshot_hash = "a" * 64
     now_core = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    items = sorted(((first_account_id, first_address.lower()), (second_account_id, second_address.lower())), key=lambda item: item[1])
-    canonical = "\n".join(
-        ["BATCH_V1", "LOCAL", "TUSD", token.lower(), sweep_contract.lower(), execution_id]
-        + [f"{index}|{address}|20" for index, (_, address) in enumerate(items, start=1)]
-    )
-    request_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     code_hash = str(manifest.get("sweepCodeHash", "")).removeprefix("0x").lower()
     if not re.fullmatch(r"[0-9a-f]{64}", code_hash):
         raise StepFailure("INVALID_SWEEP_CODE_HASH", "로컬 sweep code hash가 올바르지 않습니다.", "chain manifest를 확인하세요.", False)
 
-    item_values = ",\n".join(
-        f"({sql_literal(execution_id)}, {index}, {sql_literal(account_id)}, {sql_literal(address)}, 20, NULL, 'READY', NULL, NULL, "
-        "'SYSTEM', '9999', 'SYSTEM', '9999')"
-        for index, (account_id, address) in enumerate(items, start=1)
-    )
-    observed_allowances = {first_account_id: 20, second_account_id: 10}
-    authorization_values = ",\n".join(
-        f"({sql_literal(account_id)}, 'LOCAL', 'TUSD', {sql_literal(sweep_contract)}, 20, {observed}, 'ACTIVE', NULL, NULL, "
-        f"{sql_literal(now_core)}, 'SYSTEM', '9999', 'SYSTEM', '9999')"
-        for account_id, _ in items
-        for observed in (observed_allowances[account_id],)
-    )
-    target_values = ",\n".join(
-        f"({sql_literal(account_id)}, 'LOCAL', 'TUSD', {sql_literal(now_core)}, NULL, NULL, 0, NULL, "
-        "'SYSTEM', '9999', 'SYSTEM', '9999')"
-        for account_id, _ in items
-    )
-    claim_updates = "\n".join(
-        f"UPDATE bcm_swp_trgt SET actv_swp_exec_id={sql_literal(execution_id)}, actv_item_seq={index}, try_cnt=try_cnt+1, "
-        f"last_try_dttm={sql_literal(now_core)}, last_chng_empno='SYSTEM', last_chng_brcd='9999' "
-        f"WHERE acnt_id={sql_literal(account_id)} AND ntwk_cd='LOCAL' AND tkn_smbl='TUSD' "
-        "AND actv_swp_exec_id IS NULL AND actv_item_seq IS NULL;"
-        for index, (account_id, _) in enumerate(items, start=1)
-    )
     script = f"""
 BEGIN;
 INSERT INTO bcm_ctrt_vrsn_l
@@ -1503,7 +1475,7 @@ INSERT INTO bcm_plcy_vrsn_l
    plcy_payload, plcy_hash, ceiling_snps, ceiling_hash, ceiling_pass_yn, reg_dttm,
    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
 VALUES ({sql_literal(policy_version_id)}, 'POLICY:LOCAL:TUSD', 1, 'local-v1', {sql_literal(contract_version_id)},
-        '{{"enabled":true,"minimumAmount":10,"batchSize":2,"allowanceCap":20,"itemAmountCap":50,"batchAmountCap":100,"boostAttempts":1}}'::jsonb,
+        '{{"enabled":true,"minimumAmount":10,"batchSize":2,"allowanceCap":200,"itemAmountCap":200,"batchAmountCap":400,"boostAttempts":1}}'::jsonb,
         '{'8' * 64}', '{{}}'::jsonb, '{'9' * 64}', 'Y', {sql_literal(now_core)}, 'SYSTEM', '9999', 'SYSTEM', '9999');
 INSERT INTO bcm_ctrt_bind_m
   (ctrt_scope_id, ntwk_cd, use_dvcd, actv_ctrt_vrsn_id, bind_rvsn, last_evdc_id, bind_snps_hash,
@@ -1515,46 +1487,84 @@ INSERT INTO bcm_plcy_bind_m
    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
 VALUES ('POLICY:LOCAL:TUSD', {sql_literal(policy_version_id)}, 1, {sql_literal(policy_snapshot_hash)},
         {sql_literal(now_core)}, {sql_literal(now_core)}, 'SYSTEM', '9999', 'SYSTEM', '9999');
-INSERT INTO bcm_swp_trgt
-  (acnt_id, ntwk_cd, tkn_smbl, reg_dttm, actv_swp_exec_id, actv_item_seq, try_cnt, last_try_dttm,
-   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-VALUES {target_values}
-ON CONFLICT (acnt_id, ntwk_cd, tkn_smbl) DO NOTHING;
-INSERT INTO bcm_swp_auth_m
-  (acnt_id, ntwk_cd, tkn_smbl, swp_ctrt_addr, alwnc_cap, obs_alwnc, auth_stcd,
-   aprv_ext_tx_id, aprv_vndr_tx_id, last_chck_dttm,
-   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-VALUES {authorization_values};
-INSERT INTO bcm_swp_exec_l
-  (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
-   swp_exec_stcd, item_cnt, req_tot_amt, actl_tot_amt, gasless_yn, vndr_tx_id, tx_hash,
-   req_dttm, fnsh_dttm, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd,
-   plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id)
-VALUES ({sql_literal(execution_id)}, {sql_literal(external_transaction_id)}, {sql_literal(request_hash)}, 'LOCAL', 'TUSD',
-        {sql_literal(operator_account_id)}, {sql_literal(sweep_contract)}, 'READY', 2, 40, NULL, 'Y', NULL, NULL,
-        {sql_literal(now_core)}, NULL, 'SYSTEM', '9999', 'SYSTEM', '9999',
-        {sql_literal(policy_version_id)}, {sql_literal(policy_snapshot_hash)}, {sql_literal(contract_version_id)}, {sql_literal(contract_evidence_id)});
-INSERT INTO bcm_swp_item_l
-  (swp_exec_id, item_seq, acnt_id, src_addr, req_amt, actl_amt, swp_item_stcd, fail_cd, log_idx,
-   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-VALUES {item_values};
-{claim_updates}
-DO $$
-BEGIN
-  IF (SELECT count(*) FROM bcm_swp_trgt WHERE actv_swp_exec_id={sql_literal(execution_id)}) <> 2 THEN
-    RAISE EXCEPTION 'sweep fixture did not claim both targets';
-  END IF;
-END;
-$$;
 COMMIT;
 """
     postgres_execute(environment, script, "sweep-fixture")
     return {
-        "executionId": execution_id,
+        "firstAccountId": first_account_id,
+        "firstAddress": first_address,
+        "secondAccountId": second_account_id,
+        "secondAddress": second_address,
         "operatorAccountId": operator_account_id,
         "omnibusAccountId": omnibus_account_id,
-        "externalTxId": external_transaction_id,
+        "tokenAddress": token,
+        "sweepContractAddress": sweep_contract,
         "manifest": json.dumps(manifest, separators=(",", ":")),
+    }
+
+
+def prepared_execution_for_request(
+    environment: SmokeEnvironment,
+    fixture: dict[str, str],
+    request: dict[str, Any],
+) -> dict[str, str]:
+    request_id = request.get("sweepRequestId")
+    request_items = request.get("items")
+    if not isinstance(request_id, str) or not isinstance(request_items, list):
+        raise StepFailure("INVALID_SWEEP_REQUEST_RESPONSE", "Sweep 요청 응답에 요청·항목 ID가 없습니다.", "bcm-api 로그를 확인하세요.", False)
+    request_item_by_account = {
+        item.get("accountId"): item.get("sweepItemId")
+        for item in request_items
+        if isinstance(item, dict) and isinstance(item.get("accountId"), str) and isinstance(item.get("sweepItemId"), str)
+    }
+    account_addresses = (
+        (fixture["firstAccountId"], fixture["firstAddress"].lower()),
+        (fixture["secondAccountId"], fixture["secondAddress"].lower()),
+    )
+    if set(request_item_by_account) != {account_id for account_id, _ in account_addresses}:
+        raise StepFailure("SWEEP_REQUEST_ITEM_MISMATCH", "Sweep 요청 응답의 계정 항목이 일치하지 않습니다.", "bcm-api 로그를 확인하세요.", False)
+    prepared = postgres_json(
+        environment,
+        "SELECT json_build_object("
+        "'executionId', execution.swp_exec_id, 'externalTxId', execution.ext_tx_id, 'status', execution.swp_exec_stcd, "
+        "'itemCount', count(DISTINCT item.item_seq), "
+        "'linkedRequestItems', count(DISTINCT request_item.swp_req_item_id), "
+        "'claimedTargets', (SELECT count(*) FROM bcm_swp_trgt target WHERE target.actv_swp_exec_id=execution.swp_exec_id), "
+        "'readyItems', count(*) FILTER (WHERE item.swp_item_stcd='READY'), "
+        "'expectedActualTotal', (max(item.req_amt) FILTER (WHERE item.acnt_id="
+        + sql_literal(fixture["firstAccountId"])
+        + "))::text)::text "
+        "FROM bcm_swp_exec_l execution "
+        "JOIN bcm_swp_item_l item ON item.swp_exec_id=execution.swp_exec_id "
+        "JOIN bcm_swp_req_item_l request_item ON request_item.swp_req_item_id=item.swp_req_item_id "
+        "WHERE request_item.swp_req_id=" + sql_literal(request_id) + " "
+        "GROUP BY execution.swp_exec_id, execution.ext_tx_id, execution.swp_exec_stcd",
+        "sweep-prepared-execution",
+    )
+    execution_id = prepared.get("executionId")
+    external_transaction_id = prepared.get("externalTxId")
+    expected_actual_total = prepared.get("expectedActualTotal")
+    if (
+        prepared.get("status") != "READY"
+        or prepared.get("itemCount") != 2
+        or prepared.get("linkedRequestItems") != 2
+        or prepared.get("claimedTargets") != 2
+        or prepared.get("readyItems") != 2
+        or not isinstance(execution_id, str)
+        or not isinstance(external_transaction_id, str)
+        or not isinstance(expected_actual_total, str)
+    ):
+        raise StepFailure(
+            "SWEEP_PREPARATION_MISMATCH",
+            "실제 후보 선정과 createAndClaim이 요청 두 항목을 READY 실행으로 만들지 못했습니다.",
+            "sweep-preparation-once 로그와 sweep 원장을 확인하세요.",
+            False,
+        )
+    return {
+        "executionId": execution_id,
+        "externalTxId": external_transaction_id,
+        "sweepRequestId": request_id,
+        "expectedActualTotal": expected_actual_total,
     }
 
 
@@ -1608,13 +1618,161 @@ COMMIT;
     return digest
 
 
-def verify_partial_sweep_and_bat(
+def await_published_source_event(
+    environment: SmokeEnvironment,
+    vendor_transaction_id: str,
+    account_id: str,
+) -> str:
+    query = (
+        "SELECT json_build_object('eventId', (SELECT evnt_id FROM bcm_outbox_l "
+        "WHERE topic='deposit-events' AND evnt_stcd='S' "
+        "AND payload->>'type'='DEPOSIT' AND payload->>'status'='FINALIZED' "
+        f"AND vndr_tx_id={sql_literal(vendor_transaction_id)} AND payload->>'accountId'={sql_literal(account_id)} "
+        "ORDER BY evnt_id DESC LIMIT 1))::text"
+    )
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        event_id = postgres_json(environment, query, "sweep-source-event").get("eventId")
+        if isinstance(event_id, str) and event_id:
+            return event_id
+        time.sleep(0.5)
+    raise StepFailure(
+        "SWEEP_SOURCE_EVENT_TIMEOUT",
+        "Sweep 요청에 사용할 FINALIZED 입금 event가 발행되지 않았습니다.",
+        "bcm-webhook outbox relay와 Kafka 로그를 확인하세요.",
+        True,
+    )
+
+
+def complete_daw_event(ledger: RunLedger, event_id: str) -> dict[str, Any]:
+    encoded = urllib.parse.quote(event_id, safe="")
+    document, headers = http_json("PUT", f"http://127.0.0.1:{SMOKE_API_PORT}/events/{encoded}/completion")
+    completion = response_data(document, "DAW event 완료")
+    if completion.get("eventId") != event_id or completion.get("consumer") != "DAW_CORE":
+        raise StepFailure("EVENT_COMPLETION_MISMATCH", "DAW event 완료 응답의 식별자가 일치하지 않습니다.", "bcm-api 로그를 확인하세요.", False)
+    ledger.set_related_id("eventId", event_id)
+    ledger.set_related_id("requestId", headers.get("x-request-id"))
+    return completion
+
+
+def accept_daw_sweep_request(
+    ledger: RunLedger,
+    fixture: dict[str, str],
+    source_event_ids: dict[str, str],
+) -> dict[str, Any]:
+    external_request_id = f"daw-full-sweep-{ledger.run_id}"
+    payload = {
+        "externalSweepRequestId": external_request_id,
+        "network": "LOCAL",
+        "symbol": "TUSD",
+        "items": [
+            {"accountId": fixture["firstAccountId"], "sourceEventIds": [source_event_ids[fixture["firstAccountId"]]]},
+            {"accountId": fixture["secondAccountId"], "sourceEventIds": [source_event_ids[fixture["secondAccountId"]]]},
+        ],
+    }
+    first, headers = http_json(
+        "POST",
+        f"http://127.0.0.1:{SMOKE_API_PORT}/sweeps",
+        payload=payload,
+        expected_statuses={202},
+    )
+    accepted = response_data(first, "DAW Sweep 요청")
+    replay, _ = http_json(
+        "POST",
+        f"http://127.0.0.1:{SMOKE_API_PORT}/sweeps",
+        payload=payload,
+        expected_statuses={202},
+    )
+    replayed = response_data(replay, "DAW Sweep 멱등 재요청")
+    if (
+        accepted.get("sweepRequestId") != replayed.get("sweepRequestId")
+        or accepted.get("externalSweepRequestId") != external_request_id
+        or accepted.get("status") != "ACCEPTED"
+        or len(accepted.get("items", [])) != 2
+    ):
+        raise StepFailure("SWEEP_REQUEST_IDEMPOTENCY_MISMATCH", "DAW Sweep 요청의 접수·멱등 응답이 일치하지 않습니다.", "bcm-api 로그를 확인하세요.", False)
+    ledger.set_related_id("sweepRequestId", accepted.get("sweepRequestId"))
+    ledger.set_related_id("requestId", headers.get("x-request-id"))
+    return accepted
+
+
+def consume_sweep_result_events(
+    environment: SmokeEnvironment,
+    ledger: RunLedger,
+    fixture: dict[str, str],
+    request_id: str,
+) -> list[dict[str, Any]]:
+    probe_environment = environment.environment()
+    probe_environment.update(
+        {
+            "BCM_KAFKA_PROBE_BOOTSTRAP": f"127.0.0.1:{SMOKE_KAFKA_PORT}",
+            "BCM_KAFKA_PROBE_TOPIC": "sweep-events",
+            "BCM_KAFKA_PROBE_GROUP_ID": f"bcm-system-test-sweep-{ledger.run_id}",
+            "BCM_KAFKA_PROBE_MAX_MESSAGES": "2",
+            "BCM_KAFKA_PROBE_TIMEOUT_MILLIS": "15000",
+        }
+    )
+    result = environment.run_command(
+        ["./gradlew", "--no-daemon", ":blockchain-manager-infra:messaging:consumeLocalKafka"],
+        "sweep-kafka-events",
+        environment=probe_environment,
+        timeout=30,
+    )
+    documents: list[dict[str, Any]] = []
+    for line in result.stdout.splitlines():
+        try:
+            candidate = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(candidate, dict) and candidate.get("sweepRequestId") == request_id:
+            documents.append(candidate)
+    by_account = {document.get("accountId"): document for document in documents}
+    expected_outcomes = {
+        fixture["firstAccountId"]: "SUCCEEDED",
+        fixture["secondAccountId"]: "FAILED",
+    }
+    if set(by_account) != set(expected_outcomes) or any(
+        by_account[account_id].get("chainStatus") != "FINALIZED"
+        or by_account[account_id].get("itemOutcome") != outcome
+        for account_id, outcome in expected_outcomes.items()
+    ):
+        raise StepFailure(
+            "SWEEP_KAFKA_EVENT_MISMATCH",
+            "부분 성공 Sweep의 항목별 Kafka event가 chain 상태와 item 결과를 분리하지 못했습니다.",
+            f"./scripts/system-test.sh logs {ledger.run_id} sweep-kafka-events 결과를 확인하세요.",
+            False,
+        )
+    return [by_account[fixture["firstAccountId"]], by_account[fixture["secondAccountId"]]]
+
+
+def verify_sweep_admin_completion(ledger: RunLedger, request_id: str) -> None:
+    encoded = urllib.parse.quote(request_id, safe="")
+    document, headers = http_json("GET", f"http://127.0.0.1:{SMOKE_ADMIN_PORT}/bff/admin/sweeps/{encoded}")
+    data = document.get("data")
+    items = data.get("items") if isinstance(data, dict) else None
+    if (
+        not isinstance(data, dict)
+        or data.get("status") != "PARTIAL"
+        or not isinstance(items, list)
+        or len(items) != 2
+        or any(
+            not isinstance(item, dict)
+            or len(item.get("resultEvents", [])) != 1
+            or item["resultEvents"][0].get("dawCompletedAt") is None
+            for item in items
+        )
+    ):
+        raise StepFailure("SWEEP_ADMIN_COMPLETION_MISMATCH", "Admin이 Sweep 결과 event와 DAW 완료를 연결하지 못했습니다.", "bcm-api와 bcm-admin 로그를 확인하세요.", False)
+    ledger.set_related_id("requestId", headers.get("x-request-id"))
+
+
+def verify_daw_sweep_and_bat(
     environment: SmokeEnvironment,
     ledger: RunLedger,
     first_account_id: str,
     first_address: str,
 ) -> None:
-    fixture = prepare_partial_sweep_fixture(environment, ledger, first_account_id, first_address)
+    fixture = prepare_daw_sweep_fixture(environment, ledger, first_account_id, first_address)
     manifest = json.loads(fixture["manifest"])
     execution_environment = sweep_bat_environment(
         environment,
@@ -1622,6 +1780,61 @@ def verify_partial_sweep_and_bat(
         fixture["operatorAccountId"],
         fixture["omnibusAccountId"],
         manifest,
+    )
+
+    source_transactions: dict[str, str] = {}
+    for label, account_id, address in (
+        ("daw-sweep-source-a", fixture["firstAccountId"], fixture["firstAddress"]),
+        ("daw-sweep-source-b", fixture["secondAccountId"], fixture["secondAddress"]),
+    ):
+        vendor_transaction_id = inject_local_deposit(ledger, address, label)
+        finalize_local_deposit(vendor_transaction_id)
+        await_bcm_finalized(ledger, vendor_transaction_id)
+        source_transactions[account_id] = vendor_transaction_id
+
+    before = postgres_scalar(environment, "SELECT count(*) FROM bcm_swp_exec_l", "sweep-no-request-before")
+    target_count = postgres_scalar(
+        environment,
+        "SELECT count(*) FROM bcm_swp_trgt WHERE acnt_id IN ("
+        + ",".join(sql_literal(account_id) for account_id in source_transactions)
+        + ") AND ntwk_cd='LOCAL' AND tkn_smbl='TUSD'",
+        "sweep-no-request-targets",
+    )
+    environment.run_bat_job(
+        ["./gradlew", "--no-daemon", ":blockchain-manager-app:bcm-bat:bootRun"],
+        "sweep-no-request-once",
+        environment=execution_environment,
+    )
+    after = postgres_scalar(environment, "SELECT count(*) FROM bcm_swp_exec_l", "sweep-no-request-after")
+    if target_count != "0" or before != after:
+        raise StepFailure("SWEEP_WITHOUT_DAW_REQUEST", "FINALIZED 입금만으로 신규 Sweep 실행이 생성됐습니다.", "Webhook target 생성과 BAT 후보 조건을 확인하세요.", False)
+
+    source_event_ids = {
+        account_id: await_published_source_event(environment, vendor_transaction_id, account_id)
+        for account_id, vendor_transaction_id in source_transactions.items()
+    }
+    for event_id in source_event_ids.values():
+        complete_daw_event(ledger, event_id)
+    request = accept_daw_sweep_request(ledger, fixture, source_event_ids)
+    preparation_environment = sweep_bat_environment(
+        environment,
+        "sweep-preparation-once",
+        fixture["operatorAccountId"],
+        fixture["omnibusAccountId"],
+        manifest,
+    )
+    environment.run_bat_job(
+        ["./gradlew", "--no-daemon", ":blockchain-manager-app:bcm-bat:bootRun"],
+        "sweep-preparation-once",
+        environment=preparation_environment,
+    )
+    execution_fixture = prepared_execution_for_request(environment, fixture, request)
+    # 실제 createAndClaim 뒤 allowance가 줄어드는 경합을 재현해 두 leg 중 하나만 실패시킨다.
+    approve_sweep_contract(
+        fixture["secondAddress"],
+        fixture["tokenAddress"],
+        fixture["sweepContractAddress"],
+        10_000_000,
     )
     environment.run_bat_job(
         ["./gradlew", "--no-daemon", ":blockchain-manager-app:bcm-bat:bootRun"],
@@ -1631,7 +1844,8 @@ def verify_partial_sweep_and_bat(
     execution = postgres_json(
         environment,
         "SELECT json_build_object('status', swp_exec_stcd, 'externalTxId', ext_tx_id, "
-        "'vendorTxId', vndr_tx_id)::text FROM bcm_swp_exec_l WHERE swp_exec_id = " + sql_literal(fixture["executionId"]),
+        "'vendorTxId', vndr_tx_id)::text FROM bcm_swp_exec_l WHERE swp_exec_id = "
+        + sql_literal(execution_fixture["executionId"]),
         "sweep-submission-state",
     )
     vendor_transaction_id = execution.get("vendorTxId")
@@ -1642,7 +1856,7 @@ def verify_partial_sweep_and_bat(
             f"./scripts/system-test.sh logs {ledger.run_id} sweep-execution-once 결과를 확인하세요.",
             True,
         )
-    ledger.set_related_id("executionId", fixture["executionId"])
+    ledger.set_related_id("executionId", execution_fixture["executionId"])
     ledger.set_related_id("externalTxId", str(execution.get("externalTxId")))
     ledger.set_related_id("vendorTxId", vendor_transaction_id)
 
@@ -1657,7 +1871,7 @@ def verify_partial_sweep_and_bat(
         observed = postgres_json(
             environment,
             "SELECT json_build_object('status', swp_exec_stcd, 'txHash', tx_hash)::text "
-            "FROM bcm_swp_exec_l WHERE swp_exec_id = " + sql_literal(fixture["executionId"]),
+            "FROM bcm_swp_exec_l WHERE swp_exec_id = " + sql_literal(execution_fixture["executionId"]),
             "sweep-webhook-state",
         )
         if observed.get("status") == "RECONCILING":
@@ -1687,9 +1901,17 @@ def verify_partial_sweep_and_bat(
         "'failed', (SELECT count(*) FROM bcm_swp_item_l item WHERE item.swp_exec_id=execution.swp_exec_id AND item.swp_item_stcd='FAILED'), "
         "'claimed', (SELECT count(*) FROM bcm_swp_trgt target WHERE target.actv_swp_exec_id=execution.swp_exec_id), "
         "'submissionStatus', submission.sbmt_stcd, 'submissionType', submission.tx_dvcd, "
-        "'customerEvents', (SELECT count(*) FROM bcm_outbox_l event WHERE event.vndr_tx_id=execution.vndr_tx_id))::text "
+        "'requestStatus', (SELECT swp_req_stcd FROM bcm_swp_req_l WHERE swp_req_id="
+        + sql_literal(execution_fixture["sweepRequestId"])
+        + "), 'requestCompleted', (SELECT count(*) FROM bcm_swp_req_item_l WHERE swp_req_id="
+        + sql_literal(execution_fixture["sweepRequestId"])
+        + " AND swp_req_item_stcd='COMPLETED'), 'requestPending', (SELECT count(*) FROM bcm_swp_req_item_l WHERE swp_req_id="
+        + sql_literal(execution_fixture["sweepRequestId"])
+        + " AND swp_req_item_stcd='PENDING'), "
+        "'customerEvents', (SELECT count(*) FROM bcm_outbox_l event WHERE event.vndr_tx_id=execution.vndr_tx_id "
+        "AND event.topic='sweep-events'))::text "
         "FROM bcm_swp_exec_l execution JOIN bcm_sbmt_l submission ON submission.ext_tx_id=execution.ext_tx_id "
-        "WHERE execution.swp_exec_id=" + sql_literal(fixture["executionId"]),
+        "WHERE execution.swp_exec_id=" + sql_literal(execution_fixture["executionId"]),
         "sweep-reconciliation-result",
     )
     expected = {
@@ -1699,14 +1921,17 @@ def verify_partial_sweep_and_bat(
         "claimed": 0,
         "submissionStatus": "SUBMITTED",
         "submissionType": "SWEEP_BATCH",
-        "customerEvents": 0,
+        "requestStatus": "PARTIAL",
+        "requestCompleted": 1,
+        "requestPending": 1,
+        "customerEvents": 2,
     }
     mismatches = {key: (result.get(key), value) for key, value in expected.items() if result.get(key) != value}
     try:
-        if Decimal(str(result.get("actualTotal"))) != Decimal("20"):
-            mismatches["actualTotal"] = (result.get("actualTotal"), "20")
+        if Decimal(str(result.get("actualTotal"))) != Decimal(execution_fixture["expectedActualTotal"]):
+            mismatches["actualTotal"] = (result.get("actualTotal"), execution_fixture["expectedActualTotal"])
     except InvalidOperation:
-        mismatches["actualTotal"] = (result.get("actualTotal"), "20")
+        mismatches["actualTotal"] = (result.get("actualTotal"), execution_fixture["expectedActualTotal"])
     if mismatches:
         raise StepFailure(
             "SWEEP_RECONCILIATION_MISMATCH",
@@ -1715,6 +1940,15 @@ def verify_partial_sweep_and_bat(
             False,
         )
     ledger.set_related_id("txHash", str(result.get("txHash")))
+    events = consume_sweep_result_events(environment, ledger, fixture, execution_fixture["sweepRequestId"])
+    completions = [complete_daw_event(ledger, str(event["eventId"])) for event in events]
+    replayed = complete_daw_event(ledger, str(events[0]["eventId"]))
+    if (
+        any(completion.get("sweepRequestId") != execution_fixture["sweepRequestId"] for completion in completions)
+        or replayed.get("completedAt") != completions[0].get("completedAt")
+    ):
+        raise StepFailure("SWEEP_EVENT_COMPLETION_MISMATCH", "Sweep event 완료의 요청 연결 또는 멱등 시각이 일치하지 않습니다.", "bcm-api 로그를 확인하세요.", False)
+    verify_sweep_admin_completion(ledger, execution_fixture["sweepRequestId"])
 
 
 def kafka_total_offset(environment: SmokeEnvironment, topic: str) -> int:
@@ -1756,7 +1990,7 @@ def verify_reset_isolation(environment: SmokeEnvironment) -> None:
             True,
         )
     before = postgres_database_digest(environment, "reset-digest-before")
-    topics = ("deposit-events", "withdrawal-events", "internal-events")
+    topics = ("deposit-events", "withdrawal-events", "internal-events", "sweep-events")
     offsets_before = {topic: kafka_total_offset(environment, topic) for topic in topics}
     http_json("POST", f"http://127.0.0.1:{SMOKE_STUB_PORT}/__stub/reset")
     time.sleep(1)
@@ -2165,9 +2399,9 @@ def full_suite(ledger: RunLedger, keep_on_failure: bool) -> None:
         run_step(
             ledger,
             15,
-            "sweep-partial-reconciliation",
-            "실제 batch sweep 부분 성공과 BAT 대사",
-            lambda: verify_partial_sweep_and_bat(environment, ledger, context["accountId"], context["address"]),
+            "daw-sweep-event-completion",
+            "DAW 요청 기반 batch sweep 부분 성공·Kafka·완료 확인",
+            lambda: verify_daw_sweep_and_bat(environment, ledger, context["accountId"], context["address"]),
             classification=("REAL_LOCAL", "SIMULATED_VENDOR"),
         )
         run_step(

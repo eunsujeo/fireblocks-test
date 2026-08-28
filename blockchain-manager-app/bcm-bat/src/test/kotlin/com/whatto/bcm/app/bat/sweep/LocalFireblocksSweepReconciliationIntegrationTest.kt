@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.bat.sweep
 
+import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationJob
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationProperties
 import com.whatto.bcm.app.bat.stall.TransactionalStallTerminalObservationHandler
@@ -18,6 +19,7 @@ import com.whatto.bcm.domain.sweep.SweepAuthorization
 import com.whatto.bcm.domain.sweep.SweepAuthorizationKey
 import com.whatto.bcm.domain.sweep.SweepAuthorizationStatus
 import com.whatto.bcm.domain.sweep.SweepBatchCallItem
+import com.whatto.bcm.domain.sweep.SweepEventSerializer
 import com.whatto.bcm.domain.sweep.SweepExecution
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
 import com.whatto.bcm.domain.sweep.SweepExecutionStatus
@@ -72,6 +74,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.data.jdbc.repository.config.EnableJdbcRepositories
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.web.client.RestClient
+import tools.jackson.databind.ObjectMapper
 import java.math.BigInteger
 import java.net.URI
 import java.net.http.HttpClient
@@ -132,6 +135,9 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
 
     @Autowired
     lateinit var outbox: OutboxEventRepository
+
+    @Autowired
+    lateinit var objectMapper: ObjectMapper
 
     @Autowired
     lateinit var boosts: BoostAttemptRepository
@@ -227,6 +233,8 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
                 SweepItem(
                     EXECUTION_ID,
                     index + 1,
+                    "sweep-request-${index + 1}",
+                    "sweep-request-item-${index + 1}",
                     checkNotNull(accountByAddress[item.sourceAddress]),
                     item.sourceAddress,
                     item.amount,
@@ -236,6 +244,7 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
                     null,
                 )
             }
+        insertSweepRequests(items, vaultByAddress)
         items.forEach { item ->
             targets.insertIfAbsent(SweepTarget(item.accountId, NETWORK, SYMBOL, NOW, null, null, 0, null))
             authorizations.insert(
@@ -291,6 +300,12 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
                 targets,
                 transactionStatuses,
                 transactionRunner,
+                SweepOutboxEventPublisher(
+                    OutboxEventService(outbox),
+                    SweepEventSerializer(objectMapper::writeValueAsString),
+                    CLOCK,
+                    5,
+                ),
                 { alert -> alerts += alert },
                 CLOCK,
                 SweepProperties(thresholds = listOf(SweepAssetThreshold(NETWORK, SYMBOL, "10", "20"))),
@@ -304,7 +319,18 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
             .containsExactlyInAnyOrder(SweepItemStatus.SUCCEEDED, SweepItemStatus.FAILED)
         assertThat(targets.findByKey(items[0].let { it.toKey() })?.activeSweepExecutionId).isNull()
         assertThat(targets.findByKey(items[1].let { it.toKey() })?.activeSweepExecutionId).isNull()
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isEqualTo(2)
+        assertThat(
+            jdbc.queryForList(
+                "SELECT payload ->> 'chainStatus' AS chain_status, payload ->> 'itemOutcome' AS item_outcome FROM bcm_outbox_l ORDER BY evnt_id",
+            ),
+        ).extracting("chain_status", "item_outcome")
+            .containsExactlyInAnyOrder(
+                org.assertj.core.groups.Tuple
+                    .tuple("FINALIZED", "SUCCEEDED"),
+                org.assertj.core.groups.Tuple
+                    .tuple("FINALIZED", "FAILED"),
+            )
         assertThat(alerts).isEmpty()
     }
 
@@ -485,7 +511,58 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
         jdbc.update("DELETE FROM bcm_swp_trgt WHERE ntwk_cd = ?", NETWORK)
         jdbc.update("DELETE FROM bcm_swp_item_l WHERE swp_exec_id = ?", EXECUTION_ID)
         jdbc.update("DELETE FROM bcm_swp_exec_l WHERE swp_exec_id = ?", EXECUTION_ID)
+        jdbc.update("DELETE FROM bcm_swp_req_item_l WHERE swp_req_item_id LIKE 'sweep-request-item-%'")
+        jdbc.update("DELETE FROM bcm_swp_req_l WHERE ext_swp_req_id LIKE 'local-bat-request-%'")
         jdbc.update("DELETE FROM bcm_swp_auth_m WHERE ntwk_cd = ?", NETWORK)
+        jdbc.update("DELETE FROM bcm_acnt_m WHERE acnt_id IN (?, ?)", ACCOUNT_A, ACCOUNT_B)
+    }
+
+    private fun insertSweepRequests(
+        items: List<SweepItem>,
+        vaultByAddress: Map<String, String>,
+    ) {
+        items.forEach { item ->
+            jdbc.update(
+                """
+                INSERT INTO bcm_acnt_m
+                  (acnt_id, acnt_typ_dvcd, ref, vndr_vlt_id, reg_dttm,
+                   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+                VALUES (?, 'CU', ?, ?, ?, 'SYSTEM', '9999', 'SYSTEM', '9999')
+                """.trimIndent(),
+                item.accountId,
+                "ref-${item.accountId}",
+                checkNotNull(vaultByAddress[item.sourceAddress]),
+                NOW,
+            )
+            val requestId = "sweep-request-${item.sequence}"
+            jdbc.update(
+                """
+                INSERT INTO bcm_swp_req_l
+                  (swp_req_id, ext_swp_req_id, req_hash, ntwk_cd, tkn_smbl, swp_req_stcd,
+                   item_cnt, req_dttm, fnsh_dttm,
+                   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+                VALUES (?, ?, ?, ?, ?, 'ACCEPTED', 1, ?, NULL,
+                        'SYSTEM', '9999', 'SYSTEM', '9999')
+                """.trimIndent(),
+                requestId,
+                "local-bat-request-${item.sequence}",
+                "a".repeat(64),
+                NETWORK,
+                SYMBOL,
+                NOW,
+            )
+            jdbc.update(
+                """
+                INSERT INTO bcm_swp_req_item_l
+                  (swp_req_item_id, swp_req_id, item_seq, acnt_id, swp_req_item_stcd, last_fail_cd,
+                   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+                VALUES (?, ?, 1, ?, 'PENDING', NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
+                """.trimIndent(),
+                item.sweepRequestItemId,
+                requestId,
+                item.accountId,
+            )
+        }
     }
 
     private fun completeTransaction(transactionId: String) {

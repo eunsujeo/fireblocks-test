@@ -36,6 +36,8 @@ enum class SweepExecutionStatus {
 data class SweepItem(
     val executionId: String,
     val sequence: Int,
+    val sweepRequestId: String,
+    val sweepRequestItemId: String,
     val accountId: String,
     val sourceAddress: String,
     val requestedAmount: String,
@@ -78,7 +80,14 @@ interface SweepExecutionRepository {
 
     fun findReconciling(limit: Int): List<SweepExecution>
 
+    /** READY 실행을 SUBMITTING으로 옮긴다. 최초 제출 시도는 createAndClaim의 target claim이 이미 1회로 센다. */
     fun markSubmitting(executionId: String): SweepExecution
+
+    /** FAILED submission을 같은 externalTxId로 실제 재획득한 트랜잭션에서 target 시도 횟수를 증가시킨다. */
+    fun recordSubmissionRetry(
+        executionId: String,
+        attemptedAt: String,
+    ): SweepExecution
 
     fun markSubmitted(
         executionId: String,
@@ -104,6 +113,7 @@ interface SweepExecutionRepository {
     /** 확정 거절된 실행·항목을 FAILED/RETRY 처리하고 target을 같은 트랜잭션에서 해제한다. */
     fun markFailedAndRelease(
         executionId: String,
+        failureCode: String,
         finishedAt: String,
     ): SweepExecution
 }

@@ -323,8 +323,8 @@ class LocalChainEnvironment private constructor(
         private const val TOKEN_DECIMALS = 6
         private const val MAXIMUM_ITEMS = 10
         private val CUSTOMER_TOKEN_BALANCE = BigInteger("100000000")
-        private val MAXIMUM_ITEM_AMOUNT = BigInteger("50000000")
-        private val MAXIMUM_TOTAL_AMOUNT = BigInteger("100000000")
+        private val MAXIMUM_ITEM_AMOUNT = BigInteger("200000000")
+        private val MAXIMUM_TOTAL_AMOUNT = BigInteger("400000000")
         private val GASLESS_MAX_DEADLINE = BigInteger.valueOf(Long.MAX_VALUE)
     }
 }

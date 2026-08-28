@@ -6,6 +6,7 @@ export function adminRouteFromPath(pathname) {
   if (path.endsWith("/test-runs")) return "testRuns";
   if (path.includes("/change-requests/")) return "changeRequest";
   if (path.includes("/transactions/")) return "transaction";
+  if (path === "/admin/sweeps" || path.includes("/sweeps/")) return "sweeps";
   if (path.endsWith("/band-s")) return "bandS";
   if (path.endsWith("/emergency")) return "emergency";
   if (path.endsWith("/contracts")) return "contracts";
@@ -15,6 +16,12 @@ export function adminRouteFromPath(pathname) {
   if (path.endsWith("/assets")) return "assets";
   if (path.endsWith("/search")) return "search";
   return "dashboard";
+}
+
+export function sweepIdentifierFromPath(pathname) {
+  const match = pathname.match(/\/admin\/sweeps\/([^/]+)\/?$/);
+  if (!match) return null;
+  try { return decodeURIComponent(match[1]); } catch { return null; }
 }
 
 export function filtersFromUrl(url) {

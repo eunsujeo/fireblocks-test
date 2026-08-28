@@ -177,7 +177,7 @@ outbox, reconciliation, boost, sweep 1:N, allowance와 당시 수수료 견적�
 원문 payload·서명·callData는 Admin 응답과 화면에 노출하지 않습니다. 자산 등록 화면에 한해 선택 검증에 필요한 Fireblocks Asset ID를 표시합니다.
 
 로컬 PostgreSQL 볼륨을 처음 만들 때는
-`blockchain-manager-infra/persistence/src/main/resources/db/migration/manifest.txt`의 순서대로 V1~V13 SQL을 직접 실행합니다.
+`blockchain-manager-infra/persistence/src/main/resources/db/migration/manifest.txt`의 순서대로 V1~V14 SQL을 직접 실행합니다.
 애플리케이션은 Flyway를 포함하지 않으며 기동 중 DDL을 실행하지 않습니다. 볼륨 생성 뒤 SQL이 추가·변경된 개발 DB는
 자동 갱신하지 않으므로 보존할 데이터가 없는지 확인한 다음 재생성합니다. 아래 명령은 개발자 로컬 컨테이너 전용입니다.
 

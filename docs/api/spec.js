@@ -2,9 +2,9 @@ window.OPENAPI = {
   "openapi": "3.1.0",
   "info": {
     "title": "Blockchain Manager API",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "x-curl": true,
-    "description": "블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.\n호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,\n온체인 상태 변경은 메시지 큐 이벤트로 받는다.\n\n## DAW-CORE 5분 Quickstart\n\n저장소를 clone한 뒤 Docker, Python 3, Foundry 1.7.1(`anvil`·`forge`)을 준비한다. JDK 25는 Gradle toolchain이 내려받으며,\n사내망처럼 자동 다운로드가 막힌 환경에서만 직접 설치한다. 실제 Fireblocks 자격증명 없이\n계약과 온체인 흐름을 확인하려면 저장소 루트에서 다음 한 명령을 실행한다.\n\n```bash\n./scripts/local.sh up stub\n```\n\n준비가 끝나면 이 문서를 `http://127.0.0.1:38080/api-docs/`에서 연다. 상단 Base URL은 자동으로\n`http://127.0.0.1:38080`이 선택된다. 아래 `계정 생성` → `입금 주소 발급` 순서로 예시 값을 수정해 **요청 실행**을 누르면\n실제 BCM과 Fireblocks Stub·Anvil에 같은 계약으로 요청한다. 입금부터 Kafka 이벤트·Admin 조사까지 한 번에 확인하려면\n`./scripts/local.sh test deposit` 또는 Admin의 로컬 시나리오를 사용한다.\n\nDAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.\n\n1. `POST /accounts`의 (`accountType`, `ref`)를 안정적인 업무 키로 유지한다.\n2. `POST /accounts/{accountId}/addresses` 결과를 네트워크별로 저장하고 항목별 실패만 재시도한다.\n3. 출금은 `externalTxId`를 절대 재사용하지 않으며 응답 유실 때 같은 본문으로 재요청한다.\n4. Kafka 이벤트는 `eventId`로 멱등 처리하고 `FINALIZED` 뒤 `FAILED` 전이도 허용한다.\n\n로컬 Kafka bootstrap 주소는 `127.0.0.1:9092`다. 토픽 이름과 파티션 키, `ChainEvent` 실전 payload는 아래\n**이벤트 (메시지 큐)** 절이 계약 정본이며, HTTP 실행 패널과 같은 문서 안에서 함께 확인한다.\n\n아래 규약은 **모든 엔드포인트에 공통** 적용된다.\n\n## 응답 형식\n\n성공·목록·에러 모두 같은 구조로 돌려준다. `meta.requestId` 로 요청을 추적한다. 스키마 이름은 단건이 `<타입>Response`, 목록이 `<타입>ListResponse` 다.\n\n단일 리소스:\n\n```json\n{\n  \"data\": {\n    \"accountType\": \"CUSTOMER\",\n    \"ref\": \"000123\",\n    \"accountId\": \"acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890\"\n  },\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  }\n}\n```\n\n페이지네이션 목록:\n\n```json\n{\n  \"data\": [\n    { \"txId\": \"tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a\", \"status\": \"FINALIZED\", \"amount\": \"1\" }\n  ],\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  },\n  \"pagination\": {\n    \"nextCursor\": \"eyJsYXN0IjoxNzUxMzM2MDAwMDAwfQ\",\n    \"hasMore\": true\n  }\n}\n```\n\n에러:\n\n```json\n{\n  \"error\": {\n    \"code\": \"ACCOUNT_NOT_FOUND\",\n    \"message\": \"account not found\"\n  },\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  }\n}\n```\n\n## 데이터 포맷\n\n- **시각** — ISO 8601, UTC, 밀리초. 예: `2026-07-13T04:05:06.789Z`\n- **금액** — 문자열(decimal). 예: `\"1.5\"`. float 가 아니라 decimal 로 파싱한다.\n- **필드명** — camelCase (`externalTxId` · `numOfConfirmations`)\n- **요청 추적** — 모든 응답에 `meta.requestId`\n- **온체인 해시** — 전파 후 채워짐(그 전엔 null), `txHash`\n\n## 에러 코드\n\n판단은 `error.code` 로 한다.\n\n| 코드 | HTTP | 뜻 |\n|---|---|---|\n| `VALIDATION_FAILED` | 400 | 요청 형식·값이 규약에 안 맞음 |\n| `ACCOUNT_NOT_FOUND` | 404 | 계정 없음 (주소 미발급과 구분) |\n| `ASSET_NOT_SUPPORTED` | 400 | 우리가 지원하지 않는 (네트워크, 토큰) — 요청 형식은 맞다 |\n| `NOT_FOUND` | 404 | 그 밖의 리소스 없음 |\n| `CONFLICT` | 409 | 같은 멱등 키에 다른 내용이 왔다 (예: 이미 쓴 externalTxId 로 금액·목적지가 다른 제출) |\n| `SUBMIT_IN_PROGRESS` | 503 | 같은 `externalTxId` 의 앞선 제출이 처리 중이다 — **오류가 아니라 지연**이다. `Retry-After` 뒤에 같은 요청을 그대로 다시 보낸다 |\n| `RELAY_REJECTED` | 502 | 대납 relay 가 전송을 못 대거나 거절 |\n| `INTERNAL` | 500 | 서버 내부 오류 |\n\n`SUBMIT_IN_PROGRESS` 를 `CONFLICT` 와 나눈 이유 — `CONFLICT` 는 \"키를 잘못 썼다\"는 확정 오류라 재시도해도 같은 답이 온다.\n`SUBMIT_IN_PROGRESS` 는 잠시 뒤 성공할 상황이다. 둘을 한 코드로 묶으면 호출 쪽이 사고와 지연을 구분할 수 없다.\n\n`INTERNAL`(500) 은 모든 엔드포인트에서 날 수 있어, 오퍼레이션별 응답 표기에서는 생략한다.\n\n## 페이지네이션\n\n목록은 **커서 방식**이다. `limit`(기본 200, 최대 500)으로 크기를 정하고, 응답 `pagination.nextCursor` 를 다음 요청 `cursor` 로 넘겨 이어받는다. 지금 이어받을 페이지가 있는지는 `hasMore` 로 판단한다 — false 면 현재 시점 마지막 페이지다.\n\n`nextCursor` 는 **마지막 페이지에서도 항상 채워진다** — 이번 응답 마지막 항목의 다음 위치를 가리킨다. `order=asc` 조회에서는 이 커서를 보관했다가 나중에 같은 값으로 재요청하면 그 사이 새로 쌓인 내역만 이어받는다(증분 폴링). `order=desc`(기본, 최신순)는 커서가 과거 방향으로 진행하므로 페이지 순회용이다.\n\n`cursor`/`nextCursor` 는 **불투명 토큰**이라 파싱·구성 대상이 아니며, 받은 값을 그대로 전달한다(다음 위치·필터·정렬 방향이 토큰에 담겨 있다). 커서 요청에서는 첫 요청의 조회 조건이 토큰으로 이어지므로, 함께 보낸 다른 파라미터는 무시된다.\n\n## 인증\n\n**없음 (2026-08-05 확정)** — 호출 쪽과 매니저는 내부망 경계를 신뢰한다. securitySchemes 를 정의하지 않는다.\n\n## 멱등\n\n- **계정 생성** — `createAccount` 는 (`accountType`, `ref`) 로 멱등하다. 같은 값으로 재요청하면 매니저가 같은 결과를 돌려준다(호출 쪽이 별도 멱등키를 넣지 않는다).\n- **주소 발급** — `createDepositAddresses` 는 네트워크마다 `(accountId, network, symbol)` 로 멱등하다. 부분 실패해도 성공분은 남으므로 같은 요청을 그대로 재시도할 수 있다.\n- **출금 제출** — 본문 `externalTxId` 가 멱등 키다. **같은 키로 같은 내용을 재제출하면 처음의 `txId` 를 그대로 돌려준다** — 응답을 못 받아 재시도하는 경우가 정상 경로다. 같은 키인데 **내용이 다르면** `409 CONFLICT` 다. 어느 쪽이든 벤더로 중복 전송되지 않는다.\n\n## 이벤트 (메시지 큐)\n\n온체인 상태 변경(입금 감지·출금 확정 등)은 이 HTTP API 가 아니라 **메시지 큐 이벤트**로 온다. 호출 쪽은 토픽별 컨슈머로 받는다.\n\n```seq\n체인 -> Fireblocks: 온체인 상태 변경\nFireblocks -> 매니저: 웹훅 알림 push (서명 검증 후 수신)\n매니저 -> 큐: publish (3 토픽)\n큐 -> 소비 쪽: consume\n소비 쪽 -> 원장: 반영 (멱등)\n소비 쪽 -> 큐: 오프셋 커밋\n```\n\n| 토픽 | 담는 이벤트 | 파티션 키 |\n|---|---|---|\n| `deposit-events` | 고객 입금 (`DEPOSIT`) | 고객 accountId |\n| `withdrawal-events` | 외부 출금 (`WITHDRAWAL`) | 출금 풀 vault 의 accountId |\n| `internal-events` | 내부 이체 (`INTERNAL` — delta 정산만 · sweep 은 매니저 내부라 싣지 않는다) | 출발 계정 accountId |\n\n귀속 불명 입금(매핑에 없는 주소)은 큐에 싣지 않는다 — 별도 알림 채널로 통지된다.\n\n**ChainEvent** — 큐로 오는 이벤트 형태 (타입 [ChainEvent](#schema-ChainEvent)):\n\n```json\n{\n  \"eventId\": \"0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e0f\",\n  \"type\": \"WITHDRAWAL\",\n  \"txId\": \"tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a\",\n  \"txHash\": \"0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0\",\n  \"externalTxId\": \"wd-260713-0042\",\n  \"accountId\": \"acct_pool_02\",\n  \"network\": \"ETHEREUM\",\n  \"symbol\": \"USDC\",\n  \"to\": \"0xdd1b8bb7c9646d21e267bad5f12d011da294af89\",\n  \"from\": \"0x0da6aa405415ddc059a28e089309c7b47e0702ec\",\n  \"amount\": \"100\",\n  \"status\": \"FINALIZED\",\n  \"numOfConfirmations\": 12\n}\n```\n\n- `eventId` — 이벤트 고유 id (UUID v7). **중복 제거 기준은 이 값 하나다**\n- [`type`](#schema-EventType) — DEPOSIT · WITHDRAWAL · INTERNAL\n- [`status`](#schema-TxStatus) — 공통 상태 다섯 (아래 \"상태 (TxStatus) 기준\"). 소비 쪽은 이것으로만 판단한다\n- `amount` — 이동 금액. **문자열 decimal** 이다(정밀도). 입금은 `externalTxId` 가 없으므로 **금액의 출처가 이 값뿐이다**\n- `from` — 발신 주소. 입금은 항상 채워진다 — 입금 판별을 의뢰할 때 쓴다\n- `txHash` — 전파 후 채워짐\n- RBF 대체 거래는 별도 고객 거래가 아니다. 조회 응답과 이벤트의 `txId`·`externalTxId`는 최초 거래 값을 유지하고,\n  `txHash`는 root 계열에서 실제로 채굴된 승자 거래 값으로 바뀔 수 있다\n- 벤더의 `subStatus`·`networkStatus` 는 이벤트에 싣지 않는다 — 매니저가 번역에 쓰는 내부 값이다\n\n전달 보장:\n\n- **at-least-once** — 같은 이벤트가 드물게 두 번 올 수 있다. **`eventId` 유일 기준으로 중복을 버린다** — 한 거래(txId)에서 감지·확정·실패 이벤트가 각각 오므로 `txId` 로 중복 제거하면 뒤 이벤트가 버려진다.\n- **오프셋 커밋** — 원장 반영이 성공한 뒤에만.\n- **순서** — 같은 계정은 파티션 키가 보장.\n- ★ **한 거래의 순서는 매니저가 보장한다** — 한 `txId` 에 대해 받는 순서는 항상 `감지 → 확정` 또는 `감지 → 무효` 다. 매니저가 감지를 아직 발행하지 않은 상태에서 확정·거부 알림을 먼저 받으면 **감지 이벤트를 합성해 먼저 발행**한 뒤 그 상태를 발행한다. 소비 쪽은 \"감지 없는 확정\" 을 다루지 않는다.\n- **입금 시작 상태** — 입금은 `SUBMITTED` 없이 `CONFIRMED` 부터 온다 (`SUBMITTED` 는 우리가 제출하는 거래에서만 관찰).\n- `REJECTED`(일시적) ≠ `FAILED`(영구). 확정(`FINALIZED`) 판정은 **매니저가** `numOfConfirmations` 를 체인별 임계와 비교해 내린다 — 컨슈머는 `status` 로만 판단한다.\n\n## 상태 (TxStatus) 기준\n\n거래·이벤트의 `status` 는 이 다섯이 기준이다. 벤더 원어는 매니저가 이 다섯으로 번역한다. 아래 표의 `subStatus`·`networkStatus` 열은 **매니저가 번역에 쓰는 벤더 내부 값** — 이벤트에는 `status`(TxStatus) 만 싣는다.\n\n| 공통 상태 | 뜻 | 블록체인 상태 (Pending → Confirmed → Finalized) | 벤더(Fireblocks) 원어 | 대표 subStatus | networkStatus |\n|---|---|---|---|---|---|\n| `SUBMITTED` | 제출됨 — 서명·전파 준비 중, 아직 체인 미등장 (출금만 관찰) | 아직 없음 → 전파되면 Pending | PENDING_SIGNATURE · QUEUED · BROADCASTING | — | 서명 단계엔 없음 → BROADCASTING |\n| `CONFIRMED` | 전파 후 체인 등장, 컨펌 누적 중 (미확정) | Confirmed — 블록에 포함, finality 전 | CONFIRMING | PENDING_BLOCKCHAIN_CONFIRMATIONS | CONFIRMING |\n| `FINALIZED` | 확정 — 확정 정책(DCCP) 임계 컨펌 도달 | Finalized | COMPLETED | CONFIRMED | CONFIRMED |\n| `REJECTED` | 거부·차단 — 정책·스크리닝에 막힘. 영구 실패가 아니라 사람 개입 여지 | 출금 차단은 체인에 없음 · 입금 동결은 Finalized | REJECTED · BLOCKED | AUTO_FREEZE · FROZEN_MANUALLY · REJECTED_AML_SCREENING | 출금(전파 전 차단)은 없음 · 입금 동결은 CONFIRMED |\n| `FAILED` | 영구 실패 — 사유 동반 (수수료 부족·revert 등) | Pending 에서 증발 · revert 는 Confirmed 이후 | FAILED | DROPPED_BY_BLOCKCHAIN (reorg 증발) · 그 외 | FAILED (revert) · DROPPED (mempool 누락) |\n\n판단은 다섯(`status`)으로 한다. `REJECTED`(일시적) ≠ `FAILED`(영구) 구분이 원장·화면 처리를 가른다.\n\n이 다섯은 매니저와 호출 쪽 사이의 **계약 어휘**다 — 이 문서에 남아 있는 `CONFIRMING`·`COMPLETED` 표기는 전부 **벤더(Fireblocks) 원어**다.\n\n- ★ **`CONFIRMED` 는 미확정이다** — 벤더 subStatus/networkStatus 의 `CONFIRMED`(임계 도달, COMPLETED 동반)와 철자가 같지만 가리키는 단계가 다르다. 확정은 `FINALIZED` 다.\n- ★ **`FINALIZED` 는 체인 finality 가 아니다** — DCCP 정책 임계 도달일 뿐이고, `FINALIZED` → `FAILED`(reorg 증발, `DROPPED_BY_BLOCKCHAIN`) 전이가 존재한다. 상태에 서열을 매겨 \"뒤로 가면 무시\"로 구현하면 안 된다.\n"
+    "description": "블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.\n호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,\n온체인 상태 변경은 메시지 큐 이벤트로 받는다.\n\n## DAW-CORE 5분 Quickstart\n\n저장소를 clone한 뒤 Docker, Python 3, Foundry 1.7.1(`anvil`·`forge`)을 준비한다. JDK 25는 Gradle toolchain이 내려받으며,\n사내망처럼 자동 다운로드가 막힌 환경에서만 직접 설치한다. 실제 Fireblocks 자격증명 없이\n계약과 온체인 흐름을 확인하려면 저장소 루트에서 다음 한 명령을 실행한다.\n\n```bash\n./scripts/local.sh up stub\n```\n\n준비가 끝나면 이 문서를 `http://127.0.0.1:38080/api-docs/`에서 연다. 상단 Base URL은 자동으로\n`http://127.0.0.1:38080`이 선택된다. 아래 `계정 생성` → `입금 주소 발급` 순서로 예시 값을 수정해 **요청 실행**을 누르면\n실제 BCM과 Fireblocks Stub·Anvil에 같은 계약으로 요청한다. 입금부터 Kafka 이벤트·Admin 조사까지 한 번에 확인하려면\n`./scripts/local.sh test deposit` 또는 Admin의 로컬 시나리오를 사용한다.\n\nDAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.\n\n1. `POST /accounts`의 (`accountType`, `ref`)를 안정적인 업무 키로 유지한다.\n2. `POST /accounts/{accountId}/addresses` 결과를 네트워크별로 저장하고 항목별 실패만 재시도한다.\n3. 출금은 `externalTxId`를 절대 재사용하지 않으며 응답 유실 때 같은 본문으로 재요청한다.\n4. Kafka 이벤트는 `eventId`로 멱등 처리하고 업무 원장 커밋 뒤 `PUT /events/{eventId}/completion`을 호출한다.\n   완료 확인 성공 뒤 Kafka offset을 커밋하며 `FINALIZED` 뒤 새 `eventId`의 `FAILED` 전이도 독립 처리한다.\n\n로컬 Kafka bootstrap 주소는 `127.0.0.1:9092`다. 토픽 이름과 파티션 키, `ChainEvent` 실전 payload는 아래\n**이벤트 (메시지 큐)** 절이 계약 정본이며, HTTP 실행 패널과 같은 문서 안에서 함께 확인한다.\n\n아래 규약은 **모든 엔드포인트에 공통** 적용된다.\n\n## 응답 형식\n\n성공·목록·에러 모두 같은 구조로 돌려준다. `meta.requestId` 로 요청을 추적한다. 스키마 이름은 단건이 `<타입>Response`, 목록이 `<타입>ListResponse` 다.\n\n단일 리소스:\n\n```json\n{\n  \"data\": {\n    \"accountType\": \"CUSTOMER\",\n    \"ref\": \"000123\",\n    \"accountId\": \"acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890\"\n  },\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  }\n}\n```\n\n페이지네이션 목록:\n\n```json\n{\n  \"data\": [\n    { \"txId\": \"tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a\", \"status\": \"FINALIZED\", \"amount\": \"1\" }\n  ],\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  },\n  \"pagination\": {\n    \"nextCursor\": \"eyJsYXN0IjoxNzUxMzM2MDAwMDAwfQ\",\n    \"hasMore\": true\n  }\n}\n```\n\n에러:\n\n```json\n{\n  \"error\": {\n    \"code\": \"ACCOUNT_NOT_FOUND\",\n    \"message\": \"account not found\"\n  },\n  \"meta\": {\n    \"requestId\": \"3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f\"\n  }\n}\n```\n\n## 데이터 포맷\n\n- **시각** — ISO 8601, UTC, 밀리초. 예: `2026-07-13T04:05:06.789Z`\n- **금액** — 문자열(decimal). 예: `\"1.5\"`. float 가 아니라 decimal 로 파싱한다.\n- **필드명** — camelCase (`externalTxId` · `numOfConfirmations`)\n- **요청 추적** — 모든 응답에 `meta.requestId`\n- **온체인 해시** — 전파 후 채워짐(그 전엔 null), `txHash`\n\n## 에러 코드\n\n판단은 `error.code` 로 한다.\n\n| 코드 | HTTP | 뜻 |\n|---|---|---|\n| `VALIDATION_FAILED` | 400 | 요청 형식·값이 규약에 안 맞음 |\n| `ACCOUNT_NOT_FOUND` | 404 | 계정 없음 (주소 미발급과 구분) |\n| `ASSET_NOT_SUPPORTED` | 400 | 우리가 지원하지 않는 (네트워크, 토큰) — 요청 형식은 맞다 |\n| `NOT_FOUND` | 404 | 그 밖의 리소스 없음 |\n| `CONFLICT` | 409 | 같은 멱등 키에 다른 내용이 왔다 (예: 이미 쓴 externalTxId 로 금액·목적지가 다른 제출) |\n| `UNPROCESSABLE_ENTITY` | 422 | 요청 형식은 맞지만 source event가 FINALIZED/완료 조건을 충족하지 않음 |\n| `SUBMIT_IN_PROGRESS` | 503 | 같은 `externalTxId` 의 앞선 제출이 처리 중이다 — **오류가 아니라 지연**이다. `Retry-After` 뒤에 같은 요청을 그대로 다시 보낸다 |\n| `RELAY_REJECTED` | 502 | 대납 relay 가 전송을 못 대거나 거절 |\n| `INTERNAL` | 500 | 서버 내부 오류 |\n\n`SUBMIT_IN_PROGRESS` 를 `CONFLICT` 와 나눈 이유 — `CONFLICT` 는 \"키를 잘못 썼다\"는 확정 오류라 재시도해도 같은 답이 온다.\n`SUBMIT_IN_PROGRESS` 는 잠시 뒤 성공할 상황이다. 둘을 한 코드로 묶으면 호출 쪽이 사고와 지연을 구분할 수 없다.\n\n`INTERNAL`(500) 은 모든 엔드포인트에서 날 수 있어, 오퍼레이션별 응답 표기에서는 생략한다.\n\n## 페이지네이션\n\n목록은 **커서 방식**이다. `limit`(기본 200, 최대 500)으로 크기를 정하고, 응답 `pagination.nextCursor` 를 다음 요청 `cursor` 로 넘겨 이어받는다. 지금 이어받을 페이지가 있는지는 `hasMore` 로 판단한다 — false 면 현재 시점 마지막 페이지다.\n\n`nextCursor` 는 **마지막 페이지에서도 항상 채워진다** — 이번 응답 마지막 항목의 다음 위치를 가리킨다. `order=asc` 조회에서는 이 커서를 보관했다가 나중에 같은 값으로 재요청하면 그 사이 새로 쌓인 내역만 이어받는다(증분 폴링). `order=desc`(기본, 최신순)는 커서가 과거 방향으로 진행하므로 페이지 순회용이다.\n\n`cursor`/`nextCursor` 는 **불투명 토큰**이라 파싱·구성 대상이 아니며, 받은 값을 그대로 전달한다(다음 위치·필터·정렬 방향이 토큰에 담겨 있다). 커서 요청에서는 첫 요청의 조회 조건이 토큰으로 이어지므로, 함께 보낸 다른 파라미터는 무시된다.\n\n## 인증\n\n**없음 (2026-08-05 확정)** — 호출 쪽과 매니저는 내부망 경계를 신뢰한다. securitySchemes 를 정의하지 않는다.\n\n## 멱등\n\n- **계정 생성** — `createAccount` 는 (`accountType`, `ref`) 로 멱등하다. 같은 값으로 재요청하면 매니저가 같은 결과를 돌려준다(호출 쪽이 별도 멱등키를 넣지 않는다).\n- **주소 발급** — `createDepositAddresses` 는 네트워크마다 `(accountId, network, symbol)` 로 멱등하다. 부분 실패해도 성공분은 남으므로 같은 요청을 그대로 재시도할 수 있다.\n- **출금 제출** — 본문 `externalTxId` 가 멱등 키다. **같은 키로 같은 내용을 재제출하면 처음의 `txId` 를 그대로 돌려준다** — 응답을 못 받아 재시도하는 경우가 정상 경로다. 같은 키인데 **내용이 다르면** `409 CONFLICT` 다. 어느 쪽이든 벤더로 중복 전송되지 않는다.\n\n## 이벤트 (메시지 큐)\n\n온체인 상태 변경(입금 감지·출금 확정 등)은 이 HTTP API 가 아니라 **메시지 큐 이벤트**로 온다. 호출 쪽은 토픽별 컨슈머로 받는다.\n\n```seq\n체인 -> Fireblocks: 온체인 상태 변경\nFireblocks -> 매니저: 웹훅 알림 push (서명 검증 후 수신)\n매니저 -> 큐: publish (4 토픽)\n큐 -> 소비 쪽: consume\n소비 쪽 -> 원장: 반영 (멱등)\n소비 쪽 -> 매니저: PUT /events/{eventId}/completion\n소비 쪽 -> 큐: 오프셋 커밋\n```\n\n| 토픽 | 담는 이벤트 | 파티션 키 |\n|---|---|---|\n| `deposit-events` | 고객 입금 (`DEPOSIT`) | 고객 accountId |\n| `withdrawal-events` | 외부 출금 (`WITHDRAWAL`) | 출금 풀 vault 의 accountId |\n| `internal-events` | 내부 이체 (`INTERNAL` — delta 정산) | 출발 계정 accountId |\n| `sweep-events` | DAW 요청 sweep 항목의 체인 상태·항목 결과 | 고객 accountId |\n\n귀속 불명 입금(매핑에 없는 주소)은 큐에 싣지 않는다 — 별도 알림 채널로 통지된다.\n\n**ChainEvent** — 큐로 오는 이벤트 형태 (타입 [ChainEvent](#schema-ChainEvent)):\n\n```json\n{\n  \"eventId\": \"0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e0f\",\n  \"type\": \"WITHDRAWAL\",\n  \"txId\": \"tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a\",\n  \"txHash\": \"0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0\",\n  \"externalTxId\": \"wd-260713-0042\",\n  \"accountId\": \"acct_pool_02\",\n  \"network\": \"ETHEREUM\",\n  \"symbol\": \"USDC\",\n  \"to\": \"0xdd1b8bb7c9646d21e267bad5f12d011da294af89\",\n  \"from\": \"0x0da6aa405415ddc059a28e089309c7b47e0702ec\",\n  \"amount\": \"100\",\n  \"status\": \"FINALIZED\",\n  \"numOfConfirmations\": 12\n}\n```\n\n- `eventId` — 이벤트 고유 id (UUID v7). **중복 제거 기준은 이 값 하나다**\n- [`type`](#schema-EventType) — DEPOSIT · WITHDRAWAL · INTERNAL\n- [`status`](#schema-TxStatus) — 공통 상태 다섯 (아래 \"상태 (TxStatus) 기준\"). 소비 쪽은 이것으로만 판단한다\n- `amount` — 이동 금액. **문자열 decimal** 이다(정밀도). 입금은 `externalTxId` 가 없으므로 **금액의 출처가 이 값뿐이다**\n- `from` — 발신 주소. 입금은 항상 채워진다 — 입금 판별을 의뢰할 때 쓴다\n- `txHash` — 전파 후 채워짐\n- RBF 대체 거래는 별도 고객 거래가 아니다. 조회 응답과 이벤트의 `txId`·`externalTxId`는 최초 거래 값을 유지하고,\n  `txHash`는 root 계열에서 실제로 채굴된 승자 거래 값으로 바뀔 수 있다\n- 벤더의 `subStatus`·`networkStatus` 는 이벤트에 싣지 않는다 — 매니저가 번역에 쓰는 내부 값이다\n\n전달 보장:\n\n- **at-least-once** — 같은 이벤트가 드물게 두 번 올 수 있다. **`eventId` 유일 기준으로 중복을 버린다** — 한 거래(txId)에서 감지·확정·실패 이벤트가 각각 오므로 `txId` 로 중복 제거하면 뒤 이벤트가 버려진다.\n- **오프셋 커밋** — 원장 반영과 `eventId` 완료 확인이 모두 성공한 뒤에만.\n- **순서** — 같은 계정은 파티션 키가 보장.\n- ★ **한 거래의 순서는 매니저가 보장한다** — 한 `txId` 에 대해 받는 순서는 항상 `감지 → 확정` 또는 `감지 → 무효` 다. 매니저가 감지를 아직 발행하지 않은 상태에서 확정·거부 알림을 먼저 받으면 **감지 이벤트를 합성해 먼저 발행**한 뒤 그 상태를 발행한다. 소비 쪽은 \"감지 없는 확정\" 을 다루지 않는다.\n- **입금 시작 상태** — 입금은 `SUBMITTED` 없이 `CONFIRMED` 부터 온다 (`SUBMITTED` 는 우리가 제출하는 거래에서만 관찰).\n- `REJECTED`(일시적) ≠ `FAILED`(영구). 확정(`FINALIZED`) 판정은 **매니저가** `numOfConfirmations` 를 체인별 임계와 비교해 내린다 — 컨슈머는 `status` 로만 판단한다.\n\n## 상태 (TxStatus) 기준\n\n거래·이벤트의 `status` 는 이 다섯이 기준이다. 벤더 원어는 매니저가 이 다섯으로 번역한다. 아래 표의 `subStatus`·`networkStatus` 열은 **매니저가 번역에 쓰는 벤더 내부 값** — 이벤트에는 `status`(TxStatus) 만 싣는다.\n\n| 공통 상태 | 뜻 | 블록체인 상태 (Pending → Confirmed → Finalized) | 벤더(Fireblocks) 원어 | 대표 subStatus | networkStatus |\n|---|---|---|---|---|---|\n| `SUBMITTED` | 제출됨 — 서명·전파 준비 중, 아직 체인 미등장 (출금만 관찰) | 아직 없음 → 전파되면 Pending | PENDING_SIGNATURE · QUEUED · BROADCASTING | — | 서명 단계엔 없음 → BROADCASTING |\n| `CONFIRMED` | 전파 후 체인 등장, 컨펌 누적 중 (미확정) | Confirmed — 블록에 포함, finality 전 | CONFIRMING | PENDING_BLOCKCHAIN_CONFIRMATIONS | CONFIRMING |\n| `FINALIZED` | 확정 — 확정 정책(DCCP) 임계 컨펌 도달 | Finalized | COMPLETED | CONFIRMED | CONFIRMED |\n| `REJECTED` | 거부·차단 — 정책·스크리닝에 막힘. 영구 실패가 아니라 사람 개입 여지 | 출금 차단은 체인에 없음 · 입금 동결은 Finalized | REJECTED · BLOCKED | AUTO_FREEZE · FROZEN_MANUALLY · REJECTED_AML_SCREENING | 출금(전파 전 차단)은 없음 · 입금 동결은 CONFIRMED |\n| `FAILED` | 영구 실패 — 사유 동반 (수수료 부족·revert 등) | Pending 에서 증발 · revert 는 Confirmed 이후 | FAILED | DROPPED_BY_BLOCKCHAIN (reorg 증발) · 그 외 | FAILED (revert) · DROPPED (mempool 누락) |\n\n판단은 다섯(`status`)으로 한다. `REJECTED`(일시적) ≠ `FAILED`(영구) 구분이 원장·화면 처리를 가른다.\n\n이 다섯은 매니저와 호출 쪽 사이의 **계약 어휘**다 — 이 문서에 남아 있는 `CONFIRMING`·`COMPLETED` 표기는 전부 **벤더(Fireblocks) 원어**다.\n\n- ★ **`CONFIRMED` 는 미확정이다** — 벤더 subStatus/networkStatus 의 `CONFIRMED`(임계 도달, COMPLETED 동반)와 철자가 같지만 가리키는 단계가 다르다. 확정은 `FINALIZED` 다.\n- ★ **`FINALIZED` 는 체인 finality 가 아니다** — DCCP 정책 임계 도달일 뿐이고, `FINALIZED` → `FAILED`(reorg 증발, `DROPPED_BY_BLOCKCHAIN`) 전이가 존재한다. 상태에 서열을 매겨 \"뒤로 가면 무시\"로 구현하면 안 된다.\n"
   },
   "servers": [
     {
@@ -32,6 +32,16 @@ window.OPENAPI = {
       "name": "Transactions",
       "x-displayName": "거래",
       "description": "수수료 견적·출금 제출·거래 조회"
+    },
+    {
+      "name": "Events",
+      "x-displayName": "이벤트",
+      "description": "DAW-CORE가 업무 원장 반영을 마친 이벤트의 완료 확인"
+    },
+    {
+      "name": "Sweeps",
+      "x-displayName": "Sweep",
+      "description": "DAW-CORE가 완료 처리한 입금 이벤트를 근거로 요청하는 고객 vault batch sweep"
     },
     {
       "name": "Admin",
@@ -817,6 +827,65 @@ window.OPENAPI = {
         }
       }
     },
+    "/admin/sweep-request-investigations/{identifier}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Sweep 요청 운영 조사",
+        "description": "BCM sweepRequestId, DAW externalSweepRequestId, sweepItemId, executionId, txId, txHash,\n원천 eventId 또는 결과 eventId 하나로 요청부터 DAW 완료 확인까지 연결한다. 항목별 source event,\n실행 당시 policy·contract snapshot, 물리 거래, sweep 결과 event와 DAW completion을 조회 전용으로 반환한다.\n`retryable`과 `nextAction`은 화면이 추론하지 않고 서버가 현재 상태에서 계산한 값이다.\n",
+        "operationId": "sweepRequestInvestigationOf",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sweep 요청 세로줄 조사 결과",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSweepRequestInvestigationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/admin/sweep-operations": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Sweep 요청·이벤트 운영 적체",
+        "description": "접수·차단·실행·부분 성공·실패 요청과 pending item, sweep-events 발행 실패,\n발행 성공 후 DAW completion이 없는 건수와 가장 오래된 시각을 읽기 전용으로 반환한다.\n",
+        "operationId": "sweepOperations",
+        "responses": {
+          "200": {
+            "description": "Sweep 운영 적체 요약",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSweepOperationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/vaults": {
       "get": {
         "tags": [
@@ -1074,6 +1143,160 @@ window.OPENAPI = {
           },
           "503": {
             "$ref": "#/components/responses/SubmitInProgress"
+          }
+        }
+      }
+    },
+    "/sweeps": {
+      "post": {
+        "tags": [
+          "Sweeps"
+        ],
+        "summary": "고객 vault batch sweep 요청",
+        "description": "DAW-CORE가 `DEPOSIT/FINALIZED` 이벤트를 업무 원장에 반영하고 event completion까지 성공한 뒤 요청한다.\n금액·vault 주소·컨트랙트는 보내지 않는다. BCM이 실행 직전 실제 잔액과 활성 정책/컨트랙트를 다시 검증한다.\n\n- 한 요청은 하나의 `network/symbol`과 서로 다른 고객 계정 1..N개로 구성한다.\n- 각 `sourceEventIds`는 해당 계정/자산의 완료된 입금 FINALIZED 이벤트여야 하며 다른 요청에서 재사용할 수 없다.\n- 같은 `externalSweepRequestId`와 같은 canonical body는 최초 응답을 반환하고, 다른 body는 `409`다.\n- 실행 gate가 중지됐으면 안전하게 `BLOCKED`로 접수하며 allowance 또는 제출을 시작하지 않는다.\n- 이 endpoint는 `BCM_DAW_INTEGRATION_ENABLED=true`인 내부/로컬 환경에서만 열린다.\n",
+        "operationId": "requestSweep",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SweepRequest"
+              },
+              "examples": {
+                "BASE_USDC_두_계정": {
+                  "value": {
+                    "externalSweepRequestId": "daw-sweep-20260827-001",
+                    "network": "BASE",
+                    "symbol": "USDC",
+                    "items": [
+                      {
+                        "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890",
+                        "sourceEventIds": [
+                          "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7891"
+                        ]
+                      },
+                      {
+                        "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7892",
+                        "sourceEventIds": [
+                          "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7892"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "신규 접수 또는 같은 본문의 멱등 재응답",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepRequestResponse"
+                },
+                "examples": {
+                  "접수됨": {
+                    "value": {
+                      "data": {
+                        "sweepRequestId": "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7801",
+                        "externalSweepRequestId": "daw-sweep-20260827-001",
+                        "network": "BASE",
+                        "symbol": "USDC",
+                        "status": "ACCEPTED",
+                        "requestedAt": "2026-08-27T01:02:03Z",
+                        "items": [
+                          {
+                            "sweepItemId": "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7811",
+                            "accountId": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890",
+                            "status": "PENDING"
+                          }
+                        ]
+                      },
+                      "meta": {
+                        "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        }
+      }
+    },
+    "/events/{eventId}/completion": {
+      "put": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "이벤트 업무 처리 완료 확인",
+        "description": "DAW-CORE가 Kafka 이벤트를 `eventId`로 멱등 반영하고 자기 업무 트랜잭션을 커밋한 뒤 호출한다.\n성공 응답을 받은 다음 Kafka offset을 커밋한다.\n\n- 같은 `eventId` 재호출은 최초 `completedAt`을 유지한 같은 결과를 반환한다.\n- `txId`는 한 거래의 상태 이벤트들을 잇는 조회 키일 뿐 완료 키가 아니다.\n- 같은 거래의 `CONFIRMED`, `FINALIZED`, reorg `FAILED`는 서로 다른 `eventId`라 각각 완료해야 한다.\n- 아직 Kafka broker 발행 성공 전인 이벤트는 `409`다. 잠시 뒤 같은 `eventId`로 다시 호출한다.\n- 이 endpoint는 `BCM_DAW_INTEGRATION_ENABLED=true`인 내부/로컬 환경에서만 열린다.\n",
+        "operationId": "completeEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "description": "BCM이 상태 전이마다 발급한 UUID v7. 소비 dedup과 완료 확인의 유일 키",
+            "example": "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7891"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "최초 또는 이미 완료된 같은 결과",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventCompletionResponse"
+                },
+                "examples": {
+                  "입금_FINALIZED_완료": {
+                    "value": {
+                      "data": {
+                        "eventId": "0198f9f2-6de2-7e5d-8bb0-8d65fb6e7891",
+                        "consumer": "DAW_CORE",
+                        "completedAt": "2026-08-27T01:02:03Z",
+                        "txId": "tx-91c",
+                        "status": "FINALIZED",
+                        "sweepRequestId": null,
+                        "sweepItemId": null,
+                        "executionId": null
+                      },
+                      "meta": {
+                        "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           }
         }
       }
@@ -1703,6 +1926,518 @@ window.OPENAPI = {
           }
         }
       },
+      "AdminSweepRequestInvestigationResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminSweepRequestInvestigation"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminSweepRequestInvestigation": {
+        "type": "object",
+        "required": [
+          "sweepRequestId",
+          "externalSweepRequestId",
+          "requester",
+          "requesterEmployeeNo",
+          "requesterBranchCode",
+          "network",
+          "symbol",
+          "status",
+          "itemCount",
+          "requestedAt",
+          "finishedAt",
+          "retryable",
+          "nextAction",
+          "items",
+          "truncatedSources"
+        ],
+        "properties": {
+          "sweepRequestId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "externalSweepRequestId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "requester": {
+            "type": "string",
+            "enum": [
+              "DAW_CORE"
+            ]
+          },
+          "requesterEmployeeNo": {
+            "type": "string",
+            "maxLength": 6
+          },
+          "requesterBranchCode": {
+            "type": "string",
+            "maxLength": 4
+          },
+          "network": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 16
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACCEPTED",
+              "BLOCKED",
+              "PROCESSING",
+              "COMPLETED",
+              "PARTIAL",
+              "FAILED"
+            ]
+          },
+          "itemCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "nextAction": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSweepRequestItem"
+            }
+          },
+          "truncatedSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AdminSweepRequestItem": {
+        "type": "object",
+        "required": [
+          "sweepItemId",
+          "sequence",
+          "accountId",
+          "status",
+          "lastFailureCode",
+          "retryable",
+          "nextAction",
+          "sourceEvents",
+          "executions",
+          "resultEvents"
+        ],
+        "properties": {
+          "sweepItemId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "accountId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "COMPLETED",
+              "FAILED"
+            ]
+          },
+          "lastFailureCode": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "nextAction": {
+            "type": "string"
+          },
+          "sourceEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSweepLinkedEvent"
+            }
+          },
+          "executions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSweepExecution"
+            }
+          },
+          "resultEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSweepLinkedEvent"
+            }
+          }
+        }
+      },
+      "AdminSweepExecution": {
+        "type": "object",
+        "required": [
+          "executionId",
+          "externalTransactionId",
+          "status",
+          "operatorAccountId",
+          "contractAddress",
+          "policyVersionId",
+          "policySnapshotHash",
+          "contractVersionId",
+          "contractEvidenceId",
+          "requestedAmount",
+          "actualAmount",
+          "itemStatus",
+          "failureCode",
+          "logIndex",
+          "transactionId",
+          "transactionHash",
+          "requestedAt",
+          "finishedAt"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "externalTransactionId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "status": {
+            "type": "string"
+          },
+          "operatorAccountId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "contractAddress": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "policyVersionId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "policySnapshotHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "contractVersionId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "contractEvidenceId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "requestedAmount": {
+            "type": "string"
+          },
+          "actualAmount": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "itemStatus": {
+            "type": "string"
+          },
+          "failureCode": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logIndex": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transactionId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transactionHash": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminSweepLinkedEvent": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "eventType",
+          "outboxStatus",
+          "chainStatus",
+          "itemOutcome",
+          "failureCode",
+          "publishedAt",
+          "dawCompletedAt"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "outboxStatus": {
+            "type": "string",
+            "enum": [
+              "P",
+              "D",
+              "F",
+              "S"
+            ]
+          },
+          "chainStatus": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "itemOutcome": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failureCode": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publishedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dawCompletedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AdminSweepOperationsResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminSweepOperations"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "AdminSweepOperations": {
+        "type": "object",
+        "required": [
+          "acceptedRequestCount",
+          "blockedRequestCount",
+          "processingRequestCount",
+          "partialRequestCount",
+          "failedRequestCount",
+          "pendingItemCount",
+          "processingItemCount",
+          "oldestPendingRequestedAt",
+          "pendingEventCount",
+          "failedEventCount",
+          "awaitingDawCompletionCount",
+          "oldestAwaitingDawCompletionAt"
+        ],
+        "properties": {
+          "acceptedRequestCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "blockedRequestCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "processingRequestCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "partialRequestCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "failedRequestCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "pendingItemCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "processingItemCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "oldestPendingRequestedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pendingEventCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "failedEventCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "awaitingDawCompletionCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "oldestAwaitingDawCompletionAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "AdminTransactionInvestigation": {
         "type": "object",
         "required": [
@@ -1992,7 +2727,9 @@ window.OPENAPI = {
           "code",
           "status",
           "observedAt",
-          "identifier"
+          "identifier",
+          "deliveryStatus",
+          "dawCompletedAt"
         ],
         "properties": {
           "source": {
@@ -2026,6 +2763,33 @@ window.OPENAPI = {
             "oneOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryStatus": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "P",
+                  "D",
+                  "F",
+                  "S"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dawCompletedAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
               },
               {
                 "type": "null"
@@ -4671,6 +5435,166 @@ window.OPENAPI = {
           "numOfConfirmations": 12
         }
       },
+      "SweepEvent": {
+        "type": "object",
+        "description": "`sweep-events` 토픽의 고객 항목 1건 결과. 최상위 batch 거래 상태인 `chainStatus`와\n고객 leg 결과인 `itemOutcome`은 서로 덮어쓰지 않는다. 따라서 FINALIZED 거래 안에서\n특정 항목이 FAILED일 수 있다. 앞 실행이 잔액을 이미 모두 옮긴 후속 요청은 온체인 제출 없이\n`NOT_SUBMITTED / NO_SWEEP_REQUIRED`로 완료하며 물리 거래 식별자는 null이다. Kafka 파티션 키는 `accountId`다.\n",
+        "required": [
+          "eventId",
+          "type",
+          "sweepRequestId",
+          "sweepItemId",
+          "executionId",
+          "txId",
+          "vendorTxId",
+          "txHash",
+          "accountId",
+          "network",
+          "symbol",
+          "requestedAmount",
+          "actualAmount",
+          "chainStatus",
+          "itemOutcome",
+          "failureCode"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "상태 전이 1건의 소비·완료 키(UUID v7)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "SWEEP"
+            ]
+          },
+          "sweepRequestId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "sweepItemId": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "executionId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 36
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "온체인 제출 없는 완료면 null"
+          },
+          "txId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "같은 온체인 거래 상태를 묶는 조회 키. 온체인 제출 없는 완료면 null"
+          },
+          "vendorTxId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "물리 Fireblocks transaction id. 온체인 제출 없는 완료면 null"
+          },
+          "txHash": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accountId": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Kafka 파티션 키"
+          },
+          "network": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 16
+          },
+          "requestedAmount": {
+            "type": "string",
+            "description": "정밀 십진 문자열"
+          },
+          "actualAmount": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "체인 전체 실패면 null"
+          },
+          "chainStatus": {
+            "type": "string",
+            "enum": [
+              "NOT_SUBMITTED",
+              "FINALIZED",
+              "FAILED"
+            ]
+          },
+          "itemOutcome": {
+            "type": "string",
+            "enum": [
+              "NO_SWEEP_REQUIRED",
+              "SUCCEEDED",
+              "FAILED"
+            ]
+          },
+          "failureCode": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "example": {
+          "eventId": "0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e10",
+          "type": "SWEEP",
+          "sweepRequestId": "0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e11",
+          "sweepItemId": "0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e12",
+          "executionId": "0198c0de-7a2b-7c3d-8e4f-5a6b7c8d9e13",
+          "txId": "tx-local-sweep-1",
+          "vendorTxId": "tx-local-sweep-1",
+          "txHash": "0xe94fb7b189d0721ccf52330274c9da65b39909e52f2dc512c7a3efac8b5208a0",
+          "accountId": "acct_customer_01",
+          "network": "BASE",
+          "symbol": "USDC",
+          "requestedAmount": "100",
+          "actualAmount": "0",
+          "chainStatus": "FINALIZED",
+          "itemOutcome": "FAILED",
+          "failureCode": "LEG_REVERTED"
+        }
+      },
       "TxStatus": {
         "type": "string",
         "enum": [
@@ -4728,6 +5652,249 @@ window.OPENAPI = {
         "required": [
           "txId"
         ]
+      },
+      "EventCompletion": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "consumer",
+          "completedAt",
+          "txId",
+          "status",
+          "sweepRequestId",
+          "sweepItemId",
+          "executionId"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "description": "완료된 상태 전이 이벤트 UUID v7"
+          },
+          "consumer": {
+            "type": "string",
+            "enum": [
+              "DAW_CORE"
+            ]
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "BCM이 최초 완료 요청을 받은 UTC 시각. 재호출해도 바뀌지 않는다"
+          },
+          "txId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "일반 거래 또는 sweep batch의 논리 거래 조회 키"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "일반 이벤트 status 또는 sweep event chainStatus"
+          },
+          "sweepRequestId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sweepItemId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executionId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "EventCompletionResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EventCompletion"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "SweepRequest": {
+        "type": "object",
+        "required": [
+          "externalSweepRequestId",
+          "network",
+          "symbol",
+          "items"
+        ],
+        "properties": {
+          "externalSweepRequestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "DAW-CORE 업무 요청 멱등 키"
+          },
+          "network": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,20}$",
+            "example": "BASE"
+          },
+          "symbol": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,16}$",
+            "example": "USDC"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/SweepRequestItem"
+            }
+          }
+        }
+      },
+      "SweepRequestItem": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "sourceEventIds"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "sourceEventIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      },
+      "SweepRequestResult": {
+        "type": "object",
+        "required": [
+          "sweepRequestId",
+          "externalSweepRequestId",
+          "network",
+          "symbol",
+          "status",
+          "requestedAt",
+          "items"
+        ],
+        "properties": {
+          "sweepRequestId": {
+            "type": "string",
+            "description": "BCM 접수 원장 ID"
+          },
+          "externalSweepRequestId": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACCEPTED",
+              "BLOCKED",
+              "PROCESSING",
+              "COMPLETED",
+              "PARTIAL",
+              "FAILED"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SweepRequestItemResult"
+            }
+          }
+        }
+      },
+      "SweepRequestItemResult": {
+        "type": "object",
+        "required": [
+          "sweepItemId",
+          "accountId",
+          "status"
+        ],
+        "properties": {
+          "sweepItemId": {
+            "type": "string",
+            "description": "BCM이 부여한 고객 계정 항목 ID"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "COMPLETED",
+              "FAILED"
+            ]
+          }
+        }
+      },
+      "SweepRequestResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SweepRequestResult"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
       },
       "CreateAccountRequest": {
         "type": "object",
@@ -5281,6 +6448,25 @@ window.OPENAPI = {
               "error": {
                 "code": "CONFLICT",
                 "message": "externalTxId already used"
+              },
+              "meta": {
+                "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+              }
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "source event가 현재 sweep 요청 조건을 충족하지 않음",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "UNPROCESSABLE_ENTITY",
+                "message": "request cannot be processed in the current resource state"
               },
               "meta": {
                 "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"

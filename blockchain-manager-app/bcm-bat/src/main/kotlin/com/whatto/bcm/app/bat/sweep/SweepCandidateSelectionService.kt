@@ -6,16 +6,22 @@ import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.sweep.ActiveSweepRuntimeContext
+import com.whatto.bcm.domain.sweep.SweepChainStatus
+import com.whatto.bcm.domain.sweep.SweepEventPublisher
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
 import com.whatto.bcm.domain.sweep.SweepExecutionAlertPort
 import com.whatto.bcm.domain.sweep.SweepExecutionStage
+import com.whatto.bcm.domain.sweep.SweepItemOutcome
+import com.whatto.bcm.domain.sweep.SweepItemOutcomeEvent
 import com.whatto.bcm.domain.sweep.SweepTarget
 import com.whatto.bcm.domain.sweep.SweepTargetRepository
 import com.whatto.bcm.domain.sweep.SweepTransactionStatusRepository
 import com.whatto.bcm.domain.vendor.WalletVendorPort
+import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
+import java.time.Clock
 
 data class SweepCandidate(
     val target: SweepTarget,
@@ -38,7 +44,9 @@ class SweepCandidateSelectionService(
     private val wallet: WalletVendorPort,
     private val transactionRunner: TransactionRunner,
     private val sweepTransactionStatuses: SweepTransactionStatusRepository,
+    private val eventPublisher: SweepEventPublisher,
     private val executionAlerts: SweepExecutionAlertPort,
+    private val clock: Clock,
     private val properties: SweepProperties,
     private val runtimeGuard: SweepRuntimeGuard,
 ) : SweepCandidateSelector {
@@ -58,15 +66,7 @@ class SweepCandidateSelectionService(
                         null
                     }
                 }
-        val sorted =
-            candidatesWithRuntime
-                .sortedWith(
-                    compareByDescending<RuntimeCandidate> { BigDecimal(it.candidate.amount) }
-                        .thenBy { it.candidate.target.registeredAt }
-                        .thenBy { it.candidate.target.accountId }
-                        .thenBy { it.candidate.target.network }
-                        .thenBy { it.candidate.target.symbol },
-                )
+        val sorted = candidatesWithRuntime.sortedWith(candidateOrder(candidatesWithRuntime))
         val first = sorted.firstOrNull() ?: return emptyList()
         val group = first.candidate.target.network to first.candidate.target.symbol
         return selectWithinBatchAmountCap(
@@ -103,6 +103,10 @@ class SweepCandidateSelectionService(
         check(available <= runtime.policy.itemAmountCap) {
             "sweep amount exceeds active policy item cap: accountId=${target.accountId}"
         }
+        if (available.signum() == 0 && target.pendingSweepRequestItemId != null) {
+            completeWithoutExecutionIfStillZero(target, finalizedBeforeBalance)
+            return null
+        }
         if (available < minimumAmount) {
             deleteIfStillBelow(target, finalizedBeforeBalance)
             return null
@@ -124,6 +128,28 @@ class SweepCandidateSelectionService(
                 total += amount
             }
         }
+    }
+
+    private fun candidateOrder(candidates: List<RuntimeCandidate>): Comparator<RuntimeCandidate> {
+        val requestMetadataAvailable =
+            candidates.all {
+                it.candidate.target.pendingSweepRequestId != null &&
+                    it.candidate.target.pendingSweepRequestedAt != null
+            }
+        val amountOrder = compareByDescending<RuntimeCandidate> { BigDecimal(it.candidate.amount) }
+        if (!requestMetadataAvailable) {
+            return amountOrder
+                .thenBy { it.candidate.target.registeredAt }
+                .thenBy { it.candidate.target.accountId }
+                .thenBy { it.candidate.target.network }
+                .thenBy { it.candidate.target.symbol }
+        }
+        return compareBy<RuntimeCandidate> { requireNotNull(it.candidate.target.pendingSweepRequestedAt) }
+            .thenBy { requireNotNull(it.candidate.target.pendingSweepRequestId) }
+            .thenByDescending { BigDecimal(it.candidate.amount) }
+            .thenBy { it.candidate.target.accountId }
+            .thenBy { it.candidate.target.network }
+            .thenBy { it.candidate.target.symbol }
     }
 
     private fun candidate(
@@ -150,7 +176,47 @@ class SweepCandidateSelectionService(
             sweepTargets.findPendingForUpdate(target.key) ?: return@run
             val finalizedAfterBalance = sweepTransactionStatuses.finalizedDepositIds(target.key)
             if (finalizedAfterBalance.any { it !in finalizedBeforeBalance }) return@run
+            if (sweepTargets.hasUnfinishedRequest(target.key)) return@run
             sweepTargets.deletePending(target.key)
+        }
+    }
+
+    private fun completeWithoutExecutionIfStillZero(
+        target: SweepTarget,
+        finalizedBeforeBalance: Set<String>,
+    ) {
+        transactionRunner.run {
+            sweepTargets.findPendingForUpdate(target.key) ?: return@run
+            val finalizedAfterBalance = sweepTransactionStatuses.finalizedDepositIds(target.key)
+            if (finalizedAfterBalance.any { it !in finalizedBeforeBalance }) return@run
+            val completion =
+                sweepTargets.completeOldestPendingWithoutExecution(
+                    target.key,
+                    CoreDateTimes.now(clock),
+                ) ?: return@run
+            eventPublisher.publish(
+                listOf(
+                    SweepItemOutcomeEvent(
+                        sweepRequestId = completion.sweepRequestId,
+                        sweepItemId = completion.sweepRequestItemId,
+                        executionId = null,
+                        txId = null,
+                        vendorTxId = null,
+                        txHash = null,
+                        accountId = target.accountId,
+                        network = target.network,
+                        symbol = target.symbol,
+                        requestedAmount = "0",
+                        actualAmount = "0",
+                        chainStatus = SweepChainStatus.NOT_SUBMITTED,
+                        itemOutcome = SweepItemOutcome.NO_SWEEP_REQUIRED,
+                        failureCode = null,
+                    ),
+                ),
+            )
+            if (!sweepTargets.hasUnfinishedRequest(target.key)) {
+                sweepTargets.deletePending(target.key)
+            }
         }
     }
 
