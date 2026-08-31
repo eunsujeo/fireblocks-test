@@ -281,9 +281,9 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
             """
             INSERT INTO bcm_whk_l
               (noti_id, evnt_typ, vndr_tx_id, payload, payload_hash, sign_vl,
-               rcv_dttm, prcs_stcd, rtry_cnt, err_msg, prcs_dttm,
+               rcv_dttm, prcs_stcd, rtry_cnt, err_msg, prcs_dttm, vndr_cmpl_yn,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES (?, 'transaction.status.updated', ?, ?, ?, ?, ?, ?, 0, NULL, ?,
+            VALUES (?, 'transaction.status.updated', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?,
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             notificationId,
@@ -294,6 +294,7 @@ class RawTransactionArchivePersistenceTest : PersistenceTestSupport() {
             receivedAt,
             processStatus,
             processedAt,
+            if (processStatus == "S" && status == "COMPLETED") "Y" else "N",
         )
         return payload
     }

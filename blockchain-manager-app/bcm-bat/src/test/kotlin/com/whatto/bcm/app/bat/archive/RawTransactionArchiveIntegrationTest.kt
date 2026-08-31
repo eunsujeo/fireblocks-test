@@ -120,11 +120,11 @@ class RawTransactionArchiveIntegrationTest : IntegrationTestSupport() {
             """
             INSERT INTO bcm_whk_l
               (noti_id, evnt_typ, vndr_tx_id, payload, payload_hash, sign_vl,
-               rcv_dttm, prcs_stcd, rtry_cnt, err_msg, prcs_dttm,
+               rcv_dttm, prcs_stcd, rtry_cnt, err_msg, prcs_dttm, vndr_cmpl_yn,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
               ('notification-archive', 'transaction.status.updated', 'tx-archive', ?, ?, 'signature',
-               '20260701120000', 'S', 0, NULL, '20260701120100',
+               '20260701120000', 'S', 0, NULL, '20260701120100', 'Y',
                'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             payload,

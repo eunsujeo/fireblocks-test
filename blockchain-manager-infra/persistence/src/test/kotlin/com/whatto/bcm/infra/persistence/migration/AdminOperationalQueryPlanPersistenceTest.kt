@@ -82,8 +82,8 @@ class AdminOperationalQueryPlanPersistenceTest : PersistenceTestSupport() {
                       ON transaction.actv_tx_id = webhook.vndr_tx_id
                      AND transaction.last_pub_stcd = 'FINALIZED'
                     WHERE webhook.prcs_stcd = 'S'
+                      AND webhook.vndr_cmpl_yn = 'Y'
                       AND webhook.vndr_tx_id IS NOT NULL
-                      AND webhook.payload::json #>> '{data,status}' = 'COMPLETED'
                       AND NOT EXISTS (
                         SELECT 1
                         FROM bcm_raw_tx_l archived
@@ -162,7 +162,7 @@ class AdminOperationalQueryPlanPersistenceTest : PersistenceTestSupport() {
             """
             INSERT INTO bcm_whk_l
               (noti_id, evnt_typ, vndr_tx_id, payload, payload_hash, sign_vl,
-               rcv_dttm, prcs_stcd, rtry_cnt, prcs_dttm,
+               rcv_dttm, prcs_stcd, rtry_cnt, prcs_dttm, vndr_cmpl_yn,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             SELECT 'notification-' || lpad(sequence::text, 8, '0'),
                    'transaction.status.updated',
@@ -172,6 +172,7 @@ class AdminOperationalQueryPlanPersistenceTest : PersistenceTestSupport() {
                      json_build_object('status', CASE WHEN sequence <= 1000 THEN 'COMPLETED' ELSE 'CONFIRMING' END)
                    )::text,
                    repeat('a', 64), 'signature', '20260831010000', 'S', 0, '20260831010100',
+                   CASE WHEN sequence <= 1000 THEN 'Y' ELSE 'N' END,
                    'SYSTEM', '9999', 'SYSTEM', '9999'
             FROM generate_series(1, 10000) sequence
             """.trimIndent(),
