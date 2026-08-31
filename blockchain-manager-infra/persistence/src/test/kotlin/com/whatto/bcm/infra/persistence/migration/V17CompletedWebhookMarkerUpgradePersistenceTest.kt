@@ -88,7 +88,7 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
 
                 applyMigration(connection, "V17__completed_webhook_marker_expand.sql")
                 applySqlResource(connection, "db/operations/prepare_v18_completed_webhook_backfill_index.sql")
-                jdbc.update("UPDATE bcm_whk_l SET vndr_cmpl_yn = 'N' WHERE noti_id < 'plan-09001'")
+                jdbc.update("UPDATE bcm_whk_l SET vndr_cmpl_yn = 'N' WHERE noti_id < 'plan-09901'")
                 jdbc.execute("ANALYZE bcm_whk_l")
 
                 val plan =
