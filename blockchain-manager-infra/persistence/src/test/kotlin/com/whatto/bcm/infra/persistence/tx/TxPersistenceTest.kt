@@ -301,6 +301,31 @@ class TxPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `7만 개 종결 관찰 id도 PostgreSQL 파라미터 한계 없이 제외한다`() {
+        txRecords.insert(txRecord(vendorTxId = "tx-bulk-excluded", confirmationCount = 0))
+        txRecords.insert(txRecord(vendorTxId = "tx-bulk-candidate", confirmationCount = 0))
+        jdbc.update("UPDATE bcm_tx_l SET last_chng_dttm = '20260807100000' WHERE vndr_tx_id = 'tx-bulk-excluded'")
+        jdbc.update("UPDATE bcm_tx_l SET last_chng_dttm = '20260807110000' WHERE vndr_tx_id = 'tx-bulk-candidate'")
+        val excludedIds =
+            buildSet {
+                add("tx-bulk-excluded")
+                repeat(70_000) { add("tx-window-terminal-$it") }
+            }
+
+        val claimed =
+            txRecords.claimPendingForReconciliation(
+                "20260807115000",
+                "20260807120000",
+                1,
+                excludedIds,
+            )
+
+        assertThat(claimed.map { it.record.vendorTxId }).containsExactly("tx-bulk-candidate")
+        assertThat(txRecords.findByVendorTxId("tx-bulk-excluded")?.reconciliationCheckCount).isZero()
+        assertThat(txRecords.findByVendorTxId("tx-bulk-excluded")?.reconciliationCheckedAt).isNull()
+    }
+
+    @Test
     fun `최대 추적 나이를 넘긴 미결 거래는 중단 표시 후 단건 조회 claim에서 제외한다`() {
         txRecords.insert(txRecord(vendorTxId = "tx-expired", confirmationCount = 0))
         jdbc.update("UPDATE bcm_tx_l SET frst_dtct_dttm = '20260731115959' WHERE vndr_tx_id = 'tx-expired'")
