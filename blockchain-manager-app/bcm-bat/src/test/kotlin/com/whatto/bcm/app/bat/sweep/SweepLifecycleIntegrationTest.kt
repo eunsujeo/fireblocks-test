@@ -26,6 +26,7 @@ import com.whatto.bcm.domain.sweep.SweepBatchReceiptPort
 import com.whatto.bcm.domain.sweep.SweepEventSerializer
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
 import com.whatto.bcm.domain.sweep.SweepExecutionAlertPort
+import com.whatto.bcm.domain.sweep.SweepExecutionStage
 import com.whatto.bcm.domain.sweep.SweepExecutionStatus
 import com.whatto.bcm.domain.sweep.SweepItem
 import com.whatto.bcm.domain.sweep.SweepItemStatus
@@ -137,17 +138,7 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
         val mappings = LifecycleMappings
         val observedAlerts = mutableListOf<SweepExecutionAlert>()
         val alerts = SweepExecutionAlertPort { observedAlerts += it }
-        val runtimeGuard =
-            SweepRuntimeFixtures.guard(
-                SweepRuntimeFixtures.context(
-                    network = NETWORK,
-                    symbol = SYMBOL,
-                    contractAddress = SWEEP_CONTRACT,
-                    minimumAmount = "10",
-                    allowanceCap = "100",
-                    batchSize = PROPERTIES.batchSize,
-                ),
-            )
+        val runtimeGuard = runtimeGuard()
         val contractCalls =
             SweepContractCallSubmissionService(
                 submissions,
@@ -365,6 +356,49 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
         assertThat(executions.findById(EXECUTION_ID_2)?.status).isEqualTo(SweepExecutionStatus.COMPLETED)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l WHERE topic='sweep-events'", Int::class.java))
             .isEqualTo(3)
+    }
+
+    @Test
+    fun `0잔액 종결 outbox 적재 실패는 요청 항목과 target 변경을 모두 rollback한다`() {
+        wallet.availableByVault.replaceAll { _, _ -> "0" }
+        val requestLedgerBefore = requestLedgerRows()
+        val targetLedgerBefore = targetLedgerRows()
+        val observedAlerts = mutableListOf<SweepExecutionAlert>()
+        val failingEventPublisher =
+            SweepOutboxEventPublisher(
+                OutboxEventService(outbox),
+                SweepEventSerializer { "{invalid-json" },
+                CLOCK,
+                5,
+            )
+        val candidates =
+            SweepCandidateSelectionService(
+                targets,
+                LifecycleAccounts(),
+                LifecycleMappings,
+                wallet,
+                transactionRunner,
+                transactionStatuses,
+                failingEventPublisher,
+                SweepExecutionAlertPort { observedAlerts += it },
+                CLOCK,
+                PROPERTIES,
+                runtimeGuard(),
+            )
+
+        assertThat(candidates.selectCandidates()).isEmpty()
+
+        assertThat(requestLedgerRows()).containsExactlyElementsOf(requestLedgerBefore)
+        assertThat(targetLedgerRows()).containsExactlyElementsOf(targetLedgerBefore)
+        assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM bcm_outbox_l WHERE topic='sweep-events'",
+                Int::class.java,
+            ),
+        ).isZero()
+        assertThat(observedAlerts)
+            .hasSize(2)
+            .allMatch { it.stage == SweepExecutionStage.SELECTION }
     }
 
     @Test
@@ -599,6 +633,31 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
                 String::class.java,
             ).map(::requireNotNull)
 
+    private fun requestLedgerRows(): List<Map<String, Any?>> =
+        jdbc.queryForList(
+            """
+            SELECT request.swp_req_id, request.swp_req_stcd, request.fnsh_dttm,
+                   item.swp_req_item_id, item.swp_req_item_stcd, item.last_fail_cd
+            FROM bcm_swp_req_l request
+            JOIN bcm_swp_req_item_l item ON item.swp_req_id = request.swp_req_id
+            WHERE request.swp_req_id = 'lifecycle-request'
+            ORDER BY item.item_seq
+            """.trimIndent(),
+        )
+
+    private fun targetLedgerRows(): List<Map<String, Any?>> =
+        jdbc.queryForList(
+            """
+            SELECT acnt_id, ntwk_cd, tkn_smbl, reg_dttm, actv_swp_exec_id, actv_item_seq,
+                   try_cnt, last_try_dttm, last_chng_empno, last_chng_brcd
+            FROM bcm_swp_trgt
+            WHERE acnt_id IN (?, ?)
+            ORDER BY acnt_id
+            """.trimIndent(),
+            ACCOUNT_A,
+            ACCOUNT_B,
+        )
+
     private fun targetAttemptCounts(): List<Int> =
         jdbc
             .queryForList(
@@ -701,6 +760,18 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
             "a".repeat(64),
         )
     }
+
+    private fun runtimeGuard(): SweepRuntimeGuard =
+        SweepRuntimeFixtures.guard(
+            SweepRuntimeFixtures.context(
+                network = NETWORK,
+                symbol = SYMBOL,
+                contractAddress = SWEEP_CONTRACT,
+                minimumAmount = "10",
+                allowanceCap = "100",
+                batchSize = PROPERTIES.batchSize,
+            ),
+        )
 
     private companion object {
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-08-13T00:00:00Z"), ZoneId.of("Asia/Seoul"))

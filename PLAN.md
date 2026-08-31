@@ -113,6 +113,9 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
   DAW 역할의 batch API 요청에서 실제 Stub+Anvil sweep과 대사, 항목별 Kafka 소비 뒤 eventId 완료 확인까지 관통해야 하며,
   FINALIZED batch의 일부 item 실패도 `chainStatus=FINALIZED/itemOutcome=FAILED`로 보존해야 한다. 요청이 없으면 FINALIZED 입금이 있어도
   신규 sweep이 생기지 않음을 검증한다. 전체 CI 후 독립 design-sync→code-reviewer를 통과한다.
+- [x] **T14.20 전환·원자성 회귀 테스트** (2026-08-31) — V13의 READY/SUBMITTING/PARTIAL/FAILED/COMPLETED 실행과 RETRY 항목을
+  실제 PostgreSQL에 seed한 뒤 V14를 적용해 legacy 요청·항목 백필, 실행 항목 FK, claimed target 보존과 무요청 target 폐기를 검증한다.
+  0잔액 무실행 종결은 실제 outbox JSON 적재 실패를 일으켜 request/item/target 변경이 모두 rollback되고 경보로 격리됨을 고정한다.
 
 **예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
 실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.

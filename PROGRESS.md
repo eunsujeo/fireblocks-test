@@ -2,7 +2,7 @@
 > 50줄 이내. 다음 세션의 AI가 읽는 전제. 결정은 CLAUDE.md·PLAN.md·docs 정본에 둔다.
 
 ## 현재 위치
-- **Phase 14 후속 DAW 요청 기반 Sweep T14.11~19 완료. Phase 15는 계속 보류.**
+- **Phase 14 후속 DAW 요청 기반 Sweep T14.11~20 완료. Phase 15는 계속 보류.**
 - 공유 환경의 운영 화면·Network/Asset·정책/컨트랙트 workflow 소유자는 DAW-ADMIN이다. 이 저장소 Admin은
   DAW-CORE에 의존하지 않는 로컬 개발·진단 콘솔이며 제거해도 API/Webhook/BAT가 동작한다.
 - Sweep 신규 실행은 BCM의 주기적 자율 선정을 유지하지 않고 DAW-CORE 요청을 접수한 뒤 BCM이 독립 검증·처리한다.
@@ -28,20 +28,20 @@
   서버 계산 nextAction을 보여준다. tx timeline도 outbox/DAW 완료를 구분한다. 적체·차단·발행 실패·완료 지연 gauge를 추가했다.
 - V14 SQL에 완료 원장과 sweep request/item/source 원장을 추가하고 OpenAPI 실행 문서를 paths 25/schemas 89로 재생성했다.
 
-## 검증 완료 (2026-08-28)
+## 검증 완료 (2026-08-31)
 - hash/application/API, Webhook, BAT, persistence 및 로컬 Fireblocks 통합 테스트 전체 통과.
 - DAW batch 요청→Stub+Anvil 실제 sweep→부분 성공 대사→항목별 `sweep-events` Kafka 소비→eventId 완료와 Admin 연결까지
   full 시스템 테스트 18/18 통과. 요청 전에는 FINALIZED 입금이 있어도 신규 target/execution이 0임을 함께 확인했다.
 - Persistence 전체 162개를 한 번에 통과했다. DataJdbcTest pool의 idle 연결 선점을 제거하고 공유 DB 테스트가 자기 fixture만
   정리·판정하도록 바꿔 PostgreSQL 연결 고갈과 실행 순서 의존을 제거했다.
 - `./scripts/ci.sh` 통과: 전체 build/test, ktlint, API 문서 drift, dependency check green. OpenAPI paths 25/schemas 89 fresh.
+- V13 대표 실행·항목을 seed한 V14 실제 upgrade와 0잔액 종결의 실제 outbox 적재 실패 전체 rollback 회귀 테스트를 추가했다.
 - 설계 사본 01·02·03·06·08·09·90은 waas-wiki 정본과 byte 동일.
 - converge 범위는 base/HEAD `da5b0738cb1ced65e3b7a7d09f3af91275511d25` 대비 working tree tracked 79 + untracked 30,
   총 109개다. Codex 독립 reviewer agent(모델·effort는 실행기 metadata 미노출)가 design-sync `정합` 후 code-reviewer Critical 0·
   `커밋 가능`을 순차 판정했다. 두 reviewer 모두 읽기 전용이었다.
-
 ## 다음 작업
-- 후속 후보는 V14 seeded upgrade, 0잔액 outbox rollback, 운영/Admin 쿼리 `EXPLAIN`이며, 공유 Admin 전에 PLAN #51 vault 대사를 paging한다.
+- 후속 후보는 운영/Admin 쿼리 `EXPLAIN`이며, 공유 Admin 전에 PLAN #51 vault 대사를 paging한다.
 
 ## 외부 조건·후속
 - Phase 15 전제는 Linux+systemd, 초기 API/Webhook/BAT 1/1/1. 실제 운영 배포는 기능 점검 후 별도 승인한다.
