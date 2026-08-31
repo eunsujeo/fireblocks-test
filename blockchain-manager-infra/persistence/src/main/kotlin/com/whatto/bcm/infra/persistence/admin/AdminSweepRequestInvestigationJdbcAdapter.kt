@@ -327,10 +327,13 @@ class AdminSweepRequestInvestigationJdbcAdapter(
                 WHERE outbox.topic = 'sweep-events' AND outbox.evnt_stcd = 'S'
                   AND NOT EXISTS (SELECT 1 FROM bcm_evnt_cmpl_l completion
                                    WHERE completion.evnt_id = outbox.evnt_id AND completion.cnsmr_dvcd = 'DAW_CORE')) AS awaiting_completion_count,
-              (SELECT min(outbox.pub_dttm) FROM bcm_outbox_l outbox
+              (SELECT outbox.pub_dttm FROM bcm_outbox_l outbox
                 WHERE outbox.topic = 'sweep-events' AND outbox.evnt_stcd = 'S'
+                  AND outbox.pub_dttm IS NOT NULL
                   AND NOT EXISTS (SELECT 1 FROM bcm_evnt_cmpl_l completion
-                                   WHERE completion.evnt_id = outbox.evnt_id AND completion.cnsmr_dvcd = 'DAW_CORE')) AS oldest_awaiting_completion
+                                   WHERE completion.evnt_id = outbox.evnt_id AND completion.cnsmr_dvcd = 'DAW_CORE')
+                ORDER BY outbox.pub_dttm, outbox.evnt_id
+                LIMIT 1) AS oldest_awaiting_completion
             FROM bcm_swp_req_l request
             """.trimIndent()
     }

@@ -116,6 +116,9 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
 - [x] **T14.20 전환·원자성 회귀 테스트** (2026-08-31) — V13의 READY/SUBMITTING/PARTIAL/FAILED/COMPLETED 실행과 RETRY 항목을
   실제 PostgreSQL에 seed한 뒤 V14를 적용해 legacy 요청·항목 백필, 실행 항목 FK, claimed target 보존과 무요청 target 폐기를 검증한다.
   0잔액 무실행 종결은 실제 outbox JSON 적재 실패를 일으켜 request/item/target 변경이 모두 rollback되고 경보로 격리됨을 고정한다.
+- [x] **T14.21 운영 조회 실행계획 고정** (2026-08-31) — 1만 건 대표 원장에서 Sweep/거래 Admin 식별자 검색과 적체 집계의
+  PostgreSQL `EXPLAIN`을 검증한다. V15에 webhook/outbox vendor, Sweep item JSON·tx hash·submission, 완료 대기·반복 실패 조회 index를
+  추가하고, 가장 오래된 DAW 미완료 event는 시간순 index에서 첫 행만 읽도록 조회한다.
 
 **예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
 실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.
