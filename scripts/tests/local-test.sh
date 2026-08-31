@@ -17,6 +17,8 @@ done
 
 for contract in \
     '/opt/bcm/db/migration/manifest.txt' \
+    'if grep -Fqx -- "-- bcm:transaction=off" "$script"; then' \
+    'psql --set ON_ERROR_STOP=1' \
     'psql --single-transaction' \
     'ON_ERROR_STOP=1'; do
     grep -Fq "$contract" scripts/internal/local-db-init.sh || {

@@ -163,7 +163,7 @@ class OperationalMetricsIntegrationTest : IntegrationTestSupport() {
                 receivedAt = "20260816010000",
             ),
         )
-        inbox.markProcessed("completed-unarchived", "20260816010100")
+        inbox.markProcessed("completed-unarchived", "20260816010100", vendorCompleted = true)
 
         publisher.refresh()
 

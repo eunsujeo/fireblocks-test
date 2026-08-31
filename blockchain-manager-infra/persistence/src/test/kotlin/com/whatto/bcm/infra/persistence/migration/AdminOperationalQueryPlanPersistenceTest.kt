@@ -1,6 +1,7 @@
 package com.whatto.bcm.infra.persistence.migration
 
 import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
+import com.whatto.bcm.infra.persistence.webhook.COMPLETED_WEBHOOK_PREDICATE
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.jdbc.core.JdbcTemplate
@@ -81,9 +82,7 @@ class AdminOperationalQueryPlanPersistenceTest : PersistenceTestSupport() {
                     JOIN bcm_tx_l transaction
                       ON transaction.actv_tx_id = webhook.vndr_tx_id
                      AND transaction.last_pub_stcd = 'FINALIZED'
-                    WHERE webhook.prcs_stcd = 'S'
-                      AND webhook.vndr_cmpl_yn = 'Y'
-                      AND webhook.vndr_tx_id IS NOT NULL
+                    WHERE $COMPLETED_WEBHOOK_PREDICATE
                       AND NOT EXISTS (
                         SELECT 1
                         FROM bcm_raw_tx_l archived
@@ -314,12 +313,19 @@ class AdminOperationalQueryPlanPersistenceTest : PersistenceTestSupport() {
             requireNotNull(javaClass.classLoader.getResourceAsStream("db/migration/$migration")) {
                 "migration resource not found: $migration"
             }.bufferedReader().use { it.readText() }
-        connection.autoCommit = false
+        val nonTransactional = sql.lineSequence().firstOrNull()?.trim() == "-- bcm:transaction=off"
+        connection.autoCommit = nonTransactional
         try {
-            connection.createStatement().use { it.execute(sql) }
-            connection.commit()
+            connection.createStatement().use { statement ->
+                if (nonTransactional) {
+                    sql.splitToSequence(';').filter { it.isNotBlank() }.forEach(statement::execute)
+                } else {
+                    statement.execute(sql)
+                    connection.commit()
+                }
+            }
         } catch (exception: Exception) {
-            connection.rollback()
+            if (!nonTransactional) connection.rollback()
             throw exception
         } finally {
             connection.autoCommit = true

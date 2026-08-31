@@ -52,7 +52,7 @@ class OperationalSignalPersistenceTest : PersistenceTestSupport() {
     fun `미처리 인박스와 P outbox 및 작업 heartbeat를 읽기 전용 snapshot으로 조회한다`() {
         inbox.insertIfAbsent(webhook("notification-pending", "20260817010000"))
         inbox.insertIfAbsent(webhook("notification-success", "20260817005900"))
-        inbox.markProcessed("notification-success", "20260817010100")
+        inbox.markProcessed("notification-success", "20260817010100", vendorCompleted = false)
 
         val pendingEventId = eventIdAt("2026-08-17T01:02:00Z")
         val successEventId = eventIdAt("2026-08-17T01:01:00Z")
@@ -92,7 +92,7 @@ class OperationalSignalPersistenceTest : PersistenceTestSupport() {
                 payload = """{"data":{"status":"COMPLETED"}}""",
             ),
         )
-        inbox.markProcessed("completed-unarchived", "20260816010100")
+        inbox.markProcessed("completed-unarchived", "20260816010100", vendorCompleted = true)
 
         assertThat(signals.stoppedReconciliationCount()).isEqualTo(1)
         assertThat(signals.unarchivedCompletedWebhookCount()).isEqualTo(1)
@@ -124,7 +124,7 @@ class OperationalSignalPersistenceTest : PersistenceTestSupport() {
                 payload = """{"data":{"status":"COMPLETED","note":"\\u0000"}}""",
             ),
         )
-        inbox.markProcessed("completed-null-escape", "20260816010100")
+        inbox.markProcessed("completed-null-escape", "20260816010100", vendorCompleted = true)
 
         assertThat(signals.unarchivedCompletedWebhookCount()).isEqualTo(1)
     }

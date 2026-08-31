@@ -11,7 +11,7 @@ import java.util.UUID
 
 class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport() {
     @Test
-    fun `V17은 기존 처리 완료 원문의 COMPLETED 표식을 안전하게 backfill한다`() {
+    fun `V17과 V18은 기존 원문을 backfill하고 구버전 worker의 롤링 배포 간극을 막는다`() {
         val schema = "v17_upgrade_${UUID.randomUUID().toString().replace("-", "")}"
 
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
@@ -22,7 +22,14 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
                 val jdbc = JdbcTemplate(SingleConnectionDataSource(connection, true))
                 seedProcessedWebhooks(jdbc)
 
-                applyMigration(connection, "V17__completed_webhook_archive_index.sql")
+                applyMigration(connection, "V17__completed_webhook_marker_expand.sql")
+                jdbc.update(
+                    "UPDATE bcm_whk_l SET prcs_stcd = 'S', prcs_dttm = '20260831010200' WHERE noti_id = 'old-worker-before-backfill'",
+                )
+                applyMigration(connection, "V18__completed_webhook_marker_backfill_and_index.sql")
+                jdbc.update(
+                    "UPDATE bcm_whk_l SET prcs_stcd = 'S', prcs_dttm = '20260831010300' WHERE noti_id = 'old-worker-after-backfill'",
+                )
 
                 assertThat(
                     jdbc.queryForList(
@@ -31,6 +38,8 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
                 ).containsExactly(
                     mapOf("noti_id" to "completed", "vndr_cmpl_yn" to "Y"),
                     mapOf("noti_id" to "confirming", "vndr_cmpl_yn" to "N"),
+                    mapOf("noti_id" to "old-worker-after-backfill", "vndr_cmpl_yn" to "Y"),
+                    mapOf("noti_id" to "old-worker-before-backfill", "vndr_cmpl_yn" to "Y"),
                     mapOf("noti_id" to "unsupported", "vndr_cmpl_yn" to "N"),
                 )
                 assertThat(
@@ -63,7 +72,13 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
                '{"data":{"status":"CONFIRMING"}}', repeat('b', 64), 'signature',
                '20260831010000', 'S', 0, NULL, '20260831010100', 'SYSTEM', '9999', 'SYSTEM', '9999'),
               ('unsupported', 'unsupported.event', 'tx-unsupported', 'not-json', repeat('c', 64), 'signature',
-               '20260831010000', 'S', 0, NULL, '20260831010100', 'SYSTEM', '9999', 'SYSTEM', '9999')
+               '20260831010000', 'S', 0, NULL, '20260831010100', 'SYSTEM', '9999', 'SYSTEM', '9999'),
+              ('old-worker-before-backfill', 'transaction.status.updated', 'tx-old-before',
+               '{"data":{"status":"COMPLETED"}}', repeat('d', 64), 'signature',
+               '20260831010000', 'P', 0, NULL, NULL, 'SYSTEM', '9999', 'SYSTEM', '9999'),
+              ('old-worker-after-backfill', 'transaction.status.updated', 'tx-old-after',
+               '{"data":{"status":"COMPLETED"}}', repeat('e', 64), 'signature',
+               '20260831010000', 'P', 0, NULL, NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
         )
     }
@@ -75,7 +90,7 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
                 lines
                     .map(String::trim)
                     .filter { it.isNotEmpty() && !it.startsWith("#") }
-                    .takeWhile { it != "V17__completed_webhook_archive_index.sql" }
+                    .takeWhile { it != "V17__completed_webhook_marker_expand.sql" }
                     .toList()
             }
 
@@ -87,12 +102,19 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
             requireNotNull(javaClass.classLoader.getResourceAsStream("db/migration/$migration")) {
                 "migration resource not found: $migration"
             }.bufferedReader().use { it.readText() }
-        connection.autoCommit = false
+        val nonTransactional = sql.lineSequence().firstOrNull()?.trim() == "-- bcm:transaction=off"
+        connection.autoCommit = nonTransactional
         try {
-            connection.createStatement().use { it.execute(sql) }
-            connection.commit()
+            connection.createStatement().use { statement ->
+                if (nonTransactional) {
+                    sql.splitToSequence(';').filter { it.isNotBlank() }.forEach(statement::execute)
+                } else {
+                    statement.execute(sql)
+                    connection.commit()
+                }
+            }
         } catch (exception: Exception) {
-            connection.rollback()
+            if (!nonTransactional) connection.rollback()
             throw exception
         } finally {
             connection.autoCommit = true

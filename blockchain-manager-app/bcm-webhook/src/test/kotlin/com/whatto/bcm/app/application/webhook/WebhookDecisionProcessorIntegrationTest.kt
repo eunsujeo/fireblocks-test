@@ -126,6 +126,7 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         assertThat(payload.path("from").asString()).isEqualTo("0xC05A705eFE3f89b3a7a6Ceb6D79107529Ce20f7C")
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_swp_trgt", Long::class.java)).isZero()
         assertThat(inboxRow("noti-confirming")["prcs_stcd"]).isEqualTo("S")
+        assertThat(inboxRow("noti-confirming")["vndr_cmpl_yn"]).isEqualTo("N")
     }
 
     @Test
@@ -144,6 +145,7 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
             .isEqualTo("FINALIZED")
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_swp_trgt", Long::class.java)).isZero()
         assertThat(inboxRow("noti-finalized")["prcs_stcd"]).isEqualTo("S")
+        assertThat(inboxRow("noti-finalized")["vndr_cmpl_yn"]).isEqualTo("Y")
     }
 
     @Test

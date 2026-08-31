@@ -40,7 +40,7 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
             ),
         )
 
-        inbox.markProcessed("noti-success", "20260807120100")
+        inbox.markProcessed("noti-success", "20260807120100", vendorCompleted = true)
 
         val row = jdbc.queryForMap("SELECT * FROM bcm_whk_l WHERE noti_id = 'noti-success'")
         assertThat(row["prcs_stcd"]).isEqualTo("S")
@@ -60,7 +60,7 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
             ),
         )
 
-        inbox.markProcessed("noti-unsupported", "20260807120100")
+        inbox.markProcessed("noti-unsupported", "20260807120100", vendorCompleted = false)
 
         val row = jdbc.queryForMap("SELECT * FROM bcm_whk_l WHERE noti_id = 'noti-unsupported'")
         assertThat(row["prcs_stcd"]).isEqualTo("S")
