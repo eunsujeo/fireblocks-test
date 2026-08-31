@@ -31,10 +31,17 @@ while IFS= read -r migration || [ -n "$migration" ]; do
     }
 
     echo "BCM DB SQL 적용 중: $migration"
-    psql --single-transaction --set ON_ERROR_STOP=1 \
-        --username "$POSTGRES_USER" \
-        --dbname "$POSTGRES_DB" \
-        --file "$script"
+    if grep -Fqx -- "-- bcm:transaction=off" "$script"; then
+        psql --set ON_ERROR_STOP=1 \
+            --username "$POSTGRES_USER" \
+            --dbname "$POSTGRES_DB" \
+            --file "$script"
+    else
+        psql --single-transaction --set ON_ERROR_STOP=1 \
+            --username "$POSTGRES_USER" \
+            --dbname "$POSTGRES_DB" \
+            --file "$script"
+    fi
 done < "$manifest"
 
 echo "BCM DB SQL 적용 완료"

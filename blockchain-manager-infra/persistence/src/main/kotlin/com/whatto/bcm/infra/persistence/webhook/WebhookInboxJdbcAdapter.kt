@@ -11,6 +11,9 @@ import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 
+internal const val COMPLETED_WEBHOOK_PREDICATE =
+    "webhook.prcs_stcd = 'S' AND webhook.vndr_cmpl_yn = 'Y' AND webhook.vndr_tx_id IS NOT NULL"
+
 /** bcm_whk_l 수신 적재 — noti_id 충돌만 정상 중복으로 무시하고 그 밖의 DB 오류는 올려 보낸다. */
 @Repository
 class WebhookInboxJdbcAdapter(
@@ -75,18 +78,23 @@ class WebhookInboxJdbcAdapter(
     override fun markProcessed(
         notificationId: String,
         processedAt: String,
+        vendorCompleted: Boolean,
     ) {
         val updated =
             jdbc.update(
                 """
                 UPDATE bcm_whk_l
-                   SET prcs_stcd = 'S', prcs_dttm = :processedAt, err_msg = NULL,
+                   SET prcs_stcd = 'S',
+                       prcs_dttm = :processedAt,
+                       vndr_cmpl_yn = :vendorCompleted,
+                       err_msg = NULL,
                        last_chng_empno = :employeeNo, last_chng_brcd = :branchCode
                  WHERE noti_id = :notificationId AND prcs_stcd = 'P'
                 """.trimIndent(),
                 mapOf(
                     "notificationId" to notificationId,
                     "processedAt" to processedAt,
+                    "vendorCompleted" to if (vendorCompleted) "Y" else "N",
                     "employeeNo" to SystemAudit.EMPNO,
                     "branchCode" to SystemAudit.BRCD,
                 ),

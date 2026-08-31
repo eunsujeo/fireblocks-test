@@ -5,6 +5,7 @@ import java.sql.DriverManager
 /** Testcontainers PostgreSQL에 운영 SQL manifest를 컨테이너당 한 번 적용한다. */
 object PostgreSqlSchemaInitializer {
     private const val MANIFEST = "db/migration/manifest.txt"
+    private const val NON_TRANSACTIONAL_DIRECTIVE = "-- bcm:transaction=off"
     private val scriptNamePattern = Regex("V[0-9]+__.+\\.sql")
 
     fun initialize(
@@ -36,13 +37,22 @@ object PostgreSqlSchemaInitializer {
                         "DB schema SQL을 찾을 수 없습니다: $resource"
                     }.bufferedReader().use { it.readText() }
 
-                connection.autoCommit = false
+                val nonTransactional = sql.lineSequence().firstOrNull()?.trim() == NON_TRANSACTIONAL_DIRECTIVE
+                connection.autoCommit = nonTransactional
                 try {
-                    connection.createStatement().use { statement -> statement.execute(sql) }
-                    connection.commit()
+                    connection.createStatement().use { statement ->
+                        if (nonTransactional) {
+                            sql.splitToSequence(';').filter { it.isNotBlank() }.forEach(statement::execute)
+                        } else {
+                            statement.execute(sql)
+                            connection.commit()
+                        }
+                    }
                 } catch (error: Exception) {
-                    connection.rollback()
+                    if (!nonTransactional) connection.rollback()
                     throw IllegalStateException("DB schema SQL 적용 실패: $resource", error)
+                } finally {
+                    connection.autoCommit = true
                 }
             }
         }

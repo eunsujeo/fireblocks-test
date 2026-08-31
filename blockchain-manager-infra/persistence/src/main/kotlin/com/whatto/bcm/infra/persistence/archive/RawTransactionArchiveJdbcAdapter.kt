@@ -2,6 +2,7 @@ package com.whatto.bcm.infra.persistence.archive
 
 import com.whatto.bcm.domain.archive.RawTransactionArchiveBatch
 import com.whatto.bcm.domain.archive.RawTransactionArchiveRepository
+import com.whatto.bcm.infra.persistence.webhook.COMPLETED_WEBHOOK_PREDICATE
 import com.whatto.bcm.support.audit.SystemAudit
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
@@ -45,10 +46,8 @@ class RawTransactionArchiveJdbcAdapter(
                    AND transaction.last_pub_stcd = 'FINALIZED'
                   LEFT JOIN bcm_sbmt_l submission
                     ON submission.vndr_tx_id = transaction.vndr_tx_id
-                  WHERE webhook.prcs_stcd = 'S'
-                    AND webhook.vndr_tx_id IS NOT NULL
+                  WHERE $COMPLETED_WEBHOOK_PREDICATE
                     AND webhook.rcv_dttm <= :receivedAtOrBefore
-                    AND webhook.payload::jsonb #>> '{data,status}' = 'COMPLETED'
                 ), candidates AS MATERIALIZED (
                   SELECT ranked.*
                   FROM ranked
@@ -112,7 +111,7 @@ class RawTransactionArchiveJdbcAdapter(
             WHERE webhook.prcs_stcd = 'S'
               AND webhook.prcs_dttm <= :processedAtOrBefore
               AND (
-                COALESCE(webhook.payload::jsonb #>> '{data,status}', '') <> 'COMPLETED'
+                NOT ($COMPLETED_WEBHOOK_PREDICATE)
                 OR EXISTS (
                   SELECT 1
                   FROM bcm_raw_tx_l archived

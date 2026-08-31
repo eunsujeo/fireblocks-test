@@ -52,7 +52,7 @@ group: 블록체인 매니저
 
 ```erd
 entity: bcm_addr_m @1,1 :: 주소 매핑 — (계정, 네트워크, 토큰)당 입금 주소 하나 | acnt_id PK,FK :: 계정 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | dpst_addr :: 발급된 입금 주소
-entity: bcm_whk_l @2,1 :: 수신 웹훅 알림 원본 — 인박스 (처리 후 N일 정리) | noti_id PK :: 웹훅 알림 id (벤더 UUID) — 중복 수신 방어 | vndr_tx_id :: 벤더 tx id — 이 알림이 가리키는 거래 | prcs_stcd :: 판단 처리 상태 P/S/F — F 는 격리
+entity: bcm_whk_l @2,1 :: 수신 웹훅 알림 원본 — 인박스 (처리 후 N일 정리) | noti_id PK :: 웹훅 알림 id (벤더 UUID) — 중복 수신 방어 | vndr_tx_id :: 벤더 tx id — 이 알림이 가리키는 거래 | prcs_stcd :: 판단 처리 상태 P/S/F — F 는 격리 | vndr_cmpl_yn :: 성공 처리한 원문의 vendor COMPLETED 표식
 entity: bcm_outbox_l @3,1 :: 발행 대기 이벤트 — 워커가 상태 변경과 한 트랜잭션에 적재 | evnt_id PK :: 이벤트 id (UUID v7) · 컨슈머 dedup 키 | evt_typ_dvcd :: 이벤트유형 TXCK/TXCF/TXFL | evnt_stcd :: 발행상태 P/D/F/S
 entity: bcm_evnt_cmpl_l @4,1 :: 소비자 처리 완료 확인 | evnt_id PK,FK :: BCM 발행 이벤트 | cnsmr_dvcd PK :: DAW_CORE | cmpl_dttm :: 최초 완료 시각
 entity: bcm_sbmt_l @4,1 :: 제출 원장 — 우리가 벤더에 낸 건 (출금·내부이체·sweep) | ext_tx_id PK :: 우리 요청 키 = 멱등 키 | req_hash :: 요청 내용 SHA-256 — 같은 키 다른 내용 판별 | tx_dvcd :: WITHDRAWAL/INTERNAL/SWEEP_APPROVE/SWEEP_BATCH | vndr_tx_id UK :: 벤더 응답·웹훅으로 채운다 (NULL=미확인)
@@ -359,22 +359,34 @@ CREATE TABLE bcm_whk_l (
   rtry_cnt      INT           NOT NULL,      -- 판단 시도 횟수 — 상한 초과 시 F 로 격리
   err_msg       VARCHAR(1000) NULL,          -- 마지막 실패 요약 (격리 사유)
   prcs_dttm     VARCHAR(16)   NULL,          -- 처리 일시
+  vndr_cmpl_yn  VARCHAR(1)    NOT NULL DEFAULT 'N', -- 성공 처리한 원문의 data.status=COMPLETED 여부
   -- 감사 4컬럼
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
   last_chng_empno VARCHAR(6)  NOT NULL,
-  last_chng_brcd  VARCHAR(4)  NOT NULL
+  last_chng_brcd  VARCHAR(4)  NOT NULL,
+  CHECK (vndr_cmpl_yn IN ('Y', 'N')),
+  CHECK (vndr_cmpl_yn IS NOT NULL)       -- 온라인 NOT NULL 검증 증명 — V18 재실행 안전을 위해 유지
 );
 CREATE INDEX idx_bcm_whk_pick ON bcm_whk_l (prcs_stcd, rcv_dttm);  -- 판단 워커의 집기 — 미처리(P) 오래된 순
+CREATE INDEX idx_bcm_whk_completed_archive
+  ON bcm_whk_l (vndr_tx_id, rcv_dttm DESC, noti_id DESC)
+  WHERE prcs_stcd = 'S' AND vndr_cmpl_yn = 'Y' AND vndr_tx_id IS NOT NULL; -- 미보관 COMPLETED 선별
 ```
 
 | 컬럼 | 뜻 |
 |---|---|
 | `noti_id` | insert 충돌 = 같은 알림의 중복 전달 — 무시하고 200 을 돌려준다. 중복 방어가 물리 제약으로 끝난다 |
-| `payload` | 검증·파싱 전의 원본을 **받은 바이트 그대로** 둔다. 판단 버그가 있어도 원본으로 재처리할 수 있고, finalize 원본 보관이 그 tx 의 마지막 COMPLETED 알림의 이 값을 옮겨 간다. JSONB 가 아니라 TEXT 인 이유 — JSONB 는 저장 시 정규화(키 재정렬·공백)돼 **꺼낸 값이 원문 바이트가 아니다**. 저장했다 꺼낸 본문에 원래 서명을 붙이면 벤더 검증이 401 로 떨어진다 (2026-08 PoC 실측). 운영 조회에서 JSON 항목이 필요하면 `payload::jsonb ->> …` 로 캐스팅한다 |
+| `payload` | 검증·파싱 전의 원본을 **받은 바이트 그대로** 둔다. 판단 버그가 있어도 원본으로 재처리할 수 있고, finalize 원본 보관이 그 tx 의 마지막 COMPLETED 알림의 이 값을 옮겨 간다. JSONB 가 아니라 TEXT 인 이유 — JSONB 는 저장 시 정규화(키 재정렬·공백)돼 **꺼낸 값이 원문 바이트가 아니다**. 저장했다 꺼낸 본문에 원래 서명을 붙이면 벤더 검증이 401 로 떨어진다 (2026-08 PoC 실측). 판단할 때만 JSON으로 읽고, 반복 운영 조회는 아래 표식을 사용해 원문을 다시 파싱하지 않는다 |
 | `payload_hash` | 무결성 증명의 기준값. **HTTP 본문을 문자열로 바꾸기 전 `byte[]` 로 계산한다** — 수신부는 바이트를 한 번 읽어 서명 검증·저장·해시 세 곳에 같은 배열을 쓴다. `bcm_raw_tx_l` 로 옮길 때 다시 계산하지 않고 이 값을 복사한다 |
 | `sign_vl` | 해시는 "우리가 저장한 바이트가 우리가 해시한 바이트와 같다"까지만 증명한다. 벤더가 보낸 것임을 나중에 다시 증명하려면 서명이 함께 있어야 하고, 서명은 수신 시점에만 존재한다. 서명 검증을 통과한 알림만 적재되므로 NOT NULL |
+| `vndr_cmpl_yn` | 판단 워커가 지원 transaction event를 성공 처리해 `P→S`로 바꾸는 같은 UPDATE에서 `data.status=COMPLETED`이면 `Y`로 남긴다. 실패·격리·미지원 event는 `N`이며, 보관·미보관 메트릭은 이 표식과 partial index로 원문 JSON 반복 파싱을 피한다 |
 | 보존 | 처리 후 N일(운영 설정값) 뒤 정리 — 장기 보존은 `bcm_raw_tx_l` 몫 |
+
+이 표식은 application이 이미 파싱한 vendor status를 persistence port에 boolean으로 전달한 결과가 정본이다. 롤링 전환은 V17의
+짧은 expand(기존 행만 NULL 허용)와 구버전 writer 호환 trigger, V18의 1,000건 단위 commit backfill·제약 검증·NOT NULL 전환,
+transaction 밖 `CREATE INDEX CONCURRENTLY` 순서로 수행한다. 호환 trigger는 구버전 worker가 `P→S`로 바꾸면서 표식을 쓰지 않은
+현재 4개 지원 event만 보완하고, 신버전 worker가 명시한 `Y`는 덮어쓰지 않는다.
 
 ### bcm_tx_l — 거래 운영 상태
 
@@ -932,9 +944,9 @@ CREATE INDEX idx_bcm_raw_tx_vendor ON bcm_raw_tx_l (vndr_tx_id, rcv_dttm); -- �
 
 `payload` 는 바이트 그대로 보존해야 해 JSONB 가 아니라 TEXT 다(무결성 해시가 원문 바이트 기준). 이 표의 세 값은 모두 수신 시점에만 만들 수 있어 `bcm_whk_l` 이 정리되기 전에 옮겨야 한다 — 지나가면 소급해서 만들 수 없다.
 
-월별 파티션은 **대상 월이 시작되기 전에 배포 역할이 선생성**한다. 애플리케이션 실행 역할은 DDL 권한 없이 이미 생성된 파티션에만 적재한다. 보관 후보는 성공 커서의 하한 없이 실행 경계 이전의 `S` 인박스 중 root 거래가 FINALIZED이고 payload 원어가 COMPLETED이며, `bcm_raw_tx_l`에 같은 tx의 동일하거나 더 최신 `rcv_dttm` 원문이 없는 행이다. 기본 500건씩 실행당 최대 20배치를 처리하고 각 배치를 별도 트랜잭션으로 커밋한다. 파티션 누락이나 중간 적재 실패가 나도 앞서 커밋한 보관분은 유지되며, 다음 실행이 같은 미보관 조건으로 멱등하게 이어받는다.
+월별 파티션은 **대상 월이 시작되기 전에 배포 역할이 선생성**한다. 애플리케이션 실행 역할은 DDL 권한 없이 이미 생성된 파티션에만 적재한다. 보관 후보는 성공 커서의 하한 없이 실행 경계 이전의 `S`·`vndr_cmpl_yn='Y'` 인박스 중 root 거래가 FINALIZED이고, `bcm_raw_tx_l`에 같은 tx의 동일하거나 더 최신 `rcv_dttm` 원문이 없는 행이다. 기본 500건씩 실행당 최대 20배치를 처리하고 각 배치를 별도 트랜잭션으로 커밋한다. 파티션 누락이나 중간 적재 실패가 나도 앞서 커밋한 보관분은 유지되며, 다음 실행이 같은 미보관 조건으로 멱등하게 이어받는다.
 
-적격 후보가 더 없음을 확인한 뒤에만 별도 마지막 트랜잭션에서 보존 기간이 지난 처리 완료(`S`) 인박스를 정리하고 성공 heartbeat를 기록한다. 원어가 COMPLETED인 인박스는 root가 아직 FINALIZED가 아니어도 동일하거나 더 최신 `rcv_dttm` 원문이 보관되기 전까지 정리 대상에서 제외한다. 최대 배치에 도달해 적체를 완전히 비우지 못했거나 어느 배치든 실패하면 인박스 정리와 성공 heartbeat는 하지 않는다. 따라서 `last_scs_dttm`은 보관 완전성 커서가 아니라 성공 heartbeat일 뿐이다. 보존 연한·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
+적격 후보가 더 없음을 확인한 뒤에만 별도 마지막 트랜잭션에서 보존 기간이 지난 처리 완료(`S`) 인박스를 정리하고 성공 heartbeat를 기록한다. `vndr_cmpl_yn='Y'`인 인박스는 root가 아직 FINALIZED가 아니어도 동일하거나 더 최신 `rcv_dttm` 원문이 보관되기 전까지 정리 대상에서 제외한다. 최대 배치에 도달해 적체를 완전히 비우지 못했거나 어느 배치든 실패하면 인박스 정리와 성공 heartbeat는 하지 않는다. 따라서 `last_scs_dttm`은 보관 완전성 커서가 아니라 성공 heartbeat일 뿐이다. 보존 연한·자체 RPC 로 체인 원문까지 보관할지는 미확정이다(아래 미확정 절).
 
 ## Phase 10 Admin 원장 물리 설계 (2026-08-17 확정)
 
@@ -1889,6 +1901,10 @@ version·evidence·요청·판단·action 6개 원장에는 `UPDATE OR DELETE`�
 ## 미확정
 
 - **`bcm_tx_l`·`bcm_whk_l`·`bcm_outbox_l` 보존** — 종결·처리 완료·발송 완료 건을 언제까지 두고 언제 정리할지 — `bcm_raw_tx_l` 원본 보관과 역할을 나눈 뒤 확정. 이는 [운영 로그 정책](11-operational-log-policy.md)의 중앙 로그 보존 기간과 별도로 결정한다.
+
+## 확정 이력 (2026-08-31)
+
+- **COMPLETED 원문은 판단 성공과 함께 표식** — application이 파싱한 status를 지원 transaction event의 `P→S` UPDATE에 전달해 `vndr_cmpl_yn`을 남기고 partial index로 미보관 원문을 선별한다. V17 expand·구버전 호환 trigger와 V18 batch backfill·concurrent index로 롤링 전환하며, 60초 운영 메트릭과 일 보관 배치는 이 표식을 공유해 보존량에 비례한 payload JSON 반복 파싱을 피한다.
 
 ## 확정 이력 (2026-08-14)
 

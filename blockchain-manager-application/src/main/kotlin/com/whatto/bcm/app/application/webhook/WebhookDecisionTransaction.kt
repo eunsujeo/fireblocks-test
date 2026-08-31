@@ -174,7 +174,7 @@ class WebhookDecisionTransaction(
                 )
             }
         outboxEvents.enqueue(events)
-        markProcessed(inboxItem)
+        markProcessed(inboxItem, transaction)
         return WebhookDecisionOutcome.Processed(inboxItem.notificationId, events.size)
     }
 
@@ -278,7 +278,7 @@ class WebhookDecisionTransaction(
                     transaction.transactionHash,
                 )
             }
-            markProcessed(inboxItem)
+            markProcessed(inboxItem, transaction)
             return WebhookDecisionOutcome.Ignored(inboxItem.notificationId)
         }
         val events =
@@ -293,7 +293,7 @@ class WebhookDecisionTransaction(
                 )
             }
         outboxEvents.enqueue(events)
-        markProcessed(inboxItem)
+        markProcessed(inboxItem, transaction)
         return WebhookDecisionOutcome.Processed(inboxItem.notificationId, events.size)
     }
 
@@ -340,7 +340,7 @@ class WebhookDecisionTransaction(
         network: String,
         symbol: String,
     ): WebhookDecisionOutcome.Unattributed {
-        markProcessed(inboxItem)
+        markProcessed(inboxItem, transaction)
         return WebhookDecisionOutcome.Unattributed(
             UnattributedDepositAlert(
                 notificationId = inboxItem.notificationId,
@@ -355,7 +355,7 @@ class WebhookDecisionTransaction(
         inboxItem: WebhookInboxItem,
         transaction: WebhookTransaction,
     ): WebhookDecisionOutcome.UnregisteredVaultTransfer {
-        markProcessed(inboxItem)
+        markProcessed(inboxItem, transaction)
         return WebhookDecisionOutcome.UnregisteredVaultTransfer(
             UnregisteredVaultTransferAlert(
                 notificationId = inboxItem.notificationId,
@@ -389,8 +389,15 @@ class WebhookDecisionTransaction(
             WebhookDecisionOutcome.Retrying(notificationId, retryCount)
         }
 
-    private fun markProcessed(inboxItem: WebhookInboxItem) {
-        inboxRepository.markProcessed(inboxItem.notificationId, CoreDateTimes.now(clock))
+    private fun markProcessed(
+        inboxItem: WebhookInboxItem,
+        transaction: WebhookTransaction? = null,
+    ) {
+        inboxRepository.markProcessed(
+            inboxItem.notificationId,
+            CoreDateTimes.now(clock),
+            vendorCompleted = transaction?.statusObservation?.rawStatus == "COMPLETED",
+        )
     }
 
     private fun TxStatus.isTerminal(): Boolean = this == TxStatus.FINALIZED || this == TxStatus.REJECTED || this == TxStatus.FAILED

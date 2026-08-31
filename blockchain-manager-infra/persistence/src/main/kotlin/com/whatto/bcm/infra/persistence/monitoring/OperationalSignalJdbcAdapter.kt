@@ -4,6 +4,7 @@ import com.whatto.bcm.domain.monitoring.JobHeartbeat
 import com.whatto.bcm.domain.monitoring.OperationalBacklog
 import com.whatto.bcm.domain.monitoring.OperationalSignalRepository
 import com.whatto.bcm.domain.monitoring.SweepOperationalSignals
+import com.whatto.bcm.infra.persistence.webhook.COMPLETED_WEBHOOK_PREDICATE
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -64,9 +65,7 @@ class OperationalSignalJdbcAdapter(
                 JOIN bcm_tx_l transaction
                   ON transaction.actv_tx_id = webhook.vndr_tx_id
                  AND transaction.last_pub_stcd = 'FINALIZED'
-                WHERE webhook.prcs_stcd = 'S'
-                  AND webhook.vndr_tx_id IS NOT NULL
-                  AND webhook.payload::json #>> '{data,status}' = 'COMPLETED'
+                WHERE $COMPLETED_WEBHOOK_PREDICATE
                   AND NOT EXISTS (
                     SELECT 1
                     FROM bcm_raw_tx_l archived

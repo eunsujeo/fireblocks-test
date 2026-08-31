@@ -10,6 +10,7 @@ interface WebhookInboxRepository {
     fun markProcessed(
         notificationId: String,
         processedAt: String,
+        vendorCompleted: Boolean,
     )
 
     /** 실패 횟수를 올리고 상한에 닿으면 F로 격리한다. */
