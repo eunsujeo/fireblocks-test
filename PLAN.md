@@ -122,6 +122,9 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
 - [x] **T14.22 Vault 전체 대사 규모 경계** (2026-08-31) — 단일 HTTP 요청의 전체 vendor/계정 메모리 결합을 제거했다.
   `202 ACCEPTED` 비동기 실행과 V16 실행·항목 원장, page/cursor 원자 기록·재기동 재개, 완료 전 MISSING 미확정,
   고정 결과 cursor와 기본 50/최대 100건 응답, 활성 실행 1개 제한을 API·BFF·로컬 Admin과 PostgreSQL 회귀 테스트에 반영했다.
+- [x] **T14.23 tx 대사 제외 ID 단일 파라미터화** (2026-08-31) — 창 안에서 이미 종결 관찰한 vendor tx ID 집합을
+  `NOT IN` 개별 바인드 대신 PostgreSQL `varchar[]` 단일 파라미터를 `unnest` 한 뒤 hash anti join으로 제외한다.
+  70,001개 ID의 바인드 한계·claim 쿼터 보존과 PostgreSQL generic plan의 `Hash Anti Join`·단일 `unnest`를 회귀 테스트로 고정했다.
 
 **예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
 실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.
@@ -180,7 +183,6 @@ T15.0 결정 후 별도 산정한다.
 | 41 | **CVE-2026-53914 Kotlin 안전 GA 대기** — 취약점은 build cache metadata 역직렬화에 있고 runtime `kotlin-stdlib`·`kotlin-reflect`에는 해당 코드가 없지만 NVD의 광범위한 Kotlin CPE가 둘을 매칭한다. 수정 기준 2.4.20은 2026-08-17 현재 RC만 실재한다 | T9.6에서 Gradle build cache를 전역·CI 모두 비활성화하고 runtime purl+CVE만 2026-09-30까지 suppression. Kotlin 2.4.20 GA 실재·Boot 4.1 호환·전체 테스트 확인 후 업그레이드, suppression 제거, build cache 재활성화 |
 | 42 | **CVE-2026-41115 Kafka ACL 문서 불일치** — Dependency-Check가 `kafka-clients` 4.2.1에 Medium 4.3으로 보고한다. Apache는 `CONSUMER_GROUP_DESCRIBE` 구현의 `DESCRIBE GROUP` 검사가 정확하고 4.0.0~4.3.0을 affected이자 fixed로 표기하며 기존 ACL 검토를 권고한다 | 게이트 기준 미만이라 숨기지 않고 보고서에 유지한다. 운영 broker 도입 전 consumer group ACL이 최소 권한인지 확인하고, NVD/Apache 메타데이터 정정 또는 실제 수정 버전이 나오면 재평가 |
 | 43 | **Webhooks V2 구독 관리 API 실측·설계 근거** — 공식 reference에는 `GET/PATCH /v1/webhooks/{id}`, `enabled=true`, `DISABLED/ENABLED/SUSPENDED`가 있으나 저장소 규칙의 근거인 97·90에는 아직 없다 | JMX 복구 endpoint는 기본 비활성. sandbox 실측 또는 담당자 확답을 waas-wiki 97/90에 반영하고 사본을 동기화한 뒤 환경별로 활성화한다 |
-| 44 | **tx 대사 제외 ID 파라미터 팽창** — 창 안 벤더 종결 관찰 ID 전체를 `NOT IN (:ids)`로 펼쳐 대량 창에서 PostgreSQL 파라미터 한계·계획 저하 가능 | Phase 10 전 배열 1파라미터 또는 `VALUES` 조인으로 바꾸고 대량 ID PostgreSQL 회귀 테스트 추가 |
 | 45 | **미보관 COMPLETED 메트릭 스캔 비용** — 60초마다 API·BAT가 처리 완료 인박스의 JSON status와 보관 파티션을 대조해 보존량 증가 시 비용 상승 가능 | 실트래픽 규모 전 실행계획 측정. 필요하면 BAT 단일 수집·5분 주기 또는 명시 상태/보관 표식 설계로 이동 |
 | 46 | **밴드S cold→hot 정족수 정본 모순** — 06·08은 옴니버스 입금 확인 뒤 출금 풀 보충에 재개와 같은 강화 정족수를 요구하지만, 03은 모든 BAND_S를 `risk_dvcd='FUND'`·독립 승인자 1명으로 고정하고 V3 DB trigger도 이를 강제한다 | cold→hot 승인 실행 전 waas-wiki 03에서 위험코드·DB 제약·정족수 파생을 확정. 현재 구현은 정본을 추측해 바꾸지 않음 |
 | 47 | **밴드S sweep 선행·풀별 최소잔액 증적 자리 미정** — hot→cold에서 고객 vault sweep FINALIZED 선행과 출금 풀 최소 운영잔액 보호가 필요하지만 현재 proposal은 기존 sweep 실행 ID·풀별 관찰/최소 잔액을 보관하지 않는다 | DAW-CORE 입력 payload 계약만으로 충분한지, BCM 원장 FK/증적 컬럼이 필요한지 03·06에서 확정 후 구현 |

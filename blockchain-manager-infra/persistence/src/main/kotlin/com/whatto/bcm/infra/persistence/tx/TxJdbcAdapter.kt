@@ -17,6 +17,7 @@ import org.springframework.data.repository.CrudRepository
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
+import org.springframework.jdbc.support.SqlArrayValue
 import org.springframework.stereotype.Repository
 
 /** bcm_tx_l 파생 쿼리 — 어댑터 내부 전용 */
@@ -25,6 +26,13 @@ interface TxCrudRepository : CrudRepository<TxEntity, String> {
 
     fun findByActvTxId(actvTxId: String): TxEntity?
 }
+
+internal const val TX_RECONCILIATION_EXCLUSION_PREDICATE =
+    """NOT EXISTS (
+      SELECT 1
+      FROM unnest(:excludedVendorTransactionIds) AS excluded(vndr_tx_id)
+      WHERE excluded.vndr_tx_id = tx.vndr_tx_id
+    )"""
 
 @Repository
 class TxJdbcAdapter(
@@ -241,12 +249,6 @@ class TxJdbcAdapter(
         excludedVendorTransactionIds: Set<String>,
     ): List<TxReconciliationRecord> {
         require(limit > 0) { "reconciliation pending limit must be positive" }
-        val exclusionClause =
-            if (excludedVendorTransactionIds.isEmpty()) {
-                ""
-            } else {
-                "AND tx.vndr_tx_id NOT IN (:excludedVendorTransactionIds)"
-            }
         return jdbc.query(
             """
             WITH candidates AS MATERIALIZED (
@@ -255,7 +257,7 @@ class TxJdbcAdapter(
               WHERE tx.last_pub_stcd IN ('SUBMITTED', 'CONFIRMED')
                 AND tx.last_chng_dttm <= :changedAtOrBefore
                 AND tx.rcnc_stop_dttm IS NULL
-                $exclusionClause
+                AND $TX_RECONCILIATION_EXCLUSION_PREDICATE
                 AND (
                   tx.rcnc_chck_dttm IS NULL
                   OR to_timestamp(tx.rcnc_chck_dttm, 'YYYYMMDDHH24MISS') +
@@ -291,9 +293,10 @@ class TxJdbcAdapter(
                 put("limit", limit)
                 put("employeeNo", SystemAudit.EMPNO)
                 put("branchCode", SystemAudit.BRCD)
-                if (excludedVendorTransactionIds.isNotEmpty()) {
-                    put("excludedVendorTransactionIds", excludedVendorTransactionIds)
-                }
+                put(
+                    "excludedVendorTransactionIds",
+                    SqlArrayValue("varchar", *excludedVendorTransactionIds.toTypedArray()),
+                )
             },
             reconciliationRowMapper,
         )
