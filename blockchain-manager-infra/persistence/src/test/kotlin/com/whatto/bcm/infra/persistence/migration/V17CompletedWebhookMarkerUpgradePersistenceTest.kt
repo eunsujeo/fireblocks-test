@@ -30,6 +30,7 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
                 jdbc.update(
                     "UPDATE bcm_whk_l SET prcs_stcd = 'S', prcs_dttm = '20260831010300' WHERE noti_id = 'old-worker-after-backfill'",
                 )
+                applyMigration(connection, "V18__completed_webhook_marker_backfill_and_index.sql")
 
                 assertThat(
                     jdbc.queryForList(
