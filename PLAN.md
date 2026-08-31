@@ -134,6 +134,12 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
   `vndr_cmpl_yn IS NULL` 임시 partial index를 transaction 밖에서 생성하고, V19가 V18 성공 뒤 concurrent 제거한다.
   1만 건 중 99%가 처리된 꼬리 분포의 PostgreSQL `EXPLAIN`에서 임시 index 사용을 고정해 각 batch가 처리된 PK prefix를
   반복 탐색하지 않게 했다. 빈 DB manifest와 준비·cleanup SQL 재실행은 index 부재를 정상으로 취급한다.
+- [x] **T14.26 Fireblocks 자산·Webhook 문서 계약 정정** (2026-08-31) — 07의 신규 API 응답에서 체인 폐기 여부를
+  `metadata.deprecated`, 온체인 자산 소수 자릿수를 `onchain.decimals` 중첩 위치로 바로잡고 FIAT용 root `decimals`와 구분했다.
+  파서는 중첩값을 우선하고 root 값은 FIAT·기존 평면 응답 호환 fallback으로만 쓴다. Webhooks V2 재전송은 `resend_failed` 최근 24시간,
+  resource ID 최대 30일, query 최근 72시간·요청 창 최대 24시간으로 API별 범위를 분리했다. BCM 수동 복구는 기존처럼
+  `resend_failed`만 사용하고 24시간보다 오래된 거래 공백은 tx 대사로 회수한다. 99 복구 설계와 runbook의 30일 잔존 문구도
+  같은 계약으로 정정했으며 런타임 계약은 바뀌지 않는다.
 
 **예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
 실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.
@@ -183,12 +189,10 @@ T15.0 결정 후 별도 산정한다.
 | 24 | **생성 오퍼레이션의 409 가 스펙 표면에 없음** (T2.5 design-sync) — UNIQUE 경합 후 재조회마저 실패하는 극단 경로에서 409 전파, 스펙 CONFLICT 는 submitTransaction 에만 표기. 정상 운영 도달 불가한 방어 경로 | 차기 스펙 개정 시 |
 | 25 | **벤더 생성 성공 + 로컬 insert 실패(비-충돌) 복구 경로** (T2.5 code-reviewer M3) — 멱등 창(24h) 이후 재시도가 벤더 "이미 존재" 4xx → 500 영구 반복(고아 vault·지갑). "already exists" 식별 fallback 또는 벤더-로컬 대사 항목 필요 | Phase 8 대사 설계 시 함께 — 또는 조기 fallback 구현. **참고: 제출 경로는 같은 문제를 "원장 먼저, 벤더 나중 + 벤더 조회로 회수"로 풀었다(02 출금 절·#6)** — 계정·주소 생성에도 같은 형태를 쓸지 검토 |
 | 30 | **카탈로그 동기화 다중 인스턴스 실행 제어** — 현재 각 bcm-bat 인스턴스의 `@Scheduled`가 동시에 실행될 수 있다. 중복 실행을 허용할지, `bcm_job_m`/DB lock으로 단일 실행할지 배치 운영 규약 확정 필요 | bcm-bat 다중 인스턴스 배포 전 |
-| 31 | **07의 Fireblocks 응답 필드 위치 정정** — 공식 OpenAPI 실물은 체인 폐기 여부가 `metadata.deprecated`, 자산 소수 자릿수가 `onchain.decimals`인데 07 하단 표는 평면 필드처럼 적혀 있다. 구현은 중첩·평면 decimals를 모두 읽어 호환하고, 설계 사본 정정은 waas-wiki 담당 | 다음 설계 동기화 시 |
 | 34 | **거래 목록 커서의 벤더 조합 동작 미실측** — ① 정렬 지정 시 next 커서가 오는가 ② next 가 `sourceType`/`sourceId` 필터를 보존하는가 ③ next 와 필터를 함께 보내도 되는가. 공식 API 에 파라미터는 있으나 **조합은 실측 없음**. **외부 계약은 벤더와 분리 완료** — 매니저 커서에 최초 필터·정렬과 `(createdAt, txId)` 위치를 담고, 벤더 커서는 한 HTTP 요청 안의 내부 페이징에만 쓴다. 마지막에도 nextCursor를 발급하며 동일 시각 거래·asc 증분 회귀 테스트가 있다. 내부 페이징은 커서마다 발신 vault 필터를 재전송하고 응답 vault가 다르면 전체 거절한다 | sandbox 실측 — 내부 페이징 조합 확인 |
 | 35 | **제출 직후 조회·알림의 빈 필드** — 벤더 문서상 `sourceAddress`·`destinationAddress` 는 체인 등장 전 비어 있을 수 있다. 우리 PoC 는 입금 `CONFIRMING` 부터라 그 구간 미관측. **스펙은 nullable 로 열었다**(v0.6.0 — `Transfer.from`/`to`, `ChainEvent.to`). 근거: 열지 않으면 제출 응답을 못 받았을 때 쓰는 `transactionByExternalTxId` 가 바로 그 시점에 깨진다. ★ **`amountInfo.amount` 가 제출 직후에도 항상 있는지는 미확인** — 없으면 현재 파서가 필수로 읽어 그 알림이 격리된다 | Phase 5 E2E 실측 — 결과에 따라 파서·스펙 조정 |
 | 36 | **내부이체(delta)의 대납 적용 여부** — 출금·sweep 은 대납 근거가 설계에 있으나(02 출금 시퀀스 · 06 수수료 표) INTERNAL 은 없다. **확인 전까지 켜지 않는다**(근거 없는 설정을 넣지 않는다 — 안 켜도 된다고 확인한 것은 아니다). 대납 없이 가면 출발 vault 에 native 가 있어야 하고, 없으면 `INSUFFICIENT_FUNDS_FOR_FEE` 로 실패한다 | Phase 5 내부이체 E2E 전 — 벤더·운영 확인 |
 | 37 | **출금 요청 본문 크기 상한** — `note`와 구조가 아직 불투명한 `travelRule`에 스키마 상한이 없어 큰 JSON이 벤더 호출·claim 점유를 늘릴 수 있다. 구현이 임의로 필드 상한을 만들면 OpenAPI보다 좁아지므로, 전체 HTTP 본문 상한과 필드별 상한·초과 응답(400/413)을 스펙에서 먼저 확정해야 한다 | 실트래픽 연동 전 — waas-wiki/OpenAPI 결정 |
-| 40 | **Webhooks V2 재전송 기간 문구 불일치** — 02·90은 `resend_failed`를 원 이벤트 30일 내로 서술하지만 2026-08-17 공식 endpoint reference는 이 API를 최근 24시간 실패 알림 대상으로 제한하고, migration guide의 최대 30일은 resource/query 재전송까지 포함한다 | T9.4 수동 러너는 `resend_failed` 기본 24시간 범위만 사용하고 오래된 공백은 tx 대사로 복구. 다음 waas-wiki 동기화에서 API별 기간을 분리 정정 |
 | 41 | **CVE-2026-53914 Kotlin 안전 GA 대기** — 취약점은 build cache metadata 역직렬화에 있고 runtime `kotlin-stdlib`·`kotlin-reflect`에는 해당 코드가 없지만 NVD의 광범위한 Kotlin CPE가 둘을 매칭한다. 수정 기준 2.4.20은 2026-08-17 현재 RC만 실재한다 | T9.6에서 Gradle build cache를 전역·CI 모두 비활성화하고 runtime purl+CVE만 2026-09-30까지 suppression. Kotlin 2.4.20 GA 실재·Boot 4.1 호환·전체 테스트 확인 후 업그레이드, suppression 제거, build cache 재활성화 |
 | 42 | **CVE-2026-41115 Kafka ACL 문서 불일치** — Dependency-Check가 `kafka-clients` 4.2.1에 Medium 4.3으로 보고한다. Apache는 `CONSUMER_GROUP_DESCRIBE` 구현의 `DESCRIBE GROUP` 검사가 정확하고 4.0.0~4.3.0을 affected이자 fixed로 표기하며 기존 ACL 검토를 권고한다 | 게이트 기준 미만이라 숨기지 않고 보고서에 유지한다. 운영 broker 도입 전 consumer group ACL이 최소 권한인지 확인하고, NVD/Apache 메타데이터 정정 또는 실제 수정 버전이 나오면 재평가 |
 | 43 | **Webhooks V2 구독 관리 API 실측·설계 근거** — 공식 reference에는 `GET/PATCH /v1/webhooks/{id}`, `enabled=true`, `DISABLED/ENABLED/SUSPENDED`가 있으나 저장소 규칙의 근거인 97·90에는 아직 없다 | JMX 복구 endpoint는 기본 비활성. sandbox 실측 또는 담당자 확답을 waas-wiki 97/90에 반영하고 사본을 동기화한 뒤 환경별로 활성화한다 |

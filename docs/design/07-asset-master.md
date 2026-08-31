@@ -325,6 +325,10 @@ Fireblocks `GET /v1/assets` 는 `blockchainId` · `assetClass` · `symbol` 등�
 
 | 엔드포인트 | 쓰임 |
 |---|---|
-| `GET /v1/assets` | 자산 조회. `blockchainId` · `assetClass` · `symbol` 로 거를 수 있다. 응답에 `id` · `legacyId` · `blockchainId` · `decimals` · `assetClass` |
-| `GET /v1/blockchains` | 벤더가 지원하는 네트워크 전체. 응답에 `id` · `legacyId` · `displayName` · `nativeAssetId` · `onchain{protocol · chainId · test · signingAlgo}` |
+| `GET /v1/assets` | 자산 조회. `blockchainId` · `assetClass` · `symbol` 로 거를 수 있다. 응답에 `id` · `legacyId` · `blockchainId` · `assetClass` · FIAT용 root `decimals` · `onchain{symbol · name · address · decimals · standards}` |
+| `GET /v1/blockchains` | 벤더가 지원하는 네트워크 전체. 응답에 `id` · `legacyId` · `displayName` · `nativeAssetId` · `onchain{protocol · chainId · test · signingAlgo}` · `metadata{deprecated}` |
 | `GET /v1/supported_assets` | 구 버전 자산 목록 — `id` · `name` · `type` · `contractAddress` · `nativeAsset` · `decimals` |
+
+신규 `GET /v1/assets`의 root `decimals`는 공식 계약상 FIAT용이고, 온체인 자산 정밀도는 `onchain.decimals`다. BCM은
+`onchain.decimals`를 우선하고 없으면 root 값을 읽어 FIAT와 기존 평면 응답을 호환한다. 이 fallback은 구 버전
+`GET /v1/supported_assets`의 평면 `decimals` 계약과는 별개다.

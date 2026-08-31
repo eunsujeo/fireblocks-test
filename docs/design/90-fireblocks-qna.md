@@ -186,6 +186,13 @@ Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblock
 **Q.** 기존 계약 외 KeyLink 추가 사용료·필수 Professional Services 비용이 있는가? 개발·UAT·운영·DR Workspace 기준 견적은?
 **A.** 견적은 영업 담당(Ben Han·Shane Verner) 회신 대기. 확답된 구조: KeyLink 는 Fireblocks 구독의 **유료 add-on** · Professional Services 구현 패키지는 **별도 견적** · Luna 하드웨어와 Thales 라이선스는 **Thales 에서 직접 구매**, Fireblocks 계약에 포함되지 않는다.
 
+## Webhooks V2 재전송 범위 — 공식 문서 기준 (2026-08-31)
+
+- [`resend_failed`](https://developers.fireblocks.com/api-reference/webhooks-v2/resend-failed-notifications)는 호출 시점 기준 최근 24시간 안의 실패 알림만 다시 배차한다. `startTime` 기본값과 하한이 모두 24시간 전이다.
+- [migration guide](https://developers.fireblocks.com/reference/webhook-v2-migration-guide)의 “원 이벤트 뒤 최대 30일”은 `resourceId`로 지정하는 재전송 범위다. 전체 실패 알림을 한 번에 다시 보내는 `resend_failed`의 범위가 아니다.
+- [`resend_by_query`](https://developers.fireblocks.com/api-reference/webhooks-v2/resend-notifications-by-query)는 현재 endpoint reference 기준 최근 72시간 안에서 조회하고, 한 요청의 `startTime`~`endTime` 구간은 최대 24시간이다. 30일 일반 문구를 query endpoint의 계약으로 확대하지 않는다.
+- Blockchain Manager 수동 복구는 `resend_failed`만 사용하므로 기본 24시간을 유지하고, 그보다 오래된 거래 공백은 tx 대사로 회수한다.
+
 ## 대기 중인 문의 (회신 전)
 
 **Q.** 웹훅 전달에 순서 보장이 있나? 한 알림이 전달 실패로 재시도 중일 때, 그 뒤에 생긴 알림은 먼저 전달되나?

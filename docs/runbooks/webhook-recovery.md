@@ -40,8 +40,9 @@ Fireblocks Webhooks V2 구독이 `DISABLED` 또는 `SUSPENDED`가 되었거나 �
   증명하지 않는다.
 - 2026-08-17 확인한 Fireblocks [Resend failed notifications](https://developers.fireblocks.com/api-reference/webhooks-v2/resend-failed-notifications)
   reference에서 `resend_failed`는 최근 24시간 실패 알림 대상이다. Webhooks V2 일반 안내의
-  “최대 30일 재전송”은 resource/query 방식까지 포함한다. 이 러너는 범위를 추측해 넓히지 않으며 24시간보다 오래된 공백은
-  기존 tx 대사로 복구한다. 계약 문구 차이는 `PLAN.md` 미해결 #40에서 추적한다.
+  “최대 30일 재전송”은 `resourceId` 지정 방식이고, query 방식은 최근 72시간 안에서 요청 창 최대 24시간이다. 이 러너는
+  범위를 추측해 넓히지 않으며 24시간보다 오래된 공백은 기존 tx 대사로 복구한다. 계약 근거는
+  [Fireblocks QnA](../design/90-fireblocks-qna.md)와 [해결 이력 #40](../history/resolved-design-items.md)에 보존한다.
 - 활성화까지 성공하고 재전송이 실패한 경우 다시 `status`를 확인한 뒤 `recover`를 재실행할 수 있다. 응답을 복구 완료로
   간주하지 말고 실제 수신·처리 지표와 대사 결과로 종료를 판단한다.
 
