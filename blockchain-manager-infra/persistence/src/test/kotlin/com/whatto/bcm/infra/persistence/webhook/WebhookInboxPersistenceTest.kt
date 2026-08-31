@@ -31,15 +31,40 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
     lateinit var transactionManager: PlatformTransactionManager
 
     @Test
-    fun `성공 처리는 S와 처리시각을 함께 기록한다`() {
-        inbox.insertIfAbsent(notification("noti-success", "20260807120000"))
+    fun `성공 처리는 S와 처리시각 및 vendor COMPLETED 표식을 함께 기록한다`() {
+        inbox.insertIfAbsent(
+            notification(
+                "noti-success",
+                "20260807120000",
+                payload = """{"data":{"status":"COMPLETED"}}""",
+            ),
+        )
 
         inbox.markProcessed("noti-success", "20260807120100")
 
         val row = jdbc.queryForMap("SELECT * FROM bcm_whk_l WHERE noti_id = 'noti-success'")
         assertThat(row["prcs_stcd"]).isEqualTo("S")
         assertThat(row["prcs_dttm"]).isEqualTo("20260807120100")
+        assertThat(row["vndr_cmpl_yn"]).isEqualTo("Y")
         assertThat(row["err_msg"]).isNull()
+    }
+
+    @Test
+    fun `미지원 event의 파싱 불가 원문도 완료 원본으로 표식하지 않고 처리한다`() {
+        inbox.insertIfAbsent(
+            notification(
+                "noti-unsupported",
+                "20260807120000",
+                eventType = "unsupported.event",
+                payload = "not-json",
+            ),
+        )
+
+        inbox.markProcessed("noti-unsupported", "20260807120100")
+
+        val row = jdbc.queryForMap("SELECT * FROM bcm_whk_l WHERE noti_id = 'noti-unsupported'")
+        assertThat(row["prcs_stcd"]).isEqualTo("S")
+        assertThat(row["vndr_cmpl_yn"]).isEqualTo("N")
     }
 
     @Test
@@ -97,11 +122,13 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
     private fun notification(
         id: String,
         receivedAt: String,
+        eventType: String = "transaction.created",
+        payload: String = """{"data":{"status":"CONFIRMING"}}""",
     ) = WebhookNotification(
         notificationId = id,
-        eventType = "transaction.created",
+        eventType = eventType,
         vendorTransactionId = "tx-$id",
-        payload = "persistence-only-payload",
+        payload = payload,
         payloadHash = "a".repeat(64),
         signature = "verified-signature",
         receivedAt = receivedAt,
