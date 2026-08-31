@@ -129,16 +129,27 @@ class AdminFunctionalE2eTest {
     }
 
     @Test
-    fun `Vault 화면은 Fireblocks와 BCM 계정 대조 상태를 읽기 전용으로 보여준다`() {
+    fun `Vault 화면은 비동기 대사를 접수하고 bounded cursor 결과를 읽는다`() {
         mockMvc.perform(get("/admin/vaults")).andExpect(status().isOk).andExpect(forwardedUrl("/admin/index.html"))
 
         mockMvc
-            .perform(get("/bff/admin/vaults").param("q", "customer"))
+            .perform(
+                post("/bff/admin/vault-reconciliations")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"q":"customer"}"""),
+            ).andExpect(status().isAccepted)
+            .andExpect(jsonPath("$.data.runId").value("run-1"))
+            .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
+
+        mockMvc
+            .perform(get("/bff/admin/vault-reconciliations/run-1").param("limit", "50"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.data[0].reconciliationStatus").value("MANAGED"))
-            .andExpect(jsonPath("$.data[0].accountId").value("acct-1"))
-            .andExpect(jsonPath("$.data[0].vendorVaultId").value("7"))
-            .andExpect(jsonPath("$.data[0].walletCount").value(2))
+            .andExpect(jsonPath("$.data.run.status").value("COMPLETED"))
+            .andExpect(jsonPath("$.data.items[0].reconciliationStatus").value("MANAGED"))
+            .andExpect(jsonPath("$.data.items[0].accountId").value("acct-1"))
+            .andExpect(jsonPath("$.data.items[0].vendorVaultId").value("7"))
+            .andExpect(jsonPath("$.data.items[0].walletCount").value(2))
+            .andExpect(jsonPath("$.data.nextCursor").value("cursor-2"))
     }
 
     @Test
@@ -316,11 +327,21 @@ class AdminFunctionalE2eTest {
                 createContext("/admin/transaction-investigations/tx-root") { exchange ->
                     respond(exchange, transactionInvestigationResponse)
                 }
-                createContext("/admin/vaults") { exchange ->
-                    respond(
-                        exchange,
-                        """{"data":[{"reconciliationStatus":"MANAGED","accountId":"acct-1","accountType":"CUSTOMER","ref":"customer-1","vendorVaultId":"7","vendorVaultName":"customer-vault","walletCount":2,"registeredAt":"20260817080000"}],"meta":{"requestId":"bcm-vaults"}}""",
-                    )
+                createContext("/admin/vault-reconciliations") { exchange ->
+                    if (exchange.requestMethod == "POST") {
+                        respond(
+                            exchange,
+                            """{"data":{"runId":"run-1","query":"customer","status":"ACCEPTED","vendorPageCount":0,"vendorVaultCount":0,"resultCount":0,"failureCode":null,"requestedAt":"2026-08-31T02:00:00Z","startedAt":null,"finishedAt":null},"meta":{"requestId":"bcm-vault-start"}}""",
+                            202,
+                        )
+                    } else {
+                        check(exchange.requestURI.path == "/admin/vault-reconciliations/run-1")
+                        check(exchange.requestURI.query == "limit=50")
+                        respond(
+                            exchange,
+                            """{"data":{"run":{"runId":"run-1","query":"customer","status":"COMPLETED","vendorPageCount":2,"vendorVaultCount":2,"resultCount":1,"failureCode":null,"requestedAt":"2026-08-31T02:00:00Z","startedAt":"2026-08-31T02:00:01Z","finishedAt":"2026-08-31T02:00:03Z"},"items":[{"reconciliationStatus":"MANAGED","accountId":"acct-1","accountType":"CUSTOMER","ref":"customer-1","vendorVaultId":"7","vendorVaultName":"customer-vault","walletCount":2,"registeredAt":"20260817080000"}],"nextCursor":"cursor-2"},"meta":{"requestId":"bcm-vault-result"}}""",
+                        )
+                    }
                 }
                 createContext("/admin/contracts") { exchange -> respond(exchange, contractResponse) }
                 createContext("/admin/policies") { exchange -> respond(exchange, policyResponse) }

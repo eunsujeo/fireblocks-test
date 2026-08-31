@@ -223,6 +223,13 @@ test("장시간 동작을 중복 클릭해도 첫 요청 하나만 실행하고 
   assert.equal(attributes.has("aria-busy"), false);
 });
 
+test("Vault 대사 실패는 화면에 requestId를 표시하고 실행 ID 복사를 제공한다", () => {
+  assert.match(appSource, /id="vault-start-error" role="alert" hidden/);
+  assert.match(appSource, /errorPanel\.innerHTML[^;]+requestId/);
+  assert.match(appSource, /identifier\(run\.runId, "Vault 대사 실행 ID"\)/);
+  assert.match(appSource, /const visibleItems = running \? \[\] : reconciliation\.items/);
+});
+
 test("Admin 셸은 키보드와 스크린리더 접근성 경계를 정적으로 유지한다", () => {
   assert.match(shellSource, /<html lang="ko">/);
   assert.match(shellSource, /class="skip-link" href="#app-content"/);
