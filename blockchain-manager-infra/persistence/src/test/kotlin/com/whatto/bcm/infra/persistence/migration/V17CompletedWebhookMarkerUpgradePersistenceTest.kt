@@ -33,7 +33,7 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
 
                 assertThat(
                     jdbc.queryForList(
-                        "SELECT noti_id, vndr_cmpl_yn FROM bcm_whk_l ORDER BY noti_id",
+                        "SELECT noti_id, vndr_cmpl_yn FROM bcm_whk_l WHERE noti_id NOT LIKE 'bulk-%' ORDER BY noti_id",
                     ),
                 ).containsExactly(
                     mapOf("noti_id" to "completed", "vndr_cmpl_yn" to "Y"),
@@ -42,6 +42,12 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
                     mapOf("noti_id" to "old-worker-before-backfill", "vndr_cmpl_yn" to "Y"),
                     mapOf("noti_id" to "unsupported", "vndr_cmpl_yn" to "N"),
                 )
+                assertThat(
+                    jdbc.queryForObject(
+                        "SELECT count(*) FROM bcm_whk_l WHERE noti_id LIKE 'bulk-%' AND vndr_cmpl_yn = 'N'",
+                        Int::class.java,
+                    ),
+                ).isEqualTo(1001)
                 assertThat(
                     jdbc.queryForObject(
                         "SELECT count(*) FROM pg_indexes WHERE schemaname = ? AND indexname = ?",
@@ -79,6 +85,20 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
               ('old-worker-after-backfill', 'transaction.status.updated', 'tx-old-after',
                '{"data":{"status":"COMPLETED"}}', repeat('e', 64), 'signature',
                '20260831010000', 'P', 0, NULL, NULL, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+        )
+        jdbc.execute(
+            """
+            INSERT INTO bcm_whk_l
+              (noti_id, evnt_typ, vndr_tx_id, payload, payload_hash, sign_vl,
+               rcv_dttm, prcs_stcd, rtry_cnt, err_msg, prcs_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            SELECT 'bulk-' || lpad(sequence::text, 4, '0'),
+                   'transaction.status.updated', 'tx-bulk-' || sequence,
+                   '{"data":{"status":"CONFIRMING"}}', repeat('f', 64), 'signature',
+                   '20260831010000', 'S', 0, NULL, '20260831010100',
+                   'SYSTEM', '9999', 'SYSTEM', '9999'
+            FROM generate_series(1, 1001) sequence
             """.trimIndent(),
         )
     }
