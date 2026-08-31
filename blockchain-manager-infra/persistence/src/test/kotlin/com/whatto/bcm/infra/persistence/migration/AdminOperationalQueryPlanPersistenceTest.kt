@@ -74,6 +74,26 @@ class AdminOperationalQueryPlanPersistenceTest : PersistenceTestSupport() {
                 )
                 assertIndexUsed(
                     jdbc,
+                    "idx_bcm_whk_completed_archive",
+                    """
+                    SELECT count(DISTINCT webhook.vndr_tx_id)
+                    FROM bcm_whk_l webhook
+                    JOIN bcm_tx_l transaction
+                      ON transaction.actv_tx_id = webhook.vndr_tx_id
+                     AND transaction.last_pub_stcd = 'FINALIZED'
+                    WHERE webhook.prcs_stcd = 'S'
+                      AND webhook.vndr_tx_id IS NOT NULL
+                      AND webhook.payload::json #>> '{data,status}' = 'COMPLETED'
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM bcm_raw_tx_l archived
+                        WHERE archived.vndr_tx_id = webhook.vndr_tx_id
+                          AND archived.rcv_dttm >= webhook.rcv_dttm
+                      )
+                    """.trimIndent(),
+                )
+                assertIndexUsed(
+                    jdbc,
                     "idx_bcm_sbmt_sweep_execution",
                     "SELECT ext_tx_id FROM bcm_sbmt_l WHERE swp_exec_id = 'execution-00010000'",
                 )
@@ -147,9 +167,48 @@ class AdminOperationalQueryPlanPersistenceTest : PersistenceTestSupport() {
             SELECT 'notification-' || lpad(sequence::text, 8, '0'),
                    'transaction.status.updated',
                    'vendor-' || lpad(sequence::text, 8, '0'),
-                   '{}', repeat('a', 64), 'signature', '20260831010000', 'S', 0, '20260831010100',
+                   json_build_object(
+                     'data',
+                     json_build_object('status', CASE WHEN sequence <= 1000 THEN 'COMPLETED' ELSE 'CONFIRMING' END)
+                   )::text,
+                   repeat('a', 64), 'signature', '20260831010000', 'S', 0, '20260831010100',
                    'SYSTEM', '9999', 'SYSTEM', '9999'
             FROM generate_series(1, 10000) sequence
+            """.trimIndent(),
+        )
+        jdbc.execute(
+            """
+            INSERT INTO bcm_tx_l
+              (vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
+               last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
+               vndr_crt_dttm, rcnc_chck_dttm, rcnc_chck_cnt, rcnc_stop_dttm,
+               frst_dtct_dttm, last_chng_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            SELECT 'vendor-' || lpad(sequence::text, 8, '0'),
+                   'vendor-' || lpad(sequence::text, 8, '0'),
+                   NULL, 'account-' || lpad(sequence::text, 8, '0'), 'ETHEREUM', 'USDC', NULL,
+                   'FINALIZED', 3, 'COMPLETED', 'CONFIRMED', NULL,
+                   '20260831000000', NULL, 0, NULL, '20260831000000', '20260831010000',
+                   'SYSTEM', '9999', 'SYSTEM', '9999'
+            FROM generate_series(1, 1000) sequence
+            """.trimIndent(),
+        )
+        jdbc.execute(
+            """
+            CREATE TABLE bcm_raw_tx_l_202608 PARTITION OF bcm_raw_tx_l
+            FOR VALUES FROM ('20260801') TO ('20260901')
+            """.trimIndent(),
+        )
+        jdbc.execute(
+            """
+            INSERT INTO bcm_raw_tx_l
+              (base_dt, vndr_tx_id, ext_tx_id, tx_hash, addr, ntwk_cd, tkn_smbl, final_stcd,
+               payload, payload_hash, sign_vl, rcv_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            SELECT '20260831', 'vendor-' || lpad(sequence::text, 8, '0'), NULL, NULL,
+                   '0xdestination', 'ETHEREUM', 'USDC', 'FINALIZED', '{}', repeat('b', 64),
+                   'signature', '20260831010000', 'SYSTEM', '9999', 'SYSTEM', '9999'
+            FROM generate_series(1, 100) sequence
             """.trimIndent(),
         )
         jdbc.execute(
@@ -214,6 +273,8 @@ class AdminOperationalQueryPlanPersistenceTest : PersistenceTestSupport() {
             "bcm_outbox_l",
             "bcm_evnt_cmpl_l",
             "bcm_whk_l",
+            "bcm_tx_l",
+            "bcm_raw_tx_l",
             "bcm_sbmt_l",
             "bcm_swp_trgt",
             "bcm_swp_exec_l",
