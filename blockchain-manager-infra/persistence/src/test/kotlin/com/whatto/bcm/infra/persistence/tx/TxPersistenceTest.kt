@@ -17,6 +17,7 @@ import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
+import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -323,6 +324,39 @@ class TxPersistenceTest : PersistenceTestSupport() {
         assertThat(claimed.map { it.record.vendorTxId }).containsExactly("tx-bulk-candidate")
         assertThat(txRecords.findByVendorTxId("tx-bulk-excluded")?.reconciliationCheckCount).isZero()
         assertThat(txRecords.findByVendorTxId("tx-bulk-excluded")?.reconciliationCheckedAt).isNull()
+    }
+
+    @Test
+    fun `대량 종결 관찰 id generic plan은 배열을 한 번만 hash한다`() {
+        val statementName = "tx_rcnc_${UUID.randomUUID().toString().replace("-", "")}"
+        val exclusionPredicate = TX_RECONCILIATION_EXCLUSION_PREDICATE.replace(":excludedVendorTransactionIds", "${'$'}1")
+        jdbc.execute("SET LOCAL plan_cache_mode = force_generic_plan")
+        jdbc.execute(
+            """
+            PREPARE $statementName(varchar[]) AS
+            SELECT tx.vndr_tx_id
+            FROM (
+              SELECT sequence::varchar AS vndr_tx_id
+              FROM generate_series(1, 1000) sequence
+            ) tx
+            WHERE $exclusionPredicate
+            """.trimIndent(),
+        )
+        try {
+            val plan =
+                jdbc
+                    .queryForList(
+                        """
+                        EXPLAIN (COSTS OFF)
+                        EXECUTE $statementName(ARRAY['tx-plan-excluded']::varchar[])
+                        """.trimIndent(),
+                        String::class.java,
+                    ).joinToString("\n")
+
+            assertThat(plan).contains("Hash Anti Join", "Function Scan on unnest excluded")
+        } finally {
+            jdbc.execute("DEALLOCATE $statementName")
+        }
     }
 
     @Test
