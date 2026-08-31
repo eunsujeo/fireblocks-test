@@ -48,6 +48,9 @@ bcm:
     base: ${BCM_FINALITY_BASE:1}
   transaction-submission:
     claim-ttl-seconds: ${BCM_TRANSACTION_CLAIM_TTL_SECONDS:120}
+  vault-reconciliation:
+    claim-ttl-seconds: ${BCM_VAULT_RECONCILIATION_CLAIM_TTL_SECONDS:120}
+    resume-delay-millis: ${BCM_VAULT_RECONCILIATION_RESUME_DELAY_MILLIS:60000}
   fireblocks:
     connect-timeout-millis: ${BCM_VENDOR_CONNECT_TIMEOUT_MILLIS:3000}
     # 제출 소유권(claim) TTL 산정의 실제 근거다.

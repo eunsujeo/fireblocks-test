@@ -25,6 +25,7 @@ const live = document.querySelector("#live-region");
 const globalSearch = document.querySelector("#global-search");
 const runtimeEnvironment = document.querySelector("#runtime-environment");
 let testRunRefreshTimer = null;
+let vaultRefreshTimer = null;
 let adminEnvironment = null;
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({
@@ -792,25 +793,81 @@ async function loadContracts() {
 async function loadVaults() {
   const url = new URL(window.location.href);
   const query = url.searchParams.get("q") || "";
+  const runId = url.searchParams.get("run") || "";
+  const cursor = url.searchParams.get("cursor") || "";
   skeleton("Vaults");
   try {
-    const payload = await request(`/bff/admin/vaults${query ? `?q=${encodeURIComponent(query)}` : ""}`);
-    const managed = payload.data.filter((vault) => vault.reconciliationStatus === "MANAGED").length;
-    const attention = payload.data.length - managed;
+    if (!runId) {
+      app.innerHTML = `
+        <header class="page-head"><div><p class="eyebrow">FIREBLOCKS ↔ BCM RECONCILIATION</p><h1>Vaults</h1><p class="subtitle">Fireblocks workspace 전체 대사를 비동기로 실행하고 고정된 결과를 cursor page로 확인합니다. 생성과 변경은 이 화면에서 하지 않습니다.</p></div></header>
+        <form class="filters asset-simple-search" id="vault-start" aria-label="Vault 전체 대사 시작"><label>Account / Ref / Vault<input name="q" maxlength="128" value="${escapeHtml(query)}" placeholder="accountId, ref, vault id 또는 name" autocomplete="off"></label><button class="button primary" type="submit">전체 대사 시작</button><a class="button" href="/admin/vaults" data-link>초기화</a></form>
+        <div class="banner danger" id="vault-start-error" role="alert" hidden></div>
+        <div class="readonly-callout" role="note"><strong>ASYNC · READ ONLY</strong><span>동시에 한 실행만 허용하며 응답은 최대 100건입니다. 잔액과 주소는 목록에서 선조회하지 않습니다.</span></div>`;
+      bindVaultStart();
+      announce("Vault 전체 대사 실행 조건을 확인하세요");
+      return;
+    }
+    const parameters = new URLSearchParams({ limit: "50" });
+    if (cursor) parameters.set("cursor", cursor);
+    const payload = await request(`/bff/admin/vault-reconciliations/${encodeURIComponent(runId)}?${parameters}`);
+    const reconciliation = payload.data;
+    const run = reconciliation.run;
+    const running = run.status === "ACCEPTED" || run.status === "RUNNING";
+    const visibleItems = running ? [] : reconciliation.items;
+    const managed = visibleItems.filter((vault) => vault.reconciliationStatus === "MANAGED").length;
+    const attention = visibleItems.length - managed;
+    const nextUrl = new URL(window.location.href);
+    if (reconciliation.nextCursor) nextUrl.searchParams.set("cursor", reconciliation.nextCursor);
     app.innerHTML = `
-      <header class="page-head"><div><p class="eyebrow">FIREBLOCKS ↔ BCM RECONCILIATION</p><h1>Vaults</h1><p class="subtitle">Fireblocks workspace의 전체 vault와 BCM 계정 레지스트리를 대조합니다. 생성과 변경은 이 화면에서 하지 않습니다.</p></div><div class="timestamp">관리 ${managed} · 확인 필요 ${attention}<strong>${dualTime(payload.meta.generatedAt)}</strong></div></header>
-      ${statusBanner(payload)}
-      <form class="filters asset-simple-search" id="vault-filter" aria-label="Vault 검색"><label>Account / Ref / Vault<input name="q" maxlength="128" value="${escapeHtml(query)}" placeholder="accountId, ref, vault id 또는 name" autocomplete="off"></label><button class="button primary" type="submit">검색</button><a class="button" href="/admin/vaults" data-link>초기화</a></form>
+      <header class="page-head"><div><p class="eyebrow">FIREBLOCKS ↔ BCM RECONCILIATION</p><h1>Vaults</h1><p class="subtitle">실행 원장에 고정된 Fireblocks workspace와 BCM 계정 snapshot 대사 결과입니다.</p></div><div class="timestamp">${running ? `page ${run.vendorPageCount} · vault ${run.vendorVaultCount}` : `전체 ${run.resultCount} · 현재 page 관리 ${managed} / 확인 ${attention}`}<strong>${dualTime(run.finishedAt || run.startedAt || run.requestedAt)}</strong></div></header>
+      ${running ? '<div class="banner warning" role="status"><strong>대사 진행 중</strong><span>완료한 vendor page와 cursor를 원장에 기록하고 있습니다. 결과는 종결 뒤 표시합니다.</span></div>' : statusBanner(payload)}
+      <form class="filters asset-simple-search" id="vault-start" aria-label="새 Vault 전체 대사 시작"><label>Account / Ref / Vault<input name="q" maxlength="128" value="${escapeHtml(run.query || "")}" placeholder="accountId, ref, vault id 또는 name" autocomplete="off"></label><button class="button primary" type="submit" ${running ? "disabled" : ""}>새 전체 대사</button><a class="button" href="/admin/vaults" data-link>조건 변경</a></form>
+      <div class="banner danger" id="vault-start-error" role="alert" hidden></div>
+      <section class="catalog-note"><div><strong>${escapeHtml(run.status)}</strong><span>run ${identifier(run.runId, "Vault 대사 실행 ID")} · page ${run.vendorPageCount} · vault ${run.vendorVaultCount}</span></div>${run.failureCode ? `<span aria-hidden="true">·</span><div><strong>${escapeHtml(run.failureCode)}</strong><span>확인된 범위만 표시합니다. · requestId ${escapeHtml(payload.meta.requestId)}</span></div>` : ""}</section>
       <section class="catalog-note"><div><strong>MANAGED</strong><span>BCM 계정과 Fireblocks vault가 일치</span></div><span aria-hidden="true">·</span><div><strong>UNMANAGED</strong><span>Fireblocks에만 존재</span></div><span aria-hidden="true">·</span><div><strong>MISSING</strong><span>BCM에는 있으나 Fireblocks에서 찾지 못함</span></div></section>
       <section class="panel table-wrap"><table><thead><tr><th>Status / Vault</th><th>BCM account</th><th>Type / Ref</th><th>Wallets</th><th>Registered at (UTC)</th></tr></thead><tbody>
-        ${payload.data.length ? payload.data.map((vault) => `<tr><td><span class="status ${vault.reconciliationStatus === "MANAGED" ? "success" : vault.reconciliationStatus === "UNMANAGED" ? "warning" : "danger"}">${escapeHtml(vault.reconciliationStatus)}</span><strong>${escapeHtml(vault.vendorVaultName || "Fireblocks vault missing")}</strong><small>${identifier(vault.vendorVaultId, "Fireblocks vault ID")}</small></td><td>${vault.accountId ? identifier(vault.accountId, "BCM account ID") : '<span class="muted">—</span>'}</td><td><strong>${escapeHtml(vault.accountType || "—")}</strong><small>${escapeHtml(vault.ref || "BCM 매핑 없음")}</small></td><td class="mono tabular">${escapeHtml(vault.walletCount ?? "—")}</td><td class="mono tabular">${vault.registeredAt ? coreTime(vault.registeredAt) : '<span class="muted">—</span>'}</td></tr>`).join("") : '<tr><td colspan="5" class="asset-empty"><strong>조건에 맞는 vault가 없습니다.</strong><small>검색어를 지우거나 Fireblocks 연결 상태를 확인하세요.</small></td></tr>'}
-      </tbody></table></section>`;
-    bindFilter("#vault-filter", "/admin/vaults");
+        ${visibleItems.length ? visibleItems.map((vault) => `<tr><td><span class="status ${vault.reconciliationStatus === "MANAGED" ? "success" : vault.reconciliationStatus === "UNMANAGED" ? "warning" : "danger"}">${escapeHtml(vault.reconciliationStatus)}</span><strong>${escapeHtml(vault.vendorVaultName || "Fireblocks vault missing")}</strong><small>${identifier(vault.vendorVaultId, "Fireblocks vault ID")}</small></td><td>${vault.accountId ? identifier(vault.accountId, "BCM account ID") : '<span class="muted">—</span>'}</td><td><strong>${escapeHtml(vault.accountType || "—")}</strong><small>${escapeHtml(vault.ref || "BCM 매핑 없음")}</small></td><td class="mono tabular">${escapeHtml(vault.walletCount ?? "—")}</td><td class="mono tabular">${vault.registeredAt ? coreTime(vault.registeredAt) : '<span class="muted">—</span>'}</td></tr>`).join("") : `<tr><td colspan="5" class="asset-empty"><strong>${running ? "대사 결과를 준비하고 있습니다." : "조건에 맞는 vault가 없습니다."}</strong><small>${running ? "완료 뒤 이 표에 최대 50건씩 표시합니다." : "조건을 바꿔 새 전체 대사를 시작하세요."}</small></td></tr>`}
+      </tbody></table></section>
+      ${!running && reconciliation.nextCursor ? `<div class="pagination"><a class="button" href="${escapeHtml(nextUrl.pathname + nextUrl.search)}" data-link>다음 50건</a></div>` : ""}`;
+    bindVaultStart();
     bindCopy();
-    announce(`Vault ${payload.data.length}건 대조 완료`);
+    if (running) {
+      vaultRefreshTimer = window.setTimeout(() => {
+        if (route() === "vaults" && new URL(window.location.href).searchParams.get("run") === runId) loadVaults();
+      }, 1500);
+    }
+    announce(running ? `Vault 대사 ${run.status}` : `Vault ${visibleItems.length}건 조회 완료`);
   } catch (error) {
     statePanel(error.status === 403 ? "forbidden" : "error", loadVaults);
   }
+}
+
+function bindVaultStart() {
+  document.querySelector("#vault-start").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector("button[type=submit]");
+    const q = new FormData(event.currentTarget).get("q")?.toString().trim() || null;
+    button.disabled = true;
+    button.textContent = "접수 중…";
+    try {
+      const payload = await request("/bff/admin/vault-reconciliations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q }),
+      });
+      const target = new URL("/admin/vaults", window.location.origin);
+      if (q) target.searchParams.set("q", q);
+      target.searchParams.set("run", payload.data.runId);
+      navigate(target.pathname + target.search);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = error.status === 409 ? "다른 실행 진행 중" : "다시 시도";
+      const errorPanel = document.querySelector("#vault-start-error");
+      errorPanel.hidden = false;
+      errorPanel.innerHTML = `<strong>${escapeHtml(error.code)}</strong><span>${escapeHtml(error.message)}${error.requestId ? ` · requestId ${escapeHtml(error.requestId)}` : ""}</span>`;
+      announce(`${error.code}: ${error.message}${error.requestId ? ` · requestId ${error.requestId}` : ""}`);
+    }
+  });
 }
 
 async function loadPolicies() {
@@ -1210,6 +1267,10 @@ function render() {
   if (testRunRefreshTimer !== null) {
     window.clearTimeout(testRunRefreshTimer);
     testRunRefreshTimer = null;
+  }
+  if (vaultRefreshTimer !== null) {
+    window.clearTimeout(vaultRefreshTimer);
+    vaultRefreshTimer = null;
   }
   const current = route();
   if (current !== "networks") document.querySelector("#network-adopt-dialog")?.remove();

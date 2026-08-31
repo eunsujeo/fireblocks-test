@@ -158,12 +158,35 @@ class HttpBcmAdminReadGateway(
             responseType = BcmAdminSweepOperationsResponse::class.java,
         ).data
 
-    override fun vaults(query: String?): List<AdminVault> =
+    override fun startVaultReconciliation(query: String?): AdminVaultReconciliationRun =
+        send(
+            source = "vaultReconciliationStart",
+            request =
+                HttpRequest
+                    .newBuilder(uri("/admin/vault-reconciliations", emptyMap()))
+                    .timeout(Duration.ofMillis(properties.readTimeoutMillis))
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .POST(
+                        HttpRequest.BodyPublishers.ofString(
+                            objectMapper.writeValueAsString(mapOf("q" to query)),
+                            StandardCharsets.UTF_8,
+                        ),
+                    ).build(),
+            expectedStatus = 202,
+            responseType = BcmAdminVaultReconciliationRunResponse::class.java,
+        ).data
+
+    override fun vaultReconciliation(
+        runId: String,
+        cursor: String?,
+        limit: Int,
+    ): AdminVaultReconciliation =
         get(
-            source = "vaults",
-            path = "/admin/vaults",
-            query = mapOf("q" to query),
-            responseType = BcmAdminVaultListResponse::class.java,
+            source = "vaultReconciliation",
+            path = "/admin/vault-reconciliations/${encode(runId)}",
+            query = mapOf("cursor" to cursor, "limit" to limit),
+            responseType = BcmAdminVaultReconciliationResponse::class.java,
         ).data
 
     override fun contracts(): List<AdminContract> =

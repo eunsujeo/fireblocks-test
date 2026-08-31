@@ -365,14 +365,25 @@ Webhook 서명·raw payload와 원문 로그는 응답에 포함하지 않는다
 ### Vault 대조
 
 - Vault 화면은 읽기 전용이다. 계정·vault 생성은 DAW-CORE의 일반 업무 API가 계속 소유하며 Admin이 새 생성 경로를 만들지 않는다.
-- Fireblocks `GET /v1/vault/accounts_paged`를 끝까지 페이징해 workspace의 vault를 읽고, BCM `bcm_acnt_m`의 현재 매핑과
-  `vendorVaultId`로 대조한다. 응답과 화면은 `MANAGED`(BCM 매핑 있음), `UNMANAGED`(Fireblocks에만 있음),
-  `MISSING_IN_FIREBLOCKS`(BCM에는 있으나 workspace 조회에 없음)를 구분한다.
+- 전체 대사는 한 HTTP 요청에서 Fireblocks 결과와 계정 매핑을 메모리에 모으지 않는다. Admin이 실행을 접수하면 BCM은 실행 원장을 먼저
+  `ACCEPTED`로 저장하고 즉시 `202`를 반환한 뒤, 별도 실행기가 Fireblocks `GET /v1/vault/accounts_paged`를 cursor 단위로 읽어
+  `bcm_acnt_m` 현재 snapshot과 대조한다. 실행 상태는 `ACCEPTED` → `RUNNING` → `COMPLETED`이며, 일부 vendor page까지만 확인한 실패는
+  `PARTIAL`, 확인 결과가 전혀 없는 실패는 `FAILED`로 종결한다. 프로세스 재기동 시 원장 cursor부터 멱등 재개할 수 있어야 한다.
+  각 실행기는 vendor 호출 전에 만료 시각이 있는 claim을 원자 획득·갱신하고, 현재 claim 소유자만 page·cursor와 종결 상태를 기록한다.
+  모든 인스턴스는 만료된 활성 실행을 주기적으로 다시 탐색하되 claim을 얻지 못한 중복 worker는 vendor를 호출하지 않고 종료한다.
+- 실행 항목은 `MANAGED`(BCM 매핑 있음), `UNMANAGED`(Fireblocks에만 있음), `MISSING_IN_FIREBLOCKS`(완주한 workspace 조회에 없음)를
+  구분한다. `MISSING_IN_FIREBLOCKS`는 Fireblocks pagination을 끝까지 완주한 실행에서만 확정한다. 중간 실패 때 아직 확인하지 못한 BCM
+  계정을 누락으로 표시하지 않고, 성공적으로 확인한 `MANAGED`·`UNMANAGED` 범위만 반환한다.
 - 기본 목록은 BCM 관리 vault를 먼저 보여 주며 account type·ref·BCM accountId·Fireblocks vault id/name·wallet 수·대조 상태를 제공한다.
   식별자는 전체값 확인과 복사를 지원하고, 검색은 accountId·ref·vault id·name을 받는다. Fireblocks 자산별 잔액·주소는 목록 전체에서
   선조회하지 않고 vault 상세를 열 때만 조회한다.
-- Fireblocks 페이지 cursor 반복, 상류 실패 또는 로컬 매핑 불일치는 정상 빈 목록으로 숨기지 않는다. 성공적으로 읽은 범위와 실패 원인,
-  requestId, 재시도 행동을 표시하며 raw vendor 응답과 credential은 노출하지 않는다.
+- 실행 상태 조회는 완료 여부와 page/vault 진행량, 안전한 실패 코드, 시작·종료 시각을 반환한다. 결과 목록은 실행별로 고정한 검색 조건과
+  정렬 순서에 cursor pagination을 적용하며 기본 50건·최대 100건만 응답한다. 실행 중에는 결과를 낙관 표시하지 않고 polling하며,
+  완료·부분 완료 뒤 `runId`·검색·cursor를 URL에 보존한다. 상태 행과 결과 항목은 동일한 DB snapshot에서 읽어 진행 상태와 종결 결과가
+  한 응답에 섞이지 않게 하고, UI도 진행 상태 응답의 항목을 표시하지 않는다.
+- Fireblocks 페이지 cursor 반복, 상류 실패 또는 로컬 매핑 불일치는 정상 빈 목록으로 숨기지 않는다. 성공적으로 읽은 page/vault 범위와
+  실패 원인, requestId, 새 실행 재시도 행동을 표시하며 raw vendor 응답·vendor cursor·credential은 노출하지 않는다. 동시에 활성인 전체
+  대사 실행은 하나로 제한해 같은 workspace를 중복 전수 조회하지 않는다.
 
 ### 거래 조사
 

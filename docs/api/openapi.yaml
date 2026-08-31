@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Blockchain Manager API
-  version: "0.9.0"
+  version: "0.10.0"
   x-curl: true
   description: |
     블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
@@ -724,26 +724,58 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AdminSweepOperationsResponse' }
 
-  /admin/vaults:
-    get:
+  /admin/vault-reconciliations:
+    post:
       tags: [Admin]
-      summary: Fireblocks vault와 BCM 계정 대조
+      summary: Fireblocks vault와 BCM 계정 전체 대사 접수
       description: |
-        Fireblocks workspace의 vault를 끝까지 페이징하고 BCM 계정 레지스트리와 vendor vault id로 대조한다.
-        계정·vault를 생성하지 않는 읽기 전용 진단 API이며, 자산별 잔액과 주소는 목록에서 선조회하지 않는다.
-      operationId: adminVaults
-      parameters:
-        - name: q
-          in: query
-          required: false
-          schema: { type: string, maxLength: 128 }
-          description: accountId, ref, Fireblocks vault id 또는 이름 검색
+        실행 원장을 먼저 저장하고 즉시 접수한다. 별도 실행기가 Fireblocks workspace를 cursor 단위로 끝까지 읽어
+        BCM 계정 snapshot과 대조하며, 동시에 활성인 전체 대사는 하나만 허용한다. 계정·vault·잔액을 변경하지 않는다.
+      operationId: startAdminVaultReconciliation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartAdminVaultReconciliationRequest' }
       responses:
-        '200':
-          description: vault 대조 목록
+        '202':
+          description: vault 대사 실행 접수
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AdminVaultListResponse' }
+              schema: { $ref: '#/components/schemas/AdminVaultReconciliationRunResponse' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/vault-reconciliations/{runId}:
+    get:
+      tags: [Admin]
+      summary: Fireblocks vault 전체 대사 상태와 결과 page 조회
+      description: |
+        진행량과 안전한 실패 코드를 반환한다. 완료·부분 완료 결과는 실행에 고정된 검색/정렬 순서로 최대 100건만 반환한다.
+        PARTIAL에서는 확인한 MANAGED·UNMANAGED만 제공하며 미확인 BCM 계정을 누락으로 추정하지 않는다.
+      operationId: adminVaultReconciliation
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 36 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string, maxLength: 64 }
+          description: 이전 응답의 opaque nextCursor
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: vault 대사 실행 상태와 bounded 결과 page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminVaultReconciliationResponse' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/contracts:
     get:
@@ -1552,14 +1584,49 @@ components:
         networkFee: { oneOf: [{ type: string }, { type: 'null' }] }
         baseFee: { oneOf: [{ type: string }, { type: 'null' }] }
         priorityFee: { oneOf: [{ type: string }, { type: 'null' }] }
-    AdminVaultListResponse:
+    StartAdminVaultReconciliationRequest:
+      type: object
+      properties:
+        q:
+          oneOf: [{ type: string, maxLength: 128 }, { type: 'null' }]
+          description: accountId, ref, Fireblocks vault id 또는 이름 검색
+    AdminVaultReconciliationRunResponse:
       type: object
       required: [data, meta]
       properties:
-        data:
-          type: array
-          items: { $ref: '#/components/schemas/AdminVault' }
+        data: { $ref: '#/components/schemas/AdminVaultReconciliationRun' }
         meta: { $ref: '#/components/schemas/Meta' }
+    AdminVaultReconciliationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/AdminVaultReconciliation' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    AdminVaultReconciliation:
+      type: object
+      required: [run, items, nextCursor]
+      properties:
+        run: { $ref: '#/components/schemas/AdminVaultReconciliationRun' }
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/AdminVault' }
+        nextCursor: { oneOf: [{ type: string }, { type: 'null' }] }
+    AdminVaultReconciliationRun:
+      type: object
+      required: [runId, query, status, vendorPageCount, vendorVaultCount, resultCount, failureCode,
+        requestedAt, startedAt, finishedAt]
+      properties:
+        runId: { type: string }
+        query: { oneOf: [{ type: string }, { type: 'null' }] }
+        status: { type: string, enum: [ACCEPTED, RUNNING, COMPLETED, PARTIAL, FAILED] }
+        vendorPageCount: { type: integer, minimum: 0 }
+        vendorVaultCount: { type: integer, format: int64, minimum: 0 }
+        resultCount: { type: integer, format: int64, minimum: 0 }
+        failureCode: { oneOf: [{ type: string }, { type: 'null' }] }
+        requestedAt: { type: string, format: date-time }
+        startedAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        finishedAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
     AdminVault:
       type: object
       required: [reconciliationStatus, accountId, accountType, ref, vendorVaultId, vendorVaultName, walletCount, registeredAt]

@@ -119,6 +119,9 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
 - [x] **T14.21 운영 조회 실행계획 고정** (2026-08-31) — 1만 건 대표 원장에서 Sweep/거래 Admin 식별자 검색과 적체 집계의
   PostgreSQL `EXPLAIN`을 검증한다. V15에 webhook/outbox vendor, Sweep item JSON·tx hash·submission, 완료 대기·반복 실패 조회 index를
   추가하고, 가장 오래된 DAW 미완료 event는 시간순 index에서 첫 행만 읽도록 조회한다.
+- [x] **T14.22 Vault 전체 대사 규모 경계** (2026-08-31) — 단일 HTTP 요청의 전체 vendor/계정 메모리 결합을 제거했다.
+  `202 ACCEPTED` 비동기 실행과 V16 실행·항목 원장, page/cursor 원자 기록·재기동 재개, 완료 전 MISSING 미확정,
+  고정 결과 cursor와 기본 50/최대 100건 응답, 활성 실행 1개 제한을 API·BFF·로컬 Admin과 PostgreSQL 회귀 테스트에 반영했다.
 
 **예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
 실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.
@@ -183,7 +186,6 @@ T15.0 결정 후 별도 산정한다.
 | 47 | **밴드S sweep 선행·풀별 최소잔액 증적 자리 미정** — hot→cold에서 고객 vault sweep FINALIZED 선행과 출금 풀 최소 운영잔액 보호가 필요하지만 현재 proposal은 기존 sweep 실행 ID·풀별 관찰/최소 잔액을 보관하지 않는다 | DAW-CORE 입력 payload 계약만으로 충분한지, BCM 원장 FK/증적 컬럼이 필요한지 03·06에서 확정 후 구현 |
 | 49 | **고정 cold 목적지 변경의 보안 정족수 원장 부재** — 06·08은 목적지 변경에 서로 다른 승인자 2명+보안 승인자 1명과 TAP 재검증을 요구하지만 현재 `fixedColdAddresses`는 배포 설정이고 version/change request 대상이 아니다 | 실자금 실행 전 목적지 registry의 정책 version·변경 요청·TAP evidence DB/API 자리를 03·08에서 확정하고 배포 설정 직접 변경을 차단 |
 | 50 | **cold→hot 입금 FINALIZED 증적 구조 미정** — `COLD_DEPOSIT` proposal item에는 외부 cold 발신 주소/tx hash가 없고 현재 event 기록은 구조화되지 않은 observation payload를 신뢰해 `FINALIZED`를 추가할 수 있다 | cold→hot 실행 전 고정 외부 cold 발신 주소·tx hash·독립 체인 재조회·FINALIZED 증적과 다음 item 개방 조건을 03·06·08에서 확정 |
-| 51 | **Fireblocks vault 전체 대사 규모 상한** — 현재 로컬 전용 Admin의 전체 vault 대사는 벤더와 DB 결과를 한 요청에서 메모리에 모아 반환한다. 대규모 workspace에서는 timeout·heap 사용량과 식별자 노출 범위가 커질 수 있다 | 공유 Admin 또는 대규모 workspace 도입 전 cursor 기반 paging·비동기 실행 원장·응답 상한을 설계하고 회귀 테스트 추가 |
 
 
 ## 범위 밖 (이 저장소가 아님) · 시점 미배정

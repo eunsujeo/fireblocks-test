@@ -24,7 +24,13 @@ interface BcmAdminReadGateway {
 
     fun registerAssetMappings(commands: List<RegisterAdminAssetMapping>): List<AdminAssetMapping>
 
-    fun vaults(query: String?): List<AdminVault>
+    fun startVaultReconciliation(query: String?): AdminVaultReconciliationRun
+
+    fun vaultReconciliation(
+        runId: String,
+        cursor: String?,
+        limit: Int,
+    ): AdminVaultReconciliation
 
     fun transactionInvestigation(identifier: String): AdminTransactionInvestigation
 

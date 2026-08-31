@@ -14,3 +14,4 @@ V12__vendor_asset_catalog_cache.sql
 V13__blockchain_asset_catalog_sync_time.sql
 V14__daw_sweep_request_and_event_completion.sql
 V15__admin_operational_query_indexes.sql
+V16__vault_reconciliation_ledgers.sql

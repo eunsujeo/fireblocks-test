@@ -45,6 +45,8 @@ group: 블록체인 매니저
 | `bcm_vndr_ast_ctlg_m` | 모든 네트워크의 벤더 자산 카탈로그 캐시 — 일 1회 동기화 | Admin 심볼·표시명 후보 검색. 미지원 후보는 읽기 전용이며 등록 때는 Fireblocks 재검증 ([자산 매핑](07-asset-master.md)) |
 | `bcm_vndr_ast_m` | 자산의 현재 매핑 — (네트워크, 토큰) ↔ 벤더 assetId · 활성 여부 | 활성 매핑 판정 · 벤더 호출 직전 변환 ([자산 매핑](07-asset-master.md)) |
 | `bcm_vndr_ast_chng_l` | 자산 매핑 변경 원장 — 변경 전후 snapshot, 추가 전용 | 등록·해제·재활성·교체 감사와 장애 대조 ([자산 매핑](07-asset-master.md)) |
+| `bcm_vlt_rcnc_l` | Vault 전체 대사 실행 원장 — 상태·vendor cursor·진행량 | Admin 비동기 대사 접수·재개·실패 범위 확인 ([Admin](08-bcm-admin.md)) |
+| `bcm_vlt_rcnc_item_l` | Vault 대사 실행별 계정·vendor 결과 snapshot | 완료/부분 완료 결과의 고정 정렬·cursor 조회 ([Admin](08-bcm-admin.md)) |
 
 ## ERD
 
@@ -68,6 +70,8 @@ entity: bcm_raw_tx_l @2,4 :: finalize 원본 — 일 배치 장기 보관 | base
 entity: bcm_job_m @3,4 :: 주기 작업 상태 — heartbeat · 대사 커서 | job_nm PK :: 작업명 | last_scs_dttm :: 마지막 성공 — tx 대사의 안정화된 createdAt 창 끝
 entity: bcm_fee_qt_l @4,4 :: 자산별 네트워크 수수료 견적 시계열 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | obs_dttm PK :: 관측 시각 | fee_lvl PK :: LOW/MEDIUM/HIGH
 entity: bcm_vndr_ast_chng_l @1,5 :: 자산 매핑 변경 원장 — 변경 전후 snapshot (추가 전용) | chng_id PK :: 변경 id | ntwk_cd FK :: 네트워크 코드 | tkn_smbl FK :: 토큰 심볼 | actn_dvcd :: REGISTER/DEACTIVATE/REACTIVATE/REPLACE
+entity: bcm_vlt_rcnc_l @2,5 :: Vault 전체 대사 실행 원장 | vlt_rcnc_id PK :: 실행 id | vlt_rcnc_stcd :: ACCEPTED/RUNNING/COMPLETED/PARTIAL/FAILED | vndr_crsr :: 재개용 vendor cursor | vndr_done_yn :: 마지막 page 기록 여부 | vndr_page_cnt :: 완료 page 수
+entity: bcm_vlt_rcnc_item_l @3,5 :: Vault 대사 결과 snapshot | vlt_rcnc_id PK,FK :: 실행 id | item_key PK :: 계정 또는 vendor 기준 키 | rcnc_stcd :: PENDING/MANAGED/UNMANAGED/MISSING_IN_FIREBLOCKS | item_seq :: 결과 cursor 순서
 rel: bcm_acnt_m | bcm_addr_m | 계정당 주소 | one-many
 rel: bcm_acnt_m | bcm_tx_l | 계정 귀속 | one-many
 rel: bcm_acnt_m | bcm_swp_trgt | sweep 대상 | one-many
@@ -87,6 +91,8 @@ rel: bcm_tx_l | bcm_raw_tx_l | 확정 원본 | one-many | dashed
 rel: bcm_vndr_ast_m | bcm_fee_qt_l | 관측 당시 자산 매핑 | one-many | dashed
 rel: bcm_vndr_ast_m | bcm_vndr_ast_chng_l | 현재 매핑의 변경 snapshot | one-many
 rel: bcm_fee_qt_l | bcm_sbmt_l | 제출 시각 직전 견적 대응 | one-many | dashed
+rel: bcm_vlt_rcnc_l | bcm_vlt_rcnc_item_l | 대사 실행 결과 | one-many
+rel: bcm_acnt_m | bcm_vlt_rcnc_item_l | 실행 시작 시점 계정 snapshot | one-many | dashed
 ```
 
 실선 = FK 로 이어지는 관계, 점선 = 값으로 잇는 논리 관계(payload 이동·원본 보관 — DB 제약으로 묶지 않는다, 수명이 다르다). 배지 PK·UK·FK. `bcm_job_m` 은 다른 테이블과 관계가 없는 독립 작업 상태 테이블이다.
@@ -243,6 +249,70 @@ CREATE TABLE bcm_acnt_m (
 | `ref` | VARCHAR(64) | DAW-CORE 계정 ID 를 그대로 담는다. 고객은 `daw_acnt_m.acnt_id`, 시스템은 `daw_sys_acnt_m.sys_acnt_id` |
 
 **왜 유형을 따로 받나 (2026-08-05 확정)** — 고객 계정과 시스템 계정은 DAW-CORE 의 **서로 다른 테이블**이 발급하고 **접두사를 붙이지 않는다.** 그래서 두 ID 의 값이 겹칠 수 있고, `ref` 만으로는 어느 쪽 계정인지 가릴 수 없다. 유형을 함께 받아 `(acnt_typ_dvcd, ref)` 로 유일성을 잡는다. `ref` 자체는 불투명 문자열로만 다루고 내용을 파싱해 분기하지 않는다.
+
+### bcm_vlt_rcnc_l · bcm_vlt_rcnc_item_l — Vault 전체 대사 실행
+
+Fireblocks workspace 전체 조회를 HTTP 요청 수명과 분리하는 읽기 전용 Admin 실행 원장이다. 실행 행은 현재 vendor cursor와 완료한 page/vault
+수를 저장하고, 항목 행은 실행 시작 시점의 BCM 계정 snapshot과 page마다 확인한 vendor vault를 합친다. vendor page 기록과 다음 cursor
+갱신은 한 트랜잭션이며 같은 page를 다시 읽어도 항목 key upsert로 중복되지 않는다. 활성 실행은 하나만 허용한다. 실행기는 만료 시각이
+있는 worker claim을 원자 획득·갱신하며, 현재 claim 소유자만 page 기록·완료·실패 종결을 수행한다. 만료 claim은 다른 인스턴스가 인계한다.
+
+```sql
+CREATE TABLE bcm_vlt_rcnc_l (
+  vlt_rcnc_id      VARCHAR(36)  PRIMARY KEY,
+  qry_vl           VARCHAR(128) NULL,
+  vlt_rcnc_stcd    VARCHAR(16)  NOT NULL, -- ACCEPTED/RUNNING/COMPLETED/PARTIAL/FAILED
+  vndr_crsr        TEXT         NULL,     -- 재개 전용, API 비노출
+  vndr_done_yn     VARCHAR(1)   NOT NULL, -- 마지막 page 기록 여부, cursor NULL과 최초 상태를 구분
+  wrkr_clm_id      VARCHAR(36)  NULL,     -- 현재 실행기 소유권 token, API 비노출
+  clm_expires_dttm VARCHAR(16)  NULL,     -- claim 만료 UTC 일시
+  vndr_page_cnt    INT          NOT NULL,
+  vndr_vlt_cnt     BIGINT       NOT NULL,
+  rslt_cnt         BIGINT       NOT NULL,
+  fail_cd          VARCHAR(64)  NULL,     -- 안전한 분류 코드만 저장
+  strt_dttm        VARCHAR(16)  NULL,
+  fnsh_dttm        VARCHAR(16)  NULL,
+  reg_dttm         VARCHAR(16)  NOT NULL,
+  last_chng_dttm   VARCHAR(16)  NOT NULL,
+  -- 감사 4컬럼
+  frst_reg_empno   VARCHAR(6)   NOT NULL,
+  frst_reg_brcd    VARCHAR(4)   NOT NULL,
+  last_chng_empno  VARCHAR(6)   NOT NULL,
+  last_chng_brcd   VARCHAR(4)   NOT NULL
+);
+CREATE UNIQUE INDEX ux_bcm_vlt_rcnc_active ON bcm_vlt_rcnc_l ((1))
+  WHERE vlt_rcnc_stcd IN ('ACCEPTED', 'RUNNING');
+
+CREATE TABLE bcm_vlt_rcnc_item_l (
+  vlt_rcnc_id      VARCHAR(36)  NOT NULL,
+  item_key         VARCHAR(129) NOT NULL,
+  item_seq         BIGINT       NULL,
+  rcnc_stcd        VARCHAR(32)  NOT NULL, -- PENDING/MANAGED/UNMANAGED/MISSING_IN_FIREBLOCKS
+  acnt_id          VARCHAR(64)  NULL,
+  acnt_typ_dvcd    VARCHAR(2)   NULL,
+  ref              VARCHAR(64)  NULL,
+  vndr_vlt_id      VARCHAR(64)  NOT NULL,
+  vndr_vlt_nm      TEXT         NULL,
+  wllt_cnt         INT          NULL,
+  acnt_reg_dttm    VARCHAR(16)  NULL,
+  reg_dttm         VARCHAR(16)  NOT NULL,
+  last_chng_dttm   VARCHAR(16)  NOT NULL,
+  -- 감사 4컬럼
+  frst_reg_empno   VARCHAR(6)   NOT NULL,
+  frst_reg_brcd    VARCHAR(4)   NOT NULL,
+  last_chng_empno  VARCHAR(6)   NOT NULL,
+  last_chng_brcd   VARCHAR(4)   NOT NULL,
+  PRIMARY KEY (vlt_rcnc_id, item_key),
+  FOREIGN KEY (vlt_rcnc_id) REFERENCES bcm_vlt_rcnc_l (vlt_rcnc_id)
+);
+CREATE UNIQUE INDEX ux_bcm_vlt_rcnc_item_seq ON bcm_vlt_rcnc_item_l (vlt_rcnc_id, item_seq)
+  WHERE item_seq IS NOT NULL;
+CREATE INDEX idx_bcm_vlt_rcnc_item_vault ON bcm_vlt_rcnc_item_l (vlt_rcnc_id, vndr_vlt_id);
+```
+
+실행 시작 때 계정은 `PENDING`으로 snapshot한다. Fireblocks page에서 확인한 계정만 `MANAGED`로 바꾸고 vendor에만 있는 vault는
+`UNMANAGED`로 추가한다. 마지막 cursor까지 완주한 뒤에만 남은 `PENDING`을 `MISSING_IN_FIREBLOCKS`로 바꾼다. 실패 시 `PENDING`은
+응답 대상이 아니며 확인이 끝난 항목에만 고정 `item_seq`를 부여한다. 따라서 중간 실패가 아직 읽지 않은 vault를 누락으로 오판하지 않는다.
 
 ### bcm_addr_m — 주소 매핑
 

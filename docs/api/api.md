@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.9.0`
+`v0.10.0`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -2311,42 +2311,52 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
-#### `GET` https://{baseUrl}/blockchain/manage-api/admin/vaults
+#### `POST` https://{baseUrl}/blockchain/manage-api/admin/vault-reconciliations
 
-**Fireblocks vault와 BCM 계정 대조**
+**Fireblocks vault와 BCM 계정 전체 대사 접수**
 
-Fireblocks workspace의 vault를 끝까지 페이징하고 BCM 계정 레지스트리와 vendor vault id로 대조한다.
-계정·vault를 생성하지 않는 읽기 전용 진단 API이며, 자산별 잔액과 주소는 목록에서 선조회하지 않는다.
+실행 원장을 먼저 저장하고 즉시 접수한다. 별도 실행기가 Fireblocks workspace를 cursor 단위로 끝까지 읽어
+BCM 계정 snapshot과 대조하며, 동시에 활성인 전체 대사는 하나만 허용한다. 계정·vault·잔액을 변경하지 않는다.
 
 ```bash
-curl "https://{baseUrl}/blockchain/manage-api/admin/vaults"
+curl -X POST "https://{baseUrl}/blockchain/manage-api/admin/vault-reconciliations" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "q": "string"
+}'
 ```
 
-_파라미터_
+_요청 본문_
 
-| 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
-|---|---|---|---|---|---|
-| `q` | query | string | - |  | accountId, ref, Fireblocks vault id 또는 이름 검색 |
+```json
+{
+  "q": "string"
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `q` | string \\| null | - | accountId, ref, Fireblocks vault id 또는 이름 검색 |
 
 
 _응답_
 
-`200` — vault 대조 목록
+`202` — vault 대사 실행 접수
 
 ```json
 {
-  "data": [
-    {
-      "reconciliationStatus": "MANAGED",
-      "accountId": "string",
-      "accountType": "CUSTOMER",
-      "ref": "string",
-      "vendorVaultId": "string",
-      "vendorVaultName": "string",
-      "walletCount": 0,
-      "registeredAt": "string"
-    }
-  ],
+  "data": {
+    "runId": "string",
+    "query": "string",
+    "status": "ACCEPTED",
+    "vendorPageCount": 0,
+    "vendorVaultCount": 0,
+    "resultCount": 0,
+    "failureCode": "string",
+    "requestedAt": "2026-07-13T04:05:06.789Z",
+    "startedAt": "2026-07-13T04:05:06.789Z",
+    "finishedAt": "2026-07-13T04:05:06.789Z"
+  },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
   }
@@ -2355,7 +2365,152 @@ _응답_
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `data` | AdminVault[] | 필수 |  |
+| `data` | AdminVaultReconciliationRun | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`400` — 요청 검증 실패
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "amount must be a decimal string"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`409` — 상태·멱등 충돌
+
+```json
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "externalTxId already used"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+#### `GET` https://{baseUrl}/blockchain/manage-api/admin/vault-reconciliations/{runId}
+
+**Fireblocks vault 전체 대사 상태와 결과 page 조회**
+
+진행량과 안전한 실패 코드를 반환한다. 완료·부분 완료 결과는 실행에 고정된 검색/정렬 순서로 최대 100건만 반환한다.
+PARTIAL에서는 확인한 MANAGED·UNMANAGED만 제공하며 미확인 BCM 계정을 누락으로 추정하지 않는다.
+
+```bash
+curl "https://{baseUrl}/blockchain/manage-api/admin/vault-reconciliations/{runId}"
+```
+
+_파라미터_
+
+| 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
+|---|---|---|---|---|---|
+| `runId` | path | string | 필수 |  |  |
+| `cursor` | query | string | - |  | 이전 응답의 opaque nextCursor |
+| `limit` | query | integer | - | 50 |  |
+
+
+_응답_
+
+`200` — vault 대사 실행 상태와 bounded 결과 page
+
+```json
+{
+  "data": {
+    "run": {
+      "runId": "string",
+      "query": "string",
+      "status": "ACCEPTED",
+      "vendorPageCount": 0,
+      "vendorVaultCount": 0,
+      "resultCount": 0,
+      "failureCode": "string",
+      "requestedAt": "2026-07-13T04:05:06.789Z",
+      "startedAt": "2026-07-13T04:05:06.789Z",
+      "finishedAt": "2026-07-13T04:05:06.789Z"
+    },
+    "items": [
+      {
+        "reconciliationStatus": "MANAGED",
+        "accountId": "string",
+        "accountType": "CUSTOMER",
+        "ref": "string",
+        "vendorVaultId": "string",
+        "vendorVaultName": "string",
+        "walletCount": 0,
+        "registeredAt": "string"
+      }
+    ],
+    "nextCursor": "string"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminVaultReconciliation | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`400` — 요청 검증 실패
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "amount must be a decimal string"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`404` — 리소스 없음
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "transaction not found"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
 | `meta` | Meta | 필수 |  |
 
 
@@ -3228,12 +3383,52 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 | `priorityFee` | string \\| null | 필수 |  |
 
 
-### AdminVaultListResponse
+### StartAdminVaultReconciliationRequest
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `data` | AdminVault[] | 필수 |  |
+| `q` | string \\| null | - | accountId, ref, Fireblocks vault id 또는 이름 검색 |
+
+
+### AdminVaultReconciliationRunResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminVaultReconciliationRun | 필수 |  |
 | `meta` | Meta | 필수 |  |
+
+
+### AdminVaultReconciliationResponse
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `data` | AdminVaultReconciliation | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+### AdminVaultReconciliation
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `run` | AdminVaultReconciliationRun | 필수 |  |
+| `items` | AdminVault[] | 필수 |  |
+| `nextCursor` | string \\| null | 필수 |  |
+
+
+### AdminVaultReconciliationRun
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `runId` | string | 필수 |  |
+| `query` | string \\| null | 필수 |  |
+| `status` | string | 필수 | `ACCEPTED` `RUNNING` `COMPLETED` `PARTIAL` `FAILED` |
+| `vendorPageCount` | integer | 필수 |  |
+| `vendorVaultCount` | integer | 필수 |  |
+| `resultCount` | integer | 필수 |  |
+| `failureCode` | string \\| null | 필수 |  |
+| `requestedAt` | string (ISO 8601) | 필수 |  |
+| `startedAt` | string (ISO 8601) \\| null | 필수 |  |
+| `finishedAt` | string (ISO 8601) \\| null | 필수 |  |
 
 
 ### AdminVault

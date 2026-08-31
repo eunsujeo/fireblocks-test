@@ -321,8 +321,35 @@ data class AdminVault(
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class BcmAdminVaultListResponse(
-    val data: List<AdminVault>,
+data class AdminVaultReconciliationRun(
+    val runId: String,
+    val query: String? = null,
+    val status: String,
+    val vendorPageCount: Int,
+    val vendorVaultCount: Long,
+    val resultCount: Long,
+    val failureCode: String? = null,
+    val requestedAt: String,
+    val startedAt: String? = null,
+    val finishedAt: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AdminVaultReconciliation(
+    val run: AdminVaultReconciliationRun,
+    val items: List<AdminVault>,
+    val nextCursor: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmAdminVaultReconciliationRunResponse(
+    val data: AdminVaultReconciliationRun,
+    val meta: BcmMeta,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class BcmAdminVaultReconciliationResponse(
+    val data: AdminVaultReconciliation,
     val meta: BcmMeta,
 )
 

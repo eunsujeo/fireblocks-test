@@ -9,17 +9,23 @@ import com.whatto.bcm.admin.application.ViewResult
 import com.whatto.bcm.admin.application.ViewState
 import com.whatto.bcm.admin.client.SourceFailure
 import jakarta.servlet.http.HttpServletRequest
+import jakarta.validation.Valid
+import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.time.Clock
@@ -112,11 +118,20 @@ class AdminBffController(
         request: HttpServletRequest,
     ) = respond(request, service.sweepRequest(identifier))
 
-    @GetMapping("/bff/admin/vaults")
-    fun vaults(
-        @RequestParam(required = false) @Size(max = 128) q: String?,
+    @PostMapping("/bff/admin/vault-reconciliations", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun startVaultReconciliation(
+        @Valid @RequestBody body: StartVaultReconciliationBody,
         request: HttpServletRequest,
-    ) = respond(request, service.vaults(q))
+    ) = respond(request, service.startVaultReconciliation(body.q))
+
+    @GetMapping("/bff/admin/vault-reconciliations/{runId}")
+    fun vaultReconciliation(
+        @PathVariable @Size(max = 36) runId: String,
+        @RequestParam(required = false) @Size(max = 64) cursor: String?,
+        @RequestParam(defaultValue = "50") @Min(1) @Max(100) limit: Int,
+        request: HttpServletRequest,
+    ) = respond(request, service.vaultReconciliation(runId, cursor, limit))
 
     @GetMapping("/bff/admin/contracts")
     fun contracts(request: HttpServletRequest) = respond(request, service.contracts())
@@ -149,6 +164,11 @@ class AdminBffController(
         generatedAt: String = Instant.now(clock).toString(),
     ) = BffMeta(request.getHeader("X-Request-Id")?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString(), generatedAt)
 }
+
+data class StartVaultReconciliationBody(
+    @field:Size(max = 128)
+    val q: String? = null,
+)
 
 @RestControllerAdvice(assignableTypes = [AdminBffController::class, LocalAssetManagementBffController::class])
 class AdminBffExceptionHandler(
@@ -189,6 +209,8 @@ class AdminBffExceptionHandler(
                             forbidden -> "조회 권한이 없습니다."
                             notFound -> "요청한 운영 데이터를 찾을 수 없습니다."
                             failure.status == 400 -> "자산 후보와 등록 값이 일치하지 않습니다."
+                            failure.status == 409 && failure.source == "vaultReconciliationStart" ->
+                                "다른 Vault 전체 대사가 진행 중입니다."
                             failure.status == 409 -> "이미 등록되었거나 다른 매핑과 충돌합니다."
                             else -> "BCM 조회 소스를 사용할 수 없습니다."
                         },

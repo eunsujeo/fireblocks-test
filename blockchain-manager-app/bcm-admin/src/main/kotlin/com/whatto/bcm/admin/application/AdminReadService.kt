@@ -12,7 +12,8 @@ import com.whatto.bcm.admin.client.AdminRuntimeReadiness
 import com.whatto.bcm.admin.client.AdminSweepOperations
 import com.whatto.bcm.admin.client.AdminSweepRequestInvestigation
 import com.whatto.bcm.admin.client.AdminTransactionInvestigation
-import com.whatto.bcm.admin.client.AdminVault
+import com.whatto.bcm.admin.client.AdminVaultReconciliation
+import com.whatto.bcm.admin.client.AdminVaultReconciliationRun
 import com.whatto.bcm.admin.client.AdminWebhookRuntime
 import com.whatto.bcm.admin.client.BcmAdminReadGateway
 import com.whatto.bcm.admin.client.BcmWebhookHealthGateway
@@ -350,10 +351,21 @@ class AdminReadService(
         )
     }
 
-    fun vaults(query: String?): ViewResult<List<AdminVault>> {
-        val data = gateway.vaults(query?.trim()?.takeIf { it.isNotEmpty() })
+    fun startVaultReconciliation(query: String?): ViewResult<AdminVaultReconciliationRun> =
+        ViewResult(
+            gateway.startVaultReconciliation(query?.trim()?.takeIf { it.isNotEmpty() }),
+            ViewState.STALE,
+            emptyList(),
+        )
+
+    fun vaultReconciliation(
+        runId: String,
+        cursor: String?,
+        limit: Int,
+    ): ViewResult<AdminVaultReconciliation> {
+        val data = gateway.vaultReconciliation(runId, cursor, limit)
         val issues =
-            data
+            data.items
                 .filter { it.reconciliationStatus != "MANAGED" }
                 .map { vault ->
                     SourceIssue(
@@ -366,8 +378,16 @@ class AdminReadService(
                                 "BCM 계정의 Fireblocks vault를 찾지 못했습니다."
                             },
                     )
-                }
-        return ViewResult(data, if (issues.isEmpty()) ViewState.FRESH else ViewState.PARTIAL, issues)
+                }.toMutableList()
+        data.run.failureCode?.let { issues += SourceIssue(data.run.runId, it, "Vault 전체 대사가 완주하지 못했습니다.") }
+        val state =
+            when (data.run.status) {
+                "ACCEPTED", "RUNNING" -> ViewState.STALE
+                "PARTIAL", "FAILED" -> ViewState.PARTIAL
+                "COMPLETED" -> if (issues.isEmpty()) ViewState.FRESH else ViewState.PARTIAL
+                else -> ViewState.PARTIAL
+            }
+        return ViewResult(data, state, issues)
     }
 
     fun policies(): ViewResult<List<AdminPolicy>> = ViewResult(gateway.policies(), ViewState.FRESH, emptyList())
