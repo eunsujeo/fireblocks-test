@@ -23,10 +23,12 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
                 seedProcessedWebhooks(jdbc)
 
                 applyMigration(connection, "V17__completed_webhook_marker_expand.sql")
+                applySqlResource(connection, "db/operations/prepare_v18_completed_webhook_backfill_index.sql")
                 jdbc.update(
                     "UPDATE bcm_whk_l SET prcs_stcd = 'S', prcs_dttm = '20260831010200' WHERE noti_id = 'old-worker-before-backfill'",
                 )
                 applyMigration(connection, "V18__completed_webhook_marker_backfill_and_index.sql")
+                applyMigration(connection, "V19__completed_webhook_backfill_index_cleanup.sql")
                 jdbc.update(
                     "UPDATE bcm_whk_l SET prcs_stcd = 'S', prcs_dttm = '20260831010300' WHERE noti_id = 'old-worker-after-backfill'",
                 )
@@ -57,6 +59,54 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
                         "idx_bcm_whk_completed_archive",
                     ),
                 ).isEqualTo(1)
+                assertThat(
+                    jdbc.queryForObject(
+                        "SELECT count(*) FROM pg_indexes WHERE schemaname = ? AND indexname = ?",
+                        Int::class.java,
+                        schema,
+                        "idx_bcm_whk_completed_backfill",
+                    ),
+                ).isZero()
+            } finally {
+                connection.schema = "public"
+                connection.createStatement().use { it.execute("DROP SCHEMA $schema CASCADE") }
+            }
+        }
+    }
+
+    @Test
+    fun `V18 backfill 후보는 처리된 PK prefix 대신 NULL partial index에서 찾는다`() {
+        val schema = "v18_plan_${UUID.randomUUID().toString().replace("-", "")}"
+
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.createStatement().use { it.execute("CREATE SCHEMA $schema") }
+            try {
+                connection.schema = schema
+                migrationsBeforeV17().forEach { applyMigration(connection, it) }
+                val jdbc = JdbcTemplate(SingleConnectionDataSource(connection, true))
+                seedBackfillPlanWebhooks(jdbc)
+
+                applyMigration(connection, "V17__completed_webhook_marker_expand.sql")
+                applySqlResource(connection, "db/operations/prepare_v18_completed_webhook_backfill_index.sql")
+                jdbc.update("UPDATE bcm_whk_l SET vndr_cmpl_yn = 'N' WHERE noti_id < 'plan-09001'")
+                jdbc.execute("ANALYZE bcm_whk_l")
+
+                val plan =
+                    jdbc
+                        .queryForList(
+                            """
+                            EXPLAIN (FORMAT TEXT, COSTS OFF)
+                            SELECT noti_id
+                            FROM bcm_whk_l
+                            WHERE vndr_cmpl_yn IS NULL
+                            ORDER BY noti_id
+                            LIMIT 1000
+                            FOR UPDATE SKIP LOCKED
+                            """.trimIndent(),
+                            String::class.java,
+                        ).joinToString("\n")
+
+                assertThat(plan).contains("idx_bcm_whk_completed_backfill")
             } finally {
                 connection.schema = "public"
                 connection.createStatement().use { it.execute("DROP SCHEMA $schema CASCADE") }
@@ -104,6 +154,23 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
         )
     }
 
+    private fun seedBackfillPlanWebhooks(jdbc: JdbcTemplate) {
+        jdbc.execute(
+            """
+            INSERT INTO bcm_whk_l
+              (noti_id, evnt_typ, vndr_tx_id, payload, payload_hash, sign_vl,
+               rcv_dttm, prcs_stcd, rtry_cnt, err_msg, prcs_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            SELECT 'plan-' || lpad(sequence::text, 5, '0'),
+                   'transaction.status.updated', 'tx-plan-' || sequence,
+                   '{"data":{"status":"CONFIRMING"}}', repeat('a', 64), 'signature',
+                   '20260831010000', 'S', 0, NULL, '20260831010100',
+                   'SYSTEM', '9999', 'SYSTEM', '9999'
+            FROM generate_series(1, 10000) sequence
+            """.trimIndent(),
+        )
+    }
+
     private fun migrationsBeforeV17(): List<String> =
         requireNotNull(javaClass.classLoader.getResourceAsStream("db/migration/manifest.txt"))
             .bufferedReader()
@@ -118,10 +185,15 @@ class V17CompletedWebhookMarkerUpgradePersistenceTest : PersistenceTestSupport()
     private fun applyMigration(
         connection: Connection,
         migration: String,
+    ) = applySqlResource(connection, "db/migration/$migration")
+
+    private fun applySqlResource(
+        connection: Connection,
+        resource: String,
     ) {
         val sql =
-            requireNotNull(javaClass.classLoader.getResourceAsStream("db/migration/$migration")) {
-                "migration resource not found: $migration"
+            requireNotNull(javaClass.classLoader.getResourceAsStream(resource)) {
+                "SQL resource not found: $resource"
             }.bufferedReader().use { it.readText() }
         val nonTransactional = sql.lineSequence().firstOrNull()?.trim() == "-- bcm:transaction=off"
         connection.autoCommit = nonTransactional
