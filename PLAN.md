@@ -130,6 +130,10 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
   commit backfill·`CREATE INDEX CONCURRENTLY`로 롤링 전환한 뒤 부분 인덱스로 선별한다.
   1만 건 대표 원장의 PostgreSQL `EXPLAIN`에서 `idx_bcm_whk_completed_archive` 사용을 고정해 60초 API·BAT 메트릭과
   일 보관 배치가 보존량에 비례해 payload JSON을 반복 파싱하지 않게 했다.
+- [x] **T14.25 V18 기존 원장 backfill 탐색 비용 고정** (2026-08-31) — 기존 데이터가 있는 DB는 V17 직후·V18 직전에
+  `vndr_cmpl_yn IS NULL` 임시 partial index를 transaction 밖에서 생성하고, V19가 V18 성공 뒤 concurrent 제거한다.
+  1만 건 중 99%가 처리된 꼬리 분포의 PostgreSQL `EXPLAIN`에서 임시 index 사용을 고정해 각 batch가 처리된 PK prefix를
+  반복 탐색하지 않게 했다. 빈 DB manifest와 준비·cleanup SQL 재실행은 index 부재를 정상으로 취급한다.
 
 **예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
 실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.

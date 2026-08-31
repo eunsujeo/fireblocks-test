@@ -17,3 +17,4 @@ V15__admin_operational_query_indexes.sql
 V16__vault_reconciliation_ledgers.sql
 V17__completed_webhook_marker_expand.sql
 V18__completed_webhook_marker_backfill_and_index.sql
+V19__completed_webhook_backfill_index_cleanup.sql

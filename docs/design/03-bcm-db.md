@@ -388,6 +388,12 @@ CREATE INDEX idx_bcm_whk_completed_archive
 transaction 밖 `CREATE INDEX CONCURRENTLY` 순서로 수행한다. 호환 trigger는 구버전 worker가 `P→S`로 바꾸면서 표식을 쓰지 않은
 현재 4개 지원 event만 보완하고, 신버전 worker가 명시한 `Y`는 덮어쓰지 않는다.
 
+기존 `bcm_whk_l` 행이 있는 DB는 V17 직후·V18 직전에 DBA가
+`db/operations/prepare_v18_completed_webhook_backfill_index.sql`을 transaction 밖에서 실행한다. 이 SQL은
+`vndr_cmpl_yn IS NULL`인 `noti_id`만 담는 임시 partial index를 concurrent 생성한다. V18의 각 batch가 처리한 행은 index에서 즉시
+빠지므로 이미 처리한 PK prefix를 매번 다시 읽지 않는다. V19는 V18 성공 뒤 임시 index를 concurrent 제거하며 재실행 가능하다.
+빈 DB는 준비 SQL을 생략해도 backfill 대상이 없고, manifest의 V19 cleanup은 index 부재를 정상으로 취급한다.
+
 ### bcm_tx_l — 거래 운영 상태
 
 판단 워커가 알림에서 만들어 추적하는 **논리 거래 행** — 상태 변화를 가려 이벤트를 발행하고, 막힘 점검이 오래 미확정인 후보를 여기서 골라낸다. boost가 생겨도 최초 `vndr_tx_id` 행을 유지하며 대체 물리 거래는 `bcm_boost_l`에서 root로 접는다.
@@ -1904,7 +1910,7 @@ version·evidence·요청·판단·action 6개 원장에는 `UPDATE OR DELETE`�
 
 ## 확정 이력 (2026-08-31)
 
-- **COMPLETED 원문은 판단 성공과 함께 표식** — application이 파싱한 status를 지원 transaction event의 `P→S` UPDATE에 전달해 `vndr_cmpl_yn`을 남기고 partial index로 미보관 원문을 선별한다. V17 expand·구버전 호환 trigger와 V18 batch backfill·concurrent index로 롤링 전환하며, 60초 운영 메트릭과 일 보관 배치는 이 표식을 공유해 보존량에 비례한 payload JSON 반복 파싱을 피한다.
+- **COMPLETED 원문은 판단 성공과 함께 표식** — application이 파싱한 status를 지원 transaction event의 `P→S` UPDATE에 전달해 `vndr_cmpl_yn`을 남기고 partial index로 미보관 원문을 선별한다. V17 expand·구버전 호환 trigger, 기존 데이터 DB의 NULL 임시 partial index, V18 batch backfill·concurrent archive index, V19 임시 index cleanup으로 롤링 전환하며, 60초 운영 메트릭과 일 보관 배치는 표식을 공유해 보존량에 비례한 payload JSON 반복 파싱을 피한다.
 
 ## 확정 이력 (2026-08-14)
 
