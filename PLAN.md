@@ -150,6 +150,10 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
   완료도 호출에 사용한 키 세대를 행 잠금 아래 검사해 옛 호출 결과가 새 세대 매핑을 선점하지 못하게 한다. 동시 요청이 먼저 완료한
   의도도 공개 매핑으로 수렴한다. CI 취약점 검사에서 확인한 Spring Framework
   CVE-2026-59313/59314는 Spring Boot 4.1.1(Framework 7.0.9)로 올려 함께 해소했다.
+- [x] **T14.28 생성 원장 PostgreSQL 동시성·rollback 테스트 보강** (2026-09-01) — 계정·주소 각각 새 키 세대 준비
+  트랜잭션이 행 잠금을 보유한 동안 옛 세대 완료가 대기하고, 커밋 뒤 `CREATION_RETRY_LATER`로 매핑 없이 거절됨을 실제 두
+  PostgreSQL 트랜잭션과 latch로 고정했다. 완료 트랜잭션의 공개 매핑 INSERT 뒤 원장 UPDATE에 test trigger로 예외를 주입해
+  매핑과 원장 완료가 모두 rollback되는 것도 검증했다. `FOR UPDATE`를 제거한 회귀 상태에서는 두 경합 테스트가 실패한다.
 
 **예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
 실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.

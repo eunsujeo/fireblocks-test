@@ -15,6 +15,17 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.context.annotation.Import
+import org.springframework.dao.DataAccessException
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 @DataJdbcTest
 @Import(AccountJdbcAdapter::class, DepositAddressJdbcAdapter::class, WalletProvisioningJdbcAdapter::class)
@@ -27,6 +38,12 @@ class AccountPersistenceTest : PersistenceTestSupport() {
 
     @Autowired
     lateinit var provisioning: WalletProvisioningJdbcAdapter
+
+    @Autowired
+    lateinit var jdbc: JdbcTemplate
+
+    @Autowired
+    lateinit var transactionManager: PlatformTransactionManager
 
     private fun account(
         accountId: String = "acct_01",
@@ -116,6 +133,112 @@ class AccountPersistenceTest : PersistenceTestSupport() {
             .isEqualTo(CreationStatus.COMPLETED)
         assertThat(provisioning.beginAccountAttempt(reserved.accountId, "20260901000003").status)
             .isEqualTo(CreationStatus.COMPLETED)
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `계정 새 키 세대 준비가 잠근 동안 이전 세대 완료는 기다린 뒤 매핑 없이 거절된다`() {
+        val firstPrepared =
+            reserveAndPrepareAccount(
+                accountCreationIntent(
+                    accountId = "acct_generation_race",
+                    ref = "generation-race-ref",
+                    idempotencyKey = "bcm-vlt-00000000000000000000000000000011",
+                ),
+            )
+        val rotated = CountDownLatch(1)
+        val releaseRotation = CountDownLatch(1)
+        val completionAttempted = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        val transaction = requiresNewTransaction()
+
+        try {
+            val rotation =
+                executor.submit<AccountCreationIntent> {
+                    checkNotNull(
+                        transaction.execute {
+                            val superseding =
+                                provisioning.beginAccountAttempt(firstPrepared.accountId, "20260902000000")
+                            val prepared =
+                                checkNotNull(
+                                    provisioning.prepareAccountVendorCall(
+                                        superseding,
+                                        "bcm-vlt-00000000000000000000000000000012",
+                                        "20260902000000",
+                                        "20260902000000",
+                                    ),
+                                )
+                            rotated.countDown()
+                            check(releaseRotation.await(5, TimeUnit.SECONDS))
+                            prepared
+                        },
+                    )
+                }
+            assertThat(rotated.await(5, TimeUnit.SECONDS)).isTrue()
+
+            val staleCompletion =
+                executor.submit<Throwable?> {
+                    completionAttempted.countDown()
+                    runCatching {
+                        provisioning.completeAccount(firstPrepared, "vault-stale-race", "20260902000001")
+                    }.exceptionOrNull()
+                }
+            assertThat(completionAttempted.await(5, TimeUnit.SECONDS)).isTrue()
+            assertThatThrownBy { staleCompletion.get(300, TimeUnit.MILLISECONDS) }
+                .isInstanceOf(TimeoutException::class.java)
+
+            releaseRotation.countDown()
+            val currentGeneration = rotation.get(5, TimeUnit.SECONDS)
+            assertThat(staleCompletion.get(5, TimeUnit.SECONDS))
+                .isInstanceOf(CreationRetryLaterException::class.java)
+            assertThat(accounts.findByTypeAndRef(AccountType.CUSTOMER, firstPrepared.ref)).isNull()
+
+            val completed = provisioning.completeAccount(currentGeneration, "vault-current-race", "20260902000002")
+            assertThat(completed.vendorVaultId).isEqualTo("vault-current-race")
+        } finally {
+            releaseRotation.countDown()
+            executor.shutdownNow()
+            executor.awaitTermination(5, TimeUnit.SECONDS)
+            jdbc.update("DELETE FROM bcm_acnt_m WHERE acnt_id = ?", firstPrepared.accountId)
+            jdbc.update("DELETE FROM bcm_acnt_crtn_l WHERE acnt_id = ?", firstPrepared.accountId)
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `계정 공개 매핑 insert 뒤 원장 완료가 실패하면 두 변경을 함께 rollback한다`() {
+        val prepared =
+            reserveAndPrepareAccount(
+                accountCreationIntent(
+                    accountId = "acct_completion_rollback",
+                    ref = "completion-rollback-ref",
+                    idempotencyKey = "bcm-vlt-00000000000000000000000000000021",
+                ),
+            )
+        val trigger = "trg_test_fail_acnt_completion"
+        val function = "bcm_test_fail_acnt_completion"
+
+        try {
+            installCompletionFailureTrigger(
+                table = "bcm_acnt_crtn_l",
+                trigger = trigger,
+                function = function,
+                mappingExistsPredicate = "SELECT 1 FROM bcm_acnt_m WHERE acnt_id = NEW.acnt_id",
+            )
+            assertThatThrownBy {
+                provisioning.completeAccount(prepared, "vault-rollback", "20260901000002")
+            }.isInstanceOf(DataAccessException::class.java)
+                .hasStackTraceContaining("forced completion failure after mapping insert")
+
+            assertThat(accounts.findByTypeAndRef(AccountType.CUSTOMER, prepared.ref)).isNull()
+            val unchanged = provisioning.findAccount(prepared.accountType, prepared.ref)
+            assertThat(unchanged?.status).isEqualTo(CreationStatus.SUBMITTING)
+            assertThat(unchanged?.vendorVaultId).isNull()
+        } finally {
+            removeCompletionFailureTrigger("bcm_acnt_crtn_l", trigger, function)
+            jdbc.update("DELETE FROM bcm_acnt_m WHERE acnt_id = ?", prepared.accountId)
+            jdbc.update("DELETE FROM bcm_acnt_crtn_l WHERE acnt_id = ?", prepared.accountId)
+        }
     }
 
     @Test
@@ -258,8 +381,240 @@ class AccountPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `주소 새 키 세대 준비가 잠근 동안 이전 세대 완료는 기다린 뒤 매핑 없이 거절된다`() {
+        val accountId = "acct_address_generation_race"
+        accounts.insert(account(accountId = accountId, ref = "address-generation-race-ref"))
+        val firstPrepared =
+            reserveAndPrepareAddress(
+                addressCreationIntent(
+                    accountId = accountId,
+                    idempotencyKey = "bcm-adr-00000000000000000000000000000011",
+                ),
+            )
+        val rotated = CountDownLatch(1)
+        val releaseRotation = CountDownLatch(1)
+        val completionAttempted = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        val transaction = requiresNewTransaction()
+
+        try {
+            val rotation =
+                executor.submit<DepositAddressCreationIntent> {
+                    checkNotNull(
+                        transaction.execute {
+                            val superseding =
+                                provisioning.beginAddressAttempt(
+                                    firstPrepared.accountId,
+                                    firstPrepared.network,
+                                    firstPrepared.symbol,
+                                    "20260902000000",
+                                )
+                            val prepared =
+                                checkNotNull(
+                                    provisioning.prepareAddressVendorCall(
+                                        superseding,
+                                        "bcm-adr-00000000000000000000000000000012",
+                                        "20260902000000",
+                                        "20260902000000",
+                                    ),
+                                )
+                            rotated.countDown()
+                            check(releaseRotation.await(5, TimeUnit.SECONDS))
+                            prepared
+                        },
+                    )
+                }
+            assertThat(rotated.await(5, TimeUnit.SECONDS)).isTrue()
+
+            val staleCompletion =
+                executor.submit<Throwable?> {
+                    completionAttempted.countDown()
+                    runCatching {
+                        provisioning.completeAddress(firstPrepared, "0xSTALE_RACE", "20260902000001")
+                    }.exceptionOrNull()
+                }
+            assertThat(completionAttempted.await(5, TimeUnit.SECONDS)).isTrue()
+            assertThatThrownBy { staleCompletion.get(300, TimeUnit.MILLISECONDS) }
+                .isInstanceOf(TimeoutException::class.java)
+
+            releaseRotation.countDown()
+            val currentGeneration = rotation.get(5, TimeUnit.SECONDS)
+            assertThat(staleCompletion.get(5, TimeUnit.SECONDS))
+                .isInstanceOf(CreationRetryLaterException::class.java)
+            assertThat(addresses.find(firstPrepared.accountId, firstPrepared.network, firstPrepared.symbol)).isNull()
+
+            val completed = provisioning.completeAddress(currentGeneration, "0xCURRENT_RACE", "20260902000002")
+            assertThat(completed.address).isEqualTo("0xCURRENT_RACE")
+        } finally {
+            releaseRotation.countDown()
+            executor.shutdownNow()
+            executor.awaitTermination(5, TimeUnit.SECONDS)
+            jdbc.update("DELETE FROM bcm_addr_m WHERE acnt_id = ?", accountId)
+            jdbc.update("DELETE FROM bcm_addr_crtn_l WHERE acnt_id = ?", accountId)
+            jdbc.update("DELETE FROM bcm_acnt_m WHERE acnt_id = ?", accountId)
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `주소 공개 매핑 insert 뒤 원장 완료가 실패하면 두 변경을 함께 rollback한다`() {
+        val accountId = "acct_address_completion_rollback"
+        accounts.insert(account(accountId = accountId, ref = "address-completion-rollback-ref"))
+        val prepared =
+            reserveAndPrepareAddress(
+                addressCreationIntent(
+                    accountId = accountId,
+                    idempotencyKey = "bcm-adr-00000000000000000000000000000021",
+                ),
+            )
+        val trigger = "trg_test_fail_addr_completion"
+        val function = "bcm_test_fail_addr_completion"
+
+        try {
+            installCompletionFailureTrigger(
+                table = "bcm_addr_crtn_l",
+                trigger = trigger,
+                function = function,
+                mappingExistsPredicate =
+                    "SELECT 1 FROM bcm_addr_m " +
+                        "WHERE acnt_id = NEW.acnt_id AND ntwk_cd = NEW.ntwk_cd AND tkn_smbl = NEW.tkn_smbl",
+            )
+            assertThatThrownBy {
+                provisioning.completeAddress(prepared, "0xROLLBACK", "20260901000002")
+            }.isInstanceOf(DataAccessException::class.java)
+                .hasStackTraceContaining("forced completion failure after mapping insert")
+
+            assertThat(addresses.find(prepared.accountId, prepared.network, prepared.symbol)).isNull()
+            val unchanged = provisioning.findAddress(prepared.accountId, prepared.network, prepared.symbol)
+            assertThat(unchanged?.status).isEqualTo(CreationStatus.SUBMITTING)
+            assertThat(unchanged?.address).isNull()
+        } finally {
+            removeCompletionFailureTrigger("bcm_addr_crtn_l", trigger, function)
+            jdbc.update("DELETE FROM bcm_addr_m WHERE acnt_id = ?", accountId)
+            jdbc.update("DELETE FROM bcm_addr_crtn_l WHERE acnt_id = ?", accountId)
+            jdbc.update("DELETE FROM bcm_acnt_m WHERE acnt_id = ?", accountId)
+        }
+    }
+
+    @Test
     fun `없는 매핑은 null — 귀속 불명 입금의 분기 근거`() {
         assertThat(addresses.findByAddress("0xUNKNOWN", "ETHEREUM")).isNull()
         assertThat(accounts.findByTypeAndRef(AccountType.CUSTOMER, "000NONE")).isNull()
+    }
+
+    private fun accountCreationIntent(
+        accountId: String,
+        ref: String,
+        idempotencyKey: String,
+    ) = AccountCreationIntent(
+        accountId = accountId,
+        accountType = AccountType.CUSTOMER,
+        ref = ref,
+        vendorVaultName = "CUSTOMER:$ref",
+        idempotencyKey = idempotencyKey,
+        idempotencyKeyRegisteredAt = "20260901000000",
+        lastVendorCallPreparedAt = null,
+        status = CreationStatus.PENDING,
+        attemptCount = 0,
+        vendorVaultId = null,
+        registeredAt = "20260901000000",
+        lastChangedAt = "20260901000000",
+    )
+
+    private fun addressCreationIntent(
+        accountId: String,
+        idempotencyKey: String,
+    ) = DepositAddressCreationIntent(
+        accountId = accountId,
+        network = "ETHEREUM",
+        symbol = "USDC",
+        vendorAssetId = "USDC_ERC20",
+        idempotencyKey = idempotencyKey,
+        idempotencyKeyRegisteredAt = "20260901000000",
+        lastVendorCallPreparedAt = null,
+        status = CreationStatus.PENDING,
+        attemptCount = 0,
+        address = null,
+        registeredAt = "20260901000000",
+        lastChangedAt = "20260901000000",
+    )
+
+    private fun reserveAndPrepareAccount(intent: AccountCreationIntent): AccountCreationIntent {
+        val reserved = provisioning.reserveAccount(intent)
+        val submitting = provisioning.beginAccountAttempt(reserved.accountId, "20260901000001")
+        return checkNotNull(
+            provisioning.prepareAccountVendorCall(
+                submitting,
+                submitting.idempotencyKey,
+                submitting.idempotencyKeyRegisteredAt,
+                "20260901000001",
+            ),
+        )
+    }
+
+    private fun reserveAndPrepareAddress(intent: DepositAddressCreationIntent): DepositAddressCreationIntent {
+        val reserved = provisioning.reserveAddress(intent)
+        val submitting =
+            provisioning.beginAddressAttempt(
+                reserved.accountId,
+                reserved.network,
+                reserved.symbol,
+                "20260901000001",
+            )
+        return checkNotNull(
+            provisioning.prepareAddressVendorCall(
+                submitting,
+                submitting.idempotencyKey,
+                submitting.idempotencyKeyRegisteredAt,
+                "20260901000001",
+            ),
+        )
+    }
+
+    private fun requiresNewTransaction(): TransactionTemplate =
+        TransactionTemplate(transactionManager).apply {
+            propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
+        }
+
+    private fun installCompletionFailureTrigger(
+        table: String,
+        trigger: String,
+        function: String,
+        mappingExistsPredicate: String,
+    ) {
+        removeCompletionFailureTrigger(table, trigger, function)
+        jdbc.execute(
+            """
+            CREATE FUNCTION $function() RETURNS trigger
+            LANGUAGE plpgsql
+            AS ${'$'}function${'$'}
+            BEGIN
+              IF NOT EXISTS ($mappingExistsPredicate) THEN
+                RAISE EXCEPTION 'mapping insert did not precede completion';
+              END IF;
+              RAISE EXCEPTION 'forced completion failure after mapping insert';
+            END;
+            ${'$'}function${'$'}
+            """.trimIndent(),
+        )
+        jdbc.execute(
+            """
+            CREATE TRIGGER $trigger
+            BEFORE UPDATE OF crtn_stcd ON $table
+            FOR EACH ROW
+            WHEN (NEW.crtn_stcd = 'COMPLETED')
+            EXECUTE FUNCTION $function()
+            """.trimIndent(),
+        )
+    }
+
+    private fun removeCompletionFailureTrigger(
+        table: String,
+        trigger: String,
+        function: String,
+    ) {
+        jdbc.execute("DROP TRIGGER IF EXISTS $trigger ON $table")
+        jdbc.execute("DROP FUNCTION IF EXISTS $function()")
     }
 }
