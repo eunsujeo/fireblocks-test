@@ -21,6 +21,7 @@
 | 19 | **`bcm_raw_tx_l` 파티션 생성 주체** — 부모만 생성돼 파티션 없인 INSERT 전부 실패. 배포 시 vs 보관 배치 시 결정 | ✅ 해결 (2026-08-13) — 대상 월 시작 전에 배포 역할이 월별 파티션을 선생성한다. 런타임 애플리케이션은 DDL 권한 없이 DML만 수행하고, 누락 시 보관·인박스 정리·성공 heartbeat를 함께 실패시킨다. waas-wiki `3b033ca`, 사본 `1788071` |
 | 16 | **일시 `VARCHAR(16)` 의 값 포맷** | ✅ 해결 (2026-08-05) — **`yyyyMMddHHmmss` 14자** (사용자 확정 — 은행권 관례, 여유 2자). 변환은 support 유틸 단일 관리 — 코어 규약 확인 시 한 곳 조정. CLAUDE.md 3절 반영 |
 | 20 | **(network, symbol) → 벤더 assetId 변환 표** | ✅ 해결 (2026-08-06) — 07-asset-master의 `bcm_vndr_ast_m`. 벤더 경계에서 DB 조회, 미등록은 `ASSET_NOT_SUPPORTED`; 실제 assetId 값은 Admin 조회·검증 후 등록 |
+| 22 | **GET 오퍼레이션의 400 스펙 응답 표면 부재** | ✅ 해결 (2026-09-01) — 기존 경로변수·query 검증을 유지하고 `depositAddressesOf`·`balancesOf`에 `400 ValidationFailed`를 추가해 OpenAPI v0.10.2로 재생성했다. 두 GET의 실제 `VALIDATION_FAILED` envelope를 스펙 validator로 고정했다. |
 | 26 | **일시 14자 컬럼의 zone 규약 (KST vs UTC)** (T2.5 code-reviewer C1) | ✅ 해결 갱신 (2026-08-14) — **모든 DB `_dttm`·`_dt`·`base_dt`를 UTC로 통일.** DB 시각용 Clock 빈 2곳은 `blockchain-manager-application`(이를 `bcm-api`·`bcm-webhook`이 공유)과 `bcm-bat`의 `Clock.systemUTC()`이고 벤더 epoch도 공통 유틸에서 UTC로 변환한다. API는 ISO 8601 UTC(`Z`), 화면·정산·보고서에서만 필요한 시간대로 변환한다. 2026-08-06 KST 결정은 대체됐다. |
 | 27 | **Admin API OpenAPI 계약 부재** | ✅ 해결 (2026-08-06) — 스펙 v0.2.0에 벤더 중립 Admin API 7개와 요청·응답 스키마 확정, 스펙 자동 대조 테스트 추가 |
 | 31 | **07의 Fireblocks 응답 필드 위치 정정** | ✅ 해결 (2026-08-31) — 신규 `GET /v1/assets`의 온체인 소수 자릿수를 `onchain.decimals`로 정정하고 FIAT용 root `decimals`와 구분했다. 파서는 중첩값을 우선하며 root 값은 FIAT·기존 평면 응답 호환 fallback이다. `GET /v1/blockchains`의 체인 폐기 여부는 `metadata.deprecated`다. |

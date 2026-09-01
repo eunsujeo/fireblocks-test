@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.10.1`
+`v0.10.2`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -517,6 +517,26 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
+`400` — 요청 검증 실패
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "amount must be a decimal string"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
 `404` — 계정 없음
 
 ```json
@@ -587,6 +607,26 @@ _응답_
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `data` | AssetBalance[] | 필수 | 자산별 잔액 — 요청 필터에 걸린 것만 |
+| `meta` | Meta | 필수 |  |
+
+
+`400` — 요청 검증 실패
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "amount must be a decimal string"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
 | `meta` | Meta | 필수 |  |
 
 

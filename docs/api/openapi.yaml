@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Blockchain Manager API
-  version: "0.10.1"
+  version: "0.10.2"
   x-curl: true
   description: |
     블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
@@ -422,6 +422,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DepositAddressListResponse' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
         '404': { $ref: '#/components/responses/AccountNotFound' }
 
   /accounts/{accountId}/balances:
@@ -456,6 +457,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AssetBalanceListResponse' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
         '404': { $ref: '#/components/responses/AccountNotFound' }
 
   /admin/networks:
