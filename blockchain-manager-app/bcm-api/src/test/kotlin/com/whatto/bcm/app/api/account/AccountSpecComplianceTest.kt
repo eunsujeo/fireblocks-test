@@ -101,6 +101,23 @@ class AccountSpecComplianceTest {
     }
 
     @Test
+    fun `GET 계정 경로변수 검증 400 응답이 주소와 잔액 스펙 ErrorResponse 에 명시된다`() {
+        val tooLongAccountId = "a".repeat(65)
+
+        mockMvc
+            .perform(get("/accounts/$tooLongAccountId/addresses"))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+            .andExpect(openApi().isValid(SPEC))
+
+        mockMvc
+            .perform(get("/accounts/$tooLongAccountId/balances"))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+            .andExpect(openApi().isValid(SPEC))
+    }
+
+    @Test
     fun `createDepositAddresses 200 응답이 스펙 AddressesResponse 와 일치한다 (부분 실패 포함)`() {
         every { accountService.createDepositAddresses("acct_test_01", "USDC", listOf("ETHEREUM", "TRON")) } returns
             listOf(
