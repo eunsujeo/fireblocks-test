@@ -3,7 +3,7 @@
 
 [versions]
 kotlin = "2.3.21"          # Boot 4.1 관리 라인(2.3.x) 최신
-spring-boot = "4.1.0"
+spring-boot = "4.1.1"      # Spring Framework 7.0.9 — CVE-2026-59313/59314 수정
 junit = "6.1.2"            # domain(무의존 모듈)용 — Boot 모듈은 BOM 관리 버전 사용
 assertj = "3.27.7"         # domain 등 무의존 모듈용 — Boot 모듈은 starter-test 포함분
 archunit = "1.4.2"
@@ -15,7 +15,7 @@ openapi-validator = "3.0.0" # 스펙 스키마 자동 대조 — OpenAPI 3.1 지
 sentry = "8.51.0"          # 사내 표준 — support 모듈 모니터링 (architecture.md)
 dependency-check = "12.2.2" # OWASP Dependency-Check — Gradle 9.x 지원, 2026-05 최신 안정판
 log4j = "2.25.5"           # CVE-2026-49844 수정 버전
-postgresql = "42.7.12"     # CVE-2026-54291 수정 버전
+postgresql = "42.7.13"      # CVE-2026-54291 수정 계열의 현재 패치
 web3j = "6.0.0"            # 로컬 Stub raw EVM transaction 서명 — Maven Central 2026-06-29 정식
 
 [libraries]

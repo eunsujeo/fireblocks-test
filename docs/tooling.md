@@ -7,14 +7,14 @@
 
 | 항목 | 버전 | 근거 |
 |---|---|---|
-| Spring Boot | **4.1.x** (4.1.0 = 2026-06-10) | OSS 지원 2027-07 까지. 3.5.x 는 2026-06-30 OSS 종료 — 신규 프로젝트에 부적합. 4.0.x 도 2026-12 종료라 4.1 이 착지점 |
-| Spring Framework | 7.0.x | Boot 4.1 요구 (7.0.8+). Jakarta EE 11 · JSpecify null-safety |
+| Spring Boot | **4.1.x** (현재 4.1.1) | OSS 지원 2027-07 까지. 3.5.x 는 2026-06-30 OSS 종료 — 신규 프로젝트에 부적합. 4.0.x 도 2026-12 종료라 4.1 이 착지점 |
+| Spring Framework | 7.0.x | Boot 4.1 요구 (현재 7.0.9). Jakarta EE 11 · JSpecify null-safety |
 | JDK | **25 LTS** | Spring 권장 LTS · Oracle 지원 2033. Boot 4.1 은 17~26 지원 |
 | Kotlin | **2.3.x** (Boot-managed) | Boot 4.1 관리 버전. CVE-2026-53914의 안전한 2.4.20 GA 대기 중 — PLAN #41의 build cache 차단 유지 |
 | Gradle | **9.6.x** · Kotlin DSL | Boot 4.1 은 8.14+/9.x 지원. version catalog 사용 |
 | Foundry / Anvil | **1.7.1** | T11.2 결정적 EVM 체인. [공식 immutable release](https://github.com/foundry-rs/foundry/releases/tag/v1.7.1), 개발 빌드만 Forge 사용 · 실행 패키지는 Anvil만 사용 |
 | Solidity | **0.8.35** · Prague | 테스트 ERC-20·운영 ABI Sweep artifact compiler. optimizer 200 + via IR + metadata hash 제거 |
-| Spring Kafka | 4.1.0 | Boot 4.1 페어. ★ Boot 4 는 `spring-boot-starter-kafka` 명시 필요 (모듈화된 스타터) |
+| Spring Kafka | 4.1.1 | Boot 4.1 페어. ★ Boot 4 는 `spring-boot-starter-kafka` 명시 필요 (모듈화된 스타터) |
 | Spring Batch | 6.0.x | Boot 4 페어. 6 은 메이저 개편 (`ChunkOrientedStep` 등) — 5.x 예제 코드 참고 시 주의 |
 
 Boot 4 에서 신규 시작이라 싸게 얻는 것: Jackson 3 (2와 비호환 — 처음부터 3), 모듈화 스타터, JSpecify.
@@ -50,8 +50,8 @@ CI 의존성 취약점 검사는 OWASP Dependency-Check 12.2.2 aggregate task를
 `NVD_DATAFEED_URL`로 교체한다. suppression은 근거·만료일·추적 이슈 없이 추가하지 않으며, 추가된 규칙이 더 이상 쓰이지 않아도
 빌드를 실패시킨다.
 
-**2026-08-17 스캔 후속** — pgJDBC는 CVE-2026-54291 수정 버전 42.7.12, Log4j는 CVE-2026-49844 수정 버전 2.25.5로
-Boot 4.1.0 BOM을 좁게 보완한다. Kotlin CVE-2026-53914는 build cache metadata 문제이며 안전한 2.4.20 GA가 Maven Central에 아직
+**2026-08-17 스캔 후속** — pgJDBC는 CVE-2026-54291 수정 계열의 현재 42.7.13, Log4j는 CVE-2026-49844 수정 버전 2.25.5로
+Boot BOM을 좁게 보완한다. Kotlin CVE-2026-53914는 build cache metadata 문제이며 안전한 2.4.20 GA가 Maven Central에 아직
 없다. `org.gradle.caching=false`와 CI `--no-build-cache`로 실제 영향면을 차단하고, runtime stdlib/reflect CPE 오탐 suppression은
 PLAN #41·2026-09-30 만료로 제한한다.
 
