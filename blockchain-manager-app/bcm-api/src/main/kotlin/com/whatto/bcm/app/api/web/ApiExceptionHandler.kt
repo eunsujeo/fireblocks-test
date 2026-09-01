@@ -4,6 +4,7 @@ import com.whatto.bcm.domain.exception.BcmException
 import com.whatto.bcm.domain.exception.BulkAssetMappingException
 import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
+import com.whatto.bcm.domain.exception.VendorApiException
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
@@ -39,7 +40,14 @@ class ApiExceptionHandler {
                 is CreationRetryLaterException -> exception.retryAfterSeconds
                 else -> null
             }
-        log.warn("비즈니스 예외 code=${errorCode.code}: ${exception.message}", exception)
+        if (exception is VendorApiException) {
+            log.error(
+                "벤더 시스템 예외 code=${errorCode.code} operation=${exception.operation} httpStatus=${exception.httpStatus}",
+                exception,
+            )
+        } else {
+            log.warn("비즈니스 예외 code=${errorCode.code}: ${exception.message}", exception)
+        }
         return respond(
             errorCode,
             request,
