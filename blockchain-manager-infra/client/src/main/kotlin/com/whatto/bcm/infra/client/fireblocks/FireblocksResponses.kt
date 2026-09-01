@@ -19,6 +19,17 @@ internal data class VaultAccountPagingResponse(
     val after: String? = null,
 )
 
+internal data class VaultAccountAssetAddressResponse(
+    val assetId: String? = null,
+    val address: String? = null,
+    val tag: String? = null,
+)
+
+internal data class VaultAccountAssetAddressListResponse(
+    val addresses: List<VaultAccountAssetAddressResponse> = emptyList(),
+    val paging: VaultAccountPagingResponse? = null,
+)
+
 internal data class CreateVaultAssetResponse(
     val id: String? = null,
     val address: String? = null,

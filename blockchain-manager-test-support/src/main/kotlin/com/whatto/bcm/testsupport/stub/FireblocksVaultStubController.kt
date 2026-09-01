@@ -29,7 +29,9 @@ internal class FireblocksVaultStubController(
     fun vaults(
         @RequestParam(defaultValue = "200") limit: Int,
         @RequestParam(required = false) after: String?,
-    ): VaultAccountListResponse = state.vaults(limit, after)
+        @RequestParam(required = false) namePrefix: String?,
+        @RequestParam(required = false) nameSuffix: String?,
+    ): VaultAccountListResponse = state.vaults(limit, after, namePrefix, nameSuffix)
 
     @PostMapping("/v1/vault/accounts/{vaultId}/{assetId}")
     fun createWallet(
@@ -43,6 +45,14 @@ internal class FireblocksVaultStubController(
         @PathVariable vaultId: String,
         @PathVariable assetId: String,
     ): VaultAssetResponse = state.balance(vaultId, assetId)
+
+    @GetMapping("/v1/vault/accounts/{vaultId}/{assetId}/addresses_paginated")
+    fun addresses(
+        @PathVariable vaultId: String,
+        @PathVariable assetId: String,
+        @RequestParam(defaultValue = "200") limit: Int,
+        @RequestParam(required = false) after: String?,
+    ): VaultAccountAssetAddressListResponse = state.addresses(vaultId, assetId, limit, after)
 
     @GetMapping("/__stub/vaults/by-address/{assetId}")
     fun vaultByAddress(
@@ -87,12 +97,19 @@ internal class FireblocksVaultState(
     fun vaults(
         limit: Int,
         after: String?,
+        namePrefix: String? = null,
+        nameSuffix: String? = null,
     ): VaultAccountListResponse =
         lock.withLock {
             require(limit in 1..500) { "limit must be between 1 and 500" }
+            val filtered =
+                vaults.values.filter { vault ->
+                    (namePrefix == null || vault.name.startsWith(namePrefix)) &&
+                        (nameSuffix == null || vault.name.endsWith(nameSuffix))
+                }
             val start = after?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-            val page = vaults.values.drop(start).take(limit)
-            val next = (start + page.size).takeIf { it < vaults.size }?.toString()
+            val page = filtered.drop(start).take(limit)
+            val next = (start + page.size).takeIf { it < filtered.size }?.toString()
             VaultAccountListResponse(
                 accounts =
                     page.map { vault ->
@@ -104,6 +121,23 @@ internal class FireblocksVaultState(
                     },
                 paging = VaultAccountPagingResponse(next),
             )
+        }
+
+    fun addresses(
+        vaultId: String,
+        assetId: String,
+        limit: Int,
+        after: String?,
+    ): VaultAccountAssetAddressListResponse =
+        lock.withLock {
+            require(limit in 1..500) { "limit must be between 1 and 500" }
+            vault(vaultId)
+            val wallet = wallets[vaultId to assetId] ?: notFound("vault asset wallet does not exist")
+            val all = listOf(VaultAccountAssetAddressResponse(assetId, wallet.address, wallet.tag))
+            val start = after?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+            val page = all.drop(start).take(limit)
+            val next = (start + page.size).takeIf { it < all.size }?.toString()
+            VaultAccountAssetAddressListResponse(page, VaultAccountPagingResponse(next))
         }
 
     fun createWallet(
@@ -216,6 +250,17 @@ internal data class VaultAccountResponse(
 
 internal data class VaultAccountAssetResponse(
     val id: String,
+)
+
+internal data class VaultAccountAssetAddressResponse(
+    val assetId: String,
+    val address: String,
+    val tag: String?,
+)
+
+internal data class VaultAccountAssetAddressListResponse(
+    val addresses: List<VaultAccountAssetAddressResponse>,
+    val paging: VaultAccountPagingResponse,
 )
 
 internal data class VaultAccountListResponse(

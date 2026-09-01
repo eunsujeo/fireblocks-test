@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.10.0`
+`v0.10.1`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -105,8 +105,12 @@ DAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.
 | `CONFLICT` | 409 | 같은 멱등 키에 다른 내용이 왔다 (예: 이미 쓴 externalTxId 로 금액·목적지가 다른 제출) |
 | `UNPROCESSABLE_ENTITY` | 422 | 요청 형식은 맞지만 source event가 FINALIZED/완료 조건을 충족하지 않음 |
 | `SUBMIT_IN_PROGRESS` | 503 | 같은 `externalTxId` 의 앞선 제출이 처리 중이다 — **오류가 아니라 지연**이다. `Retry-After` 뒤에 같은 요청을 그대로 다시 보낸다 |
+| `CREATION_RETRY_LATER` | 503 | vault·wallet 생성의 새 키 호출을 보수적으로 미룬다. `retryAfterSeconds` 뒤 같은 업무 요청을 다시 보낸다 |
 | `RELAY_REJECTED` | 502 | 대납 relay 가 전송을 못 대거나 거절 |
 | `INTERNAL` | 500 | 서버 내부 오류 |
+
+표의 HTTP는 단건·요청 전체 오류의 최상위 status다. 주소 batch는 부분 성공 계약이라 최상위 HTTP 200을 유지하고,
+네트워크별 `error`에 `CONFLICT` 또는 `CREATION_RETRY_LATER`를 담는다. 후자는 `retryAfterSeconds`도 함께 준다.
 
 `SUBMIT_IN_PROGRESS` 를 `CONFLICT` 와 나눈 이유 — `CONFLICT` 는 "키를 잘못 썼다"는 확정 오류라 재시도해도 같은 답이 온다.
 `SUBMIT_IN_PROGRESS` 는 잠시 뒤 성공할 상황이다. 둘을 한 코드로 묶으면 호출 쪽이 사고와 지연을 구분할 수 없다.
@@ -225,6 +229,12 @@ sequenceDiagram
 vault 를 만들고 `ref ↔ accountId` 매핑을 반환한다. `ref` 는 호출 쪽 계정 ID 를 그대로 쓴다.
 
 - (`accountType`, `ref`) 로 멱등하다 — 재요청하면 같은 `accountId` 를 돌려준다.
+- 매니저는 Fireblocks 호출 전에 고정 `accountId`와 현재 세대 `Idempotency-Key`를 생성 원장에 기록한다. 벤더 성공 뒤 로컬 저장이
+  실패한 재시도는 vault 이름의 exact match를 전 페이지 조회해 후보가 하나일 때만 원래 매핑을 복구한다.
+- 후보가 없으면 남은 24시간 창이 설정된 벤더 최장 호출시간 전체를 수용할 때만 현재 키를 재사용한다. 그렇지 않고 마지막 POST
+  준비 + 최장 호출시간 + 24시간 + 초 단위 정밀도 여유 1초의 안전시각도 지나지 않았으면 새 키 호출을
+  `503 CREATION_RETRY_LATER`와 `Retry-After`로 보류한다. 안전시각 뒤 최신 시도만 새 키를 준비한다.
+  준비 시각은 실제 POST 증거가 아니라 중복 방지용 상한이다.
 - 고객·시스템(운영) 계정을 같은 오퍼레이션으로 만든다. **두 유형의 ID 는 값이 겹칠 수 있어 `accountType` 이 필수**다.
 - 매니저는 `ref` 를 불투명 문자열로 다루고 내용을 파싱해 분기하지 않는다.
 
@@ -295,6 +305,49 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
+`409` — 상태·멱등 충돌
+
+```json
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "externalTxId already used"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`503` — 벤더 생성 여부가 불확실해 마지막 POST 준비 뒤 설정된 벤더 최장 호출시간, 24시간과 초 단위 정밀도 여유 1초가 모두 지날 때까지
+새 멱등 키 호출을 보수적으로 미룬다. `Retry-After` 뒤 같은 업무 요청을 다시 보낸다.
+
+
+```json
+{
+  "error": {
+    "code": "CREATION_RETRY_LATER",
+    "message": "vendor resource creation must be retried later",
+    "retryAfterSeconds": 82800
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
 #### `POST` https://{baseUrl}/blockchain/manage-api/accounts/{accountId}/addresses
 
 **입금 주소 여러 자산 한 번에 발급**
@@ -302,8 +355,14 @@ _응답_
 한 토큰의 입금 주소를 여러 네트워크에 발급한다. `(accountId, network, symbol)` 로 **네트워크마다 멱등**하다.
 
 - 결과는 항목마다 `address` 또는 `error` 로 온다 — **둘 중 하나만** 채워진다. HTTP 는 항목 결과와 무관하게 `200` 이고, 응답은 요청과 같은 순서다.
+- 생성 회수 후보 복수·cursor 반복은 해당 네트워크의 `error.code=CONFLICT`다. 24시간 키 교체 cooldown은
+  `error.code=CREATION_RETRY_LATER`와 `error.retryAfterSeconds`로 반환해 재시도 가능한 지연임을 구분한다.
 - 지원하지 않는 네트워크가 **하나라도 섞이면 아무것도 발급하지 않고 `400`** 이다. 발급을 시도했다가 전부 실패한 것(`200`, 모든 항목에 `error`)과 구분된다.
 - **재시도는 같은 요청을 그대로 보낸다** — 이미 발급된 네트워크는 벤더를 부르지 않고 같은 주소가 오고, 실패분만 다시 시도된다. 실패분만 골라 보내도 결과는 같다.
+- 네트워크별 Fireblocks 호출 전에 생성 원장과 당시 vendor assetId를 고정한다. 벤더 성공 뒤 로컬 저장이 실패한 재시도는
+  해당 vault wallet의 주소를 전 페이지 조회해 후보가 하나일 때만 복구하며, 여러 후보 중 하나를 임의 선택하지 않는다.
+  후보가 없으면 남은 24시간 창이 설정된 벤더 최장 호출시간 전체를 수용할 때만 현재 키를 재사용한다. 그렇지 않으면 마지막
+  POST 준비 + 최장 호출시간 + 24시간 + 초 단위 정밀도 여유 1초의 안전시각 뒤 최신 시도만 새 키를 준비한다.
 - 한 요청 **20네트워크**까지. 네트워크마다 벤더를 한 번 부른다.
 - 네트워크 목록은 호출 쪽이 정한다 — 매니저가 토큰만 받아 네트워크를 채우지 않는다.
 
@@ -3863,6 +3922,7 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 |---|---|---|---|
 | `code` | string | 필수 | 에러 코드 (API Conventions 표 참조) |
 | `message` | string | 필수 | 사람이 읽는 설명 — 분기 판단은 `code` 로 한다 |
+| `retryAfterSeconds` | integer | - | 재시도 가능한 일시 지연에서 같은 업무 요청을 다시 보내기까지 기다릴 초 |
 | `details` | ErrorDetails | - |  |
 
 

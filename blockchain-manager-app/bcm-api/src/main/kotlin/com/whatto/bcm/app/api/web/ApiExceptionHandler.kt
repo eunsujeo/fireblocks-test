@@ -2,6 +2,7 @@ package com.whatto.bcm.app.api.web
 
 import com.whatto.bcm.domain.exception.BcmException
 import com.whatto.bcm.domain.exception.BulkAssetMappingException
+import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.ConstraintViolationException
@@ -32,11 +33,17 @@ class ApiExceptionHandler {
         request: HttpServletRequest,
     ): ResponseEntity<ErrorResponse> {
         val errorCode = DomainExceptionResolver.resolve(exception)
+        val retryAfterSeconds =
+            when (exception) {
+                is SubmissionInProgressException -> exception.retryAfterSeconds
+                is CreationRetryLaterException -> exception.retryAfterSeconds
+                else -> null
+            }
         log.warn("비즈니스 예외 code=${errorCode.code}: ${exception.message}", exception)
         return respond(
             errorCode,
             request,
-            retryAfterSeconds = (exception as? SubmissionInProgressException)?.retryAfterSeconds,
+            retryAfterSeconds = retryAfterSeconds,
             details =
                 (exception as? BulkAssetMappingException)?.let {
                     ErrorResponse.ErrorDetails(it.index, it.network, it.symbol, it.reason)
@@ -113,7 +120,13 @@ class ApiExceptionHandler {
         return response
             .body(
                 ErrorResponse(
-                    error = ErrorResponse.ErrorBody(code = errorCode.code, message = errorCode.message, details = details),
+                    error =
+                        ErrorResponse.ErrorBody(
+                            code = errorCode.code,
+                            message = errorCode.message,
+                            retryAfterSeconds = retryAfterSeconds,
+                            details = details,
+                        ),
                     meta = Meta(requestId = RequestIdFilter.requestIdOf(request)),
                 ),
             )

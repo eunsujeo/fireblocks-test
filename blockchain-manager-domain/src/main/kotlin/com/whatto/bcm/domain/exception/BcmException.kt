@@ -33,6 +33,12 @@ class SubmissionInProgressException(
     val retryAfterSeconds: Long,
 ) : BcmException("submission in progress: externalTransactionId=$externalTransactionId")
 
+/** 생성 키 교체 전 보수적 대기 — 마지막 POST 준비 이후 이 시간만큼 지나면 같은 업무 요청을 재시도한다. */
+class CreationRetryLaterException(
+    val resourceKey: String,
+    val retryAfterSeconds: Long,
+) : BcmException("vendor resource creation must be retried later: resourceKey=$resourceKey retryAfterSeconds=$retryAfterSeconds")
+
 /** 등록되지 않은 (network, symbol) — 형식 오류와 구분해 호출자가 지원 자산 여부를 판별한다. */
 class AssetNotSupportedException(
     val network: String,

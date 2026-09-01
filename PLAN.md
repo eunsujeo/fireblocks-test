@@ -140,6 +140,16 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
   resource ID 최대 30일, query 최근 72시간·요청 창 최대 24시간으로 API별 범위를 분리했다. BCM 수동 복구는 기존처럼
   `resend_failed`만 사용하고 24시간보다 오래된 거래 공백은 tx 대사로 회수한다. 99 복구 설계와 runbook의 30일 잔존 문구도
   같은 계약으로 정정했으며 런타임 계약은 바뀌지 않는다.
+- [x] **T14.27 계정·주소 생성 결과 회수 원장** (2026-09-01) — V20 `bcm_acnt_crtn_l`·`bcm_addr_crtn_l`에
+  사전 생성 의도, 40자 이하 현재 Fireblocks 멱등 키 세대·마지막 POST 준비 시각, vault 이름·assetId snapshot과 시도 횟수를 먼저 커밋한다. 벤더 응답과
+  `bcm_acnt_m`·`bcm_addr_m` 공개 매핑은 한 DB 트랜잭션으로 완료하고, 재시도는 전체 page의 exact vault 이름 또는 wallet 주소를
+  조회해 유일 후보만 회수한다. 후보 복수·cursor 반복은 계정 HTTP 409·주소별 `CONFLICT`로 fail-closed한다. 후보가 없으면 유효한
+  현재 키는 남은 24시간 창이 벤더 최장 호출시간 전체를 수용할 때만 쓰고, 마지막 POST 준비 + 설정된 벤더 최장 호출시간 +
+  24시간 + 초 단위 정밀도 여유 1초의 안전시각 전이면
+  `CREATION_RETRY_LATER`로 보류하며 최장 호출시간은 5분 이하로 제한한다. 안전시각 뒤 최신 시도만 CAS로 새 키를 준비하고,
+  완료도 호출에 사용한 키 세대를 행 잠금 아래 검사해 옛 호출 결과가 새 세대 매핑을 선점하지 못하게 한다. 동시 요청이 먼저 완료한
+  의도도 공개 매핑으로 수렴한다. CI 취약점 검사에서 확인한 Spring Framework
+  CVE-2026-59313/59314는 Spring Boot 4.1.1(Framework 7.0.9)로 올려 함께 해소했다.
 
 **예상 공수**: 1명 10~16인일(설계·API/DB 3~4, 실행 전환 3~5, 완료 확인·Admin/관측 2~3, 시스템 테스트·converge 2~4).
 실 Fireblocks mutation은 포함하지 않으며 별도 명시 승인 전까지 Stub+Anvil로 검증한다.
@@ -186,8 +196,6 @@ T15.0 결정 후 별도 산정한다.
 | 21 | **입금 주소 memoTag 비영속** — 스펙 Address.memoTag(Tag/Memo 체인용)가 있으나 03 `bcm_addr_m` 에 태그 컬럼이 없어 발급 후 재조회에서 돌려줄 수 없다. EVM 한정이면 무해(항상 null) — Tag/Memo 자산 지원 시 03 개정 필요 | Tag/Memo 자산 채택 시 — 설계(waas-wiki 03) 질의 |
 | 22 | **GET 오퍼레이션의 400 이 스펙 응답 표면에 없음** (T2.5 design-sync) — 코드는 경로변수 maxLength 초과를 400 처리(파라미터 스키마는 스펙에 있음), `depositAddressOf`·`balanceOf` 응답 표면은 200·404 만 — 스펙 내부 비일관. 스펙에 400 추가 또는 GET 검증 제거 | 차기 스펙 개정 시 — 사용자 결정 |
 | 23 | **balanceOf — "계정 있음·자산 지갑 미발급" 케이스 계약 미정의** (T2.5 design-sync, 중) — 벤더 4xx → VendorApiException → 500 으로 떨어짐. `depositAddressOf` 는 같은 구분을 `data: null` 로 명시하는데 balanceOf 는 침묵. DAW-CORE 가 주소 발급 전 잔액 조회 시 500 | 차기 스펙 개정 시 — DAW-CORE 정합 포함 사용자 결정 |
-| 24 | **생성 오퍼레이션의 409 가 스펙 표면에 없음** (T2.5 design-sync) — UNIQUE 경합 후 재조회마저 실패하는 극단 경로에서 409 전파, 스펙 CONFLICT 는 submitTransaction 에만 표기. 정상 운영 도달 불가한 방어 경로 | 차기 스펙 개정 시 |
-| 25 | **벤더 생성 성공 + 로컬 insert 실패(비-충돌) 복구 경로** (T2.5 code-reviewer M3) — 멱등 창(24h) 이후 재시도가 벤더 "이미 존재" 4xx → 500 영구 반복(고아 vault·지갑). "already exists" 식별 fallback 또는 벤더-로컬 대사 항목 필요 | Phase 8 대사 설계 시 함께 — 또는 조기 fallback 구현. **참고: 제출 경로는 같은 문제를 "원장 먼저, 벤더 나중 + 벤더 조회로 회수"로 풀었다(02 출금 절·#6)** — 계정·주소 생성에도 같은 형태를 쓸지 검토 |
 | 30 | **카탈로그 동기화 다중 인스턴스 실행 제어** — 현재 각 bcm-bat 인스턴스의 `@Scheduled`가 동시에 실행될 수 있다. 중복 실행을 허용할지, `bcm_job_m`/DB lock으로 단일 실행할지 배치 운영 규약 확정 필요 | bcm-bat 다중 인스턴스 배포 전 |
 | 34 | **거래 목록 커서의 벤더 조합 동작 미실측** — ① 정렬 지정 시 next 커서가 오는가 ② next 가 `sourceType`/`sourceId` 필터를 보존하는가 ③ next 와 필터를 함께 보내도 되는가. 공식 API 에 파라미터는 있으나 **조합은 실측 없음**. **외부 계약은 벤더와 분리 완료** — 매니저 커서에 최초 필터·정렬과 `(createdAt, txId)` 위치를 담고, 벤더 커서는 한 HTTP 요청 안의 내부 페이징에만 쓴다. 마지막에도 nextCursor를 발급하며 동일 시각 거래·asc 증분 회귀 테스트가 있다. 내부 페이징은 커서마다 발신 vault 필터를 재전송하고 응답 vault가 다르면 전체 거절한다 | sandbox 실측 — 내부 페이징 조합 확인 |
 | 35 | **제출 직후 조회·알림의 빈 필드** — 벤더 문서상 `sourceAddress`·`destinationAddress` 는 체인 등장 전 비어 있을 수 있다. 우리 PoC 는 입금 `CONFIRMING` 부터라 그 구간 미관측. **스펙은 nullable 로 열었다**(v0.6.0 — `Transfer.from`/`to`, `ChainEvent.to`). 근거: 열지 않으면 제출 응답을 못 받았을 때 쓰는 `transactionByExternalTxId` 가 바로 그 시점에 깨진다. ★ **`amountInfo.amount` 가 제출 직후에도 항상 있는지는 미확인** — 없으면 현재 파서가 필수로 읽어 그 알림이 격리된다 | Phase 5 E2E 실측 — 결과에 따라 파서·스펙 조정 |

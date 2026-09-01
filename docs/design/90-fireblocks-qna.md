@@ -5,6 +5,30 @@ status: To Do
 
 Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다.
 
+## Vault·wallet 생성 회수 범위 — 공식 문서 확인 (2026-09-01)
+
+**Q.** `Idempotency-Key`만으로 vault·wallet 생성을 영구 멱등하게 회수할 수 있나?
+**A. (공식 문서 확인)** 없다. POST의 `Idempotency-Key`는 최대 40자이고 Fireblocks가 원응답을 24시간 보관한다. 24시간 뒤에는
+새 키가 필요하므로, BCM은 생성 의도와 현재 키 세대·마지막 POST 준비 시각을 벤더 호출 전에 자기 DB에 남기고 재시도 전 벤더 상태를
+대조해야 한다. 현재 키는 남은 24시간 창이 설정된 벤더 최장 호출시간 전체를 수용할 때만 재사용한다. 준비 시각은 실제 POST 증거가
+아니라 그 이후 호출됐을 수 있다는 보수적 상한이다. 후보가 없더라도 마지막 준비 뒤 설정된 벤더 최장 호출시간과 24시간,
+초 단위 저장 정밀도 여유 1초가 모두 지나기 전에는 `CREATION_RETRY_LATER`와 남은 초를 반환한다. 최장 호출시간은 5분 이하로
+제한하고 안전시각이 지난 때만 최신 시도가 CAS로 새 키를 준비한다. 완료도 호출에 사용한 키 세대를 행 잠금 아래 다시 검사하므로,
+옛 세대의 늦은 응답이 새 세대의 공개 매핑을 선점하지 못한다.
+([API Idempotency](https://developers.fireblocks.com/reference/api-idempotency))
+
+**Q.** vault 생성 응답을 잃었을 때 이름으로 후보를 제한해 회수할 수 있나?
+**A. (공식 문서 확인)** `GET /v1/vault/accounts_paged`는 `namePrefix`·`nameSuffix`·`after`·`limit`을 지원한다. BCM은 조합 동작을
+추측하지 않고 의도에 고정한 전체 이름을 `namePrefix`로 보낸다. cursor 끝까지 읽은 뒤 응답 `name`을 exact match로 다시 검사해 정확히
+하나인 경우만 자동 회수한다.
+([Get vault accounts (Paginated)](https://developers.fireblocks.com/api-reference/vaults/get-vault-accounts-paginated))
+
+**Q.** vault wallet 생성 응답의 주소를 재조회할 수 있나?
+**A. (공식 문서 확인)** `GET /v1/vault/accounts/{vaultAccountId}/{assetId}/addresses_paginated`가 해당 vault·asset의 주소와
+`paging.after`를 반환한다. EVM의 “vault·asset당 주소 하나” BCM 계약에서는 전체 페이지의 유일한 주소만 자동 회수하고, 둘 이상은
+추측하지 않는다.
+([Get addresses (Paginated)](https://developers.fireblocks.com/api-reference/vaults/get-addresses-paginated))
+
 ## Rate limit — 담당자 확답 (2026-07)
 
 **Q.** 폴링 트래픽이 "이상 트래픽"으로 감지돼 rate limit 에 걸릴 수 있나?

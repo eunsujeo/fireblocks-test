@@ -11,8 +11,8 @@ group: 블록체인 매니저
 
 | 오퍼레이션 | API | 하는 일 | 멱등 |
 |---|---|---|---|
-| `createAccount` | `POST /accounts` | vault 를 만들고 ref↔accountId 매핑을 반환한다. ref = DAW-CORE 계정 ID (접두사 없음), 유형(`CUSTOMER`·`SYSTEM`)을 함께 받는다 | 같은 (유형, ref) → 같은 accountId. 매니저 DB 의 복합 UNIQUE 가 최종 방어 — 경합해도 이긴 값을 반환 |
-| `createDepositAddresses` | `POST /accounts/{accountId}/addresses` | **한 토큰을 여러 네트워크로** 한 요청에 발급한다 (`symbol` + `networks`). 최대 20네트워크 · 네트워크별 결과 | 네트워크마다 단건과 같은 기준으로 멱등. 계정 없음은 전체 404, 네트워크별 실패는 부분 성공으로 남아 재시도 안전 |
+| `createAccount` | `POST /accounts` | vault 생성 의도를 먼저 남기고 vault 를 만든 뒤 ref↔accountId 매핑을 반환한다. ref = DAW-CORE 계정 ID (접두사 없음), 유형(`CUSTOMER`·`SYSTEM`)을 함께 받는다 | 같은 (유형, ref) → 같은 accountId. 생성 의도의 복합 UNIQUE와 현재 세대 `Idempotency-Key`가 멱등의 최초 방어고, 완료 매핑의 UNIQUE가 최종 방어 |
+| `createDepositAddresses` | `POST /accounts/{accountId}/addresses` | **한 토큰을 여러 네트워크로** 한 요청에 발급한다 (`symbol` + `networks`). 네트워크별 생성 의도와 벤더 assetId snapshot을 먼저 남긴다. 최대 20네트워크 · 네트워크별 결과 | 네트워크마다 단건과 같은 기준으로 멱등. 계정 없음은 전체 404, 네트워크별 실패는 부분 성공으로 남아 재시도 안전 |
 | `depositAddressesOf` | `GET /accounts/{accountId}/addresses` | 발급된 주소를 매니저 DB 에서 읽는다 — 벤더 왕복 없음. `symbol`·`network` 로 걸러 받는다 | 발급분 배열 · 미발급은 빈 배열 · 계정 없음 → `404 ACCOUNT_NOT_FOUND` |
 
 경로는 base(`/blockchain/manage-api`)를 뗀 표기 — 전체 경로·필드는 [블록체인 매니저 API](?cat=블록체인매니저&sub=API).
@@ -29,16 +29,33 @@ sequenceDiagram
 
     BE->>BM: POST /accounts — ref
     BM->>MDB: ref 조회 — 있으면 기존 accountId 반환
+    BM->>MDB: accountId·현재 세대 멱등 키를 가진 vault 생성 의도 선기록
     BM->>FB: createVaultAccount
-    BM->>MDB: 매핑 저장 — ref UNIQUE
+    BM->>MDB: 의도 완료 + 매핑 저장 — 한 트랜잭션
     BM-->>BE: accountId
     BE->>BM: POST /accounts/{accountId}/addresses — symbol · networks
     loop 네트워크마다
+        BM->>MDB: (accountId, network, symbol) 생성 의도·assetId snapshot 선기록
         BM->>FB: 자산 지갑 활성화 · 주소 생성
-        BM->>MDB: (accountId, network, symbol) ↔ 주소 저장
+        BM->>MDB: 의도 완료 + (accountId, network, symbol) ↔ 주소 저장 — 한 트랜잭션
     end
     BM-->>BE: 네트워크별 결과
 ```
+
+생성 응답을 받은 뒤 DB 저장이 실패해도 벤더 자원을 다시 만들지 않는다. 이미 한 번 제출한 의도의 재시도는 생성 전에
+Fireblocks 조회로 회수한다. vault는 의도에 고정한 이름을
+`namePrefix`로 페이지 끝까지 조회한 뒤 응답 `name`을 exact match로 다시 검사하고, vault wallet은 해당 vault·asset의
+`addresses_paginated`를 조회한다. 결과가 정확히
+하나면 로컬 매핑을 완료하고, 0개면 **남은 24시간 창이 설정된 벤더 최장 호출시간 전체를 수용할 때만** 현재 키로 생성을 재시도한다.
+호출 도중 키가 만료될 수 있으면 현재 키를 재사용하지 않는다. Fireblocks의 24시간 응답 보관 창이 끝났으면
+새 키가 필요하지만, 마지막 POST 준비 뒤 **설정된 벤더 최장 호출시간 + 24시간**이 지나기 전에는 새 키 호출을 보류한다. 준비 시각은
+실제 POST 증거가 아니라 준비 뒤 프로세스가 죽거나 호출이 제한시간까지 계속되는 경우를 포함한 중복 방지 상한이다. 벤더 최장 호출시간은
+5분 이하여야 한다. 초 단위로 저장한 준비 시각에는 1초 정밀도 여유를 더하며, 현재 키를 안전하게 재사용할 수 없고 이 안전시각도
+지난 때만 최신 시도가 CAS로 키 세대와 준비 시각을 함께 바꾼 뒤 생성한다.
+오래된 키 세대의 호출 결과는 완료 시점의 행 잠금·세대 비교를 통과하지 못하므로 새 세대의 공개 매핑을 선점할 수 없다. cooldown은
+계정 `503 CREATION_RETRY_LATER`+`Retry-After`, 주소 HTTP 200 항목의 같은 코드와
+`retryAfterSeconds`로 재시도 시점을 알린다. 2개 이상이거나 cursor가 반복되면 어느 것을 연결할지 추측하지 않고 conflict로 격리한다.
+선기록된 벤더 assetId snapshot은 재시도 중 자산 매핑이 바뀌어도 달라지지 않는다.
 
 ## 감지 — 웹훅 수신
 

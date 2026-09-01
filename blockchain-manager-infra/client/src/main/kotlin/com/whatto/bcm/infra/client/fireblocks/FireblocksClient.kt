@@ -97,6 +97,43 @@ class FireblocksClient(
         )
     }
 
+    override fun vaultsByName(
+        name: String,
+        cursor: String?,
+    ): VendorPage<VendorVault> {
+        val path =
+            UriComponentsBuilder
+                .fromPath("/v1/vault/accounts_paged")
+                .queryParam("limit", VAULT_PAGE_SIZE)
+                .queryParam("namePrefix", name)
+                .apply { cursor?.let { queryParam("after", it) } }
+                .build()
+                .encode()
+                .toUriString()
+        val response =
+            exchange(
+                operation = "listVaultsByName",
+                method = HttpMethod.GET,
+                path = path,
+                body = null,
+                idempotencyKey = null,
+                responseType = VaultAccountListResponse::class.java,
+            )
+        return VendorPage(
+            data =
+                response.accounts
+                    .filter { it.name == name }
+                    .map { account ->
+                        VendorVault(
+                            vaultId = requireNotNull(account.id) { "listVaultsByName 응답 결손: id" },
+                            name = requireNotNull(account.name) { "listVaultsByName 응답 결손: name" },
+                            walletCount = account.assets.size,
+                        )
+                    },
+            next = response.paging?.after,
+        )
+    }
+
     override fun createVault(
         name: String,
         idempotencyKey: String,
@@ -133,6 +170,48 @@ class FireblocksClient(
         return VendorDepositAddress(
             address = requireNotNull(response.address) { "createDepositAddress 응답 결손: address" },
             tag = response.tag,
+        )
+    }
+
+    override fun depositAddresses(
+        vaultId: String,
+        assetSymbol: String,
+        cursor: String?,
+    ): VendorPage<VendorDepositAddress> {
+        val path =
+            UriComponentsBuilder
+                .fromPath("/v1/vault/accounts/{vaultId}/{assetId}/addresses_paginated")
+                .queryParam("limit", VAULT_PAGE_SIZE)
+                .apply { cursor?.let { queryParam("after", it) } }
+                .buildAndExpand(vaultId, assetSymbol)
+                .encode()
+                .toUriString()
+        val response =
+            exchangeEntity(
+                operation = "listDepositAddresses",
+                method = HttpMethod.GET,
+                path = path,
+                body = null,
+                idempotencyKey = null,
+                responseType = VaultAccountAssetAddressListResponse::class.java,
+                acceptNotFound = true,
+            ).body ?: return VendorPage(emptyList(), null)
+        return VendorPage(
+            data =
+                response.addresses.map { address ->
+                    if (address.assetId != null && address.assetId != assetSymbol) {
+                        throw VendorApiException(
+                            "listDepositAddresses",
+                            200,
+                            IllegalStateException("listDepositAddresses assetId mismatch"),
+                        )
+                    }
+                    VendorDepositAddress(
+                        address = requireNotNull(address.address) { "listDepositAddresses 응답 결손: address" },
+                        tag = address.tag,
+                    )
+                },
+            next = response.paging?.after,
         )
     }
 
@@ -619,6 +698,7 @@ class FireblocksClient(
         body: Any?,
         idempotencyKey: String?,
         responseType: Class<T>,
+        acceptNotFound: Boolean = false,
     ): ResponseEntity<T> {
         val bodyBytes = body?.let(objectMapper::writeValueAsBytes)
         var attempt = 1
@@ -635,6 +715,10 @@ class FireblocksClient(
                 Thread.sleep(retryDelayMillis(exception, attempt))
                 attempt++
             } catch (exception: RestClientResponseException) {
+                if (acceptNotFound && exception.statusCode == HttpStatus.NOT_FOUND) {
+                    metrics.recordVendorCall(operation, VendorCallMetricOutcome.SUCCESS)
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).build()
+                }
                 metrics.recordVendorCall(operation, VendorCallMetricOutcome.ERROR)
                 throw VendorApiException(operation, exception.statusCode.value(), exception)
             } catch (exception: RestClientException) {

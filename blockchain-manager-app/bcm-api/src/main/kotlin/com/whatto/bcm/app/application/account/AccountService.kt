@@ -2,14 +2,23 @@ package com.whatto.bcm.app.application.account
 
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.account.Account
+import com.whatto.bcm.domain.account.AccountCreationIntent
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
+import com.whatto.bcm.domain.account.CreationStatus
 import com.whatto.bcm.domain.account.DepositAddress
+import com.whatto.bcm.domain.account.DepositAddressCreationIntent
 import com.whatto.bcm.domain.account.DepositAddressRepository
+import com.whatto.bcm.domain.account.VendorCallDecision
+import com.whatto.bcm.domain.account.WalletProvisioningPolicy
+import com.whatto.bcm.domain.account.WalletProvisioningRepository
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.AccountNotFoundException
 import com.whatto.bcm.domain.exception.BcmException
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.CreationRetryLaterException
+import com.whatto.bcm.domain.vendor.VendorDepositAddress
+import com.whatto.bcm.domain.vendor.VendorVault
 import com.whatto.bcm.domain.vendor.WalletVendorPort
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.stereotype.Service
@@ -18,9 +27,9 @@ import java.util.UUID
 
 /**
  * 계정·주소 오케스트레이션 — 멱등 규약(openapi info 절):
- * createAccount 는 (accountType, ref), createDepositAddress 는 (accountId, network, symbol). 선조회 → 벤더 → 저장,
- * UNIQUE 경합이면 이긴 값을 재조회해 돌려준다(03). 벤더 멱등 키는 요청 키 기반 고정값이라
- * 경합·재시도에도 벤더 측 중복 생성이 없다(24h).
+ * createAccount 는 (accountType, ref), createDepositAddress 는 (accountId, network, symbol). 로컬 생성 의도와
+ * 40자 이하 벤더 멱등 키를 먼저 커밋하고 벤더 생성 뒤 공개 매핑과 원장을 원자 완료한다. 응답 유실·DB 실패 재시도는
+ * 벤더 조회로 유일한 후보만 회수한다(02·03).
  *
  * ★ 계정 키에는 **유형이 반드시 들어간다** — 접두사가 없어 고객·시스템 ref 가 겹칠 수 있으므로,
  * 유형을 뺀 키를 쓰면 서로 다른 두 계정이 벤더 멱등 키를 공유해 **같은 vault 를 나눠 갖는다**.
@@ -29,8 +38,10 @@ import java.util.UUID
 class AccountService(
     private val accountRepository: AccountRepository,
     private val depositAddressRepository: DepositAddressRepository,
+    private val provisioningRepository: WalletProvisioningRepository,
     private val assetMappingQueryService: VendorAssetMappingQueryService,
     private val walletVendorPort: WalletVendorPort,
+    private val provisioningPolicy: WalletProvisioningPolicy,
     private val clock: Clock,
 ) {
     fun createAccount(
@@ -39,22 +50,86 @@ class AccountService(
     ): Account {
         accountRepository.findByTypeAndRef(accountType, ref)?.let { return it }
 
-        // 유형을 포함한 키 — 유형을 빼면 고객·시스템의 같은 ref 가 벤더 vault 를 공유한다
+        val now = CoreDateTimes.now(clock)
         val accountKey = "$accountType:$ref"
-        val vault = walletVendorPort.createVault(name = accountKey, idempotencyKey = "createVault:$accountKey")
-        val account =
-            Account(
-                accountId = "acct_${UUID.randomUUID()}",
-                accountType = accountType,
-                ref = ref,
-                vendorVaultId = vault.vaultId,
-                registeredAt = CoreDateTimes.now(clock),
+        val intent =
+            provisioningRepository.reserveAccount(
+                AccountCreationIntent(
+                    accountId = "acct_${UUID.randomUUID()}",
+                    accountType = accountType,
+                    ref = ref,
+                    vendorVaultName = accountKey,
+                    idempotencyKey = newIdempotencyKey("bcm-vlt-"),
+                    idempotencyKeyRegisteredAt = now,
+                    lastVendorCallPreparedAt = null,
+                    status = CreationStatus.PENDING,
+                    attemptCount = 0,
+                    vendorVaultId = null,
+                    registeredAt = now,
+                    lastChangedAt = now,
+                ),
             )
-        return try {
-            accountRepository.insert(account)
-        } catch (exception: ConflictException) {
-            accountRepository.findByTypeAndRef(accountType, ref) ?: throw exception
+        if (intent.status == CreationStatus.COMPLETED) {
+            return accountRepository.findByTypeAndRef(accountType, ref)
+                ?: throw ConflictException("accountCreation", accountKey)
         }
+        val submitting = provisioningRepository.beginAccountAttempt(intent.accountId, now)
+        if (submitting.status == CreationStatus.COMPLETED) {
+            return accountRepository.findByTypeAndRef(accountType, ref)
+                ?: throw ConflictException("accountCreation", accountKey)
+        }
+        val recovered =
+            if (submitting.attemptCount > 1) {
+                recoverVault(submitting)
+            } else {
+                null
+            }
+        val (vault, completionGeneration) =
+            recovered?.let { it to submitting }
+                ?: prepareAccountVendorCall(submitting).let { prepared ->
+                    walletVendorPort.createVault(
+                        name = prepared.vendorVaultName,
+                        idempotencyKey = prepared.idempotencyKey,
+                    ) to prepared
+                }
+        if (vault.name != submitting.vendorVaultName) {
+            throw ConflictException("vendorVaultName", submitting.accountId)
+        }
+        return provisioningRepository.completeAccount(completionGeneration, vault.vaultId, CoreDateTimes.now(clock))
+    }
+
+    private fun recoverVault(intent: AccountCreationIntent): VendorVault? {
+        val candidates = linkedMapOf<String, VendorVault>()
+        var cursor: String? = null
+        val seenCursors = mutableSetOf<String>()
+        do {
+            val page = walletVendorPort.vaultsByName(intent.vendorVaultName, cursor)
+            page.data
+                .filter { it.name == intent.vendorVaultName }
+                .forEach { candidate -> candidates[candidate.vaultId] = candidate }
+            provisioningPolicy.uniqueVault(intent.accountId, candidates.values)
+            cursor = page.next
+            provisioningPolicy.requireFreshCursor("vendorVaultRecoveryCursor", intent.accountId, seenCursors, cursor)
+            cursor?.let(seenCursors::add)
+        } while (cursor != null)
+        return provisioningPolicy.uniqueVault(intent.accountId, candidates.values)
+    }
+
+    private fun newIdempotencyKey(prefix: String): String = prefix + UUID.randomUUID().toString().replace("-", "")
+
+    private fun prepareAccountVendorCall(intent: AccountCreationIntent): AccountCreationIntent {
+        val now = CoreDateTimes.current(clock)
+        val (key, registeredAt) =
+            vendorCallKey(
+                resourceKey = intent.accountId,
+                prefix = "bcm-vlt-",
+                currentKey = intent.idempotencyKey,
+                keyRegisteredAt = intent.idempotencyKeyRegisteredAt,
+                lastVendorCallPreparedAt = intent.lastVendorCallPreparedAt,
+                now = now,
+            )
+        return provisioningRepository.prepareAccountVendorCall(intent, key, registeredAt, CoreDateTimes.format(now))
+            ?: throw ConflictException("accountCreationAttempt", intent.accountId)
     }
 
     fun createDepositAddress(
@@ -76,27 +151,114 @@ class AccountService(
         val symbol = mapping.symbol
         depositAddressRepository.find(accountId, network, symbol)?.let { return it }
 
-        // 벤더 tag 는 03이 비보관(PLAN #21). assetId는 이 벤더 경계에서만 매핑한다(07).
-        val vendorAddress =
-            walletVendorPort.createDepositAddress(
-                vaultId = account.vendorVaultId,
-                assetSymbol = mapping.vendorAssetId,
-                idempotencyKey = "createDepositAddress:$accountId:$network:$symbol",
+        val now = CoreDateTimes.now(clock)
+        val intent =
+            provisioningRepository.reserveAddress(
+                DepositAddressCreationIntent(
+                    accountId = accountId,
+                    network = network,
+                    symbol = symbol,
+                    vendorAssetId = mapping.vendorAssetId,
+                    idempotencyKey = newIdempotencyKey("bcm-adr-"),
+                    idempotencyKeyRegisteredAt = now,
+                    lastVendorCallPreparedAt = null,
+                    status = CreationStatus.PENDING,
+                    attemptCount = 0,
+                    address = null,
+                    registeredAt = now,
+                    lastChangedAt = now,
+                ),
             )
-        val depositAddress =
-            DepositAddress(
-                accountId = accountId,
-                network = network,
-                symbol = symbol,
-                address = vendorAddress.address,
-                registeredAt = CoreDateTimes.now(clock),
-            )
-        return try {
-            depositAddressRepository.insert(depositAddress)
-        } catch (exception: ConflictException) {
-            depositAddressRepository.find(accountId, network, symbol) ?: throw exception
+        if (intent.status == CreationStatus.COMPLETED) {
+            return depositAddressRepository.find(accountId, network, symbol)
+                ?: throw ConflictException("depositAddressCreation", "$accountId:$network:$symbol")
         }
+        val submitting = provisioningRepository.beginAddressAttempt(accountId, network, symbol, now)
+        if (submitting.status == CreationStatus.COMPLETED) {
+            return depositAddressRepository.find(accountId, network, symbol)
+                ?: throw ConflictException("depositAddressCreation", "$accountId:$network:$symbol")
+        }
+        val recovered =
+            if (submitting.attemptCount > 1) {
+                recoverDepositAddress(account.vendorVaultId, submitting)
+            } else {
+                null
+            }
+        // 벤더 tag 는 03이 비보관(PLAN #21). assetId는 최초 생성 의도 snapshot을 재사용한다.
+        val (vendorAddress, completionGeneration) =
+            recovered?.let { it to submitting }
+                ?: prepareAddressVendorCall(submitting).let { prepared ->
+                    walletVendorPort.createDepositAddress(
+                        vaultId = account.vendorVaultId,
+                        assetSymbol = prepared.vendorAssetId,
+                        idempotencyKey = prepared.idempotencyKey,
+                    ) to prepared
+                }
+        return provisioningRepository.completeAddress(
+            completionGeneration,
+            vendorAddress.address,
+            CoreDateTimes.now(clock),
+        )
     }
+
+    private fun recoverDepositAddress(
+        vendorVaultId: String,
+        intent: DepositAddressCreationIntent,
+    ): VendorDepositAddress? {
+        val candidates = linkedMapOf<Pair<String, String?>, VendorDepositAddress>()
+        var cursor: String? = null
+        val seenCursors = mutableSetOf<String>()
+        do {
+            val page = walletVendorPort.depositAddresses(vendorVaultId, intent.vendorAssetId, cursor)
+            page.data.forEach { candidate -> candidates[candidate.address to candidate.tag] = candidate }
+            val resourceKey = "${intent.accountId}:${intent.network}:${intent.symbol}"
+            provisioningPolicy.uniqueDepositAddress(resourceKey, candidates.values)
+            cursor = page.next
+            provisioningPolicy.requireFreshCursor("vendorDepositAddressRecoveryCursor", resourceKey, seenCursors, cursor)
+            cursor?.let(seenCursors::add)
+        } while (cursor != null)
+        return provisioningPolicy.uniqueDepositAddress(
+            "${intent.accountId}:${intent.network}:${intent.symbol}",
+            candidates.values,
+        )
+    }
+
+    private fun prepareAddressVendorCall(intent: DepositAddressCreationIntent): DepositAddressCreationIntent {
+        val now = CoreDateTimes.current(clock)
+        val (key, registeredAt) =
+            vendorCallKey(
+                resourceKey = "${intent.accountId}:${intent.network}:${intent.symbol}",
+                prefix = "bcm-adr-",
+                currentKey = intent.idempotencyKey,
+                keyRegisteredAt = intent.idempotencyKeyRegisteredAt,
+                lastVendorCallPreparedAt = intent.lastVendorCallPreparedAt,
+                now = now,
+            )
+        return provisioningRepository.prepareAddressVendorCall(intent, key, registeredAt, CoreDateTimes.format(now))
+            ?: throw ConflictException("depositAddressCreationAttempt", "${intent.accountId}:${intent.network}:${intent.symbol}")
+    }
+
+    private fun vendorCallKey(
+        resourceKey: String,
+        prefix: String,
+        currentKey: String,
+        keyRegisteredAt: String,
+        lastVendorCallPreparedAt: String?,
+        now: java.time.LocalDateTime,
+    ): Pair<String, String> =
+        when (
+            val decision =
+                provisioningPolicy.vendorCallDecision(
+                    currentKey,
+                    keyRegisteredAt,
+                    lastVendorCallPreparedAt,
+                    now,
+                )
+        ) {
+            is VendorCallDecision.Reuse -> decision.idempotencyKey to decision.idempotencyKeyRegisteredAt
+            VendorCallDecision.Rotate -> newIdempotencyKey(prefix) to CoreDateTimes.format(now)
+            is VendorCallDecision.RetryLater -> throw CreationRetryLaterException(resourceKey, decision.retryAfterSeconds)
+        }
 
     /**
      * 한 자산 심볼을 여러 네트워크로 발급 — 고객이 같은 자산을 여러 체인에서 받을 때 쓴다

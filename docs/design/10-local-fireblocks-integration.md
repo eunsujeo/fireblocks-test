@@ -72,11 +72,16 @@ bootstrap에 만들지 않고 명시적인 시나리오가 소유한다.
 | 기능 | 메서드·경로 | BCM이 보내는 값 | BCM이 읽는 값 | Stub |
 |---|---|---|---|---|
 | Vault 생성 | `POST /v1/vault/accounts` | `name`, `Idempotency-Key` | `id`, `name` | 상태형 구현 |
-| Vault 목록 | `GET /v1/vault/accounts_paged` | `limit=1..500`, 선택 `after` | `accounts[].id/name/assets`, `paging.after` | Admin 읽기·대조용 페이지 구현 |
+| Vault 목록 | `GET /v1/vault/accounts_paged` | `limit=1..500`, 선택 `after`·`namePrefix`·`nameSuffix` | `accounts[].id/name/assets`, `paging.after` | Admin 읽기·대조와 생성 응답 유실 회수용 페이지 구현 |
 | Vault wallet·주소 생성 | `POST /v1/vault/accounts/{vaultId}/{assetId}` | `Idempotency-Key`, 본문 없음 | `address`, 선택 `tag` | 결정적 EVM 주소 할당 |
+| Vault wallet 주소 목록 | `GET /v1/vault/accounts/{vaultId}/{assetId}/addresses_paginated` | 선택 `limit`·`after` | `addresses[].assetId/address/tag`, `paging.after` | wallet 생성 응답 유실 회수용 페이지 구현 |
 | Vault 자산 잔액 | `GET /v1/vault/accounts/{vaultId}/{assetId}` | 경로 식별자 | `total`, `available`, `pending`, `frozen`, `lockedAmount` | Anvil 상태를 기준으로 산출하되 Fireblocks 잔액 구분은 시뮬레이션 |
 | 블록체인 목록 | `GET /v1/blockchains` | `pageSize=500`, 선택 `pageCursor` | 필수 `data[].id/displayName`; 선택 `metadata.deprecated`, `onchain.protocol/chainId/test/signingAlgo`, `next` | 로컬 EVM 카탈로그 |
 | 자산 목록 | `GET /v1/assets` | `blockchainId`, `pageSize=1000`, 선택 `symbol/pageCursor` | 필수 `id/blockchainId/displaySymbol`; 선택 `displayName`, `decimals` 또는 `onchain.decimals`, `assetClass`, `onchain.address`, `next` | native·테스트 ERC-20 카탈로그 |
+
+상태형 Stub은 생성 결과와 vault exact-name·wallet 주소 목록 조회를 보존해 응답 유실 뒤의 조회 회수 경로를 검증한다.
+BCM DB 적재 실패는 서비스 테스트의 저장소 MockK로 생성 성공 직후에 주입하고, 재시도가 기존 벤더 자원을 회수해 추가 생성하지
+않는 것을 고정한다. 후보가 2개 이상이거나 cursor가 반복되면 임의로 하나를 선택하지 않는다.
 
 ### 거래 제출·조회
 

@@ -6,6 +6,7 @@ import com.whatto.bcm.app.api.web.ErrorResponse
 import com.whatto.bcm.app.api.web.RequestIdFilter
 import com.whatto.bcm.app.application.account.AccountService
 import com.whatto.bcm.app.application.account.AddressOutcome
+import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Pattern
@@ -64,7 +65,11 @@ class AccountController(
         val error =
             outcome.failure?.let {
                 val errorCode = DomainExceptionResolver.resolve(it)
-                ErrorResponse.ErrorBody(code = errorCode.code, message = errorCode.message)
+                ErrorResponse.ErrorBody(
+                    code = errorCode.code,
+                    message = errorCode.message,
+                    retryAfterSeconds = (it as? CreationRetryLaterException)?.retryAfterSeconds,
+                )
             }
         return DepositAddressResultData(
             network = outcome.network,

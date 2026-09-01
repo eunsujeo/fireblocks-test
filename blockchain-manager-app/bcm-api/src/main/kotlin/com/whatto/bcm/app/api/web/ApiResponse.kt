@@ -40,6 +40,8 @@ data class ErrorResponse(
         val code: String,
         val message: String,
         @get:JsonInclude(JsonInclude.Include.NON_NULL)
+        val retryAfterSeconds: Long? = null,
+        @get:JsonInclude(JsonInclude.Include.NON_NULL)
         val details: ErrorDetails? = null,
     )
 

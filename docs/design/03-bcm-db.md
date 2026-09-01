@@ -23,7 +23,9 @@ group: 블록체인 매니저
 
 | 테이블 | 무엇을 저장하나 | 쓰는 곳 |
 |---|---|---|
+| `bcm_acnt_crtn_l` | vault 생성 의도·현재 멱등 키 세대·회수 결과 | Fireblocks 호출 선기록 · 응답 유실/로컬 저장 실패 회수 |
 | `bcm_acnt_m` | 계정 매핑 — (계정유형, ref) ↔ vault | 계정 생성 · 모든 오퍼레이션의 계정 해석 |
+| `bcm_addr_crtn_l` | vault wallet·주소 생성 의도·assetId snapshot·회수 결과 | Fireblocks 호출 선기록 · 응답 유실/로컬 저장 실패 회수 |
 | `bcm_addr_m` | 주소 매핑 — (계정, 네트워크, 토큰) ↔ 입금 주소 | 주소 발급·조회 · 입금 감지의 주소→계정 대응 |
 | `bcm_whk_l` | 수신 웹훅 알림 원본 — 인박스 | 수신부 적재 → 판단 워커 집기 · finalize 원본의 출처 |
 | `bcm_tx_l` | 거래 운영 상태 — 감지·발행 추적 | 판단 워커 → 발행 예약 · 막힘 점검 · 제출 중복 차단 |
@@ -51,7 +53,9 @@ group: 블록체인 매니저
 ## ERD
 
 ```erd
+entity: bcm_acnt_crtn_l @1,1 :: vault 생성 의도 | acnt_id PK :: 선기록하는 계정 id | acnt_typ_dvcd UK :: ref와 함께 멱등 키 | ref UK :: 백엔드 참조 키 | idmp_key UK :: Fireblocks 40자 이하 현재 키 | idmp_key_reg_dttm :: 현재 키 세대 시작 | last_vndr_call_dttm :: 마지막 POST 준비 상한 | crtn_stcd :: PENDING/SUBMITTING/COMPLETED
 entity: bcm_addr_m @1,1 :: 주소 매핑 — (계정, 네트워크, 토큰)당 입금 주소 하나 | acnt_id PK,FK :: 계정 | ntwk_cd PK :: 네트워크 코드 | tkn_smbl PK :: 토큰 심볼 | dpst_addr :: 발급된 입금 주소
+entity: bcm_addr_crtn_l @1,1 :: vault wallet·주소 생성 의도 | acnt_id PK,FK :: 계정 | ntwk_cd PK :: 네트워크 | tkn_smbl PK :: 토큰 | vndr_ast_id :: 생성 시점 assetId snapshot | idmp_key UK :: Fireblocks 40자 이하 현재 키 | idmp_key_reg_dttm :: 현재 키 세대 시작 | last_vndr_call_dttm :: 마지막 POST 준비 상한 | crtn_stcd :: PENDING/SUBMITTING/COMPLETED
 entity: bcm_whk_l @2,1 :: 수신 웹훅 알림 원본 — 인박스 (처리 후 N일 정리) | noti_id PK :: 웹훅 알림 id (벤더 UUID) — 중복 수신 방어 | vndr_tx_id :: 벤더 tx id — 이 알림이 가리키는 거래 | prcs_stcd :: 판단 처리 상태 P/S/F — F 는 격리 | vndr_cmpl_yn :: 성공 처리한 원문의 vendor COMPLETED 표식
 entity: bcm_outbox_l @3,1 :: 발행 대기 이벤트 — 워커가 상태 변경과 한 트랜잭션에 적재 | evnt_id PK :: 이벤트 id (UUID v7) · 컨슈머 dedup 키 | evt_typ_dvcd :: 이벤트유형 TXCK/TXCF/TXFL | evnt_stcd :: 발행상태 P/D/F/S
 entity: bcm_evnt_cmpl_l @4,1 :: 소비자 처리 완료 확인 | evnt_id PK,FK :: BCM 발행 이벤트 | cnsmr_dvcd PK :: DAW_CORE | cmpl_dttm :: 최초 완료 시각
@@ -73,6 +77,9 @@ entity: bcm_vndr_ast_chng_l @1,5 :: 자산 매핑 변경 원장 — 변경 전�
 entity: bcm_vlt_rcnc_l @2,5 :: Vault 전체 대사 실행 원장 | vlt_rcnc_id PK :: 실행 id | vlt_rcnc_stcd :: ACCEPTED/RUNNING/COMPLETED/PARTIAL/FAILED | vndr_crsr :: 재개용 vendor cursor | vndr_done_yn :: 마지막 page 기록 여부 | vndr_page_cnt :: 완료 page 수
 entity: bcm_vlt_rcnc_item_l @3,5 :: Vault 대사 결과 snapshot | vlt_rcnc_id PK,FK :: 실행 id | item_key PK :: 계정 또는 vendor 기준 키 | rcnc_stcd :: PENDING/MANAGED/UNMANAGED/MISSING_IN_FIREBLOCKS | item_seq :: 결과 cursor 순서
 rel: bcm_acnt_m | bcm_addr_m | 계정당 주소 | one-many
+rel: bcm_acnt_crtn_l | bcm_acnt_m | 의도 완료 시 같은 acnt_id | one-one | dashed
+rel: bcm_acnt_m | bcm_addr_crtn_l | 계정당 주소 생성 의도 | one-many
+rel: bcm_addr_crtn_l | bcm_addr_m | 의도 완료 시 같은 복합 키 | one-one | dashed
 rel: bcm_acnt_m | bcm_tx_l | 계정 귀속 | one-many
 rel: bcm_acnt_m | bcm_swp_trgt | sweep 대상 | one-many
 rel: bcm_acnt_m | bcm_swp_auth_m | sweep 승인 | one-many
@@ -223,6 +230,51 @@ upd: bcm_job_m | 1 | last_scs_dttm=12:00
 
 모든 테이블은 코어 규약의 감사 4컬럼(`frst_reg_empno`·`frst_reg_brcd`·`last_chng_empno`·`last_chng_brcd`)을 끝에 둔다 — 아래 스키마에서는 반복을 줄여 **감사 4컬럼**으로 줄여 적고, 자동 처리 행은 시스템 센티넬로 채운다.
 
+### bcm_acnt_crtn_l — vault 생성 의도·회수 원장
+
+Fireblocks를 부르기 전에 `(accountType, ref)`당 한 행을 먼저 남긴다. `acnt_id`·`vndr_vlt_nm`은 최초 접수 때 고정한다.
+Fireblocks `Idempotency-Key`는 최대 40자이므로 현재 키도 40자 이하로 보관하고, 키 세대 시작과 마지막 POST 준비 시각을 함께 남긴다.
+준비 시각은 POST 직전 DB에 먼저 커밋하므로 실제 호출 증거가 아니라 “이 시각 이후 POST가 발생했을 수 있다”는 보수적 상한이다.
+
+```sql
+CREATE TABLE bcm_acnt_crtn_l (
+  acnt_id         VARCHAR(64)  PRIMARY KEY,
+  acnt_typ_dvcd   VARCHAR(2)   NOT NULL,
+  ref             VARCHAR(64)  NOT NULL,
+  vndr_vlt_nm     VARCHAR(128) NOT NULL,
+  idmp_key            VARCHAR(40)  NOT NULL UNIQUE,
+  idmp_key_reg_dttm   VARCHAR(16)  NOT NULL,
+  last_vndr_call_dttm VARCHAR(16)  NULL,
+  crtn_stcd           VARCHAR(16)  NOT NULL, -- PENDING/SUBMITTING/COMPLETED
+  try_cnt             INT          NOT NULL,
+  vndr_vlt_id         VARCHAR(64)  NULL,
+  reg_dttm            VARCHAR(16)  NOT NULL,
+  last_chng_dttm      VARCHAR(16)  NOT NULL,
+  -- 감사 4컬럼
+  frst_reg_empno  VARCHAR(6)   NOT NULL,
+  frst_reg_brcd   VARCHAR(4)   NOT NULL,
+  last_chng_empno VARCHAR(6)   NOT NULL,
+  last_chng_brcd  VARCHAR(4)   NOT NULL,
+  UNIQUE (acnt_typ_dvcd, ref),
+  CHECK (crtn_stcd IN ('PENDING', 'SUBMITTING', 'COMPLETED')),
+  CHECK (try_cnt >= 0),
+  CHECK (last_vndr_call_dttm IS NULL OR last_vndr_call_dttm >= idmp_key_reg_dttm),
+  CHECK ((crtn_stcd = 'COMPLETED') = (vndr_vlt_id IS NOT NULL))
+);
+```
+
+`try_cnt=0`은 아직 벤더에 제출하지 않은 의도다. 실제 호출 직전 `SUBMITTING`으로 바꾸고 횟수를 늘린다. 재시도가
+`try_cnt>1`이면 먼저 `vndr_vlt_nm`의 exact match를 끝 cursor까지 조회한다. 정확히 하나만 있으면 그 `vndr_vlt_id`로
+완료한다. 후보가 없고 현재 키의 남은 24시간 창이 설정된 벤더 최장 호출시간 전체를 수용할 때만 같은 `idmp_key`를 쓴다.
+호출 도중 만료될 수 있으면 현재 키를 재사용하지 않는다. `last_vndr_call_dttm` 뒤
+**설정된 벤더 최장 호출시간 + 24시간**이 지나기 전에는 새 키 POST를 보류하고 계정 `503 CREATION_RETRY_LATER`·`Retry-After`로
+재시도 시점을 알린다. 벤더 최장 호출시간은 5분 이하여야 하고 초 단위 준비 시각에는 1초 정밀도 여유를 더한다. 이 안전시각이
+지난 때만 새 키로 회전한다. 최신 `try_cnt`만 키 세대와
+`last_vndr_call_dttm`을 CAS 갱신할 수 있어 만료 경계의 옛 시도가 새 POST를 만들지 못한다. 둘 이상이면 후보를 추측하지 않고 충돌로 종료한다.
+`bcm_acnt_m` insert와 이 행의 `COMPLETED`·`vndr_vlt_id` 갱신은 한 트랜잭션이다. 완료 트랜잭션은 원장 행을 잠근 뒤 호출에 사용한
+`idmp_key`·`idmp_key_reg_dttm`이 현재 세대와 같은지 다시 검사한다. 옛 세대의 늦은 응답은 공개 매핑을 만들지 못하고 재시도로 돌린다.
+완료된 의도도 물리 삭제하지 않는다.
+
 ### bcm_acnt_m — 계정 매핑
 
 (계정유형, ref) 당 vault 하나. 이 **복합 UNIQUE** 가 계정 생성 멱등의 최종 방어다 — 경합해도 이긴 값을 반환한다.
@@ -313,6 +365,47 @@ CREATE INDEX idx_bcm_vlt_rcnc_item_vault ON bcm_vlt_rcnc_item_l (vlt_rcnc_id, vn
 실행 시작 때 계정은 `PENDING`으로 snapshot한다. Fireblocks page에서 확인한 계정만 `MANAGED`로 바꾸고 vendor에만 있는 vault는
 `UNMANAGED`로 추가한다. 마지막 cursor까지 완주한 뒤에만 남은 `PENDING`을 `MISSING_IN_FIREBLOCKS`로 바꾼다. 실패 시 `PENDING`은
 응답 대상이 아니며 확인이 끝난 항목에만 고정 `item_seq`를 부여한다. 따라서 중간 실패가 아직 읽지 않은 vault를 누락으로 오판하지 않는다.
+
+### bcm_addr_crtn_l — vault wallet·주소 생성 의도·회수 원장
+
+`(accountId, network, symbol)`당 한 행을 Fireblocks 호출 전에 남긴다. 접수 시점의 벤더 `assetId`를 snapshot으로 고정해,
+응답 유실 뒤 자산 매핑이 바뀌어도 이미 시작한 생성의 대상을 바꾸지 않는다.
+
+```sql
+CREATE TABLE bcm_addr_crtn_l (
+  acnt_id         VARCHAR(64)  NOT NULL,
+  ntwk_cd         VARCHAR(20)  NOT NULL,
+  tkn_smbl        VARCHAR(16)  NOT NULL,
+  vndr_ast_id     VARCHAR(64)  NOT NULL,
+  idmp_key            VARCHAR(40)  NOT NULL UNIQUE,
+  idmp_key_reg_dttm   VARCHAR(16)  NOT NULL,
+  last_vndr_call_dttm VARCHAR(16)  NULL,
+  crtn_stcd           VARCHAR(16)  NOT NULL, -- PENDING/SUBMITTING/COMPLETED
+  try_cnt             INT          NOT NULL,
+  dpst_addr           VARCHAR(128) NULL,
+  reg_dttm            VARCHAR(16)  NOT NULL,
+  last_chng_dttm      VARCHAR(16)  NOT NULL,
+  -- 감사 4컬럼
+  frst_reg_empno  VARCHAR(6)   NOT NULL,
+  frst_reg_brcd   VARCHAR(4)   NOT NULL,
+  last_chng_empno VARCHAR(6)   NOT NULL,
+  last_chng_brcd  VARCHAR(4)   NOT NULL,
+  PRIMARY KEY (acnt_id, ntwk_cd, tkn_smbl),
+  FOREIGN KEY (acnt_id) REFERENCES bcm_acnt_m (acnt_id),
+  CHECK (crtn_stcd IN ('PENDING', 'SUBMITTING', 'COMPLETED')),
+  CHECK (try_cnt >= 0),
+  CHECK (last_vndr_call_dttm IS NULL OR last_vndr_call_dttm >= idmp_key_reg_dttm),
+  CHECK ((crtn_stcd = 'COMPLETED') = (dpst_addr IS NOT NULL))
+);
+```
+
+`try_cnt=0`의 첫 제출은 조회 없이 생성하고, 이후 미완료 재시도는 해당 vault·`vndr_ast_id`의 주소 목록을 cursor 끝까지
+먼저 조회한다. 주소가 정확히 하나면 회수한다. 후보가 없을 때의 키 유지·최장 호출시간을 더한 24시간 cooldown·새 키 회전,
+최신 `try_cnt` CAS와 완료 시점의 키 세대 검사는 계정 생성 원장과 같다. 주소 cooldown은 HTTP 200 항목의
+`CREATION_RETRY_LATER`·`retryAfterSeconds`로 표현한다. 둘 이상은 이
+서비스의 “계정·자산당 주소 하나” 계약으로 자동 선택할 수 없으므로 conflict로 격리한다.
+`bcm_addr_m` insert와 의도 `COMPLETED`·주소
+갱신은 한 트랜잭션이다. Tag/Memo는 `bcm_addr_m`에 저장하지 않는 기존 PLAN #21 경계를 그대로 유지한다.
 
 ### bcm_addr_m — 주소 매핑
 

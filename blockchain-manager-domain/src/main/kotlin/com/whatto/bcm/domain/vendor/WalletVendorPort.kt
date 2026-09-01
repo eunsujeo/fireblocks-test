@@ -8,6 +8,12 @@ interface WalletVendorPort {
     /** workspace vault 목록 — Admin 대조 전용이며, cursor가 null이면 첫 페이지다. */
     fun vaults(cursor: String?): VendorPage<VendorVault> = error("vault listing is not supported")
 
+    /** 생성 응답 유실 회수용 exact-name 후보 페이지. 구현은 prefix로 좁힌 뒤 응답 이름을 다시 대조한다. */
+    fun vaultsByName(
+        name: String,
+        cursor: String?,
+    ): VendorPage<VendorVault> = error("vault lookup by name is not supported")
+
     /** vault 생성 — idempotencyKey 로 벤더 측 재요청 중복을 막는다 (벤더 유효기간 24h). */
     fun createVault(
         name: String,
@@ -20,6 +26,13 @@ interface WalletVendorPort {
         assetSymbol: String,
         idempotencyKey: String,
     ): VendorDepositAddress
+
+    /** 생성 응답 유실 회수용 vault wallet 주소 페이지. wallet이 없다는 404는 빈 페이지다. */
+    fun depositAddresses(
+        vaultId: String,
+        assetSymbol: String,
+        cursor: String?,
+    ): VendorPage<VendorDepositAddress> = error("deposit address listing is not supported")
 
     fun balanceOf(
         vaultId: String,

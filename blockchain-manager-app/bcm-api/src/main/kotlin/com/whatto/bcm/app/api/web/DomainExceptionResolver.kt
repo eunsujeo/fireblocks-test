@@ -5,6 +5,7 @@ import com.whatto.bcm.domain.exception.AssetNotSupportedException
 import com.whatto.bcm.domain.exception.BcmException
 import com.whatto.bcm.domain.exception.BulkAssetMappingException
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.RelayRejectedException
@@ -26,6 +27,7 @@ object DomainExceptionResolver {
             is ResourceNotFoundException -> ErrorCode.NOT_FOUND
             is ConflictException -> ErrorCode.CONFLICT
             is SubmissionInProgressException -> ErrorCode.SUBMIT_IN_PROGRESS
+            is CreationRetryLaterException -> ErrorCode.CREATION_RETRY_LATER
             is InvalidAssetMappingException -> ErrorCode.VALIDATION_FAILED
             is VendorAssetMappingRegistrationConflictException -> ErrorCode.CONFLICT
             is InvalidRequestException -> ErrorCode.VALIDATION_FAILED
