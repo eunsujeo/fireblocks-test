@@ -14,7 +14,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
 /**
- * 에러 응답 계약 — error.code 9종 · HTTP status · envelope (OpenAPI 에러 표 · error-handling.md).
+ * 에러 응답 계약 — error.code 10종 · HTTP status · envelope (OpenAPI 에러 표 · error-handling.md).
  */
 @WebMvcTest(EnvelopeTestController::class)
 class ApiExceptionHandlerTest {
@@ -66,6 +66,16 @@ class ApiExceptionHandlerTest {
                 header()
                     .string("Retry-After", "3"),
             )
+    }
+
+    @Test
+    fun `생성 키 cooldown — 503 CREATION_RETRY_LATER와 정확한 재시도 시간`() {
+        mockMvc
+            .perform(get("/test-envelope/creation-retry-later"))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.error.code").value("CREATION_RETRY_LATER"))
+            .andExpect(jsonPath("$.error.retryAfterSeconds").value(82_800))
+            .andExpect(header().string("Retry-After", "82800"))
     }
 
     @Test

@@ -156,6 +156,30 @@ class FireblocksClientTest {
     }
 
     @Test
+    fun `vaultsByName — prefix로 좁히고 exact-name 회수 페이지를 매핑한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(
+                requestTo(
+                    "https://sandbox-api.fireblocks.test/v1/vault/accounts_paged?limit=200&namePrefix=CUSTOMER:000001&after=cursor-1",
+                ),
+            ).andExpect(method(HttpMethod.GET))
+            .andRespond(
+                withSuccess(
+                    """{"accounts":[{"id":"7","name":"CUSTOMER:000001","assets":[]},{"id":"8","name":"CUSTOMER:000001-extra","assets":[]}],"paging":{"after":null}}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val page = client.vaultsByName("CUSTOMER:000001", "cursor-1")
+
+        assertThat(page.data.single().vaultId).isEqualTo("7")
+        assertThat(page.data.single().name).isEqualTo("CUSTOMER:000001")
+        assertThat(page.next).isNull()
+        server.verify()
+    }
+
+    @Test
     fun `createDepositAddress — POST vault wallet 생성, address·tag 매핑 (tag 없으면 null)`() {
         val (client, server) = fixture()
         server
@@ -173,6 +197,64 @@ class FireblocksClientTest {
 
         assertThat(depositAddress.address).isEqualTo("0xabc123")
         assertThat(depositAddress.tag).isNull()
+        server.verify()
+    }
+
+    @Test
+    fun `depositAddresses — paged endpoint의 주소와 tag 및 after를 매핑한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(
+                requestTo(
+                    "https://sandbox-api.fireblocks.test/v1/vault/accounts/7/XRP/addresses_paginated?limit=200&after=cursor-1",
+                ),
+            ).andExpect(method(HttpMethod.GET))
+            .andRespond(
+                withSuccess(
+                    """{"addresses":[{"assetId":"XRP","address":"rAddress","tag":"1234"}],"paging":{"after":"cursor-2"}}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val page = client.depositAddresses("7", "XRP", "cursor-1")
+
+        assertThat(page.data.single().address).isEqualTo("rAddress")
+        assertThat(page.data.single().tag).isEqualTo("1234")
+        assertThat(page.next).isEqualTo("cursor-2")
+        server.verify()
+    }
+
+    @Test
+    fun `depositAddresses — 응답 assetId가 요청 경로와 다르면 다른 자산 주소를 연결하지 않는다`() {
+        val (client, server) = fixture()
+        server
+            .expect(
+                requestTo(
+                    "https://sandbox-api.fireblocks.test/v1/vault/accounts/7/XRP/addresses_paginated?limit=200",
+                ),
+            ).andRespond(
+                withSuccess(
+                    """{"addresses":[{"assetId":"USDC","address":"wrong-address"}],"paging":{"after":null}}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        assertThatThrownBy { client.depositAddresses("7", "XRP", null) }
+            .isInstanceOf(VendorApiException::class.java)
+    }
+
+    @Test
+    fun `depositAddresses — wallet이 아직 없다는 404는 회수 후보 없음으로 반환한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(
+                requestTo(
+                    "https://sandbox-api.fireblocks.test/v1/vault/accounts/7/USDC/addresses_paginated?limit=200",
+                ),
+            ).andExpect(method(HttpMethod.GET))
+            .andRespond(withStatus(HttpStatus.NOT_FOUND))
+
+        assertThat(client.depositAddresses("7", "USDC", null).data).isEmpty()
         server.verify()
     }
 

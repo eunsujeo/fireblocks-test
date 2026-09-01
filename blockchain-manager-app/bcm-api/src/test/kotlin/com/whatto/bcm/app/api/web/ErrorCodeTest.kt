@@ -5,12 +5,12 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 
 /**
- * `error.code` 9종 계약 고정 — docs/api/openapi.yaml 에러 코드 표.
+ * `error.code` 10종 계약 고정 — docs/api/openapi.yaml 에러 코드 표.
  */
 class ErrorCodeTest {
     @Test
-    fun `에러 코드는 9종이고 code 값은 스펙 표기 그대로다`() {
-        assertThat(ErrorCode.entries).hasSize(9)
+    fun `에러 코드는 10종이고 code 값은 스펙 표기 그대로다`() {
+        assertThat(ErrorCode.entries).hasSize(10)
         assertThat(ErrorCode.entries.map { it.code }).containsExactlyInAnyOrder(
             "VALIDATION_FAILED",
             "ASSET_NOT_SUPPORTED",
@@ -19,6 +19,7 @@ class ErrorCodeTest {
             "CONFLICT",
             "UNPROCESSABLE_ENTITY",
             "SUBMIT_IN_PROGRESS",
+            "CREATION_RETRY_LATER",
             "RELAY_REJECTED",
             "INTERNAL",
         )
@@ -33,6 +34,7 @@ class ErrorCodeTest {
         assertThat(ErrorCode.CONFLICT.status).isEqualTo(HttpStatus.CONFLICT)
         assertThat(ErrorCode.UNPROCESSABLE_ENTITY.status).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
         assertThat(ErrorCode.SUBMIT_IN_PROGRESS.status).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE)
+        assertThat(ErrorCode.CREATION_RETRY_LATER.status).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE)
         assertThat(ErrorCode.RELAY_REJECTED.status).isEqualTo(HttpStatus.BAD_GATEWAY)
         assertThat(ErrorCode.INTERNAL.status).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR)
     }

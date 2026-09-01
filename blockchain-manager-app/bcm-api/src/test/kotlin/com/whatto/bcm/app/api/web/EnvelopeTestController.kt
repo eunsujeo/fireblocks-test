@@ -2,6 +2,7 @@ package com.whatto.bcm.app.api.web
 
 import com.whatto.bcm.domain.exception.AccountNotFoundException
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
@@ -51,6 +52,9 @@ class EnvelopeTestController {
 
     @GetMapping("/submission-in-progress")
     fun submissionInProgress(): Nothing = throw SubmissionInProgressException("wd-1", 3)
+
+    @GetMapping("/creation-retry-later")
+    fun creationRetryLater(): Nothing = throw CreationRetryLaterException("acct-1", 82_800)
 
     @GetMapping("/vendor-failure")
     fun vendorFailure(): Nothing = throw VendorApiException(operation = "createVault", httpStatus = 503)

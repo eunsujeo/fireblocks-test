@@ -80,6 +80,8 @@ class StatefulFireblocksStubIntegrationTest {
         val nativeAddress = client.createDepositAddress(firstVault.vaultId, NATIVE_ASSET_ID, NATIVE_WALLET_KEY)
         val tokenAddress = client.createDepositAddress(firstVault.vaultId, TOKEN_ASSET_ID, TOKEN_WALLET_KEY)
         val retriedTokenAddress = client.createDepositAddress(firstVault.vaultId, TOKEN_ASSET_ID, TOKEN_WALLET_KEY)
+        val recoveredVaults = client.vaultsByName(VAULT_NAME, null)
+        val recoveredAddresses = client.depositAddresses(firstVault.vaultId, TOKEN_ASSET_ID, null)
 
         assertThat(retriedVault).isEqualTo(firstVault)
         assertThat(firstVault.name).isEqualTo(VAULT_NAME)
@@ -88,6 +90,9 @@ class StatefulFireblocksStubIntegrationTest {
         assertThat(retriedTokenAddress).isEqualTo(tokenAddress)
         assertThat(tokenAddress.tag).isNull()
         assertThat(tokenAddress.address).isEqualTo(chain.manifest.customerAddresses.first())
+        assertThat(recoveredVaults.data).containsExactly(firstVault.copy(walletCount = 2))
+        assertThat(recoveredAddresses.data).containsExactly(tokenAddress)
+        assertThat(recoveredAddresses.next).isNull()
     }
 
     @Test

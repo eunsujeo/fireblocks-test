@@ -45,6 +45,9 @@ class FireblocksTransactionClientTest {
             .isInstanceOf(IllegalArgumentException::class.java)
         assertThatThrownBy { FireblocksProperties(readTimeoutMillis = 0) }
             .isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy {
+            FireblocksProperties(maxAttempts = 1, connectTimeoutMillis = 1, readTimeoutMillis = 300_000)
+        }.isInstanceOf(IllegalArgumentException::class.java)
     }
 
     @Test

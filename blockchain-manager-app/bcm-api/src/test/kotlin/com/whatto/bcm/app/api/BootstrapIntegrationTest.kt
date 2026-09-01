@@ -100,7 +100,9 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
                 String::class.java,
             )
         assertThat(tables).containsExactlyInAnyOrder(
+            "bcm_acnt_crtn_l",
             "bcm_acnt_m",
+            "bcm_addr_crtn_l",
             "bcm_addr_m",
             "bcm_blkc_m",
             "bcm_vndr_ast_ctlg_m",
@@ -164,8 +166,11 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
                 String::class.java,
             )
         assertThat(uniqueColumns).contains(
+            // 외부 호출 전에 생성 의도를 하나로 고정한다
+            "bcm_acnt_crtn_l:acnt_typ_dvcd,ref",
             // 계정 생성 멱등 — 접두사가 없어 고객·시스템 ref 가 겹칠 수 있으므로 유형과 복합이어야 한다
             "bcm_acnt_m:acnt_typ_dvcd,ref",
+            "bcm_addr_crtn_l:acnt_id,ntwk_cd,tkn_smbl",
             // 주소 발급 멱등 — 네트워크가 키에 들어가야 같은 자산의 여러 네트워크가 공존한다
             "bcm_addr_m:acnt_id,ntwk_cd,tkn_smbl",
             "bcm_blkc_m:ntwk_cd",

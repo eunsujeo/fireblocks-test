@@ -1,9 +1,13 @@
 package com.whatto.bcm.infra.persistence.account
 
 import com.whatto.bcm.domain.account.Account
+import com.whatto.bcm.domain.account.AccountCreationIntent
 import com.whatto.bcm.domain.account.AccountType
+import com.whatto.bcm.domain.account.CreationStatus
 import com.whatto.bcm.domain.account.DepositAddress
+import com.whatto.bcm.domain.account.DepositAddressCreationIntent
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -13,13 +17,16 @@ import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.context.annotation.Import
 
 @DataJdbcTest
-@Import(AccountJdbcAdapter::class, DepositAddressJdbcAdapter::class)
+@Import(AccountJdbcAdapter::class, DepositAddressJdbcAdapter::class, WalletProvisioningJdbcAdapter::class)
 class AccountPersistenceTest : PersistenceTestSupport() {
     @Autowired
     lateinit var accounts: AccountJdbcAdapter
 
     @Autowired
     lateinit var addresses: DepositAddressJdbcAdapter
+
+    @Autowired
+    lateinit var provisioning: WalletProvisioningJdbcAdapter
 
     private fun account(
         accountId: String = "acct_01",
@@ -46,6 +53,69 @@ class AccountPersistenceTest : PersistenceTestSupport() {
         assertThatThrownBy { accounts.insert(account(accountId = "acct_03", ref = "000DUP")) }
             .isInstanceOf(ConflictException::class.java)
             .hasRootCauseInstanceOf(java.sql.SQLException::class.java) // cause 체인 보존 (error-handling.md)
+    }
+
+    @Test
+    fun `vault 생성 의도는 벤더 호출 전에 고정되고 완료 시 계정 매핑과 한 트랜잭션으로 종결된다`() {
+        val candidate =
+            AccountCreationIntent(
+                accountId = "acct_intent",
+                accountType = AccountType.CUSTOMER,
+                ref = "intent-ref",
+                vendorVaultName = "CUSTOMER:intent-ref",
+                idempotencyKey = "bcm-vlt-00000000000000000000000000000001",
+                idempotencyKeyRegisteredAt = "20260901000000",
+                lastVendorCallPreparedAt = null,
+                status = CreationStatus.PENDING,
+                attemptCount = 0,
+                vendorVaultId = null,
+                registeredAt = "20260901000000",
+                lastChangedAt = "20260901000000",
+            )
+
+        val reserved = provisioning.reserveAccount(candidate)
+        val raced = provisioning.reserveAccount(candidate.copy(accountId = "acct_loser", idempotencyKey = "bcm-vlt-loser"))
+        val submitting = provisioning.beginAccountAttempt(reserved.accountId, "20260901000001")
+        val firstPrepared =
+            provisioning.prepareAccountVendorCall(
+                submitting,
+                submitting.idempotencyKey,
+                submitting.idempotencyKeyRegisteredAt,
+                "20260901000001",
+            )
+        val superseding = provisioning.beginAccountAttempt(reserved.accountId, "20260902000000")
+        val stalePreparation =
+            provisioning.prepareAccountVendorCall(
+                submitting,
+                submitting.idempotencyKey,
+                submitting.idempotencyKeyRegisteredAt,
+                "20260902000000",
+            )
+        val prepared =
+            provisioning.prepareAccountVendorCall(
+                superseding,
+                "bcm-vlt-00000000000000000000000000000002",
+                "20260902000000",
+                "20260902000000",
+            )
+        assertThatThrownBy {
+            provisioning.completeAccount(checkNotNull(firstPrepared), "vault-stale", "20260902000001")
+        }.isInstanceOf(CreationRetryLaterException::class.java)
+        assertThat(accounts.findByTypeAndRef(AccountType.CUSTOMER, "intent-ref")).isNull()
+        val completed = provisioning.completeAccount(checkNotNull(prepared), "vault-77", "20260902000001")
+
+        assertThat(raced).isEqualTo(reserved)
+        assertThat(submitting.status).isEqualTo(CreationStatus.SUBMITTING)
+        assertThat(submitting.attemptCount).isEqualTo(1)
+        assertThat(stalePreparation).isNull()
+        assertThat(prepared.lastVendorCallPreparedAt).isEqualTo("20260902000000")
+        assertThat(completed.accountId).isEqualTo("acct_intent")
+        assertThat(completed.vendorVaultId).isEqualTo("vault-77")
+        assertThat(accounts.findByTypeAndRef(AccountType.CUSTOMER, "intent-ref")).isEqualTo(completed)
+        assertThat(provisioning.findAccount(AccountType.CUSTOMER, "intent-ref")?.status)
+            .isEqualTo(CreationStatus.COMPLETED)
+        assertThat(provisioning.beginAccountAttempt(reserved.accountId, "20260901000003").status)
+            .isEqualTo(CreationStatus.COMPLETED)
     }
 
     @Test
@@ -105,6 +175,86 @@ class AccountPersistenceTest : PersistenceTestSupport() {
         assertThatThrownBy { addresses.insert(address(address = "0xSECOND")) }
             .isInstanceOf(ConflictException::class.java)
             .hasRootCauseInstanceOf(java.sql.SQLException::class.java)
+    }
+
+    @Test
+    fun `주소 생성 의도는 assetId를 고정하고 완료 시 주소 매핑과 한 트랜잭션으로 종결된다`() {
+        accounts.insert(account(accountId = "acct_address_intent", ref = "address-intent-ref"))
+        val candidate =
+            DepositAddressCreationIntent(
+                accountId = "acct_address_intent",
+                network = "ETHEREUM",
+                symbol = "USDC",
+                vendorAssetId = "USDC_ERC20",
+                idempotencyKey = "bcm-adr-00000000000000000000000000000001",
+                idempotencyKeyRegisteredAt = "20260901000000",
+                lastVendorCallPreparedAt = null,
+                status = CreationStatus.PENDING,
+                attemptCount = 0,
+                address = null,
+                registeredAt = "20260901000000",
+                lastChangedAt = "20260901000000",
+            )
+
+        val reserved = provisioning.reserveAddress(candidate)
+        val raced = provisioning.reserveAddress(candidate.copy(vendorAssetId = "CHANGED", idempotencyKey = "bcm-adr-loser"))
+        val submitting =
+            provisioning.beginAddressAttempt(
+                candidate.accountId,
+                candidate.network,
+                candidate.symbol,
+                "20260901000001",
+            )
+        val firstPrepared =
+            provisioning.prepareAddressVendorCall(
+                submitting,
+                submitting.idempotencyKey,
+                submitting.idempotencyKeyRegisteredAt,
+                "20260901000001",
+            )
+        val superseding =
+            provisioning.beginAddressAttempt(
+                candidate.accountId,
+                candidate.network,
+                candidate.symbol,
+                "20260902000000",
+            )
+        val prepared =
+            provisioning.prepareAddressVendorCall(
+                superseding,
+                "bcm-adr-00000000000000000000000000000002",
+                "20260902000000",
+                "20260902000000",
+            )
+        assertThatThrownBy {
+            provisioning.completeAddress(checkNotNull(firstPrepared), "0xSTALE", "20260902000001")
+        }.isInstanceOf(CreationRetryLaterException::class.java)
+        assertThat(addresses.find(candidate.accountId, candidate.network, candidate.symbol)).isNull()
+        val completed =
+            provisioning.completeAddress(
+                checkNotNull(prepared),
+                "0xRECOVERED",
+                "20260902000001",
+            )
+
+        assertThat(raced).isEqualTo(reserved)
+        assertThat(raced.vendorAssetId).isEqualTo("USDC_ERC20")
+        assertThat(submitting.attemptCount).isEqualTo(1)
+        assertThat(prepared.idempotencyKey).isEqualTo("bcm-adr-00000000000000000000000000000002")
+        assertThat(prepared.idempotencyKeyRegisteredAt).isEqualTo("20260902000000")
+        assertThat(completed.address).isEqualTo("0xRECOVERED")
+        assertThat(addresses.find(candidate.accountId, candidate.network, candidate.symbol)).isEqualTo(completed)
+        assertThat(provisioning.findAddress(candidate.accountId, candidate.network, candidate.symbol)?.status)
+            .isEqualTo(CreationStatus.COMPLETED)
+        assertThat(
+            provisioning
+                .beginAddressAttempt(
+                    candidate.accountId,
+                    candidate.network,
+                    candidate.symbol,
+                    "20260901000003",
+                ).status,
+        ).isEqualTo(CreationStatus.COMPLETED)
     }
 
     @Test

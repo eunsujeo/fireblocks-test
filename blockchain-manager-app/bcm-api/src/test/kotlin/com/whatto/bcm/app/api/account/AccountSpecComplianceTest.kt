@@ -9,6 +9,7 @@ import com.whatto.bcm.app.application.account.fixture.AccountFixture
 import com.whatto.bcm.app.application.account.fixture.DepositAddressFixture
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.exception.AccountNotFoundException
+import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.vendor.VendorBalance
 import io.mockk.every
 import org.junit.jupiter.api.Test
@@ -113,7 +114,7 @@ class AccountSpecComplianceTest {
                     network = "TRON",
                     symbol = "USDC",
                     depositAddress = null,
-                    failure = AccountNotFoundException("acct_test_01"),
+                    failure = CreationRetryLaterException("acct_test_01:TRON:USDC", 82_800),
                 ),
             )
 
@@ -125,6 +126,8 @@ class AccountSpecComplianceTest {
             ).andExpect(status().isOk)
             .andExpect(jsonPath("$.data[0].symbol").value("USDC"))
             .andExpect(jsonPath("$.data[0].token").doesNotExist())
+            .andExpect(jsonPath("$.data[1].error.code").value("CREATION_RETRY_LATER"))
+            .andExpect(jsonPath("$.data[1].error.retryAfterSeconds").value(82_800))
             .andExpect(openApi().isValid(SPEC))
     }
 
