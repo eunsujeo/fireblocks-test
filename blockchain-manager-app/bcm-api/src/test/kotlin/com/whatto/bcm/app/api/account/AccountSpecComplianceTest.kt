@@ -65,7 +65,7 @@ class AccountSpecComplianceTest {
     }
 
     @Test
-    fun `balancesOf 200 응답이 스펙 AssetBalanceListResponse 와 일치한다`() {
+    fun `balancesOf 200 응답이 스펙 AssetBalanceListResponse 와 일치한다 (미발급 빈 배열 포함)`() {
         every { accountService.balancesOf("acct_test_01", null, null) } returns
             listOf(
                 AssetBalance(
@@ -87,6 +87,16 @@ class AccountSpecComplianceTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.data[0].symbol").value("USDC"))
             .andExpect(jsonPath("$.data[0].token").doesNotExist())
+            .andExpect(openApi().isValid(SPEC))
+
+        every { accountService.balancesOf("acct_test_01", "BASE", "USDC") } returns emptyList()
+        mockMvc
+            .perform(
+                get("/accounts/acct_test_01/balances")
+                    .param("network", "BASE")
+                    .param("symbol", "USDC"),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.data.length()").value(0))
             .andExpect(openApi().isValid(SPEC))
     }
 

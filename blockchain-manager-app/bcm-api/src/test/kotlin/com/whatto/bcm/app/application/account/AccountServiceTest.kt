@@ -16,6 +16,7 @@ import com.whatto.bcm.domain.exception.AccountNotFoundException
 import com.whatto.bcm.domain.exception.AssetNotSupportedException
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.CreationRetryLaterException
+import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.vendor.VendorBalance
 import com.whatto.bcm.domain.vendor.VendorDepositAddress
 import com.whatto.bcm.domain.vendor.VendorPage
@@ -519,6 +520,51 @@ class AccountServiceTest {
         assertThat(balances).hasSize(1)
         assertThat(balances[0].network).isEqualTo("ETHEREUM")
         assertThat(balances[0].balance).isEqualTo(vendorBalance)
+    }
+
+    @Test
+    fun `잔액 조회 — 발급 자산의 실제 0잔액은 빈 배열 대신 자산 행으로 돌려준다`() {
+        val zeroBalance = VendorBalance(total = "0", available = "0", pending = "0", frozen = "0", lockedAmount = "0")
+        every { accountRepository.findByAccountId("acct_test_01") } returns AccountFixture.fixture(vendorVaultId = "77")
+        every { depositAddressRepository.findAll("acct_test_01", "USDC", "BASE") } returns
+            listOf(DepositAddressFixture.fixture(network = "BASE"))
+        every { assetMappingQueryService.requiredMapping("BASE", "USDC") } returns mapping(network = "BASE")
+        every { walletVendorPort.balanceOf("77", "USDC_ERC20") } returns zeroBalance
+
+        val balances = service.balancesOf("acct_test_01", "BASE", "USDC")
+
+        assertThat(balances).singleElement().satisfies({ balance ->
+            assertThat(balance.network).isEqualTo("BASE")
+            assertThat(balance.symbol).isEqualTo("USDC")
+            assertThat(balance.balance).isEqualTo(zeroBalance)
+        })
+    }
+
+    @Test
+    fun `잔액 조회 — 계정은 있지만 요청 자산이 미발급이면 빈 배열이고 벤더를 호출하지 않는다`() {
+        every { accountRepository.findByAccountId("acct_test_01") } returns AccountFixture.fixture(vendorVaultId = "77")
+        every { depositAddressRepository.findAll("acct_test_01", "USDC", "BASE") } returns emptyList()
+
+        val balances = service.balancesOf("acct_test_01", "BASE", "USDC")
+
+        assertThat(balances).isEmpty()
+        verify(exactly = 0) { assetMappingQueryService.requiredMapping(any(), any()) }
+        verify(exactly = 0) { walletVendorPort.balanceOf(any(), any()) }
+    }
+
+    @Test
+    fun `잔액 조회 — 로컬 발급 기록과 벤더 wallet 404 불일치는 빈 배열로 숨기지 않는다`() {
+        every { accountRepository.findByAccountId("acct_test_01") } returns AccountFixture.fixture(vendorVaultId = "77")
+        every { depositAddressRepository.findAll("acct_test_01", "USDC", "ETHEREUM") } returns
+            listOf(DepositAddressFixture.fixture())
+        every { assetMappingQueryService.requiredMapping("ETHEREUM", "USDC") } returns mapping()
+        every { walletVendorPort.balanceOf("77", "USDC_ERC20") } throws VendorApiException("balanceOf", 404)
+
+        assertThatThrownBy { service.balancesOf("acct_test_01", "ETHEREUM", "USDC") }
+            .isInstanceOf(VendorApiException::class.java)
+            .satisfies({ exception ->
+                assertThat((exception as VendorApiException).httpStatus).isEqualTo(404)
+            })
     }
 
     @Test

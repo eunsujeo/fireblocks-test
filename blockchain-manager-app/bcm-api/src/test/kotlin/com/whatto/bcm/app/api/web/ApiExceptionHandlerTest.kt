@@ -1,7 +1,13 @@
 package com.whatto.bcm.app.api.web
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import org.assertj.core.api.Assertions.assertThat
 import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.http.MediaType
@@ -91,11 +97,22 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
-    fun `벤더 호출 실패 — 500 INTERNAL (스펙 에러 표에 벤더용 코드 없음)`() {
-        mockMvc
-            .perform(get("/test-envelope/vendor-failure"))
-            .andExpect(status().isInternalServerError)
-            .andExpect(jsonPath("$.error.code").value("INTERNAL"))
+    fun `벤더 호출 실패 — 500 INTERNAL 응답과 ERROR 로그`() {
+        val logger = LoggerFactory.getLogger(ApiExceptionHandler::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+
+        try {
+            mockMvc
+                .perform(get("/test-envelope/vendor-failure"))
+                .andExpect(status().isInternalServerError)
+                .andExpect(jsonPath("$.error.code").value("INTERNAL"))
+
+            assertThat(appender.list.map { it.level }).contains(Level.ERROR)
+        } finally {
+            logger.detachAppender(appender)
+            appender.stop()
+        }
     }
 
     @Test
