@@ -22,6 +22,7 @@ status: To Do
 | [자산 이동 지도](09-asset-map.md) | 시나리오별 vault 간 이동 한 장 — 확정 이동·미정 이동·자산 경계 (조립 문서) |
 | [로컬 블록체인 + Fireblocks Stub](10-local-fireblocks-integration.md) | BCM의 실제 Fireblocks HTTP 계약과 Anvil 결과를 잇는 통합 테스트·폐쇄망 파일 배포 경계 |
 | [운영 로그 포맷·수집·보존 정책](11-operational-log-policy.md) | BCM 운영 JSON 로그 계약, 중앙 수집 책임, 민감정보와 보존·삭제 경계 |
+| [Co-signer HA 구성 — 물리 장비 2대](12-cosigner-ha.md) | 온프레미스 SGX 장비 요건 · 장비별 설치 · Policy 로 active-active 병렬화 · 백업·교체 |
 
 ## 구성 요소 — 한 장
 
