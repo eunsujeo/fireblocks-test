@@ -348,6 +348,8 @@ class SweepCandidateSelectionServiceTest {
 private class SelectionSweepTransactionStatuses(
     private val finalizedIds: Set<String> = emptySet(),
 ) : SweepTransactionStatusRepository {
+    override fun findBatchStatusForUpdate(vendorTransactionId: String): com.whatto.bcm.domain.tx.TxStatus? = null
+
     override fun finalizedDepositIds(key: SweepTargetKey): Set<String> = finalizedIds
 }
 

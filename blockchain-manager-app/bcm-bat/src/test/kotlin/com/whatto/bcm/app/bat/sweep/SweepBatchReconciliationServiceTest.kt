@@ -263,6 +263,12 @@ private class FakeReconciliationExecutions(
         transactionHash: String?,
     ): SweepExecution = error("not used")
 
+    override fun invalidateFinalized(
+        executionId: String,
+        failureCode: String,
+        finishedAt: String,
+    ) = error("not used")
+
     override fun completeReconciliation(
         executionId: String,
         items: List<SweepItemReconciliation>,
@@ -386,10 +392,14 @@ private class FakeReconciliationVendor(
 }
 
 private object StableFinalizedStatuses : SweepTransactionStatusRepository {
+    override fun findBatchStatusForUpdate(vendorTransactionId: String): com.whatto.bcm.domain.tx.TxStatus? = null
+
     override fun finalizedDepositIds(key: SweepTargetKey): Set<String> = emptySet()
 }
 
 private class ChangingFinalizedStatuses : SweepTransactionStatusRepository {
+    override fun findBatchStatusForUpdate(vendorTransactionId: String): com.whatto.bcm.domain.tx.TxStatus? = null
+
     private var calls = 0
 
     override fun finalizedDepositIds(key: SweepTargetKey): Set<String> {

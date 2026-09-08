@@ -268,7 +268,7 @@ class AccountPersistenceTest : PersistenceTestSupport() {
     fun `주소 매핑 왕복 — (계정, 네트워크, 심볼)과 역방향(주소) 조회가 같은 객체를 되찾는다`() {
         val saved = addresses.insert(address())
         assertThat(addresses.find("acct_01", "ETHEREUM", "USDC")).isEqualTo(saved)
-        assertThat(addresses.findByAddress("0xA1b2C3", "ETHEREUM")).isEqualTo(saved)
+        assertThat(addresses.findByAddress("0xA1b2C3", "ETHEREUM", "USDC")).isEqualTo(saved)
     }
 
     @Test
@@ -499,7 +499,7 @@ class AccountPersistenceTest : PersistenceTestSupport() {
 
     @Test
     fun `없는 매핑은 null — 귀속 불명 입금의 분기 근거`() {
-        assertThat(addresses.findByAddress("0xUNKNOWN", "ETHEREUM")).isNull()
+        assertThat(addresses.findByAddress("0xUNKNOWN", "ETHEREUM", "USDC")).isNull()
         assertThat(accounts.findByTypeAndRef(AccountType.CUSTOMER, "000NONE")).isNull()
     }
 

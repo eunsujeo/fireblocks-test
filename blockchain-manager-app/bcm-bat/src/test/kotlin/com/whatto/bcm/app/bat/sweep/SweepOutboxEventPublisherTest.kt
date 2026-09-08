@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.bat.sweep
 
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
 import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventRepository
 import com.whatto.bcm.domain.event.OutboxEventType

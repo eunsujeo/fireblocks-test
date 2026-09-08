@@ -699,6 +699,216 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
     }
 
+    @Test
+    fun `같은 주소에 USDT와 USDC가 발급되어도 USDC 입금은 USDC로 기록한다`() {
+        insertAddress()
+        jdbc.update(
+            """
+            INSERT INTO bcm_vndr_ast_m
+              (ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, reg_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            SELECT ntwk_cd, 'USDT', 'review-usdt', '0xOtherToken', reg_dttm,
+                   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd
+            FROM bcm_vndr_ast_m WHERE tkn_smbl = 'USDC'
+            """.trimIndent(),
+        )
+        jdbc.update("UPDATE bcm_addr_m SET tkn_smbl = 'USDT'")
+        insertAddress()
+        inbox.insertIfAbsent(notification("noti-multi-asset", realPayload("noti-multi-asset")))
+
+        processor.processNext()
+
+        val tx = jdbc.queryForMap("SELECT * FROM bcm_tx_l")
+        val payload = objectMapper.readTree(jdbc.queryForMap("SELECT * FROM bcm_outbox_l").getValue("payload").toString())
+        assertThat(tx["tkn_smbl"]).isEqualTo("USDC")
+        assertThat(payload.path("symbol").asString()).isEqualTo("USDC")
+    }
+
+    @Test
+    fun `완료된 sweep의 DROPPED_BY_BLOCKCHAIN은 항목 실패 이벤트를 한 번 발행하고 요청을 다시 연다`() {
+        insertCompletedSweepFixture()
+        val payload = sweepReorgPayload("noti-sweep-reorg")
+        inbox.insertIfAbsent(notification("noti-sweep-reorg", payload))
+
+        processor.processNext()
+
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l")["last_pub_stcd"]).isEqualTo("FAILED")
+        assertThat(inboxRow("noti-sweep-reorg")["prcs_stcd"]).isEqualTo("S")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_exec_l")["swp_exec_stcd"]).isEqualTo("FAILED")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_req_item_l")["swp_req_item_stcd"]).isEqualTo("PENDING")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_req_l")["swp_req_stcd"]).isEqualTo("ACCEPTED")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_trgt")["actv_swp_exec_id"]).isNull()
+        val event = objectMapper.readTree(jdbc.queryForMap("SELECT * FROM bcm_outbox_l").getValue("payload").toString())
+        assertThat(event.path("chainStatus").asString()).isEqualTo("FAILED")
+        assertThat(event.path("itemOutcome").asString()).isEqualTo("FAILED")
+        assertThat(event.path("txId").asString()).isEqualTo(VENDOR_TX_ID)
+        assertThat(event.path("sweepItemId").asString()).isEqualTo("webhook-sweep-request-item")
+        assertThat(event.path("accountId").asString()).isEqualTo("acct-pool")
+
+        inbox.insertIfAbsent(notification("noti-sweep-reorg-again", sweepReorgPayload("noti-sweep-reorg-again")))
+        processor.processNext()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Int::class.java)).isEqualTo(1)
+    }
+
+    @Test
+    fun `같은 주소의 다른 토큰만 발급된 입금은 귀속하지 않는다`() {
+        insertAddress()
+        jdbc.update("UPDATE bcm_addr_m SET tkn_smbl = 'USDT'")
+        inbox.insertIfAbsent(notification("noti-unissued-token", realPayload("noti-unissued-token")))
+
+        assertThat(processor.processNext()).isInstanceOf(WebhookDecisionOutcome.Unattributed::class.java)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_tx_l", Int::class.java)).isZero()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Int::class.java)).isZero()
+    }
+
+    @Test
+    fun `sweep 무효화 outbox 실패는 원장 변경을 롤백하고 재시도해도 과거 성공 이벤트를 보존한다`() {
+        insertCompletedSweepFixture()
+        val oldPayload =
+            """
+            {"eventId":"0198c0de-0000-7000-8000-000000000099","type":"SWEEP",
+             "chainStatus":"FINALIZED","itemOutcome":"SUCCEEDED","accountId":"acct-pool"}
+            """.trimIndent()
+        jdbc.update(
+            """
+            INSERT INTO bcm_outbox_l
+              (evnt_id, evnt_dt, vndr_tx_id, agg_typ_dvcd, evt_typ_dvcd, topic, payload,
+               evnt_stcd, rtry_cnt, max_rtry_cnt, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('0198c0de-0000-7000-8000-000000000099', '20260807', ?, 'TX', 'TXCF', 'sweep-events',
+                    CAST(? AS jsonb), 'P', 0, 5, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            VENDOR_TX_ID,
+            oldPayload,
+        )
+        jdbc.execute(
+            "ALTER TABLE bcm_outbox_l ADD CONSTRAINT test_reject_sweep_failure CHECK (payload->>'chainStatus' <> 'FAILED')",
+        )
+        try {
+            inbox.insertIfAbsent(notification("noti-reorg-rollback", sweepReorgPayload("noti-reorg-rollback")))
+
+            assertThat(processor.processNext()).isEqualTo(WebhookDecisionOutcome.Retrying("noti-reorg-rollback", 1))
+            assertThat(jdbc.queryForMap("SELECT * FROM bcm_tx_l")["last_pub_stcd"]).isEqualTo("FINALIZED")
+            assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_exec_l")["swp_exec_stcd"]).isEqualTo("COMPLETED")
+            assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_item_l")["swp_item_stcd"]).isEqualTo("SUCCEEDED")
+            assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_req_item_l")["swp_req_item_stcd"]).isEqualTo("COMPLETED")
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_swp_trgt", Int::class.java)).isZero()
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Int::class.java)).isEqualTo(1)
+        } finally {
+            jdbc.execute("ALTER TABLE bcm_outbox_l DROP CONSTRAINT test_reject_sweep_failure")
+        }
+
+        processor.processNext()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Int::class.java)).isEqualTo(2)
+        val preserved =
+            jdbc.queryForObject(
+                "SELECT payload::text FROM bcm_outbox_l WHERE evnt_id = '0198c0de-0000-7000-8000-000000000099'",
+                String::class.java,
+            )
+        assertThat(objectMapper.readTree(preserved)).isEqualTo(objectMapper.readTree(oldPayload))
+    }
+
+    @Test
+    fun `완료한 sweep의 무효화 알림이 동시에 처리되어도 항목 실패 이벤트는 하나다`() {
+        insertCompletedSweepFixture()
+        listOf("noti-reorg-race-1", "noti-reorg-race-2").forEach {
+            inbox.insertIfAbsent(notification(it, sweepReorgPayload(it)))
+        }
+        val ready = CountDownLatch(2)
+        val start = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val futures =
+                List(2) {
+                    executor.submit {
+                        ready.countDown()
+                        check(start.await(5, TimeUnit.SECONDS))
+                        processor.processNext()
+                    }
+                }
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue()
+            start.countDown()
+            futures.forEach { it.get(10, TimeUnit.SECONDS) }
+        } finally {
+            start.countDown()
+            executor.shutdownNow()
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Int::class.java)).isEqualTo(1)
+        assertThat(inboxRow("noti-reorg-race-1")["prcs_stcd"]).isEqualTo("S")
+        assertThat(inboxRow("noti-reorg-race-2")["prcs_stcd"]).isEqualTo("S")
+    }
+
+    @Test
+    fun `이전 sweep이 무효화되어도 같은 요청의 후속 실행과 claim을 유지한다`() {
+        insertCompletedSweepFixture()
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_exec_l
+              (swp_exec_id, ext_tx_id, req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
+               plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id, swp_exec_stcd, item_cnt,
+               req_tot_amt, gasless_yn, vndr_tx_id, req_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            SELECT 'followup-execution', 'swp-followup', req_hash, ntwk_cd, tkn_smbl, opr_acnt_id, swp_ctrt_addr,
+                   plcy_vrsn_id, plcy_snps_hash, ctrt_vrsn_id, ctrt_evdc_id, 'SUBMITTED', item_cnt,
+                   req_tot_amt, gasless_yn, 'followup-vendor-tx', '20260807120200',
+                   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd
+            FROM bcm_swp_exec_l WHERE swp_exec_id = ?
+            """.trimIndent(),
+            SWEEP_EXECUTION_ID,
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_item_l
+              (swp_exec_id, item_seq, swp_req_item_id, acnt_id, src_addr, req_amt, swp_item_stcd,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            SELECT 'followup-execution', item_seq, swp_req_item_id, acnt_id, src_addr, req_amt, 'READY',
+                   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd
+            FROM bcm_swp_item_l WHERE swp_exec_id = ?
+            """.trimIndent(),
+            SWEEP_EXECUTION_ID,
+        )
+        jdbc.update("UPDATE bcm_swp_req_item_l SET swp_req_item_stcd = 'PROCESSING'")
+        jdbc.update("UPDATE bcm_swp_req_l SET swp_req_stcd = 'PROCESSING', fnsh_dttm = NULL")
+        jdbc.update(
+            """
+            INSERT INTO bcm_swp_trgt
+              (acnt_id, ntwk_cd, tkn_smbl, reg_dttm, actv_swp_exec_id, actv_item_seq, try_cnt,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('acct-pool', 'ETHEREUM', 'USDC', '20260807120200', 'followup-execution', 1, 2,
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+        )
+        inbox.insertIfAbsent(notification("noti-reorg-followup", sweepReorgPayload("noti-reorg-followup")))
+
+        processor.processNext()
+
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_trgt")["actv_swp_exec_id"]).isEqualTo("followup-execution")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_req_item_l")["swp_req_item_stcd"]).isEqualTo("PROCESSING")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_req_l")["swp_req_stcd"]).isEqualTo("PROCESSING")
+        assertThat(jdbc.queryForMap("SELECT * FROM bcm_swp_item_l WHERE swp_exec_id = 'followup-execution'")["swp_item_stcd"])
+            .isEqualTo("READY")
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Int::class.java)).isEqualTo(1)
+    }
+
+    private fun insertCompletedSweepFixture() {
+        insertSweepFixture("swp-reorg")
+        inbox.insertIfAbsent(
+            notification("noti-sweep-finalized", managedVaultPayload("noti-sweep-finalized", "swp-reorg", "COMPLETED", 1)),
+        )
+        processor.processNext()
+        jdbc.update("UPDATE bcm_swp_exec_l SET swp_exec_stcd = 'COMPLETED', actl_tot_amt = 100, fnsh_dttm = '20260807120100'")
+        jdbc.update("UPDATE bcm_swp_item_l SET swp_item_stcd = 'SUCCEEDED', actl_amt = 100, log_idx = 1")
+        jdbc.update("UPDATE bcm_swp_req_item_l SET swp_req_item_stcd = 'COMPLETED'")
+        jdbc.update("UPDATE bcm_swp_req_l SET swp_req_stcd = 'COMPLETED', fnsh_dttm = '20260807120100'")
+        jdbc.update("DELETE FROM bcm_swp_trgt")
+    }
+
+    private fun sweepReorgPayload(notificationId: String): String =
+        objectMapper
+            .readTree(managedVaultPayload(notificationId, "swp-reorg", "FAILED", 0))
+            .also {
+                (it.path("data") as ObjectNode).put("subStatus", "DROPPED_BY_BLOCKCHAIN")
+            }.toString()
+
     private fun insertAddress() {
         jdbc.update(
             """

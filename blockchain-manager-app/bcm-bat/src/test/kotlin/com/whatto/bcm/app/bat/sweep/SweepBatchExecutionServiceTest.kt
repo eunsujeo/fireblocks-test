@@ -364,6 +364,12 @@ private class FakeBatchExecutions : SweepExecutionRepository {
         transactionHash: String?,
     ): SweepExecution = error("not used")
 
+    override fun invalidateFinalized(
+        executionId: String,
+        failureCode: String,
+        finishedAt: String,
+    ) = error("not used")
+
     override fun completeReconciliation(
         executionId: String,
         items: List<com.whatto.bcm.domain.sweep.SweepItemReconciliation>,
@@ -429,6 +435,7 @@ private class FakeBatchAddresses : DepositAddressRepository {
     override fun findByAddress(
         address: String,
         network: String,
+        symbol: String,
     ): DepositAddress? = error("not used")
 
     override fun existsByAsset(

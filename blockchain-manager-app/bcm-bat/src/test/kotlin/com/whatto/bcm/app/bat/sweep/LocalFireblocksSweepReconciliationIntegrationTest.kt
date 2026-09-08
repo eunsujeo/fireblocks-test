@@ -1,6 +1,8 @@
 package com.whatto.bcm.app.bat.sweep
 
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.sweep.SweepInvalidationService
+import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationJob
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationProperties
 import com.whatto.bcm.app.bat.stall.TransactionalStallTerminalObservationHandler
@@ -19,6 +21,7 @@ import com.whatto.bcm.domain.sweep.SweepAuthorization
 import com.whatto.bcm.domain.sweep.SweepAuthorizationKey
 import com.whatto.bcm.domain.sweep.SweepAuthorizationStatus
 import com.whatto.bcm.domain.sweep.SweepBatchCallItem
+import com.whatto.bcm.domain.sweep.SweepEventPublisher
 import com.whatto.bcm.domain.sweep.SweepEventSerializer
 import com.whatto.bcm.domain.sweep.SweepExecution
 import com.whatto.bcm.domain.sweep.SweepExecutionAlert
@@ -364,6 +367,7 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
                 transactionRunner = transactionRunner,
                 outbox = outbox,
                 sweepExecutions = executions,
+                sweepInvalidation = SweepInvalidationService(executions, SweepEventPublisher { error("not used") }),
                 boosts = boosts,
                 vendor = vendor,
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },

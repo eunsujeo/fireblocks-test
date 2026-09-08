@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.bat.stall
 
+import com.whatto.bcm.app.application.sweep.SweepInvalidationService
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationJob
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationProperties
 import com.whatto.bcm.app.bat.support.IntegrationTestSupport
@@ -9,6 +10,7 @@ import com.whatto.bcm.domain.event.OutboxEventRepository
 import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.domain.monitoring.NoOpOperationalMetricsPort
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.sweep.SweepEventPublisher
 import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.StallCandidate
@@ -119,6 +121,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 transactionRunner = transactionRunner,
                 outbox = outbox,
                 sweepExecutions = sweepExecutions,
+                sweepInvalidation = SweepInvalidationService(sweepExecutions, SweepEventPublisher { error("not used") }),
                 boosts = boosts,
                 vendor = FamilyVendor(emptyMap()),
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
@@ -228,6 +231,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 transactionRunner = transactionRunner,
                 outbox = outbox,
                 sweepExecutions = sweepExecutions,
+                sweepInvalidation = SweepInvalidationService(sweepExecutions, SweepEventPublisher { error("not used") }),
                 boosts = boosts,
                 vendor = FamilyVendor(mapOf("tx-root" to completedTransaction())),
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
@@ -323,6 +327,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             transactionRunner = transactionRunner,
             outbox = outbox,
             sweepExecutions = sweepExecutions,
+            sweepInvalidation = SweepInvalidationService(sweepExecutions, SweepEventPublisher { error("not used") }),
             boosts = boosts,
             vendor = vendor,
             eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },

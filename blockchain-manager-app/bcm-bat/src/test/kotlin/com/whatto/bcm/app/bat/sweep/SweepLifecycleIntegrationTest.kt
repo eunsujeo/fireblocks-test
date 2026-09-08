@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.bat.sweep
 
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
 import com.whatto.bcm.app.bat.support.IntegrationTestSupport
 import com.whatto.bcm.app.bat.sweep.fixture.SweepRuntimeFixtures
 import com.whatto.bcm.domain.TransactionRunner
@@ -214,6 +215,60 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
                 CLOCK,
                 PROPERTIES,
             )
+    }
+
+    @Test
+    fun `성공 후 최소금액 이상 잔액이 남으면 같은 요청 항목을 다음 실행으로 연결한다`() {
+        erc20.allowances[OWNER_A] = "100"
+        erc20.allowances[OWNER_B] = "100"
+        assertThat(executionService.runOnce()).isInstanceOf(SweepBatchExecutionResult.Submitted::class.java)
+        val originalItem = executions.findItems(EXECUTION_ID).single { it.accountId == ACCOUNT_A }
+        executions.markReconciling(EXECUTION_ID, BATCH_VENDOR_TX_ID, TRANSACTION_HASH)
+        vendor.transaction = completedBatchTransaction(records = listOf(VAULT_A to "20", VAULT_B to "30"))
+        receipts.value = successfulReceipt(EXECUTION_ID, listOf(OWNER_A to "20", OWNER_B to "30"))
+        wallet.availableByVault[VAULT_A] = "20"
+        wallet.availableByVault[VAULT_B] = "0"
+
+        assertThat(reconciliationService.runOnce()).isEqualTo(SweepReconciliationCycleResult(1, 0, 0))
+
+        assertThat(requestItemStatuses()).containsExactly("PENDING", "COMPLETED")
+        assertThat(requestStatus()).isEqualTo("PARTIAL")
+        assertThat(targets.findPending(setOf("ETHEREUM"), 100).map { it.accountId }).containsExactly(ACCOUNT_A)
+        assertThat(executionService.runOnce()).isInstanceOf(SweepBatchExecutionResult.Submitted::class.java)
+        assertThat(executions.findItems(EXECUTION_ID_2).single().sweepRequestItemId).isEqualTo(originalItem.sweepRequestItemId)
+        assertThat(executions.findItems(EXECUTION_ID).single { it.accountId == ACCOUNT_A }.status).isEqualTo(SweepItemStatus.SUCCEEDED)
+    }
+
+    @Test
+    fun `FAILED 관찰 뒤 도착한 오래된 성공 대사는 요청을 완료하지 않는다`() {
+        erc20.allowances[OWNER_A] = "100"
+        erc20.allowances[OWNER_B] = "100"
+        assertThat(executionService.runOnce()).isInstanceOf(SweepBatchExecutionResult.Submitted::class.java)
+        executions.markReconciling(EXECUTION_ID, BATCH_VENDOR_TX_ID, TRANSACTION_HASH)
+        vendor.transaction = completedBatchTransaction(records = listOf(VAULT_A to "20", VAULT_B to "30"))
+        receipts.value = successfulReceipt(EXECUTION_ID, listOf(OWNER_A to "20", OWNER_B to "30"))
+        wallet.availableByVault[VAULT_A] = "0"
+        wallet.availableByVault[VAULT_B] = "0"
+        jdbc.update(
+            """
+            INSERT INTO bcm_tx_l
+              (vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
+               last_pub_stcd, cnfm_cnt, vndr_sub_stcd, frst_dtct_dttm, last_chng_dttm, vndr_crt_dttm,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, ?, ?, 'ETHEREUM', 'USDC', ?, 'FAILED', 1, 'DROPPED_BY_BLOCKCHAIN',
+                    '20260812090000', '20260812100000', '20260812090000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            BATCH_VENDOR_TX_ID,
+            BATCH_VENDOR_TX_ID,
+            BATCH_EXTERNAL_ID,
+            OPERATOR_ID,
+            TRANSACTION_HASH,
+        )
+
+        assertThat(reconciliationService.runOnce()).isEqualTo(SweepReconciliationCycleResult(0, 0, 1))
+        assertThat(executions.findById(EXECUTION_ID)?.status).isEqualTo(SweepExecutionStatus.RECONCILING)
+        assertThat(requestItemStatuses()).containsExactly("PROCESSING", "PROCESSING")
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Int::class.java)).isZero()
     }
 
     @AfterEach
@@ -915,6 +970,7 @@ private class LifecycleAddresses : DepositAddressRepository {
     override fun findByAddress(
         address: String,
         network: String,
+        symbol: String,
     ): DepositAddress? = error("not used")
 
     override fun existsByAsset(

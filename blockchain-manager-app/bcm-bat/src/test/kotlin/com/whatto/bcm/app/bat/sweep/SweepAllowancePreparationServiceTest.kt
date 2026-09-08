@@ -466,6 +466,7 @@ private class FakeDepositAddresses : DepositAddressRepository {
     override fun findByAddress(
         address: String,
         network: String,
+        symbol: String,
     ): DepositAddress? = error("not used")
 
     override fun existsByAsset(
