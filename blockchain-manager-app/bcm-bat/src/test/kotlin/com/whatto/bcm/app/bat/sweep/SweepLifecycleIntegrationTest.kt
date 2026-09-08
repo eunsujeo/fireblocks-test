@@ -1,5 +1,8 @@
 package com.whatto.bcm.app.bat.sweep
 
+import com.whatto.bcm.app.application.account.AccountQueryService
+import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
 import com.whatto.bcm.app.bat.support.IntegrationTestSupport
@@ -185,9 +188,9 @@ class SweepLifecycleIntegrationTest : IntegrationTestSupport() {
                 candidates,
                 allowanceService,
                 executions,
-                accounts,
-                addresses,
-                mappings,
+                AccountQueryService(accounts),
+                DepositAddressQueryService(addresses),
+                VendorAssetMappingQueryService(mappings),
                 LifecycleBatchContract,
                 contractCalls,
                 SequenceBatchExecutionIds(),

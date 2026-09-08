@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.kotlin.spring)
@@ -48,6 +50,39 @@ dependencies {
 }
 
 tasks.test {
+    val architectureModules = rootProject.subprojects.filter { it.buildFile.isFile && it.name != "blockchain-manager-test-support" }
+    val architectureClassDirectories = architectureModules.map { it.layout.buildDirectory.dir("classes/kotlin/main") }
+    dependsOn(architectureModules.map { "${it.path}:classes" })
+    inputs
+        .files(architectureClassDirectories)
+        .withPropertyName("architectureClassDirectories")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty(
+        "bcm.architecture.class-directories",
+        architectureModules.joinToString(File.pathSeparator) {
+            it.layout.buildDirectory
+                .dir("classes/kotlin/main")
+                .get()
+                .asFile.absolutePath
+        },
+    )
+    architectureModules.filter { it.path.startsWith(":blockchain-manager-app:") }.forEach {
+        systemProperty(
+            "bcm.architecture.${it.name}-classes",
+            it.layout.buildDirectory
+                .dir("classes/kotlin/main")
+                .get()
+                .asFile.absolutePath,
+        )
+    }
+    systemProperty(
+        "bcm.architecture.shared-classes",
+        project(":blockchain-manager-application")
+            .layout.buildDirectory
+            .dir("classes/kotlin/main")
+            .get()
+            .asFile.absolutePath,
+    )
     if (productionOnly) {
         enabled = false
     } else {

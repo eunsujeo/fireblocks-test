@@ -1,7 +1,7 @@
 package com.whatto.bcm.app.api
 
-import com.whatto.bcm.app.application.event.OutboxRelayJob
-import com.whatto.bcm.app.application.webhook.WebhookDecisionJob
+import com.whatto.bcm.app.webhook.application.event.OutboxRelayJob
+import com.whatto.bcm.app.webhook.application.webhook.WebhookDecisionJob
 import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test

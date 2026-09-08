@@ -1,4 +1,4 @@
-package com.whatto.bcm.app.application.webhook
+package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.id.UuidV7EventIdGenerator
 import org.assertj.core.api.Assertions.assertThat

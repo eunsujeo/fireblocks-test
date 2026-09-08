@@ -1,10 +1,10 @@
-package com.whatto.bcm.app.application.event
+package com.whatto.bcm.app.webhook.application.event
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SpecificationVersion
-import com.whatto.bcm.app.application.webhook.WebhookDecisionProcessor
 import com.whatto.bcm.app.webhook.BcmWebhookApplication
+import com.whatto.bcm.app.webhook.application.webhook.WebhookDecisionProcessor
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookNotification
 import com.whatto.bcm.testsupport.integration.IntegrationTestSupport

@@ -1,5 +1,9 @@
 package com.whatto.bcm.app.application.admin
 
+import com.whatto.bcm.app.application.account.AccountQueryService
+import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
+import com.whatto.bcm.app.application.sweep.SweepAuthorizationService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
@@ -72,10 +76,10 @@ class AllowanceRevocationCommandServiceTest {
                 revocations,
                 policies,
                 contracts,
-                authorizations,
-                accounts,
-                addresses,
-                mappings,
+                SweepAuthorizationService(authorizations),
+                AccountQueryService(accounts),
+                DepositAddressQueryService(addresses),
+                VendorAssetMappingQueryService(mappings),
                 erc20,
                 transactions,
                 ids,

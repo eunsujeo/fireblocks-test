@@ -1,5 +1,8 @@
 package com.whatto.bcm.app.bat.sweep
 
+import com.whatto.bcm.app.application.account.AccountQueryService
+import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.bat.sweep.fixture.SweepRuntimeFixtures
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
@@ -227,9 +230,9 @@ class SweepBatchExecutionServiceTest {
         selector,
         allowance,
         executions,
-        FakeBatchAccounts(),
-        FakeBatchAddresses(),
-        FakeBatchMappings(),
+        AccountQueryService(FakeBatchAccounts()),
+        DepositAddressQueryService(FakeBatchAddresses()),
+        VendorAssetMappingQueryService(FakeBatchMappings()),
         contract,
         calls,
         SweepExecutionIdGenerator { EXECUTION_ID },

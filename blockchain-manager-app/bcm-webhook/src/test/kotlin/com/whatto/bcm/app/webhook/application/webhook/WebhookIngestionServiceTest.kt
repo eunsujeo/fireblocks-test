@@ -1,4 +1,4 @@
-package com.whatto.bcm.app.application.webhook
+package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.monitoring.WebhookIngestionMetricOutcome

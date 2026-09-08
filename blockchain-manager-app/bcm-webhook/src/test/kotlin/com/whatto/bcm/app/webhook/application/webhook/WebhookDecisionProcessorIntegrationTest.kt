@@ -1,4 +1,4 @@
-package com.whatto.bcm.app.application.webhook
+package com.whatto.bcm.app.webhook.application.webhook
 
 import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.app.webhook.BcmWebhookApplication

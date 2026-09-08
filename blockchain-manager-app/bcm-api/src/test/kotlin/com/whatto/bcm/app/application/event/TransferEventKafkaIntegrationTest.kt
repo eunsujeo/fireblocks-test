@@ -8,8 +8,9 @@ import com.whatto.bcm.app.api.BcmApiApplication
 import com.whatto.bcm.app.application.submission.TransactionSubmissionCommand
 import com.whatto.bcm.app.application.submission.TransactionSubmissionRecipient
 import com.whatto.bcm.app.application.submission.TransactionSubmissionService
-import com.whatto.bcm.app.application.webhook.WebhookDecisionProcessor
-import com.whatto.bcm.app.application.webhook.WebhookRuntimeConfiguration
+import com.whatto.bcm.app.webhook.application.event.OutboxRelayProcessor
+import com.whatto.bcm.app.webhook.application.webhook.WebhookDecisionProcessor
+import com.whatto.bcm.app.webhook.application.webhook.WebhookRuntimeConfiguration
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
