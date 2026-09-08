@@ -2,7 +2,7 @@
 
 | 위치 | 역할 | 관리 규칙 |
 |---|---|---|
-| `design/` | waas-wiki 설계 정본의 서비스 사본 19개와 매핑 인덱스 | **read-only**, 정본과 byte 동일 유지. 모두 구현·리뷰 근거라 삭제하지 않음 |
+| `design/` | 이 저장소의 설계 정본과 문서 인덱스 | 직접 수정·리뷰하고 관련 코드·테스트·API 계약과 함께 정합 확인 |
 | `api/` | OpenAPI 정본과 실행 가능한 개발자 포털 | `openapi.yaml`만 수정하고 `python3 docs/api/build.py`로 생성물 갱신 |
 | `admin-reference/` | 사용자 승인 Admin 디자인 토큰·기준 화면 | `design/08-bcm-admin.md`가 참조하므로 유지 |
 | `runbooks/` | 현재 운영 경계·경보·복구·향후 배포 결정 로그 | 실제 계약이 바뀔 때 함께 갱신 |

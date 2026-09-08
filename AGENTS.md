@@ -16,7 +16,7 @@
 이 저장소의 일부 규칙은 Claude Code hook 으로 이중화돼 있어 다른 도구에서는 **걸리지 않는다**.
 장치가 없다고 규칙이 없는 게 아니다:
 
-- **docs/design/ 수정 절대 금지** — read-only 설계 사본 (byte-동일 유지). 설계 변경은 `../waas-wiki` 에서.
+- **docs/design/가 설계 정본** — 사용자 요청·확정 결정에 따라 이 저장소에서 수정하고 코드·테스트·API 계약과 대조한다. 외부 저장소 동기화는 요구하지 않는다.
 - **ktlint** — 커밋 전 `./gradlew ktlintCheck` 를 직접 돌린다.
 - **docs/api 생성물** — `openapi.yaml` 수정 시 `python3 docs/api/build.py` 재생성. `api.md`·`api.html`·`spec.js` 직접 수정 금지.
 - Phase converge는 **구현 세션과 분리된 읽기 전용 리뷰 세션**에서 design-sync→code-reviewer 순서로 수행한다.

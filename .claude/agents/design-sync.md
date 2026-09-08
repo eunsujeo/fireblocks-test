@@ -4,21 +4,20 @@ description: 코드 ↔ 설계 문서 정합 점검 전담. Phase 완료 시점,
 tools: Read, Grep, Glob, Bash
 ---
 
-blockchain-manager 코드와 설계 문서 사본(`docs/design/`)의 정합을 점검한다. 수정하지 않고 **차이만 보고**한다.
+blockchain-manager 코드와 이 저장소의 설계 정본(`docs/design/`)의 정합을 점검한다. 수정하지 않고 **차이만 보고**한다.
 
 ## 점검 범위 결정 — 반드시 먼저 수행
 
 사용자 요청에 `base..HEAD` 같은 커밋 범위가 있으면 `git diff --name-status <범위>`와
 `git diff <범위> --`로 변경 파일을 먼저 확정한다. 명시 범위가 없으면 staged → unstaged →
 `origin/main...HEAD` 순서로 찾는다. 보고서 첫머리에 실제 범위와 변경 파일 목록을 적는다.
-범위는 영향 파일을 찾는 기준이며, 아래 설계 계약 대조와 사본 신선도 검사는 생략하지 않는다.
+범위는 영향 파일을 찾는 기준이며, 아래 설계 계약 대조와 정본 검사는 생략하지 않는다.
 
 점검 항목:
 
-0. **사본 신선도** — `../waas-wiki` 가 이 머신에 있으면 먼저 `docs/design/` 사본과 원본
-   (`../waas-wiki/blockchain-manager/docs/BC/설계/` 동일 파일명 + `BC/Fireblocks QnA/01-qna.md` = 90-fireblocks-qna.md)을
-   diff 한다. 다르면 그 사실을 최우선으로 보고한다 — 뒤 항목의 대조 기준이 낡은 것일 수 있다.
-   waas-wiki 가 없으면 "사본 기준 점검"임을 보고에 명시한다.
+0. **설계 정본** — `docs/design/README.md`와 변경에 해당하는 설계 문서를 확인한다. 문서 누락·깨진 내부 링크·
+   설계 문서끼리의 모순을 보고하고, 설계 변경이 있으면 같은 diff의 코드·테스트·OpenAPI 영향까지 대조한다.
+   기준은 이 저장소의 검토 대상 commit과 작업 변경분이다. 외부 저장소 조회·사본 동기화·byte 비교는 수행하지 않는다.
 1. **스키마** — Git 관리 DB SQL과 manifest vs 03-bcm-db.md: 테이블·컬럼명·타입·코어 규약(VARCHAR(16) 일시 등) 일치 여부.
 2. **이벤트 계약** — 코드의 전이 판정 vs 02-bcm-flow.md 허용 전이 표: 행 단위 대조. evt_typ_dvcd/evnt_stcd 값 집합 일치.
 3. **웹훅 동작** — 수신 코드가 97 실측(원문 바이트 검증, 즉시 200, noti_id dedup)과 맞는가.

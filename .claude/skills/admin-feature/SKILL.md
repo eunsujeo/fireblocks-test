@@ -15,7 +15,7 @@ Blockchain Manager Admin의 한 사용자 흐름을 계약부터 E2E까지 완�
    - 거래·웹훅·대사: `02-bcm-flow.md`, `03-bcm-db.md`
    - sweep·allowance·밴드S·컨트랙트: `06-sweep.md`, `03-bcm-db.md`
    - 네트워크·자산: `07-asset-master.md`
-4. `docs/design/08-bcm-admin.md`가 없거나 waas-wiki와 다르면 구현을 시작하지 말고 사용자 동기화를 요청한다.
+4. `docs/design/08-bcm-admin.md`가 없거나 필요한 계약이 미확정이면, 사용자 요청·확정 결정에 따라 이 저장소의 설계부터 정리한다. 미확정 정책은 사용자에게 확인한다.
 5. HTTP 계약은 `docs/api/openapi.yaml`에서 확인한다. 생성물은 직접 고치지 않는다.
 
 ## 2. 사용자 흐름을 분류한다
@@ -32,7 +32,7 @@ Blockchain Manager Admin의 한 사용자 흐름을 계약부터 E2E까지 완�
 보안 변경·재개는 요청자 외 서로 다른 승인자 2명과 그중 `BCM_SECURITY_APPROVER` 1명이 필요하다. 조회·신속 중지의
 조건을 변경 작업에 재사용하지 않는다.
 
-설계에 상태·승인·감사 규칙이 없으면 코드를 지어내지 말고 waas-wiki 결정을 먼저 받는다.
+설계에 상태·승인·감사 규칙이 없으면 코드를 지어내지 말고 사용자 결정을 받아 `docs/design/`에 먼저 반영한다.
 
 ## 3. API와 UX를 함께 고정한다
 

@@ -43,7 +43,7 @@ Admin은 단순 설정 CRUD가 아니라 다음 운영 순서를 한곳에서 �
 |---|---|
 | 전사 사용자·역할 관리 | Admin 인증·권한 시스템 |
 | 일반 스마트 컨트랙트 소스·빌드·배포 | 별도 컨트랙트 저장소와 보안 배포 절차 |
-| Fireblocks TAP 정책 직접 편집 | [정책 관리](../../정책관리/설계/00-scope.md)와 벤더 거버넌스 |
+| Fireblocks TAP 정책 직접 편집 | 외부 정책 관리 서비스와 벤더 거버넌스 |
 | Co-signer 최종 서명·multisig 승인 | 각각의 독립 보안 경계 |
 | 고객 원장·회계·귀속 잔액 | DAW-CORE |
 | 운영 Network·Asset 등록 요청 | DAW-ADMIN — BCM Admin의 로컬 변경 기능은 개발 편의용 예외 |
@@ -648,7 +648,7 @@ CSRF·권한·명령 allowlist·감사 계약을 먼저 설계한다.
 - 접근성, UTC 표시, 식별자 복사, URL 필터 보존과 위험 작업 diff를 사용자 흐름 테스트로 확인한다.
 - 허용된 로컬 테스트를 고정 실행기로 시작하고, 실패를 runId로 찾아 실패 단계·component·다음 조치와 기존 거래/sweep 상세까지 연결한다.
 - 테스트 진단 route가 shared·운영 profile에서 404이고 Secret·raw payload·원문 로그를 반환하지 않음을 검증한다.
-- 설계 사본·OpenAPI 생성물 신선도, design-sync·code-reviewer를 통과한다.
+- 이 저장소의 설계 정본과 코드 정합·OpenAPI 생성물 신선도를 확인하고, design-sync·code-reviewer를 통과한다.
 
 ## 기존 문서 반영점
 
@@ -681,6 +681,6 @@ CSRF·권한·명령 allowlist·감사 계약을 먼저 설계한다.
 - [블록체인 매니저 — DB](03-bcm-db.md)
 - [sweep 설계](06-sweep.md)
 - [벤더 자산 매핑](07-asset-master.md)
-- [정책 관리 — 범위와 경계](../../정책관리/설계/00-scope.md)
-- [정책 변경](../../정책관리/설계/01-policy-change.md)
-- [정책 감사와 자격](../../정책관리/설계/02-audit-access.md)
+- 외부 참고자료: 정책 관리 — 범위와 경계 (`00-scope.md`)
+- 외부 참고자료: 정책 변경 (`01-policy-change.md`)
+- 외부 참고자료: 정책 감사와 자격 (`02-audit-access.md`)

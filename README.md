@@ -246,6 +246,6 @@ API 포털에는 실제 요청·응답 계약과 실행 패널만 유지합니�
 
 - [CLAUDE.md](CLAUDE.md) — AI 작업 진입점 · 확정 결정(재제안 금지) 목록
 - [PLAN.md](PLAN.md) — 구현 로드맵(Phase 0~15) · 스펙-설계 미해결 표
-- [docs/design/](docs/design/) — 설계 문서 사본 (정본은 waas-wiki, byte-동일 유지 · 수정 금지)
+- [docs/design/](docs/design/) — 이 저장소에서 직접 수정·리뷰하는 설계 정본
 - [docs/testing.md](docs/testing.md) — 테스트 전략 · 계약 케이스 표
 - [SETUP.md](SETUP.md) — 새 머신에서 시작하기 (저장소 밖 체크리스트)

@@ -5,7 +5,7 @@
 
 ## 0. 금지 — 어기면 안 되는 것
 
-- **docs/design/ 수정 금지** — read-only 설계 사본. Edit/Write 는 hook+deny 가 차단하지만 Bash(sed·cp·리다이렉션)는 장치가 못 막는다 — 우회하지 않는다. 설계 변경은 waas-wiki 에서.
+- **설계 계약 임의 변경 금지** — `docs/design/`가 이 저장소의 설계 정본이다. 사용자 요청·확정 결정에 따라 여기서 수정하고 관련 코드·테스트·API 계약을 함께 대조한다. 외부 저장소와의 동기화는 요구하지 않는다.
 - **테스트를 통과시키려 테스트를 건드리지 않는다** — skip·`@Disabled`·assertion 완화·프로덕션 코드의 테스트 전용 분기 전부 금지. 테스트가 실패하면 원인을 고치거나 실패 그대로 보고한다.
 - **에러 억제 금지** — 빈 catch·로그만 남기고 삼키기·경고 끄기로 "통과처럼 보이게" 만들지 않는다.
 - **신규 의존성 임의 추가 금지** — 좌표를 Maven Central 에서 검증하고, 별도 커밋으로 분리하고, 사용자 승인 후에만. (존재하지 않는 패키지를 지어내는 사고 방지)
@@ -18,12 +18,12 @@
 - **무엇**: Fireblocks 기반 수탁형 지갑의 **온체인 자산 이동 단일 창구** 서비스.
   벤더 원어(tx 상태·웹훅)를 공통 상태(TxStatus)로 번역해 DAW-CORE 에 공급한다.
 - **스택**: Kotlin + Spring Boot (Gradle 멀티모듈 단일 저장소 · API/Webhook/Admin/BAT 독립 프로세스) · PostgreSQL · Kafka · Spring Batch.
-- **설계 문서**: 계약 문서 사본이 [docs/design/](docs/design/) 에 있다 — 코드는 이 설계를 구현한다. 정본은 waas-wiki
-  (나란히 클론된 `../waas-wiki`) 이고 사본은 byte-동일 유지 — 규칙은 [docs/design/README.md](docs/design/README.md).
+- **설계 문서**: [docs/design/](docs/design/)가 설계 정본이다 — 코드는 이 설계를 구현한다.
+  설계 수정·구현·리뷰는 이 저장소 안에서 수행한다. 관리 규칙은 [docs/design/README.md](docs/design/README.md).
   설계와 코드가 어긋나면 **코드를 설계에 맞추는 게 기본**이고, 설계를 바꿔야 하면 사용자에게 먼저 묻는다.
 - **새 머신에서 시작할 때**: [SETUP.md](SETUP.md) — 저장소 밖(플러그인·JDK·시크릿) 체크리스트.
 
-## 2. 설계 문서 맵 ([docs/design/](docs/design/) 사본 기준 — 정본은 waas-wiki)
+## 2. 설계 문서 맵 ([docs/design/](docs/design/) 정본)
 
 | 문서 | 코드에서의 정본 범위 |
 |---|---|
@@ -50,6 +50,7 @@
 
 아래는 검토를 거쳐 확정된 결정이다. AI 가 "더 단순한 방법"으로 재제안하지 않는다.
 
+- **설계 정본은 이 저장소에서 관리한다** (2026-09-08 확정) — `docs/design/`를 직접 수정·리뷰한다. 별도 wiki clone·경로·동기화·byte 비교를 개발과 검증의 선행 조건으로 두지 않는다. 전환 기준은 이 저장소에 커밋된 설계이며 외부 작업본을 자동으로 가져오지 않는다.
 - **transactional outbox** — 워커 한 트랜잭션 = `bcm_tx_l` 갱신 + `bcm_outbox_l`(P) 적재 + `prcs_stcd=S`, relay 가 발행(P→S). outbox 제거·publish-first 전환 재제안 금지.
 - **수신 인박스(`bcm_whk_l`) 는 테이블** — 큐로 대체하지 않는다. `noti_id` PK dedup · 원문 감사 · SKIP LOCKED.
 - **dedup 키 = `evnt_id`** — txId 로 dedup 금지 (감지·확정이 같은 키가 되어 확정이 버려진다).
@@ -109,13 +110,13 @@ test-support는 기존 BCM 모듈이 의존하지 않는 별도 실행 경계이
 - **구현 전 설계 대조** — 이벤트·DB·상태를 만지는 작업은 해당 설계 문서(2절 맵)를 먼저 읽는다.
 - **테스트 없는 완료 없음** — 규칙은 [docs/testing.md](docs/testing.md). 계약 로직(전이 표·dedup·outbox)은 반드시 테스트로 고정한다. 테스트 수정은 구현과 별도 커밋으로.
 - **커밋은 마일스톤 단위** — 매 편집마다 커밋하지 않는다. 커밋 메시지 끝: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`. PROGRESS.md 는 세션 종료 시 갱신.
-- **강제 장치** — 이 파일의 규칙 중 일부는 hook 으로 이중화돼 있다: docs/design 쓰기 차단 + ktlint(`.claude/settings.json` · `.claude/hooks/`), 시크릿 스캔(`.githooks/pre-commit`). hook 이 막으면 우회하지 말고 원인을 고친다.
+- **강제 장치** — 이 파일의 규칙 중 일부는 hook 으로 이중화돼 있다: ktlint(`.claude/settings.json` · `.claude/hooks/`), 시크릿 스캔(`.githooks/pre-commit`). hook 이 막으면 우회하지 말고 원인을 고친다.
 - **converge 리뷰는 순차·독립적으로 실행** — 구현 세션과 분리된 읽기 전용 세션에서 design-sync 성공 후 code-reviewer를
   실행한다. Claude Code는 `./scripts/converge-review.sh`로 재개할 수 있고, Codex는 같은 `.claude/agents/` 체크리스트를 읽은
   별도 reviewer agent/session으로 대체할 수 있다. 세부 기준은 [converge-review.md](docs/ai/converge-review.md)다.
   두 리뷰를 병렬 실행하거나 구현 세션이 스스로 최종 승인하지 않는다.
 - **Admin 작업 절차** — 일반 Admin 기능은 `.claude/skills/admin-feature`, 정책·컨트랙트·allowance cap·밴드S·pause/resume 변경은
-  `.claude/skills/admin-policy-change`를 적용한다. `docs/design/08-bcm-admin.md`가 없거나 waas-wiki와 다르면 구현보다 설계 동기화가 먼저다.
+  `.claude/skills/admin-policy-change`를 적용한다. `docs/design/08-bcm-admin.md`에 필요한 계약이 없거나 미확정이면 이 저장소의 설계에서 먼저 확정한다.
 - 프롬프트 작성 요령·작업 요청 템플릿: [docs/ai/prompt-guide.md](docs/ai/prompt-guide.md).
 
 ## 7. 확정·미확정

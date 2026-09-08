@@ -5,7 +5,7 @@ group: 블록체인 매니저
 ---
 
 블록체인 매니저의 모든 흐름 — 계정·주소, 감지(웹훅), 입금, sweep, 출금, boost, 수수료·잔액·대사. 상태 enum 포함.
-요청·응답의 필드 상세는 [블록체인 매니저 API](?cat=블록체인매니저&sub=API).
+요청·응답의 필드 상세는 [블록체인 매니저 API](../api/openapi.yaml).
 
 ## 계정 생성 · 입금 주소 발급 · 조회
 
@@ -15,7 +15,7 @@ group: 블록체인 매니저
 | `createDepositAddresses` | `POST /accounts/{accountId}/addresses` | **한 토큰을 여러 네트워크로** 한 요청에 발급한다 (`symbol` + `networks`). 네트워크별 생성 의도와 벤더 assetId snapshot을 먼저 남긴다. 최대 20네트워크 · 네트워크별 결과 | 네트워크마다 단건과 같은 기준으로 멱등. 계정 없음은 전체 404, 네트워크별 실패는 부분 성공으로 남아 재시도 안전 |
 | `depositAddressesOf` | `GET /accounts/{accountId}/addresses` | 발급된 주소를 매니저 DB 에서 읽는다 — 벤더 왕복 없음. `symbol`·`network` 로 걸러 받는다 | 발급분 배열 · 미발급은 빈 배열 · 계정 없음 → `404 ACCOUNT_NOT_FOUND` |
 
-경로는 base(`/blockchain/manage-api`)를 뗀 표기 — 전체 경로·필드는 [블록체인 매니저 API](?cat=블록체인매니저&sub=API).
+경로는 base(`/blockchain/manage-api`)를 뗀 표기 — 전체 경로·필드는 [블록체인 매니저 API](../api/openapi.yaml).
 
 ```mermaid
 sequenceDiagram
@@ -175,7 +175,7 @@ sequenceDiagram
 - ★ **이벤트 순서는 매니저가 보장한다** — DAW-CORE 가 받는 순서는 한 tx 에 대해 항상 `감지 → (확정 | 무효)` 다. 앞 단계를 아직 발행하지 않았으면 **감지 이벤트를 합성해 먼저 발행**하고, 두 이벤트를 같은 트랜잭션에 outbox 적재해 relay 가 `evnt_id` 순으로 내보낸다. 소비 쪽은 "감지 없는 확정"을 다루지 않는다.
 - 이 표는 매니저의 발행 판정과 DAW-CORE 의 반영 판정에 같이 쓴다.
 - ★ **이벤트는 금액과 발신 주소를 싣는다** (2026-08-06 확정). 입금은 `externalTxId` 가 없어(96 실측) DAW-CORE 가 금액을 알 길이 이벤트뿐이고, [입금 판별](04-compliance-flow.md)에서 DAW-CORE 가 게이트로 보내는 `source·자산·금액·tx hash` 의 출처도 이 이벤트뿐이다. **금액은 문자열**로 싣는다 — 벤더가 숫자와 문자열로 둘 다 주는데 정밀도 때문에 문자열 쪽을 쓴다(96). 발신 주소는 입금에서 항상 채워진다.
-- 벤더의 전달 순서 보장은 미확인 — 순서를 믿지 않는 쪽으로 설계했다([Fireblocks QnA](?cat=BC&sub=Fireblocks%20QnA) 대기 문의).
+- 벤더의 전달 순서 보장은 미확인 — 순서를 믿지 않는 쪽으로 설계했다([Fireblocks QnA](90-fireblocks-qna.md) 대기 문의).
 
 ### EventType — 이벤트 분류 셋
 
@@ -453,7 +453,7 @@ sequenceDiagram
 - **나가기 전** — 컴플라이언스 차단(→ REJECTED)과 잔액·최소 금액 미달(`INSUFFICIENT_FUNDS` · `AMOUNT_TOO_SMALL` 등 → FAILED). tx hash 없이 종결된다.
 - **나간 뒤(revert)** — 토큰 컨트랙트가 실행을 거부한 경우. 예: 발행사가 블랙리스트에 올린 주소로의 토큰 전송. 블록에 포함된 뒤 실패하며 FAILED + subStatus `SMART_CONTRACT_EXECUTION_FAILED`, revert 사유는 `errorDescription` 필드로 온다. 사유 문자열은 컨트랙트가 정하므로 파싱해 분기하지 않는다 — 기록·경보용.
 
-어느 쪽이든 이벤트에는 TxStatus 만 실린다. tx hash 는 있으면 실리므로 hash 유무가 두 실패를 가르는 단서다. 상세는 [6장 상태 절](../../블록체인매니저/설계/06-withdrawal.md#상태--공통-어휘로-나간다).
+어느 쪽이든 이벤트에는 TxStatus 만 실린다. tx hash 는 있으면 실리므로 hash 유무가 두 실패를 가르는 단서다. 요청·이벤트 상태 계약은 이 저장소의 [OpenAPI](../api/openapi.yaml)에서 확인한다.
 
 ## 막힘 점검 · 자동 boost
 
@@ -586,7 +586,7 @@ sequenceDiagram
 
 ## 미확정
 
-- **rate limit 실제 한도 — 확인됨 (2026-07 회신).** 목록 `GET /v1/transactions` 1,000/분 · 단건 `GET /v1/transactions/{txId}` 1,500/분 — 독립 카운터·워크스페이스 공유·결정론적 분당 카운터(이상 트래픽 감지 없음, 최고 tier). tx 대사는 주기당 목록 조회 수 회라 여유가 크다. 상세·폴링 설계는 [감지 폴링 대체 설계](../../블록체인매니저/설계/99-polling-detection.md).
+- **rate limit 실제 한도 — 확인됨 (2026-07 회신).** 목록 `GET /v1/transactions` 1,000/분 · 단건 `GET /v1/transactions/{txId}` 1,500/분 — 독립 카운터·워크스페이스 공유·결정론적 분당 카운터(이상 트래픽 감지 없음, 최고 tier). tx 대사는 주기당 목록 조회 수 회라 여유가 크다. 대사 계약은 이 문서의 해당 절, 벤더 확답은 [Fireblocks QnA](90-fireblocks-qna.md)에서 확인한다.
 - **Universal Gasless + RBF 조합** — gasless로 제출된 토큰 거래를 `replaceTxByHash`로 대체할 때 `useGasless`를 함께 쓸 수 있는지, relay가 대체 수수료도 부담하는지 — 확인 전 자동 boost 기능 게이트는 기본 비활성.
 - **7702 authorization 서명의 관문 통과 여부** — 이 서명이 TAP·Callback 경로를 지나는지 — 벤더 확인 후 확정.
 - **귀속 불명 입금의 해소 절차** — 매핑 갱신을 누가 트리거하고 해소 후 이벤트를 다시 흘리는지 — DAW-CORE와 정합 후 확정.

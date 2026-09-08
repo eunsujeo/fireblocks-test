@@ -248,7 +248,7 @@ TESTNET의 지원 네트워크 코드는 시작 스크립트의 고정 지원 �
 
 ★ 일반 업무 API에는 벤더 어휘가 넘어가지 않는다. 제한된 Admin 자산 후보·현재 매핑에는 운영 대조용
 `fireblocksAssetId`만 명시적으로 노출하고, Fireblocks blockchainId는 계속 불투명 `candidateId` 뒤에 둔다. 계약은
-[API 스펙](../../bcm-api-docs/openapi.yaml)의 `Admin` 태그가 정의한다.
+[API 스펙](../api/openapi.yaml)의 `Admin` 태그가 정의한다.
 
 | 오퍼레이션 | 하는 일 |
 |---|---|

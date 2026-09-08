@@ -114,7 +114,7 @@ Fireblocks 담당자에게 문의해 받은 답변을 질문 단위로 모은다
 
 ## Gasless Relay 과금 — 담당자 확답 (2026-08-18)
 
-Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblocks-support/2026-08-18](https://github.com/eunsujeo/eunpus/blob/main/blockchain-manager/sources/fireblocks-support/2026-08-18__gasless-relay-billing-conversation.md), 설계 반영은 [블록체인 매니저 — 가스 대납 적용](../../블록체인매니저/가스대납/00-overview.md).
+Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblocks-support/2026-08-18](https://github.com/eunsujeo/eunpus/blob/main/blockchain-manager/sources/fireblocks-support/2026-08-18__gasless-relay-billing-conversation.md), 설계 반영은 외부 업무 설계인 블록체인 매니저 — 가스 대납 적용 (`00-overview.md`).
 
 **Q.** Universal Gasless 는 Boost 를 지원하나? Boost·실패·재시도 비용은 어떻게 처리되나?
 **A.** 자동 boost 없음 — 막힌 거래는 수동 RBF 로 올린다(공개 문서와 일치). 비용은 셋으로 갈린다.
@@ -159,22 +159,22 @@ Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblock
 ### 공식 자료로 확정한 내용
 
 **Q.** KeyLink의 서명 경로는 어떻게 구성되나? API Co-Signer가 HSM에 직접 연결하나?
-**A. (공식 자료 확인)** 아니다. 경로는 **Fireblocks Co-Signer Engine → Fireblocks Agent → Customer Server → HSM**이다. Agent가 Fireblocks의 서명 요청을 폴링해 Customer Server로 전달하고, Customer Server가 HSM에 서명을 요청한 뒤 결과를 역경로로 반환한다. ([KeyLink Overview](../../../../sources/fireblocks/markdown/2026-05-22__support-fireblocks-io__fireblocks-key-link-overview-extracted.txt))
+**A. (공식 자료 확인)** 아니다. 경로는 **Fireblocks Co-Signer Engine → Fireblocks Agent → Customer Server → HSM**이다. Agent가 Fireblocks의 서명 요청을 폴링해 Customer Server로 전달하고, Customer Server가 HSM에 서명을 요청한 뒤 결과를 역경로로 반환한다. (외부 수집 자료: KeyLink Overview — `2026-05-22__support-fireblocks-io__fireblocks-key-link-overview-extracted.txt`)
 
 **Q.** Fireblocks Agent가 실제 개인키나 MPC key share를 보유하나?
-**A. (공식 자료 확인)** 보유하지 않는다. 개인키는 고객 HSM에 남고 HSM이 단독 서명한다. Fireblocks는 고객이 등록한 validation key와 proof of ownership으로 서명키를 확인하고 결과 서명을 검증한다. KeyLink는 일반 API Co-Signer의 MPC 공동서명 구조와 다르다. ([Getting Started with KeyLink](../../../../sources/fireblocks/markdown/2026-05-22__support-fireblocks-io__getting-started-with-fireblocks-key-link-extracted.txt))
+**A. (공식 자료 확인)** 보유하지 않는다. 개인키는 고객 HSM에 남고 HSM이 단독 서명한다. Fireblocks는 고객이 등록한 validation key와 proof of ownership으로 서명키를 확인하고 결과 서명을 검증한다. KeyLink는 일반 API Co-Signer의 MPC 공동서명 구조와 다르다. (외부 수집 자료: Getting Started with KeyLink — `2026-05-22__support-fireblocks-io__getting-started-with-fireblocks-key-link-extracted.txt`)
 
 **Q.** KeyLink Agent에 AWS Nitro나 Intel SGX가 필요한가?
 **A. (공식 자료 확인)** KeyLink 설치 절차에는 해당 요구가 없다. Nitro·SGX·Google Confidential Space는 MPC key share를 보관하는 API Co-Signer의 실행 환경이고, KeyLink Agent는 고객이 호스팅하는 오픈소스 TypeScript 중계 서비스다.
 
 **Q.** Agent는 Fireblocks Workspace와 어떻게 연결되나?
-**A. (공식 자료 확인)** Signer 역할 API user를 만들고 Admin Quorum 승인을 거쳐 발급받은 pairing token으로 Agent를 연결한다. 각 Policy rule의 designated signer도 이 Agent와 페어링한 API user로 지정해야 한다. 재등록(re-enroll)은 Owner 승인이 필요하다. ([Getting Started with KeyLink](../../../../sources/fireblocks/markdown/2026-05-22__support-fireblocks-io__getting-started-with-fireblocks-key-link-extracted.txt))
+**A. (공식 자료 확인)** Signer 역할 API user를 만들고 Admin Quorum 승인을 거쳐 발급받은 pairing token으로 Agent를 연결한다. 각 Policy rule의 designated signer도 이 Agent와 페어링한 API user로 지정해야 한다. 재등록(re-enroll)은 Owner 승인이 필요하다. (외부 수집 자료: Getting Started with KeyLink — `2026-05-22__support-fireblocks-io__getting-started-with-fireblocks-key-link-extracted.txt`)
 
 **Q.** Vault와 HSM signing key의 결합 제약은 무엇인가?
-**A. (공식 자료 확인)** KeyLink Vault Account에는 ECDSA key 하나와 EdDSA key 하나를 배정할 수 있고, 한 Vault에 배정한 key는 다른 Vault에 재사용할 수 없다. 따라서 필요한 HSM key 수는 Vault 수와 지원할 서명 알고리즘을 기준으로 산정해야 한다. ([Set Up Your Fireblocks Vault with KeyLink](../../../../sources/fireblocks/markdown/2026-05-22__support-fireblocks-io__set-up-your-fireblocks-vault-with-key-link-extracted.txt))
+**A. (공식 자료 확인)** KeyLink Vault Account에는 ECDSA key 하나와 EdDSA key 하나를 배정할 수 있고, 한 Vault에 배정한 key는 다른 Vault에 재사용할 수 없다. 따라서 필요한 HSM key 수는 Vault 수와 지원할 서명 알고리즘을 기준으로 산정해야 한다. (외부 수집 자료: Set Up Your Fireblocks Vault with KeyLink — `2026-05-22__support-fireblocks-io__set-up-your-fireblocks-vault-with-key-link-extracted.txt`)
 
 **Q.** 공식 자료에서 확인되는 HSM과 배치 방식은 어디까지인가?
-**A. (공식 자료 확인)** Thales Luna HSM 연동과 FIPS 140-3 Level 3 하드웨어 사용은 확인된다. Hot·Warm·Cold signing workflow를 지원하며 Cold 방식의 전달 수단으로 USB·SFTP·data diode가 제시돼 있다. 다만 정확한 Luna 모델·펌웨어, Hot·Warm의 네트워크 구성과 성능 기준은 공개 자료만으로 확정할 수 없다. ([Fireblocks and Thales](../../../../sources/fireblocks/markdown/2026-05-22__fireblocks-com__enterprise-digital-asset-security-thales.md))
+**A. (공식 자료 확인)** Thales Luna HSM 연동과 FIPS 140-3 Level 3 하드웨어 사용은 확인된다. Hot·Warm·Cold signing workflow를 지원하며 Cold 방식의 전달 수단으로 USB·SFTP·data diode가 제시돼 있다. 다만 정확한 Luna 모델·펌웨어, Hot·Warm의 네트워크 구성과 성능 기준은 공개 자료만으로 확정할 수 없다. (외부 수집 자료: Fireblocks and Thales — `2026-05-22__fireblocks-com__enterprise-digital-asset-security-thales.md`)
 
 ### 담당자에게 보낸 메신저 (2026-08-27 확정 문안)
 
@@ -189,7 +189,7 @@ Fireblocks-managed Relay 의 과금·정산 조건. 원문은 [sources/fireblock
 
 ### 담당자 확답 (2026-08-28)
 
-가격(5번)만 영업 담당(Ben Han·Shane Verner) 회신으로 넘어갔고, 기술 4문항은 확답을 받았다. 원문: [CSM 답변](../../../../sources/fireblocks/markdown/2026-08-28__fireblocks-csm__key-link-thales-luna-qna.txt).
+가격(5번)만 영업 담당(Ben Han·Shane Verner) 회신으로 넘어갔고, 기술 4문항은 확답을 받았다. 원문: CSM 답변 (외부 수집 자료: `2026-08-28__fireblocks-csm__key-link-thales-luna-qna.txt`).
 
 **Q.** 지원·권장 Thales Luna 모델이 있는가? 특정 모델 요건이 없다면 HSM 이 충족할 암호 알고리즘·인터페이스 조건은?
 **A.** 지정·인증된 Luna 모델은 없다 — KeyLink 는 의도적으로 HSM 종류를 가리지 않고, 요건은 하드웨어가 아니라 알고리즘·인터페이스 층에 있다. HSM 은 서명키용 **ECDSA secp256k1 과 EdDSA ed25519** 를 지원해야 하고(API 가 받는 알고리즘은 이 둘뿐), 이를 **PKCS#11** 로 노출해야 한다. trust root 인 validation key 는 **RSA-2048**.

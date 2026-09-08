@@ -1,7 +1,7 @@
 # Blockchain Manager Admin 승인 기준안
 
 > 상태: **2026-08-17 사용자 승인·정본 반영 완료**. 이 폴더는 승인 기준 화면과 토큰을 보관하며,
-> 설계 정본은 waas-wiki `BC/설계/08-bcm-admin.md`와 영향 문서, 서비스 사본은 `docs/design/`이다.
+> 설계 정본은 이 저장소의 [08-bcm-admin.md](../design/08-bcm-admin.md)와 `docs/design/`의 영향 문서다.
 
 ## 1. 배치와 신뢰 경계
 
@@ -77,11 +77,12 @@ Band S Simulation 네 화면과 비상 흐름·권한·stale 상태를 포함한
 
 ## 정본 반영 범위
 
-1. waas-wiki `01-infra.md`: DAW-ADMIN 운영면, 로컬 Blockchain Manager Admin, 공유 환경 mTLS/JWT 경계
+아래 파일은 모두 이 저장소의 `docs/design/`에서 관리한다.
+
+1. `01-infra.md`: DAW-ADMIN 운영면, 로컬 Blockchain Manager Admin, 공유 환경 mTLS/JWT 경계
 2. `02-bcm-flow.md`: 요청/승인/활성화, 밴드S omnibus 경로, 중지/재개 흐름
 3. `03-bcm-db.md`: immutable policy/contract/evidence/request/approval/audit/snapshot 원장
 4. `06-sweep.md`: DAW-CORE 계산, external cold MVP, omnibus 출구, 예약분 산식
 5. `07-asset-master.md`: 직원 헤더 인증 제거, 논리 해제·감사·주소 발급 경합
 6. `08-bcm-admin.md`: 역할·정족수·증적·UI 토큰과 기준 화면
 7. `09-asset-map.md`: 시나리오별 vault 간 자산 이동과 경계 판정
-8. `docs/design/`: 위 정본과 byte-동일 동기화

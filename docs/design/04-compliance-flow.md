@@ -5,7 +5,7 @@ group: 컴플라이언스 게이트
 ---
 
 컴플라이언스 게이트의 흐름 — 출금 확인, 입금 판별, VASP 온보딩, 주기 배치, 상태 enum.
-게이트는 **규제 확인의 솔루션 연동 창구**다. DAW-CORE 의 확인 요청을 받아 솔루션(VerifyVASP·CODE·Notabene) 왕복을 대행하고, 솔루션 원어를 공통 verdict(TrVerdict)로 번역해 돌려준다. API 필드는 [컴플라이언스 API](?cat=컴플라이언스&sub=API) 뷰어에 있다.
+게이트는 **규제 확인의 솔루션 연동 창구**다. DAW-CORE 의 확인 요청을 받아 솔루션(VerifyVASP·CODE·Notabene) 왕복을 대행하고, 솔루션 원어를 공통 verdict(TrVerdict)로 번역해 돌려준다. API 필드는 외부 컴플라이언스 서비스 소관이며 이 저장소의 BCM HTTP API 계약에 포함되지 않는다.
 
 ## 경계 — 무엇이 게이트고 무엇이 DAW-CORE 인가
 
@@ -73,7 +73,7 @@ sequenceDiagram
 | `PENDING` | 아직 결과 없음 — 결과가 나면 `withdrawal-check.settled` 로 알린다 |
 | `REJECTED` | 거절 — 상대 거절 또는 PENDING 만료 |
 
-`settled` = check 가 최종 결과(`NOT_REQUIRED`·`APPROVED`·`REJECTED`)에 도달해 더는 바뀌지 않음을 뜻한다. 솔루션별 원어 대응(Notabene `Saved`/`Completed`, VerifyVASP Callback, CODE 동기 즉답)은 [컴플라이언스 API](?cat=컴플라이언스&sub=API) 뷰어.
+`settled` = check 가 최종 결과(`NOT_REQUIRED`·`APPROVED`·`REJECTED`)에 도달해 더는 바뀌지 않음을 뜻한다. 솔루션별 원어 대응(Notabene `Saved`/`Completed`, VerifyVASP Callback, CODE 동기 즉답)은 외부 컴플라이언스 서비스의 API 계약 소관이다.
 
 ## 입금 판별
 

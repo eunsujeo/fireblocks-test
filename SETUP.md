@@ -8,12 +8,11 @@
 ```
 ~/Workspace/
   blockchain-manager-svc/   ← 이 저장소
-  waas-wiki/                ← 설계 정본 (선택 — 설계를 고치거나 사본을 동기화할 때만 필요)
   fbhook/                   ← 웹훅 PoC (선택 — Phase 3 이식 참고용. 없으면 97 문서로 대체 가능)
 ```
 
-설계 문서 사본이 `docs/design/` 에 들어 있어 **waas-wiki 없이도 구현·리뷰·설계 대조가 된다.**
-waas-wiki 가 필요한 경우는 둘뿐 — 설계 자체를 고칠 때, 사본을 최신으로 동기화할 때 ([docs/design/README.md](docs/design/README.md)).
+설계 정본은 이 저장소의 `docs/design/`다. **설계 수정·구현·리뷰에 별도 wiki 저장소가 필요하지 않다.**
+설계도 같은 저장소에서 변경하고 검증한다 ([docs/design/README.md](docs/design/README.md)).
 
 ## 2. Claude Code
 
@@ -64,7 +63,7 @@ waas-wiki 가 필요한 경우는 둘뿐 — 설계 자체를 고칠 때, 사본
 
 ## 5. 확인
 
-- [ ] `docs/design/` 사본 존재 (waas-wiki 는 설계 수정·동기화 때만)
+- [ ] `docs/design/` 설계 정본 존재
 - [ ] Claude Code 에서 `/mcp` → fireblocks-docs 연결 확인
 - [ ] `claude` 실행 후 CLAUDE.md 를 읽는지 확인 (첫 응답에서 확정 결정을 아는지)
 - [ ] `./scripts/local.sh up` 후 Admin `http://127.0.0.1:9080/admin/dashboard` 확인

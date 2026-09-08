@@ -11,7 +11,7 @@ date: 2026-08-01
 ## 1. 구성 요약
 
 - HA 방식은 **active-active** — 한 대가 죽거나 응답하지 못하면 나머지가 그대로 서명을 이어간다. active/standby 전환 절차가 따로 없다.
-- **키 조각을 나눠 갖지 않는다.** 각 Co-signer 는 자기 API user 의 **독립된 MPC key share set** 을 가진다 — set 마다 1 share 는 그 Co-signer 에, 2 share 는 Fireblocks cloud 에 있고, 서명 장치 둘이 같은 set 을 공유하는 일은 없다. 두 set 은 모두 Owner 의 set 에서 파생돼 같은 워크스페이스 지갑에 추가되는 것이고(공식 문서), 담당자 확답으로는 같은 master seed 라 지갑 주소가 바뀌지 않는다. 어느 대가 서명해도 같은 vault 를 다룬다. 장비 간 키 복사는 없다. 키가 어디에 있고 어떻게 서명하는지는 [Fireblocks 키 관리](../기능검토/09-fireblocks-key-management.md)에 있다.
+- **키 조각을 나눠 갖지 않는다.** 각 Co-signer 는 자기 API user 의 **독립된 MPC key share set** 을 가진다 — set 마다 1 share 는 그 Co-signer 에, 2 share 는 Fireblocks cloud 에 있고, 서명 장치 둘이 같은 set 을 공유하는 일은 없다. 두 set 은 모두 Owner 의 set 에서 파생돼 같은 워크스페이스 지갑에 추가되는 것이고(공식 문서), 담당자 확답으로는 같은 master seed 라 지갑 주소가 바뀌지 않는다. 어느 대가 서명해도 같은 vault 를 다룬다. 장비 간 키 복사는 없다. 외부 참고자료: Fireblocks 키 관리 (`09-fireblocks-key-management.md`).
 - Fireblocks 권장: Co-signer 들을 **서로 다른 데이터센터**에 배치. 온프레미스로만 구성할 때도 같은 원칙이다.
 - 백업 복구는 DR 1순위가 아니다 — 공식 권장은 "추가 Co-signer 를 active-active 로 두고 장애 시 그걸 쓰는 것". 백업의 1차 용도는 장비 업데이트·교체 시 다운타임 최소화다.
 

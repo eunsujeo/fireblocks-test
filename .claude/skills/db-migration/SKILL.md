@@ -10,7 +10,7 @@ description: bcm_ 테이블 Git 관리 SQL 작성·변경 절차. 새 테이블 
 ## 절차
 
 1. **설계 대조가 먼저다** — docs/design/03-bcm-db.md 또는 07-asset-master.md의 해당 테이블 절을 읽고 컬럼명·타입·제약·인덱스를
-   **그대로** 옮긴다. 설계에 없는 변경이 필요하면 중단 — waas-wiki 개정(사용자 승인) → 사본 동기화 후 진행.
+   **그대로** 옮긴다. 설계에 없는 변경은 사용자 요청·확정 결정에 따라 `docs/design/`를 먼저 개정한 뒤 진행한다. 미확정 스키마는 사용자에게 확인한다.
 2. **파일 위치·네이밍** — `blockchain-manager-infra/persistence/src/main/resources/db/migration/V{n}__{설명}.sql`.
    n 은 순차, 설명은 스네이크 영문이며 같은 디렉터리의 `manifest.txt` 끝에 추가한다. 배포·공유·보존 DB에 적용된 SQL은
    절대 수정하지 않는다(새 V{n+1} 로).

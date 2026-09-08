@@ -90,7 +90,7 @@ PLAN #41·2026-09-30 만료로 제한한다.
 - **grill-me (mattpocock) — 보류 (2026-08-05 검토).** 계획 스트레스 테스트 인터뷰 — 해는 없으나(호출형) 실수요 없음:
   결정 전 검토·게이트 확인·converge 교차 검증이 그 역할을 이미 수행. **skill 없이 "이 설계 그릴해줘" 요청으로 동일 효과.**
 - **grill-with-docs (mattpocock) — 불채택 (2026-08-05 검토).** "domain glossary 갱신" 동작이 정본 침범 —
-  용어 정본은 docs/design(수정 금지 사본), ADR 은 불채택. mattpocock 생태계의 CONTEXT.md·ADR 전제가
+  용어 정본은 이 저장소의 docs/design(사용자 요청·확정 결정에 따라 수정), ADR 은 불채택. mattpocock 생태계의 CONTEXT.md·ADR 전제가
   우리 정본 체계와 구조적 불일치 (3회째 확인).
 - **tdd (mattpocock) — skill 불채택 · 원칙 흡수 (2026-08-05 검토).** "무엇을" 테스트하나는 우리 규율이 이미 더 구체적
   (계약 표 전수·실물 payload). 보태는 "순서"(red→green→refactor)만 .claude/rules/testing.md 에 한 줄로 흡수.
@@ -133,7 +133,6 @@ T2.2(벤더 클라이언트, 실수요 지점)에서 실사용 0회. 세션 미�
 
 | 장치 | 무엇 | 위치 |
 |---|---|---|
-| PreToolUse hook + deny | docs/design/ 쓰기를 **실행 전** 차단 (deny 규칙과 이중) | `.claude/hooks/pre-edit-guard.sh` + settings.json deny |
 | PostToolUse hook | `.kt` 편집 직후 ktlint 단일 파일 검사 | `.claude/hooks/post-edit.sh` |
 | permission deny | `.env*`·인증서(pem/p12/jks)·secrets 경로 Read 차단 | `.claude/settings.json` |
 | permission allow | `./gradlew`·git 읽기 명령 사전 허용 (승인 피로 제거) | `.claude/settings.json` |
@@ -141,6 +140,7 @@ T2.2(벤더 클라이언트, 실수요 지점)에서 실사용 0회. 세션 미�
 | dependency locking | `gradle.lockfile` 커밋 — 헛것 패키지(slopsquatting) 방어의 기반 | Phase 0 |
 
 세션 기록의 감사 보관은 **하지 않기로 확정** (2026-08-04 사용자 결정).
+2026-09-08 설계 정본을 이 저장소로 전환하면서 설계 편집 차단 hook·deny는 제거했다.
 
 ## 5. loop / graph engineering 판단 (2026-08 리서치)
 
