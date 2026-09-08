@@ -3,6 +3,7 @@ package com.whatto.bcm.app.application.webhook
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.sweep.SweepInvalidationService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEvent
@@ -88,6 +89,7 @@ class WebhookDecisionTransaction(
     private val submissions: SubmissionRecordRepository,
     private val boosts: BoostAttemptRepository,
     private val sweepExecutions: SweepExecutionRepository,
+    private val sweepInvalidation: SweepInvalidationService,
     private val parser: WebhookTransactionParser,
     private val statusTranslator: VendorStatusTranslator,
     private val eventIdGenerator: EventIdGenerator,
@@ -141,7 +143,7 @@ class WebhookDecisionTransaction(
             transaction.destinationAddress
                 ?: throw WebhookPayloadException("missing data.destinationAddress")
         val depositAddress =
-            depositAddresses.findByAddress(destinationAddress, mapping.network)
+            depositAddresses.findByAddress(destinationAddress, mapping.network, mapping.symbol)
                 ?: return unattributed(inboxItem, transaction, mapping.network, mapping.symbol)
         val sourceAddress = transaction.sourceAddress ?: throw WebhookPayloadException("missing data.sourceAddress")
         val status = statusTranslator.translate(transaction.statusObservation, mapping.network)
@@ -272,11 +274,17 @@ class WebhookDecisionTransaction(
                 submission.transactionType == SubmissionTransactionType.SWEEP_BATCH &&
                 (status.isTerminal() || inboxItem.eventType == NETWORK_RECORDS_COMPLETED_EVENT)
             ) {
-                sweepExecutions.markReconciling(
-                    checkNotNull(submission.sweepExecutionId) { "SWEEP_BATCH submission has no sweep execution id" },
-                    transaction.vendorTransactionId,
-                    transaction.transactionHash,
-                )
+                val executionId = checkNotNull(submission.sweepExecutionId) { "SWEEP_BATCH submission has no sweep execution id" }
+                if (!sweepInvalidation.invalidate(
+                        executionId,
+                        transaction.vendorTransactionId,
+                        transaction.transactionHash,
+                        stateChange.record.lastPublishedStatus,
+                        inboxItem.receivedAt,
+                    )
+                ) {
+                    sweepExecutions.markReconciling(executionId, transaction.vendorTransactionId, transaction.transactionHash)
+                }
             }
             markProcessed(inboxItem, transaction)
             return WebhookDecisionOutcome.Ignored(inboxItem.notificationId)

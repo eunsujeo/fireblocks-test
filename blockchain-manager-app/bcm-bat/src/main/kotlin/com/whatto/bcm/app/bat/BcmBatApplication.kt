@@ -1,6 +1,8 @@
 package com.whatto.bcm.app.bat
 
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.sweep.SweepInvalidationService
+import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.TypeExcludeFilter
@@ -13,7 +15,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
 /** 조립 지점 — bcm-api 와 동일한 배선 규칙 (architecture.md) */
 @EnableScheduling
 @SpringBootApplication
-@Import(OutboxEventService::class)
+@Import(OutboxEventService::class, SweepOutboxEventPublisher::class, SweepInvalidationService::class)
 @ComponentScan(
     basePackages = ["com.whatto.bcm"],
     excludeFilters = [

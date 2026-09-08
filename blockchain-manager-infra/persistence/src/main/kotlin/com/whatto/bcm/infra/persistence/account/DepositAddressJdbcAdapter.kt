@@ -95,13 +95,14 @@ class DepositAddressJdbcAdapter(
     override fun findByAddress(
         address: String,
         network: String,
+        symbol: String,
     ): DepositAddress? =
         jdbc
             .query(
-                "SELECT acnt_id, ntwk_cd, tkn_smbl, dpst_addr, reg_dttm FROM bcm_addr_m WHERE dpst_addr = :dpstAddr AND ntwk_cd = :ntwkCd",
-                mapOf("dpstAddr" to address, "ntwkCd" to network),
+                "SELECT acnt_id, ntwk_cd, tkn_smbl, dpst_addr, reg_dttm FROM bcm_addr_m WHERE dpst_addr = :dpstAddr AND ntwk_cd = :ntwkCd AND tkn_smbl = :tknSmbl",
+                mapOf("dpstAddr" to address, "ntwkCd" to network, "tknSmbl" to symbol),
                 rowMapper,
-            ).firstOrNull()
+            ).singleOrNull()
 
     override fun existsByAsset(
         network: String,

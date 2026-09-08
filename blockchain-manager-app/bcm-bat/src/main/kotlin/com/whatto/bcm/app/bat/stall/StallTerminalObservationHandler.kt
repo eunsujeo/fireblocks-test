@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.bat.stall
 
+import com.whatto.bcm.app.application.sweep.SweepInvalidationService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEvent
 import com.whatto.bcm.domain.event.ChainEventSerializer
@@ -41,6 +42,7 @@ class TransactionalStallTerminalObservationHandler(
     private val transactionRunner: TransactionRunner,
     private val outbox: OutboxEventRepository,
     private val sweepExecutions: SweepExecutionRepository,
+    private val sweepInvalidation: SweepInvalidationService,
     private val boosts: BoostAttemptRepository,
     private val vendor: VendorTransactionPort,
     private val eventSerializer: ChainEventSerializer,
@@ -142,13 +144,17 @@ class TransactionalStallTerminalObservationHandler(
                     EventType.DEPOSIT
                 } else {
                     if (candidate.submissionType == SubmissionTransactionType.SWEEP_BATCH) {
-                        sweepExecutions.markReconciling(
-                            checkNotNull(candidate.sweepExecutionId) {
-                                "SWEEP_BATCH submission has no sweep execution id"
-                            },
-                            transaction.transactionId,
-                            transaction.transactionHash,
-                        )
+                        val executionId = checkNotNull(candidate.sweepExecutionId) { "SWEEP_BATCH submission has no sweep execution id" }
+                        if (!sweepInvalidation.invalidate(
+                                executionId,
+                                transaction.transactionId,
+                                transaction.transactionHash,
+                                stateChange.record.lastPublishedStatus,
+                                observedAt,
+                            )
+                        ) {
+                            sweepExecutions.markReconciling(executionId, transaction.transactionId, transaction.transactionHash)
+                        }
                     }
                     return
                 }

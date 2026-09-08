@@ -18,10 +18,11 @@ interface DepositAddressRepository {
         network: String?,
     ): List<DepositAddress>
 
-    /** 입금 귀속 — 이 주소가 어느 계정인가 (주소는 네트워크 안에서만 유일하다) */
+    /** 입금 귀속 — 같은 네트워크·주소를 공유하는 토큰도 심볼별 발급 기록으로 구분한다 */
     fun findByAddress(
         address: String,
         network: String,
+        symbol: String,
     ): DepositAddress?
 
     /** Admin 매핑 삭제 가드 — 계정과 무관하게 이 자산으로 발급된 주소가 하나라도 있는지 확인한다. */

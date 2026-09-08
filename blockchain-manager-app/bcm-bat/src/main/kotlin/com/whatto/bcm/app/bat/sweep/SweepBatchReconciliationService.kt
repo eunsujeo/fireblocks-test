@@ -25,6 +25,7 @@ import com.whatto.bcm.domain.sweep.SweepLegObservation
 import com.whatto.bcm.domain.sweep.SweepTargetKey
 import com.whatto.bcm.domain.sweep.SweepTargetRepository
 import com.whatto.bcm.domain.sweep.SweepTransactionStatusRepository
+import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.VendorNetworkRecord
 import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
@@ -245,28 +246,32 @@ class SweepBatchReconciliationService(
                 SweepExecutionStatus.PARTIAL
             }
         transactionRunner.run {
+            val batchStatus = transactionStatuses.findBatchStatusForUpdate(checkNotNull(execution.vendorTransactionId))
+            check(batchStatus != TxStatus.FAILED) { "sweep transaction was invalidated before successful reconciliation" }
             val current = executions.findByIdForUpdate(execution.executionId)
             if (current?.status != SweepExecutionStatus.RECONCILING) {
                 throw ConflictException("sweepExecution", execution.executionId)
-            }
-            items.sortedBy { it.accountId }.forEach { item ->
-                val target = targets.findByKeyForUpdate(key(execution, item))
-                if (target?.activeSweepExecutionId != execution.executionId || target.activeItemSequence != item.sequence) {
-                    throw ConflictException("sweepTarget", item.accountId)
-                }
             }
             val deletable =
                 successfulItems.associateWith { item ->
                     belowMinimum[item] == true &&
                         transactionStatuses.finalizedDepositIds(key(execution, item)) == finalizedBefore[item]
                 }
+            val completedSequences = deletable.filterValues { it }.keys.mapTo(mutableSetOf()) { it.sequence }
             executions.completeReconciliation(
                 execution.executionId,
-                reconciled,
+                reconciled.map { result -> result.copy(requestCompleted = result.sequence in completedSequences) },
                 finalStatus,
                 actualTotal,
                 CoreDateTimes.now(clock),
             )
+            // claim·무효화와 같은 request → target 순서로 잠근다. 검증 실패는 대사 갱신도 함께 롤백한다.
+            items.sortedBy { it.accountId }.forEach { item ->
+                val target = targets.findByKeyForUpdate(key(execution, item))
+                if (target?.activeSweepExecutionId != execution.executionId || target.activeItemSequence != item.sequence) {
+                    throw ConflictException("sweepTarget", item.accountId)
+                }
+            }
             eventPublisher.publish(reconciledEvents(execution, items, reconciled))
             items.forEach { item ->
                 val key = key(execution, item)

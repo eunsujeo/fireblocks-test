@@ -53,6 +53,7 @@ data class SweepItemReconciliation(
     val status: SweepItemStatus,
     val failureCode: String?,
     val logIndex: Int,
+    val requestCompleted: Boolean = status == SweepItemStatus.SUCCEEDED,
 )
 
 enum class SweepItemStatus {
@@ -116,4 +117,11 @@ interface SweepExecutionRepository {
         failureCode: String,
         finishedAt: String,
     ): SweepExecution
+
+    /** 이미 대사한 실행을 무효화하고 원 요청을 다시 연다. 후속 실행의 claim은 유지한다. */
+    fun invalidateFinalized(
+        executionId: String,
+        failureCode: String,
+        finishedAt: String,
+    )
 }

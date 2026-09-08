@@ -1,4 +1,4 @@
-package com.whatto.bcm.app.bat.sweep
+package com.whatto.bcm.app.application.sweep
 
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.domain.event.OutboxEvent

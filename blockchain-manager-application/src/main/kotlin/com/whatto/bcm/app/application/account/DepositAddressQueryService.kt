@@ -17,5 +17,6 @@ class DepositAddressQueryService(
     fun findByAddress(
         address: String,
         network: String,
-    ): DepositAddress? = repository.findByAddress(address, network)
+        symbol: String,
+    ): DepositAddress? = repository.findByAddress(address, network, symbol)
 }
