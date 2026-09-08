@@ -11,11 +11,10 @@ import org.springframework.scheduling.annotation.EnableScheduling
 /** Fireblocks PUBLIC Webhook 수신·판단·outbox relay 전용 조립 지점. */
 @SpringBootApplication
 @ComponentScan(
-    basePackages = ["com.whatto.bcm"],
+    basePackages = ["com.whatto.bcm.app.webhook", "com.whatto.bcm.infra", "com.whatto.bcm.support"],
     excludeFilters = [
         ComponentScan.Filter(type = FilterType.CUSTOM, classes = [TypeExcludeFilter::class]),
         ComponentScan.Filter(type = FilterType.CUSTOM, classes = [AutoConfigurationExcludeFilter::class]),
-        ComponentScan.Filter(type = FilterType.REGEX, pattern = ["com\\.whatto\\.bcm\\.testsupport\\..*"]),
     ],
 )
 @EnableScheduling

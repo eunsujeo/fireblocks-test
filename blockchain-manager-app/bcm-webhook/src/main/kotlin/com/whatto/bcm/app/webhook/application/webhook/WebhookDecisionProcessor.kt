@@ -1,4 +1,4 @@
-package com.whatto.bcm.app.application.webhook
+package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.domain.webhook.PoisonWebhookAlertPort
 import com.whatto.bcm.domain.webhook.UnattributedDepositAlertPort

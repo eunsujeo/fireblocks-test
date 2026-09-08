@@ -1,4 +1,4 @@
-package com.whatto.bcm.app.application.webhook
+package com.whatto.bcm.app.webhook.application.webhook
 
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty

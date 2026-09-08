@@ -1,7 +1,7 @@
 package com.whatto.bcm.app.webhook.api
 
-import com.whatto.bcm.app.application.webhook.WebhookIngestionResult
-import com.whatto.bcm.app.application.webhook.WebhookIngestionService
+import com.whatto.bcm.app.webhook.application.webhook.WebhookIngestionResult
+import com.whatto.bcm.app.webhook.application.webhook.WebhookIngestionService
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity

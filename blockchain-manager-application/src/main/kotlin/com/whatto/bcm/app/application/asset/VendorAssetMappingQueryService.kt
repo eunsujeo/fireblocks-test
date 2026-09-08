@@ -10,6 +10,11 @@ import org.springframework.stereotype.Service
 class VendorAssetMappingQueryService(
     private val repository: VendorAssetMappingRepository,
 ) {
+    fun find(
+        network: String,
+        symbol: String,
+    ): VendorAssetMapping? = repository.find(network, symbol)
+
     fun requiredMapping(
         network: String,
         symbol: String,

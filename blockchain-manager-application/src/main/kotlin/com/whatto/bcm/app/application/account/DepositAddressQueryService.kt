@@ -9,6 +9,12 @@ import org.springframework.stereotype.Service
 class DepositAddressQueryService(
     private val repository: DepositAddressRepository,
 ) {
+    fun find(
+        accountId: String,
+        network: String,
+        symbol: String,
+    ): DepositAddress? = repository.find(accountId, network, symbol)
+
     fun existsByAsset(
         network: String,
         symbol: String,

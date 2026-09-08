@@ -10,5 +10,7 @@ import org.springframework.stereotype.Service
 class AccountQueryService(
     private val repository: AccountRepository,
 ) {
+    fun findByAccountId(accountId: String): Account? = repository.findByAccountId(accountId)
+
     fun requiredAccount(accountId: String): Account = repository.findByAccountId(accountId) ?: throw AccountNotFoundException(accountId)
 }

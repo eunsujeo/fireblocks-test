@@ -6,7 +6,10 @@
 {project}/
 ├── {project}-app/                  # 실행 가능한 애플리케이션 (BootJar)
 │   ├── {short}-api/                #   REST API 서버
-│   └── {short}-bat/                #   Spring Batch 서버
+│   ├── {short}-webhook/            #   Webhook 수신·판단·outbox relay
+│   ├── {short}-bat/                #   배치 실행 서버
+│   └── {short}-admin/              #   독립 Frontend·BFF
+├── {project}-application/          # 공유 유스케이스·피처 접근 서비스
 ├── {project}-domain/               # 도메인 모델, Repository 인터페이스
 ├── {project}-infra/                # 인프라스트럭처 (외부 기술 세부사항)
 │   ├── persistence/                #   DB: Spring Data JDBC, DataSource 설정
@@ -29,7 +32,20 @@ app/{short}-api  ──→  domain
 • **domain**: 어떤 모듈도 의존하지 않음 (순수 Kotlin).
 • **support**: domain에만 의존.
 • **infra/***: domain, support에 의존.
-• **app/***: 모든 모듈에 의존 (조립 지점).
+• **application**: domain, support에 의존. 실행 프로세스·infra 구현체·스케줄러에 의존하지 않는다.
+• **app/api·webhook·bat**: 필요한 application, domain, support, infra를 조립한다. 다른 실행 모듈에 런타임 의존하지 않는다.
+• **app/admin**: BCM 내부 모듈에 런타임 의존하지 않고 HTTP를 통해 통신한다.
+
+### 헥사고날 경계와 실행 조립
+
+- Controller·스케줄러는 입력 어댑터다. 해당 실행 모듈에 두고 유스케이스를 호출한다.
+- 유스케이스는 도메인의 출력 포트(Repository·벤더·이벤트 인터페이스)를 사용한다. 물리 구현은 infra에 둔다.
+- 여러 실행 모듈에서 사용하는 유스케이스는 application에 둔다. 특정 프로세스에서만 쓰는 유스케이스는 해당 실행 모듈에 둘 수 있다.
+- Webhook 판단·relay와 스케줄러는 `bcm-webhook`의 `com.whatto.bcm.app.webhook.application`에서 관리한다.
+- 각 조립 지점은 자신이 소유하는 패키지를 스캔하고 공용 서비스는 스캔 범위 또는 명시적인 `@Import`로 등록한다.
+  전체 base 패키지를 스캔한 뒤 다른 실행 모듈을 제외하는 정규식으로 경계를 만들지 않는다.
+- 같은 fully qualified class name을 여러 모듈에 선언하지 않는다. 공용 클래스로 옮겼다면 기존 선언을 제거한다.
+- 피처 서비스 간 호출은 기존 외부 트랜잭션에 참여한다. 캡슐화를 이유로 트랜잭션을 분리하거나 잠금 순서를 바꾸지 않는다.
 
 ## 패키지 구조 (Feature 기반 Layered)
 
@@ -131,3 +147,17 @@ class LedgerService(private val ledgerRepository: LedgerRepository) {
 
 ### 6. 피처 간 참조
 같은 프로젝트 내 피처 간에는 Service를 통해서만 접근. 다른 피처의 Repository 직접 접근 금지.
+
+이 규칙은 이 저장소의 피처 소유권 규칙이다. 유스케이스가 여러 출력 포트를 조합할 수 있다는 헥사고날 원칙에
+Service 인터페이스를 일률적으로 추가하라는 뜻은 아니다. 피처 서비스는 필요한 조회·관찰·기록만 공개하고 Repository를 노출하지 않는다.
+
+## 자동 검증
+
+`bcm-api`의 `ArchitectureTest`가 API·Webhook·BAT·Admin과 공용 모듈의 컴파일 결과를 직접 읽는다.
+다른 실행 모듈을 테스트 런타임 classpath에 추가하지 않고 Gradle이 검사 대상 `classes`를 먼저 생성한다.
+
+- 도메인 순수성(Spring·JDBC·Jackson 2/3), 레이어 의존성, 실행 모듈 간 참조, 공용 모듈의 입력 어댑터 참조를 검사한다.
+- 검사 대상 실행 클래스의 존재와 모듈 간 중복 클래스도 검사해 빈 검사와 classpath 가림을 차단한다.
+- 피처 간 Repository 직접 참조 검사는 우선 Webhook 판단·allowance 회수·Sweep 배치 실행 유스케이스에 적용한다.
+  다른 유스케이스의 기존 직접 참조까지 검사하는 규칙은 아직 없으며, 해당 경계를 정리할 때 검사 범위를 확장한다.
+- API/Webhook 경계 테스트와 실제 BAT 기동 테스트로 스캔 범위·공용 빈 등록도 검증한다.

@@ -1,8 +1,10 @@
 package com.whatto.bcm.app.application.admin
 
+import com.whatto.bcm.app.application.account.AccountQueryService
+import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
+import com.whatto.bcm.app.application.sweep.SweepAuthorizationService
 import com.whatto.bcm.domain.TransactionRunner
-import com.whatto.bcm.domain.account.AccountRepository
-import com.whatto.bcm.domain.account.DepositAddressRepository
 import com.whatto.bcm.domain.admin.AdminActor
 import com.whatto.bcm.domain.admin.AdminChangeRequest
 import com.whatto.bcm.domain.admin.AdminContractRepository
@@ -13,15 +15,12 @@ import com.whatto.bcm.domain.admin.AllowanceRevocationTarget
 import com.whatto.bcm.domain.admin.ChangeRisk
 import com.whatto.bcm.domain.admin.ChangeTargetType
 import com.whatto.bcm.domain.admin.PolicyChangeRequest
-import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.event.EventIdGenerator
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.sweep.Erc20ContractPort
 import com.whatto.bcm.domain.sweep.SweepAllowanceObservation
-import com.whatto.bcm.domain.sweep.SweepAllowancePolicy
 import com.whatto.bcm.domain.sweep.SweepAuthorization
-import com.whatto.bcm.domain.sweep.SweepAuthorizationRepository
 import com.whatto.bcm.support.submission.SubmissionRequestHashes
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
@@ -51,10 +50,10 @@ class AllowanceRevocationCommandService(
     private val revocations: AllowanceRevocationRepository,
     private val policies: com.whatto.bcm.domain.admin.AdminPolicyRepository,
     private val contracts: AdminContractRepository,
-    private val authorizations: SweepAuthorizationRepository,
-    private val accounts: AccountRepository,
-    private val addresses: DepositAddressRepository,
-    private val mappings: VendorAssetMappingRepository,
+    private val authorizations: SweepAuthorizationService,
+    private val accounts: AccountQueryService,
+    private val addresses: DepositAddressQueryService,
+    private val mappings: VendorAssetMappingQueryService,
     private val erc20: Erc20ContractPort,
     private val transactions: TransactionRunner,
     private val ids: EventIdGenerator,
@@ -226,20 +225,7 @@ class AllowanceRevocationCommandService(
         observed: ObservedTarget,
         now: Instant,
     ) {
-        val current =
-            authorizations.findByKeyForUpdate(observed.authorization.key)
-                ?: throw ResourceNotFoundException("sweepAuthorization", observed.authorization.key.toString())
-        val updated =
-            SweepAllowancePolicy.observe(
-                current,
-                current.key,
-                current.allowanceCap,
-                observed.observation,
-                com.whatto.bcm.support.time.CoreDateTimes.format(
-                    java.time.LocalDateTime.ofInstant(now, java.time.ZoneOffset.UTC),
-                ),
-            )
-        authorizations.update(updated)
+        authorizations.recordObservation(observed.authorization.key, observed.observation, now)
     }
 
     private fun snapshotHash(

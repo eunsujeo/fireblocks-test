@@ -1,9 +1,12 @@
-package com.whatto.bcm.app.application.webhook
+package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.sweep.SweepInvalidationService
+import com.whatto.bcm.app.application.sweep.SweepObservationService
+import com.whatto.bcm.app.application.tx.BoostObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEvent
@@ -13,10 +16,7 @@ import com.whatto.bcm.domain.event.EventType
 import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventType
 import com.whatto.bcm.domain.exception.ConflictException
-import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
-import com.whatto.bcm.domain.sweep.SweepExecutionRepository
-import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.FinalityPolicyConfigurationException
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
@@ -86,9 +86,9 @@ class WebhookDecisionTransaction(
     private val depositAddresses: DepositAddressQueryService,
     private val txStates: TxStateService,
     private val outboxEvents: OutboxEventService,
-    private val submissions: SubmissionRecordRepository,
-    private val boosts: BoostAttemptRepository,
-    private val sweepExecutions: SweepExecutionRepository,
+    private val submissions: SubmissionObservationService,
+    private val boosts: BoostObservationService,
+    private val sweepExecutions: SweepObservationService,
     private val sweepInvalidation: SweepInvalidationService,
     private val parser: WebhookTransactionParser,
     private val statusTranslator: VendorStatusTranslator,

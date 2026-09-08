@@ -1,4 +1,4 @@
-package com.whatto.bcm.app.application.event
+package com.whatto.bcm.app.webhook.application.event
 
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value

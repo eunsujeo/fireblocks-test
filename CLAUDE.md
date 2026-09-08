@@ -79,7 +79,7 @@ blockchain-manager-svc/            (rootProject.name = "blockchain-manager")
 │   ├── bcm-webhook/               웹훅 수신 + 판단 워커 + outbox relay
 │   ├── bcm-admin/                 독립 Admin Frontend + BFF
 │   └── bcm-bat/                   Spring Batch — sweep 트리거 · tx 대사
-├── blockchain-manager-application/     API·Webhook 공유 application 오케스트레이션·설정
+├── blockchain-manager-application/     API·Webhook·BAT 공유 유스케이스·피처 접근 서비스·설정
 ├── blockchain-manager-domain/     도메인 모델 · 전이 표 · Repository 인터페이스 (순수 Kotlin)
 ├── blockchain-manager-infra/
 │   ├── persistence/               Spring Data JDBC · bcm_ 테이블 매핑
@@ -91,6 +91,8 @@ blockchain-manager-svc/            (rootProject.name = "blockchain-manager")
 
 레이어 규칙 요약 — api 는 검증·변환만, application 은 오케스트레이션만, **비즈니스 판단(전이 표 등)은 domain**, 물리 컬럼명은 infra 에서만. domain 은 Spring/JDBC 의존 금지.
 test-support는 기존 BCM 모듈이 의존하지 않는 별도 실행 경계이며, 기존 `FireblocksClient`의 HTTP 설정으로만 연결한다.
+Webhook 전용 판단·relay·스케줄러는 `bcm-webhook`에 둔다. 각 실행 모듈은 소유 패키지와 필요한 공용 빈을 명시적으로 조립한다.
+같은 FQCN의 클래스는 한 모듈에서만 소유한다. 세부 경계와 자동 검사는 `docs/standards/architecture.md`를 따른다.
 
 ## 5. 프레임워크·보안 정책
 

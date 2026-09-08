@@ -1,10 +1,10 @@
 package com.whatto.bcm.app.bat.sweep
 
+import com.whatto.bcm.app.application.account.AccountQueryService
+import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.account.Account
-import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
-import com.whatto.bcm.domain.account.DepositAddressRepository
-import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import com.whatto.bcm.domain.job.JobStateRepository
@@ -82,9 +82,9 @@ class SweepBatchExecutionService(
     private val candidates: SweepCandidateSelector,
     private val allowancePreparation: SweepAllowancePreparer,
     private val executions: SweepExecutionRepository,
-    private val accounts: AccountRepository,
-    private val addresses: DepositAddressRepository,
-    private val mappings: VendorAssetMappingRepository,
+    private val accounts: AccountQueryService,
+    private val addresses: DepositAddressQueryService,
+    private val mappings: VendorAssetMappingQueryService,
     private val batchContract: SweepBatchContractPort,
     private val contractCalls: SweepContractCallSubmitter,
     private val executionIds: SweepExecutionIdGenerator,

@@ -7,7 +7,6 @@ dependencies {
     implementation(project(":blockchain-manager-domain"))
     implementation(project(":blockchain-manager-support"))
     implementation("org.springframework.boot:spring-boot-starter")
-    implementation("tools.jackson.core:jackson-databind")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation(libs.mockk)

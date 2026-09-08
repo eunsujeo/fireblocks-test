@@ -1,4 +1,4 @@
-package com.whatto.bcm.app.application.event
+package com.whatto.bcm.app.webhook.application.event
 
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.EventPublisher
