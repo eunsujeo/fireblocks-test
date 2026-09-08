@@ -1,6 +1,5 @@
 ---
 title: 자산 이동 지도 — 시나리오별 vault 간 이동
-status: To Do
 group: 운영 설계
 ---
 

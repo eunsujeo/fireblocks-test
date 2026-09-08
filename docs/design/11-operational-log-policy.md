@@ -1,6 +1,5 @@
 ---
 title: 운영 로그 포맷·중앙 수집·보존 정책
-status: To Do
 group: 운영 설계
 ---
 

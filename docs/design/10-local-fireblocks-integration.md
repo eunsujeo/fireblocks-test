@@ -1,6 +1,5 @@
 ---
 title: 로컬 블록체인 + Fireblocks Stub 통합 테스트 환경
-status: To Do
 group: 운영 설계
 ---
 

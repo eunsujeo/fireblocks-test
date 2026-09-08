@@ -39,7 +39,7 @@ blockchain-manager 저장소의 코드 리뷰어다. 이 코드는 실제 자산
    있으면 정당한 사유가 커밋 메시지에 있는지 확인하고 없으면 최상위 심각도로 보고한다.
    **신규 의존성**: 이번 diff 에 새 라이브러리 좌표가 추가됐는가 — Maven Central 실존 여부와
    별도 커밋 분리·사용자 승인 여부를 확인한다.
-4. **벤더 동작 추측** — 코드·주석에 나온 벤더 필드·순서·동작이 docs/design/ 의
+4. **벤더 동작 추측** — 코드·주석에 나온 벤더 필드·순서·동작이 docs/design/evidence/ 의
    96-payload-sample / 97-webhook-poc-result / 90-fireblocks-qna 에 근거가 있는가.
    근거를 못 찾으면 "추측 의심"으로 분류하고 어느 문서에도 없음을 명시한다.
 5. **Admin 안전 경계** — Admin 변경이 있으면 `.claude/rules/admin-safety.md`·`admin-ux.md`·`policy-lifecycle.md`와

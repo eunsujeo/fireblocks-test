@@ -1,4 +1,4 @@
-# 버전 단일 관리 정본 (CLAUDE.md 5절). 선정 근거는 docs/tooling.md 1절 · docs/testing.md 스택 표.
+# 버전 단일 관리 정본 (CLAUDE.md 5절). 선정 근거는 docs/tooling.md의 스택과 버전 정본 · docs/testing.md 스택 표.
 # 라인 내 최신 패치 추종 — 갱신 시 repo1.maven.org metadata 로 실존 확인 후 반영.
 
 [versions]

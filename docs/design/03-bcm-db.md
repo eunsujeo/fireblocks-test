@@ -1,11 +1,26 @@
 ---
 title: 블록체인 매니저 — DB
-status: To Do
 group: 블록체인 매니저
 ---
 
 블록체인 매니저 DB(`bcm_`)의 테이블 전체 — 계정·주소 매핑, 거래 운영 상태, 수신 인박스, sweep 대상, 주기 작업, boost 이력, 수수료 견적, finalize 원본, 발행 아웃박스. 자산의 현재 매핑·변경 snapshot과 블록체인·자산 검색 카탈로그는 [자산 매핑](07-asset-master.md) 에서 정의한다.
 회계 진실(고객 원장·귀속·잔액·출금 지시 상태)은 여기 없다 — 그것은 DAW-CORE DB(`daw_`)다.
+
+## 찾아보기
+
+DB를 변경하는 개발자를 위한 스키마·물리 제약 정본이다. 필요한 피처부터 찾아간다.
+[업무별 설계 안내](README.md) · [현재 미해결 결정](../../PLAN.md)
+
+| 피처 | 바로가기 |
+|---|---|
+| 전체 구조 | [테이블 한눈에](#테이블-한눈에) · [ERD](#erd) · [시나리오로 보는 테이블 흐름](#시나리오로-보는-테이블-흐름) |
+| 계정·주소 | [계정 생성 의도](#bcm_acnt_crtn_l--vault-생성-의도회수-원장) · [계정 매핑](#bcm_acnt_m--계정-매핑) · [주소 생성 의도](#bcm_addr_crtn_l--vault-wallet주소-생성-의도회수-원장) · [주소 매핑](#bcm_addr_m--주소-매핑) |
+| Vault 조사 | [Vault 전체 대사](#bcm_vlt_rcnc_l--bcm_vlt_rcnc_item_l--vault-전체-대사-실행) |
+| 거래·이벤트 | [수신 원본](#bcm_whk_l--수신-알림-원본) · [거래 상태](#bcm_tx_l--거래-운영-상태) · [제출 원장](#bcm_sbmt_l--제출-원장) · [outbox](#bcm_outbox_l--발행-아웃박스) · [DAW 완료](#bcm_evnt_cmpl_l--daw-core-이벤트-처리-완료) |
+| Sweep | [요청](#bcm_swp_req_l--bcm_swp_req_item_l--bcm_swp_req_src_l--daw-core-sweep-요청) · [대상](#bcm_swp_trgt--sweep-대상) · [allowance](#bcm_swp_auth_m--sweep-승인-관찰-상태) · [실행·항목](#bcm_swp_exec_l--bcm_swp_item_l--sweep-실행-1n) |
+| 배치·보관 | [boost](#bcm_boost_l--boost-이력) · [작업 상태](#bcm_job_m--주기-작업-상태) · [수수료](#bcm_fee_qt_l--수수료-견적-시계열) · [원본 보관](#bcm_raw_tx_l--finalize-트랜잭션-원본) |
+| Admin·승인 | [밴드S input snapshot·proposal·실행 원장](#밴드s-input-snapshotproposal실행-원장) · [불변 version·evidence 원장](#불변-versionevidence-원장) · [변경 요청·판단·action 원장](#변경-요청판단action-원장) · [현재 binding projection](#현재-binding-projection) |
+| 비상 운영 | [중지](#bcm_exec_gate_evt_l--신규-실행-중지-원장) · [외부 통제 증적](#bcm_ext_ctrl_evdc_l--비상-외부-통제-관찰-증적) · [재개](#bcm_exec_gate_rsm_l--bcm_exec_gate_rsm_chk_l--강화-재개-요청직전-재검사-원장) · [allowance 회수](#bcm_alwnc_rvok_exec_l--bcm_alwnc_rvok_item_l--bcm_alwnc_rvok_evt_l--allowance-전량-회수-원장) · [웹훅 복구](#bcm_whk_rcvr_req_l--bcm_whk_rcvr_evt_l--웹훅-복구-요청호출-결과-원장) |
 
 ## 명명 규약
 

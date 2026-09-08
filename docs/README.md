@@ -1,14 +1,31 @@
 # 문서 안내
 
-| 위치 | 역할 | 관리 규칙 |
-|---|---|---|
-| `design/` | 이 저장소의 설계 정본과 문서 인덱스 | 직접 수정·리뷰하고 관련 코드·테스트·API 계약과 함께 정합 확인 |
-| `api/` | OpenAPI 정본과 실행 가능한 개발자 포털 | `openapi.yaml`만 수정하고 `python3 docs/api/build.py`로 생성물 갱신 |
-| `admin-reference/` | 사용자 승인 Admin 디자인 토큰·기준 화면 | `design/08-bcm-admin.md`가 참조하므로 유지 |
-| `runbooks/` | 현재 운영 경계·경보·복구·향후 배포 결정 로그 | 실제 계약이 바뀔 때 함께 갱신 |
-| `standards/` | 아키텍처 규칙 | 코드 구조 변경 전 확인 |
-| `ai/` | AI 작업 요청과 독립 리뷰 절차 | 현재 사용하는 절차만 유지 |
-| `history/` | 완료된 계획·검증 이력 | 현재 작업 지시로 사용하지 않음 |
+개발·연동·운영 중 하려는 일에서 시작하세요. 상세 계약과 실측 자료는 필요한 때 아래 링크로 찾아갑니다.
 
-테스트 전략은 [testing.md](testing.md), 도구·버전 선정 근거는 [tooling.md](tooling.md)에 있다.
-새 문서는 기존 범주에 들어가지 않고 지속적으로 유지할 책임자가 있을 때만 추가한다.
+| 목적 | 먼저 볼 문서 | 찾을 수 있는 내용 |
+|---|---|---|
+| **시작** | [로컬 실행](../README.md#빌드--실행) · [새 머신 준비](../SETUP.md) | 실행 명령·접속 주소·설치 |
+| **구조** | [모듈과 의존성](standards/architecture.md) | 코드 위치·헥사고날 경계·자동 검사 |
+| **업무** | [업무별 설계 찾기](design/README.md) | 계정·입금·출금·Sweep·Admin·DB |
+| **API** | [API 문서 열기](api/README.md) | 포털·요청 실행·OpenAPI·공유용 파일 |
+| **운영** | [상황별 운영 절차](runbooks/README.md) | 모니터링·웹훅 복구·취약점·배포 준비 |
+| **참고** | [테스트·근거·이력](#참고자료) | 검증 방법·벤더 실측·외부 시스템·과거 결정 |
+
+## 참고자료
+
+- 개발 검증: [테스트 전략](testing.md), [현재 도구와 관리 규칙](tooling.md).
+- 벤더 동작 확인: [실측·PoC 목록](design/README.md#실측과-채택-근거).
+- 외부 서비스 경계: [컴플라이언스·Co-signer](design/README.md#외부-시스템-맥락).
+- 화면 작업: [승인된 Admin 기준 화면](admin-reference/README.md).
+- AI 작업: [요청 가이드](ai/prompt-guide.md), [독립 리뷰 절차](ai/converge-review.md).
+- 진행 상황: [현재 계획·미해결 결정](../PLAN.md), [완료 Phase 이력](history/phase-0-14-plan.md),
+  [해결된 설계 항목](history/resolved-design-items.md), [도구 선정 이력](history/tooling-research-2026-08.md).
+
+## 문서 관리
+
+- 설계 계약은 `design/`, HTTP 계약은 [openapi.yaml](api/openapi.yaml), 버전은 [version catalog](../gradle/libs.versions.toml)가 정본이다.
+- 안내에는 대상 독자·범위와 정본 링크를 짧게 적고, 다른 문서의 정책·절차는 복사 대신 해당 절로 연결한다.
+- `evidence/`는 구현 근거 원문, `context/`는 외부 서비스 맥락, `history/`는 과거 기록이다. 현행 계약과 구분해 읽는다.
+- API의 `api.md`·`api.html`·`spec.js`는 생성물이다. 정본 수정 후 `python3 docs/api/build.py`로 갱신한다.
+- 새 문서는 기존 문서에 담을 수 없는 독립 목적과 유지 책임이 있을 때만 추가한다.
+- 문서를 이동하거나 제목을 바꾸면 상대 링크·절 앵커·코드·스크립트·AI 작업 규칙의 참조도 함께 확인한다.

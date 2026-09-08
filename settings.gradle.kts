@@ -6,7 +6,7 @@ pluginManagement {
 }
 
 plugins {
-    // JDK 25 toolchain 자동 프로비저닝 — 머신에 JDK 25 가 없어도 빌드가 받아온다 (docs/tooling.md 1절)
+    // JDK 25 toolchain 자동 프로비저닝 — 머신에 JDK 25 가 없어도 빌드가 받아온다 (docs/tooling.md의 스택과 버전 정본)
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 

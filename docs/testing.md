@@ -53,7 +53,7 @@
 
 ## 픽스처 규칙
 
-- 웹훅 payload 는 **실물**만 — [docs/design/96-payload-sample.md](design/96-payload-sample.md) 원문을 `src/test/resources/payload/` 에 둔다. 필드를 지어내지 않는다.
+- 웹훅 payload 는 **실물**만 — [docs/design/evidence/96-payload-sample.md](design/evidence/96-payload-sample.md) 원문을 `src/test/resources/payload/` 에 둔다. 필드를 지어내지 않는다.
 - 필드 변형이 필요하면 실물에서 해당 필드만 바꾸고, 바꾼 필드를 테스트 이름에 드러낸다.
 - 시간은 `Clock` 주입 — `Instant.now()` 직접 호출 금지.
 

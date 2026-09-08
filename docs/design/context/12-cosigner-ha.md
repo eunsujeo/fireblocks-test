@@ -5,6 +5,8 @@ group: 운영 설계
 date: 2026-08-01
 ---
 
+> 연동 경계를 확인하는 개발자용 외부 시스템 참고자료다. BCM 구현 계약과 [외부 시스템 맥락](../README.md#외부-시스템-맥락)을 구분해서 읽는다.
+
 물리 장비(PM) 2대에 API Co-signer 를 설치해 active-active 로 운영하는 구성·설치·운영 절차를 정한다.
 장비별 설치는 서로 독립이고, 2대를 묶는 것은 Fireblocks Policy 의 Designated Signers/Groups 설정 한 곳이다.
 

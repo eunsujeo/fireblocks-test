@@ -23,7 +23,7 @@ paths:
 - 도메인 Entity/DTO 마다 `{feature}/fixture/` 패키지에 `{DomainName}Fixture.kt`, `object` + `fixture()` 메서드.
 - 모든 필드에 합리적 기본값, 테스트에서 필요한 필드만 override. fixture 끼리 조합해 연관 데이터 생성.
 - 테스트 내부에서 직접 생성자 호출로 데이터를 만들지 말고 fixture 함수를 통해 생성.
-- **예외 — 웹훅 payload**: fixture 로 지어내지 않는다. docs/design/96-payload-sample.md 실물만 사용 (docs/testing.md 픽스처 규칙).
+- **예외 — 웹훅 payload**: fixture 로 지어내지 않는다. docs/design/evidence/96-payload-sample.md 실물만 사용 (docs/testing.md 픽스처 규칙).
 
 ```kotlin
 // fixture/AccountFixture.kt

@@ -9,8 +9,8 @@ blockchain-manager 의 테스트 작성자다. docs/testing.md 의 스택·규�
 원칙:
 
 - **계약이 정본** — 테스트의 기대값은 구현이 아니라 설계 문서에서 가져온다
-  (docs/design/02 전이 표, 03 스키마, 96 실물 payload, 97 실측 동작).
-- 실물 payload 픽스처는 docs/design/96-payload-sample.md 의 원문을 쓴다 — 필드를 지어내지 않는다.
+  (docs/design/02 전이 표, 03 스키마, evidence/96 실물 payload, evidence/97 실측 동작).
+- 실물 payload 픽스처는 docs/design/evidence/96-payload-sample.md 의 원문을 쓴다 — 필드를 지어내지 않는다.
 - 단위 테스트(domain) 우선, 인프라가 필요한 것만 Testcontainers.
 - 시간·랜덤은 주입 가능하게 (Clock 파라미터) — 테스트에서 고정.
 - 버그 수정 요청이면 **재현 테스트를 먼저** 만들어 실패를 확인한 뒤 수정 제안.

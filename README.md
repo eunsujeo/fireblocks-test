@@ -3,7 +3,7 @@
 Fireblocks 기반 수탁형 지갑의 **온체인 자산 이동 단일 창구** 서비스입니다.
 벤더 원어(tx 상태·웹훅)를 공통 상태(TxStatus)로 번역해 DAW-CORE 에 Kafka 이벤트로 공급합니다.
 
-> 구현 진행 상태와 로드맵은 [PLAN.md](PLAN.md) — Phase 13 완료, 현재 Phase 14 진행 중.
+> [문서 안내](docs/README.md)에서 목적별로 시작하세요. 구현 진행 상태와 미해결 결정은 [PLAN.md](PLAN.md)에서 관리합니다.
 
 ## 모듈 구조
 

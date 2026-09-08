@@ -35,13 +35,13 @@ Gradle 멀티모듈 골격 + 빌드·테스트 파이프라인. 코드보다 **�
 ### task (2026-08-04 분해)
 
 - [x] **T0.1 Gradle 골격** — settings.gradle.kts(7 leaf 모듈) · `gradle/libs.versions.toml` · wrapper 9.6.1(sha256 고정) · JDK 25 toolchain(foojay 자동 프로비저닝).
-  완료: `./gradlew projects` 에 7 leaf 모듈 · 빈 소스로 `./gradlew build` 그린. 근거: CLAUDE.md 4절 · tooling.md 1절
+  완료: `./gradlew projects` 에 7 leaf 모듈 · 빈 소스로 `./gradlew build` 그린. 근거: CLAUDE.md 4절 · [도구 선정 이력](tooling-research-2026-08.md) 1절
 - [x] **T0.2 테스트 파이프라인** — starter-test(JUnit 6)·MockK 배선 + bcm-api 에 Flyway + Testcontainers(PostgreSQL · `@ServiceConnection`) 통합 테스트 1개.
   완료: 통합 테스트 그린 = 신품 메이저 조합(Boot 4.1·JUnit 6·TC 2.0·Jackson 3) 호환 확인. 근거: docs/testing.md 스택 표
 - [x] **T0.3 ArchUnit 모듈 규칙** — domain 무의존 · api 계층 Repository 직접 의존 금지 · 물리 컬럼 매핑(spring-data-relational) infra 한정. core API 를 일반 `@Test` 로.
   완료: 규칙 테스트 그린 + 고의 위반 1회 실검출 확인 후 원복 (커밋 0c63db2 메시지에 증적). 근거: docs/standards/architecture.md
 - [x] **T0.4 개발 루프 마감** — ktlint Gradle 연동 · dependency locking(`gradle.lockfile` 커밋) · CI 스크립트(build + docs/api 생성물 drift 체크, untracked 포함).
-  완료: `./scripts/ci.sh` 로컬 그린. 근거: tooling.md 4절
+  완료: `./scripts/ci.sh` 로컬 그린. 근거: [도구 선정 이력](tooling-research-2026-08.md) 4절
 
 Phase 0 이월 사항 → Phase 1 에서 회수:
 - DB 배선(starter-data-jdbc·Flyway·pg driver)이 부트스트랩 편의상 bcm-api 에 직접 있다 — Phase 1 에서 infra/persistence 로 이동 (architecture.md "persistence = DB 소관")
@@ -59,7 +59,7 @@ Phase 0 이월 사항 → Phase 1 에서 회수:
 - ★ 착수 선행 작업: **#14 결정의 설계 반영** — waas-wiki 03 개정(tx_l 에 subStatus·networkStatus 컬럼 추가 · 미확정 절 정리) 후 docs/design 사본 동기화. 이벤트 도메인 모델은 **금액 필드 추가 여지**를 열어 둔다(#5 가 Phase 4 게이트로 확정되면 additive 로 수용)
 - Phase 0 이월 회수 ①: **DB 배선(starter-data-jdbc·Flyway·pg driver)을 bcm-api → infra/persistence 로 이동**
 - Phase 0 이월 회수 ②: 통합 테스트 공용 베이스 `IntegrationTestSupport`(싱글턴 컨테이너 — .claude/rules/testing.md) 도입 — 두 번째 통합 테스트 클래스가 생기는 시점이 이 Phase 다
-- 자체 skill 2종 작성(tooling.md 2절 후보, 2026-08-05 확정) — **`db-migration`**(03 대조 → 코어 규약 타입 → 감사 4컬럼+센티넬 → 왕복 테스트 절차) · **`integration-test`**(싱글턴 컨테이너·`@ServiceConnection` 배선) — 첫 마이그레이션·첫 테스트를 만들며 절차를 skill 로 굳힌다
+- 자체 skill 2종 작성([도구 선정 이력](tooling-research-2026-08.md) 2절 후보, 2026-08-05 확정) — **`db-migration`**(03 대조 → 코어 규약 타입 → 감사 4컬럼+센티넬 → 왕복 테스트 절차) · **`integration-test`**(싱글턴 컨테이너·`@ServiceConnection` 배선) — 첫 마이그레이션·첫 테스트를 만들며 절차를 skill 로 굳힌다
 
 **완료 기준**: 전이 표 전 케이스 단위 테스트 (FINALIZED→FAILED reorg 반영, FINALIZED→CONFIRMED 무시, (없음)→FINALIZED 감지 합성, FAILED 종결 등). 테이블 매핑 왕복 테스트.
 

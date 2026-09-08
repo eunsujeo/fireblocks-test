@@ -1,6 +1,5 @@
 ---
 title: 벤더 자산 매핑 — 우리 자산을 벤더 assetId 로 잇기
-status: To Do
 group: 운영 설계
 ---
 

@@ -23,26 +23,11 @@
   설계와 코드가 어긋나면 **코드를 설계에 맞추는 게 기본**이고, 설계를 바꿔야 하면 사용자에게 먼저 묻는다.
 - **새 머신에서 시작할 때**: [SETUP.md](SETUP.md) — 저장소 밖(플러그인·JDK·시크릿) 체크리스트.
 
-## 2. 설계 문서 맵 ([docs/design/](docs/design/) 정본)
+## 2. 설계 문서 찾기
 
-| 문서 | 코드에서의 정본 범위 |
-|---|---|
-| [01-infra.md](docs/design/01-infra.md) | 구성 요소 배치 · 보안 경계 · 큐 4토픽 |
-| [02-bcm-flow.md](docs/design/02-bcm-flow.md) | **이벤트 계약** — 허용 전이 표 · evnt_id dedup · relay 순차 발송 · 감지 합성 발행 · boost txId 접기 |
-| [03-bcm-db.md](docs/design/03-bcm-db.md) | **bcm_ 코어 스키마** — 컬럼명·타입 그대로 구현 |
-| [06-sweep.md](docs/design/06-sweep.md) | sweep 정책 (트리거·밴드S) · approve + transferFrom 배치 실행 계약 |
-| [07-asset-master.md](docs/design/07-asset-master.md) | **블록체인·자산 카탈로그 캐시 + 벤더 자산 현재/변경 매핑** · 등록 재검증 · Admin API · 벤더 경계 변환 |
-| [08-bcm-admin.md](docs/design/08-bcm-admin.md) | **Blockchain Manager Admin** — 운영 조사 · 컨트랙트/실행 정책 · 밴드S · 승인 · 비상 운영 · UI/UX 경계 |
-| [09-asset-map.md](docs/design/09-asset-map.md) | 고객 vault·옴니버스·출금 풀·회사자산·외부 콜드 간 시나리오별 자산 이동 지도 |
-| [10-local-fireblocks-integration.md](docs/design/10-local-fireblocks-integration.md) | **로컬 통합 테스트 계약** — Fireblocks API 지원표 · Stub/Anvil 경계 · 실행 모드 · 키 · reset · 실벤더 승인선 |
-| [93-batch-partial-fail-sample.md](docs/design/93-batch-partial-fail-sample.md) | batch sweep 부분 실패 실측 payload · 항목 결과 판정 근거 |
-| [94-batch-payload-sample.md](docs/design/94-batch-payload-sample.md) | batch sweep network records 실측 payload · 원천 vault 귀속 근거 |
-| [95-approve-pull-poc-result.md](docs/design/95-approve-pull-poc-result.md) | approve + transferFrom PoC 결과 · 제출 operation · 부분 성공 관찰 |
-| [96-payload-sample.md](docs/design/96-payload-sample.md) | 웹훅 payload 실물 — 필드명·타입의 근거 |
-| [97-webhook-poc-result.md](docs/design/97-webhook-poc-result.md) | 실측된 벤더 동작 — 재시도 간격 · resend_failed 의미 |
-| [98-batch-sweep.md](docs/design/98-batch-sweep.md) | **채택 근거** — approve + transferFrom 메커니즘 · 수탁 위험 · 출시 게이트 |
-| [99-detection-detail.md](docs/design/99-detection-detail.md) | 감지 경로 상세 — 인박스 → 워커 → outbox → relay |
-| [90-fireblocks-qna.md](docs/design/90-fireblocks-qna.md) | 벤더 확답 모음 — rate limit · 확정 임계 · 쿼리 패턴 |
+[업무별 설계 안내](docs/design/README.md)에서 해당 업무와 근거 문서를 찾는다. 설계는 이 저장소에서 관리한다.
+이벤트·상태는 02, BCM 스키마는 03, Sweep은 06, 자산은 07, Admin은 08이 정본이며 코드 변경 전에 해당 절을 대조한다.
+벤더 필드·동작의 근거는 안내의 **실측과 채택 근거**에서 찾는다. 외부 시스템 자료는 BCM 구현 범위와 구분한다.
 
 **HTTP API 계약은 이 저장소 안에 있다** — [docs/api/openapi.yaml](docs/api/openapi.yaml) 이 정본(그대로 구현 대상). `api.md`·`api.html`·`spec.js` 는 `build.py` 생성물이므로 직접 고치지 않는다. 스펙 수정 → `python3 build.py` 재생성. 공통 규약(응답 envelope·에러 코드·커서 페이지네이션·멱등 키)도 이 파일의 `info.description` 에 있다.
 
@@ -109,7 +94,7 @@ Webhook 전용 판단·relay·스케줄러는 `bcm-webhook`에 둔다. 각 실�
 - **검증은 좁게 돌린다** — 전체 스위트 말고 파일·모듈 단위:
   `./gradlew :blockchain-manager-domain:test --tests "..."` / `./gradlew :모듈:build`
 - **추측 금지** — 확인 안 된 벤더 필드·동작을 코드·주석·문서에 쓰지 않는다. 근거는 96·97·QnA 실측/확답에서만.
-- **구현 전 설계 대조** — 이벤트·DB·상태를 만지는 작업은 해당 설계 문서(2절 맵)를 먼저 읽는다.
+- **구현 전 설계 대조** — 이벤트·DB·상태를 만지는 작업은 해당 설계 문서(2절 안내)를 먼저 읽는다.
 - **테스트 없는 완료 없음** — 규칙은 [docs/testing.md](docs/testing.md). 계약 로직(전이 표·dedup·outbox)은 반드시 테스트로 고정한다. 테스트 수정은 구현과 별도 커밋으로.
 - **커밋은 마일스톤 단위** — 매 편집마다 커밋하지 않는다. 커밋 메시지 끝: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`. PROGRESS.md 는 세션 종료 시 갱신.
 - **강제 장치** — 이 파일의 규칙 중 일부는 hook 으로 이중화돼 있다: ktlint(`.claude/settings.json` · `.claude/hooks/`), 시크릿 스캔(`.githooks/pre-commit`). hook 이 막으면 우회하지 말고 원인을 고친다.

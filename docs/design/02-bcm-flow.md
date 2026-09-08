@@ -1,6 +1,5 @@
 ---
 title: 블록체인 매니저 — 흐름
-status: To Do
 group: 블록체인 매니저
 ---
 
@@ -174,8 +173,8 @@ sequenceDiagram
 - **`cnfm_cnt`·마지막 갱신 시각은 줄지 않는다** — 큰 값으로만 갱신한다.
 - ★ **이벤트 순서는 매니저가 보장한다** — DAW-CORE 가 받는 순서는 한 tx 에 대해 항상 `감지 → (확정 | 무효)` 다. 앞 단계를 아직 발행하지 않았으면 **감지 이벤트를 합성해 먼저 발행**하고, 두 이벤트를 같은 트랜잭션에 outbox 적재해 relay 가 `evnt_id` 순으로 내보낸다. 소비 쪽은 "감지 없는 확정"을 다루지 않는다.
 - 이 표는 매니저의 발행 판정과 DAW-CORE 의 반영 판정에 같이 쓴다.
-- ★ **이벤트는 금액과 발신 주소를 싣는다** (2026-08-06 확정). 입금은 `externalTxId` 가 없어(96 실측) DAW-CORE 가 금액을 알 길이 이벤트뿐이고, [입금 판별](04-compliance-flow.md)에서 DAW-CORE 가 게이트로 보내는 `source·자산·금액·tx hash` 의 출처도 이 이벤트뿐이다. **금액은 문자열**로 싣는다 — 벤더가 숫자와 문자열로 둘 다 주는데 정밀도 때문에 문자열 쪽을 쓴다(96). 발신 주소는 입금에서 항상 채워진다.
-- 벤더의 전달 순서 보장은 미확인 — 순서를 믿지 않는 쪽으로 설계했다([Fireblocks QnA](90-fireblocks-qna.md) 대기 문의).
+- ★ **이벤트는 금액과 발신 주소를 싣는다** (2026-08-06 확정). 입금은 `externalTxId` 가 없어(96 실측) DAW-CORE 가 금액을 알 길이 이벤트뿐이고, [입금 판별](context/04-compliance-flow.md)에서 DAW-CORE 가 게이트로 보내는 `source·자산·금액·tx hash` 의 출처도 이 이벤트뿐이다. **금액은 문자열**로 싣는다 — 벤더가 숫자와 문자열로 둘 다 주는데 정밀도 때문에 문자열 쪽을 쓴다(96). 발신 주소는 입금에서 항상 채워진다.
+- 벤더의 전달 순서 보장은 미확인 — 순서를 믿지 않는 쪽으로 설계했다([Fireblocks QnA](evidence/90-fireblocks-qna.md) 대기 문의).
 
 ### EventType — 이벤트 분류 셋
 
@@ -586,11 +585,11 @@ sequenceDiagram
 
 ## 미확정
 
-- **rate limit 실제 한도 — 확인됨 (2026-07 회신).** 목록 `GET /v1/transactions` 1,000/분 · 단건 `GET /v1/transactions/{txId}` 1,500/분 — 독립 카운터·워크스페이스 공유·결정론적 분당 카운터(이상 트래픽 감지 없음, 최고 tier). tx 대사는 주기당 목록 조회 수 회라 여유가 크다. 대사 계약은 이 문서의 해당 절, 벤더 확답은 [Fireblocks QnA](90-fireblocks-qna.md)에서 확인한다.
+- **rate limit 실제 한도 — 확인됨 (2026-07 회신).** 목록 `GET /v1/transactions` 1,000/분 · 단건 `GET /v1/transactions/{txId}` 1,500/분 — 독립 카운터·워크스페이스 공유·결정론적 분당 카운터(이상 트래픽 감지 없음, 최고 tier). tx 대사는 주기당 목록 조회 수 회라 여유가 크다. 대사 계약은 이 문서의 해당 절, 벤더 확답은 [Fireblocks QnA](evidence/90-fireblocks-qna.md)에서 확인한다.
 - **Universal Gasless + RBF 조합** — gasless로 제출된 토큰 거래를 `replaceTxByHash`로 대체할 때 `useGasless`를 함께 쓸 수 있는지, relay가 대체 수수료도 부담하는지 — 확인 전 자동 boost 기능 게이트는 기본 비활성.
 - **7702 authorization 서명의 관문 통과 여부** — 이 서명이 TAP·Callback 경로를 지나는지 — 벤더 확인 후 확정.
 - **귀속 불명 입금의 해소 절차** — 매핑 갱신을 누가 트리거하고 해소 후 이벤트를 다시 흘리는지 — DAW-CORE와 정합 후 확정.
 - **gasless 경로의 수수료 실패** — 벤더 규칙상 토큰 전송 수수료는 같은 vault 의 base asset 에서 나간다(subStatus `INSUFFICIENT_FUNDS_FOR_FEE`). relay 가 gas 를 부담하는 이 설계에서 이 실패가 발생할 수 있는지 — 벤더 확인 후 확정.
 - **내부이체(delta)의 대납 여부** — 위 대납 표 참조. 켜야 하는지, 아니면 출발 vault 에 native 를 두는 운영으로 가는지 미확정. 확인 전까지 켜지 않는다.
-- **제출 직후 조회의 빈 필드** — 벤더 문서상 `sourceAddress`·`destinationAddress` 는 체인에 오르기 전 비어 있을 수 있다. 우리 실측([PoC](97-webhook-poc-result.md))은 입금 `CONFIRMING` 부터라 그 구간을 보지 못했다. **`amountInfo.amount` 가 제출 직후에도 항상 있는지도 함께 확인해야 한다** — 없다면 지금 파서가 필수로 읽어 그 알림이 격리된다.
+- **제출 직후 조회의 빈 필드** — 벤더 문서상 `sourceAddress`·`destinationAddress` 는 체인에 오르기 전 비어 있을 수 있다. 우리 실측([PoC](evidence/97-webhook-poc-result.md))은 입금 `CONFIRMING` 부터라 그 구간을 보지 못했다. **`amountInfo.amount` 가 제출 직후에도 항상 있는지도 함께 확인해야 한다** — 없다면 지금 파서가 필수로 읽어 그 알림이 격리된다.
 - **거래 목록 커서의 벤더 동작** — 정렬을 지정해도 다음 페이지 커서가 오는지, 마지막 페이지에도 오는지, 커서가 발신 vault 필터를 보존하는지, 커서와 필터를 함께 보내도 되는지. 공식 API 에 각 파라미터는 있으나 **조합 동작은 실측하지 않았다.** 실측 전까지는 커서 요청에도 발신 vault 필터를 함께 보내고, 응답의 발신 vault 가 다르면 그 응답 전체를 거절한다 — 남의 거래를 고객에게 보여주는 것보다 거절이 낫다.

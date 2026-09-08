@@ -1,6 +1,5 @@
 ---
 title: 개요
-status: To Do
 ---
 
 시스템 전체의 구성 요소·메시지 큐·DB·보안 경계, 출금·입금 전체 시퀀스.
@@ -8,22 +7,9 @@ status: To Do
 
 ## 문서 구성
 
-이 문서(개요)에서 시작해 아래 순서로 읽는다. BCM API 명세는 이 저장소의 [OpenAPI](../api/openapi.yaml)에 있다.
-컴플라이언스 API는 외부 서비스 소관이며, 이 저장소에서는 아래 연동 흐름·DB 문서로 경계를 설명한다.
-
-| 문서 | 내용 |
-|---|---|
-| [블록체인 매니저 — 흐름](02-bcm-flow.md) | 계정·주소·감지(웹훅)·입금·sweep·출금·boost 상세 흐름 + 상태 enum |
-| [블록체인 매니저 — DB](03-bcm-db.md) | ERD · 테이블 · 입금 시나리오 |
-| [컴플라이언스 게이트 — 흐름](04-compliance-flow.md) | 출금 확인·입금 판별·VASP 온보딩·주기 배치 + verdict |
-| [컴플라이언스 게이트 — DB](05-compliance-db.md) | ERD · 테이블 4개(레지스트리·확인·사전 검증·outbox) · 필드 |
-| [sweep 설계 — 정책 적용](06-sweep.md) | 입금 모으기·핫콜드 밴드S — 트리거·건별 실행·비채택 배치 대안·Fireblocks 대응 (정책 일부 수신 — 진행 중) |
-| [벤더 자산 매핑](07-asset-master.md) | 우리 (네트워크, 토큰) ↔ 벤더 assetId · 등록 관문 · Admin API |
-| [블록체인 매니저 Admin](08-bcm-admin.md) | 운영 조사·컨트랙트·실행 정책·밴드S·승인·비상 운영과 UI/UX 경계 |
-| [자산 이동 지도](09-asset-map.md) | 시나리오별 vault 간 이동 한 장 — 확정 이동·미정 이동·자산 경계 (조립 문서) |
-| [로컬 블록체인 + Fireblocks Stub](10-local-fireblocks-integration.md) | BCM의 실제 Fireblocks HTTP 계약과 Anvil 결과를 잇는 통합 테스트·폐쇄망 파일 배포 경계 |
-| [운영 로그 포맷·수집·보존 정책](11-operational-log-policy.md) | BCM 운영 JSON 로그 계약, 중앙 수집 책임, 민감정보와 보존·삭제 경계 |
-| [Co-signer HA 구성 — 물리 장비 2대](12-cosigner-ha.md) | 온프레미스 SGX 장비 요건 · 장비별 설치 · Policy 로 active-active 병렬화 · 백업·교체 |
+개발·연동 담당자를 위한 구성 요소와 보안 경계의 정본이다.
+업무별 읽기 순서는 [설계 안내](README.md), HTTP 계약은 [OpenAPI](../api/openapi.yaml)를 따른다.
+컴플라이언스·Co-signer 설명은 설계 안내의 외부 시스템 맥락에서 찾는다.
 
 ## 구성 요소 — 한 장
 
@@ -185,7 +171,7 @@ Anvil·Stub·bootstrap을 버전 고정 파일로 배포하며 Docker와 번들 
 
 ## 출금 전체 시퀀스
 
-수취처가 VASP 인 출금 기준. 상세는 [블록체인 매니저 — 흐름](02-bcm-flow.md) · [컴플라이언스 게이트 — 흐름](04-compliance-flow.md).
+수취처가 VASP 인 출금 기준. 상세는 [블록체인 매니저 — 흐름](02-bcm-flow.md) · [컴플라이언스 게이트 — 흐름](context/04-compliance-flow.md).
 
 ```mermaid
 sequenceDiagram

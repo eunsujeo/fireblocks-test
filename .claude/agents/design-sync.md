@@ -20,7 +20,7 @@ blockchain-manager 코드와 이 저장소의 설계 정본(`docs/design/`)의 �
    기준은 이 저장소의 검토 대상 commit과 작업 변경분이다. 외부 저장소 조회·사본 동기화·byte 비교는 수행하지 않는다.
 1. **스키마** — Git 관리 DB SQL과 manifest vs 03-bcm-db.md: 테이블·컬럼명·타입·코어 규약(VARCHAR(16) 일시 등) 일치 여부.
 2. **이벤트 계약** — 코드의 전이 판정 vs 02-bcm-flow.md 허용 전이 표: 행 단위 대조. evt_typ_dvcd/evnt_stcd 값 집합 일치.
-3. **웹훅 동작** — 수신 코드가 97 실측(원문 바이트 검증, 즉시 200, noti_id dedup)과 맞는가.
+3. **웹훅 동작** — 수신 코드가 evidence/97 실측(원문 바이트 검증, 즉시 200, noti_id dedup)과 맞는가.
 4. **토픽·파티션 키** — 01-infra.md 4토픽 표와 producer 설정 대조.
 5. **결정 방향 확인** — 코드가 설계에 없는 동작을 새로 만들었는가 (역방향: 설계에 있는데 코드에 빠진 것은 PLAN.md 의 미도달 Phase 인지 먼저 확인).
 6. **스펙 이원화 감시** — docs/api/openapi.yaml 의 이벤트 계약(ChainEvent·토픽·전달 보장) vs 01·02 대조

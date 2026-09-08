@@ -4,7 +4,9 @@ status: To Do
 ref: 참고
 ---
 
-[sweep 설계](06-sweep.md)의 채택 근거를 담는 심화 참고 문서다 — 여러 입금 주소의 자산을 **온체인 거래 한 건**으로 모으는 일이 왜 어렵고, 가능한 방법과 수탁 위험이 무엇인지를 바닥부터 설명한다. 2026-08-12 결정은 `approve + transferFrom`이며, 실제 구현 계약과 권한 통제는 06에서 정의한다. 나머지 방식은 비교 이력으로만 유지한다.
+> 벤더 필드·동작을 검증하는 개발자용 근거 자료다. 상태·날짜는 당시 기록이며 [현행 계약과 읽기 순서](../README.md#실측과-채택-근거)는 설계 안내를 따른다.
+
+[sweep 설계](../06-sweep.md)의 채택 근거를 담는 심화 참고 문서다 — 여러 입금 주소의 자산을 **온체인 거래 한 건**으로 모으는 일이 왜 어렵고, 가능한 방법과 수탁 위험이 무엇인지를 바닥부터 설명한다. 2026-08-12 결정은 `approve + transferFrom`이며, 실제 구현 계약과 권한 통제는 06에서 정의한다. 나머지 방식은 비교 이력으로만 유지한다.
 
 여기서 미확인으로 두던 항목 일부는 2026-08-10 에 직접 확인했다. 시나리오와 관찰 원본은 [approve 배치 sweep PoC 결과보고](95-approve-pull-poc-result.md)에 있다.
 
@@ -307,6 +309,8 @@ sequenceDiagram
 
 ### 채택한다면 필요한 최소 통제
 
+> 채택 전 대안 검토 기록이다. 현재 권한·관리자 통제는 [Sweep 보안 권한 정책](../06-sweep.md#보안-권한-정책)을 따른다.
+
 - 목적지는 배포 시 정한 옴니버스 주소로 **불변 고정**하고 호출자가 임의 주소를 넘기지 못하게 한다.
 - 네트워크·토큰·승인 대상을 allowlist 로 고정하고, 무제한 allowance 대신 자산·vault 별 상한과 잔여 allowance 모니터링을 둔다.
 - 가능하면 비업그레이드형 컨트랙트를 사용한다. 업그레이드가 필요하면 운영 호출자와 업그레이드 권한을 분리하고 multisig·timelock 을 강제한다.
@@ -323,7 +327,7 @@ sequenceDiagram
 
 ### 현재 판단
 
-**채택 설계는 approve + transferFrom이다(2026-08-12).** allowance를 회차 사이에 유지해 반복 sweep의 벤더 호출과 고정 gas를 줄인다. 대신 무제한 승인은 금지하고 vault·토큰별 운영 상한, 목적지 불변 컨트랙트, TAP 기본 거부, Callback calldata 검증, 긴급 `approve(0)` 회수를 출시 조건으로 둔다. 구현 계약은 [sweep 설계](06-sweep.md)에 정의한다.
+**채택 설계는 approve + transferFrom이다(2026-08-12).** allowance를 회차 사이에 유지해 반복 sweep의 벤더 호출과 고정 gas를 줄인다. 대신 무제한 승인은 금지하고 vault·토큰별 운영 상한, 목적지 불변 컨트랙트, TAP 기본 거부, Callback calldata 검증, 긴급 `approve(0)` 회수를 출시 조건으로 둔다. 구현 계약은 [sweep 설계](../06-sweep.md)에 정의한다.
 
 ## 6. 방법 4 — EIP-7702 코드 위임
 
@@ -400,7 +404,7 @@ operator 거래 아래 `networkRecords` 7개가 붙고, **원천 vault 가 귀�
 정리하면:
 
 - **배치 sweep 은 감지·대사가 성립한다** — 원천 vault·금액이 `networkRecords` 에 나온다.
-- **대신 최상위 거래는 1건뿐이다** — 원천 vault 를 source 로 하는 최상위 거래도, 옴니버스 입금 최상위 거래도 생기지 않는다. 원장·감지는 반드시 `networkRecords` 를 펼쳐 읽어야 하고, 그래서 `transaction.network_records.processing_completed` 구독은 검토 대상이 아니라 **필수**가 된다 ([감지 상세](99-detection-detail.md) 이벤트 표).
+- **대신 최상위 거래는 1건뿐이다** — 원천 vault 를 source 로 하는 최상위 거래도, 옴니버스 입금 최상위 거래도 생기지 않는다. 원장·감지는 반드시 `networkRecords` 를 펼쳐 읽어야 하고, 그래서 `transaction.network_records.processing_completed` 구독은 검토 대상이 아니라 **필수**가 된다 ([감지 상세](../99-detection-detail.md) 이벤트 표).
 - **레코드는 영수증 로그에서 만들어진다.** 로그 종류마다 행이 생기고, **각 행에는 우리 vault 가 한쪽에만 채워진다.**
   - `Transfer` 하나당 **두 행** — 보낸 vault 기준 한 행(`source` 가 그 vault, 상대는 `ONE_TIME_ADDRESS`), 받은 vault 기준 한 행(`destination` 이 그 vault, 상대는 `UNKNOWN/External`). 반대편이 같은 워크스페이스의 vault 여도 그렇게 온다.
   - `Approval` 하나당 **한 행** — `transferFrom` 이 승인 잔여를 깎으면서 남긴 로그다. 자산이 안 움직여 `netAmount` 가 `"0"` 이고 상대가 sweeper 인 것은 승인을 받은 쪽이 sweeper 라서다.
@@ -433,11 +437,6 @@ operator 거래 아래 `networkRecords` 7개가 붙고, **원천 vault 가 귀�
 ## 10. 출시 게이트와 확인 목록
 
 - **실측 완료 (2026-08-10)** — ① approve 제출 경로는 CONTRACT_CALL, 기록은 `operation=APPROVE`(5절). ② **우리 vault 가 제출한 배치는 `networkRecords` 에 원천 vault·금액이 귀속되고 `transaction.network_records.processing_completed` 도 온다** — 감지·대사 성립(8절).
-- **벤더 실측 — 남은 것** — TAP의 `APPROVE`·`applyForApprove`가 승인 대상·토큰·승인 금액을 어디까지 제한하는가 · Console Amount Cap이 API 제출에도 걸리는가 · CONTRACT_CALL approve와 batch 호출에 Universal Gasless를 적용할 수 있는가 · 한 배치 M=수십 건에서 network records 개수·이벤트 지연이 얼마인가.
-- **토큰** — 자산별 ERC-20 approve/transferFrom 호환, 0 선행 allowance 변경 요구, 반환값·pause·blocklist·fee-on-transfer 동작을 온보딩마다 판정한다.
-- **컨트랙트** — 옴니버스 목적지 불변, 권한 분리, pause, batch 상한, 이동 건별 이벤트, 부분 실패 정책을 확정하고 독립 감사를 통과한다.
-- **매니저 모델** — batch tx 1건 ↔ 원천 이동 M건의 DB 식별·멱등·claim·웹훅·영수증·재처리·대사를 설계하고 장애 테스트를 통과한다. 보낸 쪽 기준 레코드에 원천 vault id 가 들어 있으므로 주소 매핑은 필요 없다. 대신 **요청 목록과 레코드를 맞추는 처리**가 필수다 — 되돌려진 이동은 레코드에 안 나온다.
-- **운영 복구** — 운영자·관리자 키 침해, 컨트랙트 취약점, 잘못된 batch 입력을 가정한 정지와 vault 별 `approve(0)` 회수 훈련을 통과한다.
-- **경제성** — 건별 일반 전송과 동일 조건에서 총가스·벤더 호출·운영 복잡도를 실측해 순이익이 확인돼야 한다.
 
-채택 결정과 운영 출시는 구분한다. 구현 방향은 확정됐지만 위 게이트를 모두 통과하기 전에는 운영망에서 allowance를 설정하거나 batch sweep을 활성화하지 않는다.
+현행 출시 조건은 [Sweep 설계의 출시 게이트](../06-sweep.md#출시-게이트와-확인-목록)에 모았다.
+이 문서는 대안별 메커니즘과 당시 검토·실측 근거를 보존한다. 구현·운영 판단은 현행 설계를 따른다.

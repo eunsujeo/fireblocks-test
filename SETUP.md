@@ -1,6 +1,6 @@
 # SETUP — 새 머신에서 작업 시작하기
 
-> 저장소에 들어 있는 것(CLAUDE.md·PLAN·docs·`.claude/agents/`·`.mcp.json`)은 clone 만 하면 적용된다.
+> 저장소에 들어 있는 것(CLAUDE.md·PLAN·docs·`.claude/agents/`)은 clone 만 하면 적용된다.
 > 이 문서는 **저장소 밖이라 머신마다 다시 해야 하는 것**의 체크리스트다.
 
 ## 1. 저장소 배치 (경로 전제)
@@ -16,13 +16,8 @@
 
 ## 2. Claude Code
 
-- **MCP** — `.mcp.json` 이 저장소에 있어 자동 인식된다. 첫 실행 때 승인 프롬프트만 통과하면 끝 (fireblocks-docs 하나 — 원격이라 로컬 프로세스 없음. context7 은 2026-08-05 재검토로 제거, tooling.md 3절).
-- **플러그인** (user 설정이라 머신마다):
-  ```
-  brew install JetBrains/utils/kotlin-lsp
-  /plugin install kotlin-lsp@claude-plugins-official
-  /plugin install commit-commands@claude-plugins-official
-  ```
+- 필수 MCP·플러그인 설치는 없다. Fireblocks Docs MCP·context7은 제거됐고 `kotlin-lsp`·`commit-commands`는 보류 상태다.
+- IntelliJ 내장 MCP는 선택 사항이다. 현재 채택·관리 기준은 [도구 안내](docs/tooling.md)를 따른다.
 - **agent** — `.claude/agents/` 3종(code-reviewer·test-writer·design-sync)은 저장소에 포함, 설치 불필요.
 - **세션 메모리 주의** — Claude 의 auto-memory 는 머신·프로젝트 경로별이라 따라오지 않는다. 그래서 **결정은 전부 문서가 정본**이다: 확정 결정 = CLAUDE.md 3절, 로드맵 = PLAN.md, 미해결 = PLAN.md 하단 표. 새 머신의 새 세션이 이상한 소리를 하면 CLAUDE.md 를 먼저 읽었는지 확인할 것.
 
@@ -64,7 +59,6 @@
 ## 5. 확인
 
 - [ ] `docs/design/` 설계 정본 존재
-- [ ] Claude Code 에서 `/mcp` → fireblocks-docs 연결 확인
 - [ ] `claude` 실행 후 CLAUDE.md 를 읽는지 확인 (첫 응답에서 확정 결정을 아는지)
 - [ ] `./scripts/local.sh up` 후 Admin `http://127.0.0.1:9080/admin/dashboard` 확인
 - [ ] `anvil --version`·`forge --version` 모두 1.7.1

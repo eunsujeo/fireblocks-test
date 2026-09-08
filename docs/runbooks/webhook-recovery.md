@@ -7,7 +7,7 @@ Fireblocks Webhooks V2 구독이 `DISABLED` 또는 `SUSPENDED`가 되었거나 �
 
 - DB와 웹훅 수신기가 먼저 정상이어야 한다. DB가 계속 실패하는 상태에서 재전송하면 다시 실패 알림을 만든다.
 - `bcm-bat`에 `FIREBLOCKS_WEBHOOK_ID`를 설정한다. API key와 private key는 기존 시크릿 주입 경로만 사용한다.
-- sandbox 실측 결과를 이 저장소의 `docs/design/90-fireblocks-qna.md`·`97-webhook-poc-result.md`에 반영한 환경에서만 `BCM_WEBHOOK_RECOVERY_ENABLED=true`로 JMX 조작면을 연다.
+- sandbox 실측 결과를 이 저장소의 `docs/design/evidence/90-fireblocks-qna.md`·`docs/design/evidence/97-webhook-poc-result.md`에 반영한 환경에서만 `BCM_WEBHOOK_RECOVERY_ENABLED=true`로 JMX 조작면을 연다.
   기본값은 `false`이며, 비활성 상태에서는 `WebhookRecovery` MBean이 등록되지 않는다.
 - 상태 조회·재전송 권한과 웹훅 활성화 권한을 확인한다. 활성화 API는 Admin 수준 권한이 필요하므로 상시 런타임 키를
   임의로 승격하지 않는다. 필요하면 승인된 복구용 자격증명을 격리된 BAT 인스턴스에 일시 주입하고 작업 후 제거한다.
@@ -42,7 +42,7 @@ Fireblocks Webhooks V2 구독이 `DISABLED` 또는 `SUSPENDED`가 되었거나 �
   reference에서 `resend_failed`는 최근 24시간 실패 알림 대상이다. Webhooks V2 일반 안내의
   “최대 30일 재전송”은 `resourceId` 지정 방식이고, query 방식은 최근 72시간 안에서 요청 창 최대 24시간이다. 이 러너는
   범위를 추측해 넓히지 않으며 24시간보다 오래된 공백은 기존 tx 대사로 복구한다. 계약 근거는
-  [Fireblocks QnA](../design/90-fireblocks-qna.md)와 [해결 이력 #40](../history/resolved-design-items.md)에 보존한다.
+  [Fireblocks QnA](../design/evidence/90-fireblocks-qna.md)와 [해결 이력 #40](../history/resolved-design-items.md)에 보존한다.
 - 활성화까지 성공하고 재전송이 실패한 경우 다시 `status`를 확인한 뒤 `recover`를 재실행할 수 있다. 응답을 복구 완료로
   간주하지 말고 실제 수신·처리 지표와 대사 결과로 종료를 판단한다.
 

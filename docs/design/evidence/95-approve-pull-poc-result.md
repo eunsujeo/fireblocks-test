@@ -4,6 +4,8 @@ status: Done
 ref: 참고
 ---
 
+> 벤더 필드·동작을 검증하는 개발자용 근거 자료다. 상태·날짜는 당시 기록이며 [현행 계약과 읽기 순서](../README.md#실측과-채택-근거)는 설계 안내를 따른다.
+
 [배치 sweep 메커니즘](98-batch-sweep.md)의 미확인 항목 두 가지를 실물로 확인한 결과다(2026-08-10). ① ERC-20 `approve` 를 Fireblocks 로 어떤 형태로 제출하나 ② 배치 컨트랙트가 여러 vault 의 잔액을 한 거래로 모을 때 거래 기록과 웹훅이 어떻게 오나.
 
 ## 환경
@@ -156,9 +158,9 @@ SweepDone 이동=2  성공=1
 - **되돌려진 이동은 `networkRecords` 에 나오지 않았다.** 요청 calldata 는 벤더가 보관하지만 풀어 주지는 않으므로, 디코딩해서 레코드와 대조하거나 컨트랙트 이벤트를 읽어야 집계가 선다. 다른 실패 유형에서도 같은지는 확인하지 않았다.
 - **approve 제출은 `CONTRACT_CALL`** 이고 조회하면 `APPROVE` 로 보인다.
 
-배치 채택 여부는 [sweep 설계](06-sweep.md)에서 결정한다. 2026-08-12 설계 결정은 `approve + transferFrom` 채택이다. 이 PoC가 확인한 제출·기록 경로를 사용하되, 최상위 1건 ↔ 이동 M건의 DB·상태 흐름, allowance 상한·회수, TAP·Callback·컨트랙트 통제는 06의 출시 게이트를 충족해야 한다.
+배치 채택 여부는 [sweep 설계](../06-sweep.md)에서 결정한다. 2026-08-12 설계 결정은 `approve + transferFrom` 채택이다. 이 PoC가 확인한 제출·기록 경로를 사용하되, 최상위 1건 ↔ 이동 M건의 DB·상태 흐름, allowance 상한·회수, TAP·Callback·컨트랙트 통제는 06의 출시 게이트를 충족해야 한다.
 
-**PoC ABI는 운영 계약이 아니다.** 여기서 배포한 `batchSweep(address[],uint256[])`는 `executionId`·token allowlist·실제 이동량·실패 코드를 갖지 않는다. 운영 구현은 [06의 운영 컨트랙트 ABI](06-sweep.md#운영-컨트랙트-abi)를 사용하며, 이 샘플 calldata와 selector는 관찰 근거로만 남긴다.
+**PoC ABI는 운영 계약이 아니다.** 여기서 배포한 `batchSweep(address[],uint256[])`는 `executionId`·token allowlist·실제 이동량·실패 코드를 갖지 않는다. 운영 구현은 [06의 운영 컨트랙트 ABI](../06-sweep.md#운영-컨트랙트-abi)를 사용하며, 이 샘플 calldata와 selector는 관찰 근거로만 남긴다.
 
 ## 못 한 것
 

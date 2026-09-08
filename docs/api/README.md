@@ -1,5 +1,7 @@
 # Blockchain Manager API 문서
 
+**[API 포털 열기](index.html)** · [OpenAPI 정본](openapi.yaml) · [문서 안내로](../README.md)
+
 백엔드 개발자와 **API 스펙을 주고받는** 문서. 우리가 설계한 블록체인 매니저 내용만 담고, 부가 기능·브랜딩은 두지 않는다. **API 문서 라이브러리(Scalar·Redoc 등)를 쓰지 않고** 직접 만든 뷰어(다크/라이트 테마)를 쓴다.
 
 ## 파일

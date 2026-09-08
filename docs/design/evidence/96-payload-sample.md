@@ -4,6 +4,8 @@ status: Done
 ref: 참고
 ---
 
+> 벤더 필드·동작을 검증하는 개발자용 근거 자료다. 상태·날짜는 당시 기록이며 [현행 계약과 읽기 순서](../README.md#실측과-채택-근거)는 설계 안내를 따른다.
+
 [수신 PoC](97-webhook-poc-result.md)에서 실제로 받은 Fireblocks 웹훅 v2 알림 원문이다. 같은 입금 tx 의 **감지·확정 두 건**이고, 필드 이름을 확정한 근거다.
 
 ## 감지 — `transaction.created`

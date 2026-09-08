@@ -1,6 +1,5 @@
 ---
 title: sweep 설계 — 정책 적용
-status: To Do
 group: 운영 설계
 ---
 
@@ -14,7 +13,7 @@ group: 운영 설계
 | ① 입금 모으기 | 고객 vault → 옴니버스 | 자산별 — 고객 vault 잔액이 총자산 대비 일정 비율(예: 1%) 이상 · 가스비 한도 안에서 | 보유량 많은 순 M개 묶어 배치 전송, 완료 후 재체크 loop |
 | ② 핫·콜드 균형 (밴드S) | 옴니버스 ↔ 외부 cold | 핫월렛백분율이 상한 초과 → 콜드로 · 하한 미만 → 콜드에서 충전 | 전 자산 동일 비율로 이동해 핫월렛균형으로 복귀 |
 
-위 표의 "M개 묶음"은 대상 선정 단위이자 한 온체인 배치의 최대 후보 수다. 실행 방식은 **`approve + transferFrom` 배치 sweep** 으로 채택했다(2026-08-12 설계 결정). 고객 vault 는 자산별로 sweep 컨트랙트에 제한된 allowance 를 설정하고, 전용 운영 계정이 `batchSweep` 한 건을 제출해 M개 vault 의 자산을 옴니버스로 모은다. EIP-3009·2612·EIP-7702 직접 pull과 per-vault 일반 전송은 sweep 구현안에서 제외한다. Universal Gasless 내부의 EIP-7702 사용은 별개다. 근거와 실측은 [배치 sweep 메커니즘](98-batch-sweep.md)과 [approve 배치 sweep PoC](95-approve-pull-poc-result.md)에 남긴다.
+위 표의 "M개 묶음"은 대상 선정 단위이자 한 온체인 배치의 최대 후보 수다. 실행 방식은 **`approve + transferFrom` 배치 sweep** 으로 채택했다(2026-08-12 설계 결정). 고객 vault 는 자산별로 sweep 컨트랙트에 제한된 allowance 를 설정하고, 전용 운영 계정이 `batchSweep` 한 건을 제출해 M개 vault 의 자산을 옴니버스로 모은다. EIP-3009·2612·EIP-7702 직접 pull과 per-vault 일반 전송은 sweep 구현안에서 제외한다. Universal Gasless 내부의 EIP-7702 사용은 별개다. 근거와 실측은 [배치 sweep 메커니즘](evidence/98-batch-sweep.md)과 [approve 배치 sweep PoC](evidence/95-approve-pull-poc-result.md)에 남긴다.
 
 공통 전제:
 
@@ -327,8 +326,8 @@ Fireblocks cold workspace는 첫 경로가 아니다. 같은 Customer Domain 이
 | 정책 요소 | 벤더 기능 | 근거 |
 |---|---|---|
 | 입금 확정 판정 | DCCP (확정 임계) + `transaction.status.updated` | 현행 감지 설계 그대로 |
-| allowance 설정 | 고객 vault 에서 `CONTRACT_CALL + approve calldata` | 제출·온체인 반영은 [PoC](95-approve-pull-poc-result.md)로 확인. TAP 매칭·gasless는 출시 게이트 |
-| sweep 실행 | 운영 계정에서 sweep 컨트랙트 `batchSweep` 1건 | `networkRecords` 원천 귀속·부분 성공은 [PoC](95-approve-pull-poc-result.md)로 확인 |
+| allowance 설정 | 고객 vault 에서 `CONTRACT_CALL + approve calldata` | 제출·온체인 반영은 [PoC](evidence/95-approve-pull-poc-result.md)로 확인. TAP 매칭·gasless는 출시 게이트 |
+| sweep 실행 | 운영 계정에서 sweep 컨트랙트 `batchSweep` 1건 | `networkRecords` 원천 귀속·부분 성공은 [PoC](evidence/95-approve-pull-poc-result.md)로 확인 |
 | sweep gas | approve와 batch 호출 모두 **Universal Gasless** 요청 | 제품 범위는 Contract Call. 실제 workspace·정책·relay 처리는 출시 전 실측 |
 | 배치 결과 | `transaction.network_records.processing_completed` + receipt의 항목별 이벤트 | 최상위 `COMPLETED`만으로 항목 성공을 판정하지 않음 |
 | 트리거 요인 | 벤더 권장 = 잔액 임계·주기·수수료 여건 — 정책과 같은 축 | [Sweep to Omnibus](https://developers.fireblocks.com/reference/sweep-to-omnibus-1) |
@@ -341,11 +340,30 @@ Fireblocks cold workspace는 첫 경로가 아니다. 같은 Customer Domain 이
 - **[99 감지 상세](99-detection-detail.md)** — network records 구독과 receipt 이벤트 기반 1:N 결과 판정.
 - **[01 개요](01-infra.md)** — DAW-CORE 계산·외부 cold 경계.
 
+## 출시 게이트와 확인 목록
+
+[채택 근거 문서](evidence/98-batch-sweep.md#10-출시-게이트와-확인-목록)의 기존 출시 조건을 이 절에서 관리한다.
+실측이 완료된 항목과 환경은 [approve PoC](evidence/95-approve-pull-poc-result.md)를 확인한다.
+
+- **벤더 실측 — 남은 것** — TAP의 `APPROVE`·`applyForApprove`가 CONTRACT_CALL approve의 token·spender·금액을 어디까지 제한하는가 · Console Amount Cap이 API 제출에도 걸리는가 · CONTRACT_CALL approve와 batch 호출에 Universal Gasless를 적용할 수 있는가 · 한 배치 M=수십 건에서 network records 개수·이벤트 지연이 얼마인가.
+- **토큰** — 자산별 ERC-20 approve/transferFrom 호환, 0 선행 allowance 변경 요구, 반환값·pause·blocklist·fee-on-transfer 동작을 온보딩마다 판정한다.
+- **컨트랙트** — 옴니버스 목적지 불변, 권한 분리, pause, batch 상한, 이동 건별 이벤트, 부분 실패 정책을 확정하고 독립 감사를 통과한다.
+- **매니저 모델** — batch tx 1건 ↔ 원천 이동 M건의 DB 식별·멱등·claim·웹훅·영수증·재처리·대사를 설계하고 장애 테스트를 통과한다. 보낸 쪽 기준 레코드에 원천 vault id 가 들어 있으므로 주소 매핑은 필요 없다. 대신 **요청 목록과 레코드를 맞추는 처리**가 필수다 — 되돌려진 이동은 레코드에 안 나온다.
+- **운영 복구** — 운영자·관리자 키 침해, 컨트랙트 취약점, 잘못된 batch 입력을 가정한 정지와 vault 별 `approve(0)` 회수 훈련을 통과한다.
+- **경제성** — 건별 일반 전송과 동일 조건에서 총가스·벤더 호출·운영 복잡도를 실측해 순이익이 확인돼야 한다.
+
+추가로 기존 미확정 목록의 다음 검증을 함께 수행한다.
+
+- Gasless batch에서 sweep 컨트랙트가 관찰하는 `msg.sender`가 등록 운영자와 일치하는지 확인한다.
+- 한 배치 M=수십 건에서 gas 추정 오차와 부분 실패 결과를 함께 실측해 운영 최대 M을 정한다.
+- Callback fail-closed 시험과 pause 훈련을 포함한다.
+
+채택 결정과 운영 출시는 구분한다. 구현 방향은 확정됐지만 위 게이트를 모두 통과하기 전에는 운영망에서 allowance를 설정하거나 batch sweep을 활성화하지 않는다.
+
 ## 미확정 · 벤더 문의 후보
 
-- **출시 게이트** — TAP의 `APPROVE`·`applyForApprove`가 CONTRACT_CALL approve의 token·spender·금액을 어디까지 제한하는지, Approve Amount Cap이 API 제출에도 적용되는지, approve와 batch CONTRACT_CALL에 Universal Gasless가 적용되는지 실측한다. Gasless batch에서 sweep 컨트랙트가 관찰하는 `msg.sender`가 등록 운영자와 일치하는지도 함께 확인한다.
-- **부하 게이트** — 한 배치 M=수십 건에서 gas 추정 오차, network records 개수·이벤트 지연·부분 실패 결과를 실측해 운영 최대 M을 정한다.
-- **보안 게이트** — 컨트랙트 독립 감사, Callback fail-closed 시험, 운영자 침해·pause·전체 `approve(0)` 회수 훈련을 통과한다.
+출시·부하·보안 검증은 위 [출시 게이트](#출시-게이트와-확인-목록)에서 관리한다.
+
 - **cold workspace 후속 게이트** — 같은 Customer Domain 내 워크스페이스 간 전송 방식·수수료·정책·API user 권한. 첫 출시는 외부 cold 경로만 사용한다.
 - **비율 snapshot 산출 주기** — DAW-CORE가 총자산합을 갱신하는 주기와 허용 신선도는 운영 정책값으로 확정한다.
 - **M·버퍼·상하한·받는주소최대 값** — 운영 설정값. 정책 예시(1%·18%·5%·12.5%)는 예시.
