@@ -502,6 +502,8 @@ sequenceDiagram
 
 ## 수수료 관측 · 잔액 · 이력 · 대사
 
+주소별 온체인 잔고의 저장·관찰 이력·대사는 BCM의 구현 대상이다([DB 설계](03-bcm-db.md#주소별-온체인-잔고--구현-대상-설계)). 아래 `balancesOf`는 현재 구현된 vendor vault 잔액 조회 계약이며 신규 잔고 장부와 구분한다.
+
 - **수수료 견적 수집** — 매니저 내부 주기 작업이 등록된 `bcm_vndr_ast_m` 자산마다 Fireblocks `GET /v1/estimate_network_fee?assetId=...`를 호출하고 LOW·MEDIUM·HIGH 세 단계 응답을 같은 관측 시각의 `bcm_fee_qt_l`에 기록한다. 이 API는 현재 네트워크 가격을 자산별로 주며 Fireblocks 쪽에서 30초 캐시하므로, 작업 기본 주기는 5분이고 30초 미만 설정은 시작할 때 거부한다. 작업은 기본 비활성이다. ([Estimate Network Fee](https://developers.fireblocks.com/api-reference/transactions/estimate-the-required-fee-for-an-asset) · [Fee estimation guide](https://developers.fireblocks.com/docs/verify-fee-effeciency))
 - **관측 원자성·멱등** — 한 실행에서 모든 등록 자산의 응답을 먼저 받은 뒤 견적 행과 성공 heartbeat를 한 DB 트랜잭션에 적재한다. 하나라도 호출·파싱이 실패하면 그 실행의 견적과 성공 시각을 남기지 않는다. 한 자산의 세 단계는 동일한 `obs_dttm`을 쓰고, `(네트워크, 토큰, 관측 시각, fee level)` PK가 같은 초 재실행을 멱등하게 만든다.
 - **제출 시각 대응** — 일반 제출(`bcm_sbmt_l`)은 명시 fee level을 보내지 않으므로 MEDIUM으로 보고, 같은 `(ntwk_cd, tkn_smbl)`에서 `obs_dttm <= req_dttm`인 가장 최근 MEDIUM 행을 대응시킨다. boost는 `bcm_boost_l.fee_lvl`과 boost `req_dttm`을 기준으로 같은 방식으로 찾는다. 미래 관측을 과거 제출에 붙이지 않으며 선행 관측이 없으면 미대응이다. 제출 원장에 견적 FK를 저장하지 않아 늦게 들어온 견적이 과거 대응을 바꾸지 않는다.
