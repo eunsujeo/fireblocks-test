@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-bundle/policy-bundle-approval-vote-vote.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-vote-vote.md",
+  "route": "/reference/policy/policy-bundle/policy-bundle-approval-vote-vote",
+  "title": "발행 승인 표 제출",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-vote-vote",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Bundle\n    - POST\nseo:\n  description: >-\n    발행 승인 표 제출(checker… Reference for the POST\n    /policy-bundles/approvals/{publicationApprovalId}/votes endpoint in the\n    Wallet Policy Engine Internal API API.\nsidebar:\n  label: 발행 승인 표 제출\n  badge: POST\ntitle: 발행 승인 표 제출\ntype: openapi-operation\n---\n발행 승인 표 제출(checker). 건별 2FA 스텝업 필수이고 maker 본인은 던질 수 없다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 없거나 verdict·challengeId·challengeResponse가 형태를 벗어났다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 401 PUBLICATION_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다\n- 403 SELF_APPROVAL_FORBIDDEN: maker 본인이다\n- 404 PUBLICATION_APPROVAL_UNKNOWN: 표를 받을 수 있는 승인 레코드가 아니다 (자격 밖 참조 포함)\n- 409 PUBLICATION_VOTE_ALREADY_CAST: 이미 표를 던졌다\n\n<Operation source=\"reference-policy\" id=\"policy-bundle-approval-vote-vote\" />\n"
+}

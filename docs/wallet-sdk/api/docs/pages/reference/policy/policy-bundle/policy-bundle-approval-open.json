@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-bundle/policy-bundle-approval-open.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-open.md",
+  "route": "/reference/policy/policy-bundle/policy-bundle-approval-open",
+  "title": "발행 승인 레코드 개설",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-open",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Bundle\n    - POST\nseo:\n  description: >-\n    발행 승인 레코드 개설(maker). Reference for the POST /policy-bundles/approvals\n    endpoint in the Wallet Policy Engine Internal API API.\nsidebar:\n  label: 발행 승인 레코드 개설\n  badge: POST\ntitle: 발행 승인 레코드 개설\ntype: openapi-operation\n---\n발행 승인 레코드 개설(maker).\n\n인증: 어드민 세션. 인가: 발행 권한 role의 platform 부여.\n\n검증을 통과하지 않은 revision은 422 DRAFT_REVISION_NOT_VALIDATED다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 없거나 bundleName·draftRevisionId가 비었다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다\n- 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없다\n- 409 DRAFT_DISCARDED: 폐기된 draft의 칸이다\n- 422 DRAFT_REVISION_NOT_VALIDATED: 검증을 통과한 revision이 아니다\n\n<Operation source=\"reference-policy\" id=\"policy-bundle-approval-open\" />\n"
+}

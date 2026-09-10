@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet/accounts/accounts-get-by-reference-id.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-get-by-reference-id.md",
+  "route": "/reference/wallet/accounts/accounts-get-by-reference-id",
+  "title": "계정 referenceId 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-get-by-reference-id",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Accounts\n    - GET\nseo:\n  description: >-\n    referenceId로 계정을 상세 조회한다. referenceId 쿼리 파라미터가 있을 때만 이 핸들러로… Reference for\n    the GET /api/v1/accounts endpoint in the Wallet API API.\nsidebar:\n  label: 계정 referenceId 조회\n  badge: GET\ntitle: 계정 referenceId 조회\ntype: openapi-operation\n---\nreferenceId로 계정을 상세 조회한다.\nreferenceId 쿼리 파라미터가 있을 때만 이 핸들러로 라우팅된다.\nreferenceId는 같은 고객사(tenant) 안에서 유일하므로 단건을 반환한다.\n상태로 걸러내지 않으므로 비활성 계정도 status와 함께 반환한다.\n\nErrors:\n- 404 ACCOUNT_NOT_FOUND: referenceId로 매칭되는 계정 없음\n\n<Operation source=\"reference-wallet\" id=\"accounts-get-by-reference-id\" />\n"
+}

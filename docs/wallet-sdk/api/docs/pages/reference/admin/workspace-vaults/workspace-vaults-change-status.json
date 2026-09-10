@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/workspace-vaults/workspace-vaults-change-status.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-change-status.md",
+  "route": "/reference/admin/workspace-vaults/workspace-vaults-change-status",
+  "title": "Workspace Vault 상태 변경",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-change-status",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Workspace Vaults\n    - POST\nseo:\n  description: >-\n    Workspace Vault 상태 변경 Reference for the POST\n    /admin/api/v1/workspace-vaults/{workspaceVaultId}/status endpoint in the\n    Wallet Admin API API.\nsidebar:\n  label: Workspace Vault 상태 변경\n  badge: POST\ntitle: Workspace Vault 상태 변경\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"workspace-vaults-change-status\" />\n"
+}

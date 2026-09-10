@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/networks/networks-change-status.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/networks/networks-change-status.md",
+  "route": "/reference/admin/networks/networks-change-status",
+  "title": "네트워크 상태 변경",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/networks/networks-change-status",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Networks\n    - POST\nseo:\n  description: >-\n    네트워크 상태 변경 Reference for the POST /admin/api/v1/networks/{networkId}/status\n    endpoint in the Wallet Admin API API.\nsidebar:\n  label: 네트워크 상태 변경\n  badge: POST\ntitle: 네트워크 상태 변경\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"networks-change-status\" />\n"
+}

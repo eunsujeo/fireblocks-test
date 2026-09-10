@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-14-1.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-1.md",
+  "route": "/changelog/v0-14-1",
+  "title": "v0.14.1",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-1",
+  "version": "",
+  "markdown": "---\ntitle: v0.14.1\ndate: \"2026-09-08T13:32:00+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.14.1\"\n---\n\n### 문서\n\n- **동결이 어디의 상태인지 적었습니다.** 동결은 온체인이나 컨트랙트 위의 동결이 아니라 Wallet SDK\n  오프체인 DB의 상태입니다. → [입금](/fund-flows/deposit) · [자금 동결](/fund-flows/release)\n"
+}

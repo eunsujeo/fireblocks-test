@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/request/policy-request-submit.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/request/policy-request-submit.md",
+  "route": "/reference/policy/request/policy-request-submit",
+  "title": "판단 요청 접수",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/request/policy-request-submit",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Request\n    - POST\nseo:\n  description: >-\n    접수. 같은 serviceRequestId 재제출은 활성·CONSUMED 불문 409로 거부하고,… Reference for the\n    POST /request endpoint in the Wallet Policy Engine Internal API API.\nsidebar:\n  label: 판단 요청 접수\n  badge: POST\ntitle: 판단 요청 접수\ntype: openapi-operation\n---\n접수. 같은 serviceRequestId 재제출은 활성·CONSUMED 불문 409로 거부하고, 에러 바디에\n기존 policyRequestId를 싣는다(D-78) — 202 유실 재시도는 그 id로 조회해 복구한다.\n판단 결과는 응답이 아니라 이벤트로 통지된다(§2·§4).\n\n인증: 인증된 owning service 신원이며 body의 신원 주장과 매칭 검증한다(§1).\n스킴은 **정적 서비스 크리덴셜**로 확정됐다(D-159 · PD-4 — D-103 대체) — BearerAuth 표기가\n그 스킴이고, `X-Caller-Service-Id` 선언은 크리덴셜 바인딩과 일치해야 한다(어긋나면 401).\n\nErrors: (코드 값 정본은 PolicyRequestErrorCode — D-88)\n- 400 INVALID_REQUEST: 요청 스키마 구조 위반 — 미등재 admin action(룰 스키마 명세 §1.5)과\n256 KiB 본문 상한 초과가 여기로 접힌다. 이 표면은 상한 초과를 413으로 내지 않는다\n- 400 UNKNOWN_OPERATION: 미지 연산\n- 400 UNSUPPORTED_SCHEMA_VERSION: 미지 스키마 버전\n- 401 UNAUTHENTICATED: 인증 실패\n- 403 FORBIDDEN: caller-연산 인가 실패. **현재 `admin_action`이 전부 여기로 접힌다**\n- 403 FORBIDDEN_ROLE: 서비스 크리덴셜의 역할이 이 표면을 부를 수 없다 (인증 필터가 낸다)\n- 409 IDEMPOTENCY_CONFLICT: 같은 serviceRequestId 재제출 — details는 PolicyIdempotencyConflictDetails로 타입 고정(D-78)\n- 503 DRAINING: 이 인스턴스가 드레인 중이다. `Retry-After`가 없다\n- 503 INTAKE_SATURATED: 접수 버퍼가 포화다. `Retry-After`가 실린다\n\n<Operation source=\"reference-policy\" id=\"policy-request-submit\" />\n"
+}

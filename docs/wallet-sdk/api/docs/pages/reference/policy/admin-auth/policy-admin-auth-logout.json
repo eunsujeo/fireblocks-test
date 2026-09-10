@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/admin-auth/policy-admin-auth-logout.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-logout.md",
+  "route": "/reference/policy/admin-auth/policy-admin-auth-logout",
+  "title": "어드민 로그아웃",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-logout",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Admin Auth\n    - POST\nseo:\n  description: >-\n    로그아웃. 이 브라우저의 세션 쿠키를 지운다. Reference for the POST /auth/logout endpoint in\n    the Wallet Policy Engine Internal API API.\nsidebar:\n  label: 어드민 로그아웃\n  badge: POST\ntitle: 어드민 로그아웃\ntype: openapi-operation\n---\n로그아웃. 이 브라우저의 세션 쿠키를 지운다.\n\n**자격을 요구하지 않는다** — 쿠키를 지우는 일은 무해하고 멱등이라 만료된 세션을 든 화면도\n부를 수 있어야 한다. 요구하면 그 화면이 쿠키를 지우지 못한 채 남는다.\n\n**서버측 폐기가 아니다** — 서버는 세션을 저장하지 않으므로(무상태 HMAC) 본문으로 옮겨 적은\n크리덴셜은 만료 시각까지 산다.\n\n<Operation source=\"reference-policy\" id=\"policy-admin-auth-logout\" />\n"
+}

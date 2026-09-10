@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-draft/policy-draft-validation-run.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-validation-run.md",
+  "route": "/reference/policy/policy-draft/policy-draft-validation-run",
+  "title": "revision 검증 실행",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-validation-run",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Draft\n    - POST\nseo:\n  description: >-\n    컴파일 검사 전종 +… Reference for the POST\n    /policy-drafts/{draftId}/revisions/{revisionId}/validation endpoint in the\n    Wallet Policy Engine Internal API API.\nsidebar:\n  label: revision 검증 실행\n  badge: POST\ntitle: revision 검증 실행\ntype: openapi-operation\n---\n컴파일 검사 전종 + 벡터 채점을 **동기로** 돌린다. 결과는 이 revision에 결속되고,\n이미 있으면 다시 돌리지 않는다 — revision이 불변이라 답이 같다.\n\n**검증 실패는 4xx가 아니다.** 검증 실행은 성공했고 판정이 FAILED인 것이므로 200에\noutcome을 싣는다. 4xx로 답하면 \"요청이 잘못됐다\"와 \"정책이 검사를 통과하지 못했다\"가\n같은 자리에 섞인다.\n\nErrors:\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다\n- 404 DRAFT_UNKNOWN: 그런 draft가 없다 (자격 밖 draft 포함)\n- 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없거나 이 draft의 칸이 아니다\n- 409 DRAFT_DISCARDED: 폐기된 draft다\n\n<Operation source=\"reference-policy\" id=\"policy-draft-validation-run\" />\n"
+}

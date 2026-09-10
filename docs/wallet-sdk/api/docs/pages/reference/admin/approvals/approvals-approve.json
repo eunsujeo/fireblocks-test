@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/approvals/approvals-approve.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-approve.md",
+  "route": "/reference/admin/approvals/approvals-approve",
+  "title": "단건 승인",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-approve",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Approvals\n    - POST\nseo:\n  description: >-\n    단건 승인 Reference for the POST /admin/api/v1/approvals/{approvalId} endpoint\n    in the Wallet Admin API API.\nsidebar:\n  label: 단건 승인\n  badge: POST\ntitle: 단건 승인\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"approvals-approve\" />\n"
+}

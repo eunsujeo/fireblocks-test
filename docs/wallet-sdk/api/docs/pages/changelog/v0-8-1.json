@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-8-1.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-1.md",
+  "route": "/changelog/v0-8-1",
+  "title": "v0.8.1",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-1",
+  "version": "",
+  "markdown": "---\ntitle: v0.8.1\ndate: \"2026-08-31T22:00:00+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.8.1\"\n---\n\n### 문서\n\n- 본문 기준 폰트를 한 단계 더 키웠습니다(17px → 18px). 단 폭이 같은 비율로 넓어져 줄당 글자\n  수는 그대로입니다.\n"
+}

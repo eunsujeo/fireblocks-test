@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/tokens/tokens-get.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-get.md",
+  "route": "/reference/admin/tokens/tokens-get",
+  "title": "토큰 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-get",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Tokens\n    - GET\nseo:\n  description: >-\n    토큰 상세 조회 Reference for the GET /admin/api/v1/tokens/{tokenId} endpoint in\n    the Wallet Admin API API.\nsidebar:\n  label: 토큰 상세 조회\n  badge: GET\ntitle: 토큰 상세 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"tokens-get\" />\n"
+}

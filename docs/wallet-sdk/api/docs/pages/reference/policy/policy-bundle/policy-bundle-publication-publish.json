@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-bundle/policy-bundle-publication-publish.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-publication-publish.md",
+  "route": "/reference/policy/policy-bundle/policy-bundle-publication-publish",
+  "title": "번들 발행",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-publication-publish",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Bundle\n    - POST\nseo:\n  description: >-\n    번들 발행(스테이징 + 검증). 활성화하지 않는다. Reference for the POST\n    /policy-bundles/publications endpoint in the Wallet Policy Engine Internal\n    API API.\nsidebar:\n  label: 번들 발행\n  badge: POST\ntitle: 번들 발행\ntype: openapi-operation\n---\n번들 발행(스테이징 + 검증). **활성화하지 않는다.**\n\n승인 레코드 실재·정족수 충족·대상 바이트 결속을 전부 발행 이전에 확인한다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 없거나 필수 필드가 비었거나 approvalRef가 레코드 형태가 아니다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다\n- 404 PUBLICATION_APPROVAL_UNKNOWN: 발행 승인 레코드가 없다 (자격 밖 참조 포함)\n- 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없다\n- 409 PUBLICATION_QUORUM_NOT_MET: 정족수가 채워지지 않았다\n- 409 PUBLICATION_PAYLOAD_NOT_APPROVED: 승인된 대상과 다르다\n- 409 PUBLICATION_APPROVAL_ALREADY_USED: 이미 발행에 쓰인 승인 참조다\n- 409 DRAFT_DISCARDED: 폐기된 draft다\n- 422 DRAFT_REVISION_NOT_VALIDATED: 검증을 통과한 revision이 아니다\n- 422 PUBLICATION_COMPILE_CHECK_FAILED: 스냅샷이 컴파일 검사를 통과하지 못했다\n\n<Operation source=\"reference-policy\" id=\"policy-bundle-publication-publish\" />\n"
+}

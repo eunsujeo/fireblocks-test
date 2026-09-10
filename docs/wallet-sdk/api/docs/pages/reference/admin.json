@@ -1,0 +1,12 @@
+{
+  "contentType": "doc",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin.md",
+  "route": "/reference/admin",
+  "title": "Wallet Admin API",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin",
+  "version": "",
+  "markdown": "---\nseo:\n  description: Wallet Admin API API reference.\nsidebar:\n  label: Overview\ntitle: Wallet Admin API\n---\n<ApiOverview source=\"reference-admin\" />\n\n## Approvals\n\nmaker-checker 승인. 정족수 obligation의 이행 표면이고, 요청자와 승인자는 같을 수 없다.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"approvals\" />\n\n## Auth\n\n어드민 인증. 세션과 2FA를 다룬다.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"auth\" />\n\n## Networks\n\n블록체인 네트워크 카탈로그. 계열에 따라 주소 체계가 갈린다.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"networks\" />\n\n## Policies\n\n정책 엔진 연동 표면.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"policies\" />\n\n## Roles\n\n어드민 역할과 권한 부여.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"roles\" />\n\n## Tenants\n\n파트너사 단위 스코프. 파트너 대상 API의 격리 키다.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"tenants\" />\n\n## API Keys\n\n파트너사 API 키 발급·회수. 스코프가 여기서 정해진다.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"api-keys\" />\n\n## Tokens\n\n네트워크 위의 자산. 유일성은 (workspace, network, 컨트랙트 주소)에서 성립한다.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"tokens\" />\n\n## Users\n\n어드민 사용자 관리.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"users\" />\n\n## Workspace Vaults\n\nworkspace에 귀속된 vault. 용도는 태그로 고객이 정의한다.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"workspace-vaults\" />\n\n## Initialize\n\n최초 어드민 부트스트랩. 한 번만 통과한다.\n\n<ApiTagOperations source=\"reference-admin\" tag=\"initialize\" />\n"
+}

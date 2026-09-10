@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/workspace-registration/policy-workspace-managers-revoke.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-revoke.md",
+  "route": "/reference/policy/workspace-registration/policy-workspace-managers-revoke",
+  "title": "워크스페이스 매니저 회수",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-revoke",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Workspace Registration\n    - POST\nseo:\n  description: >-\n    매니저 부여를… Reference for the POST\n    /platform/workspaces/{workspaceId}/managers/{adminUserId}/revoke endpoint in\n    the Wallet Policy Engine Internal API API.\nsidebar:\n  label: 워크스페이스 매니저 회수\n  badge: POST\ntitle: 워크스페이스 매니저 회수\ntype: openapi-operation\n---\n매니저 부여를 회수한다. 경로가 POST 인 것은 어드민 콘솔 CORS 가 GET·POST 만 허용하기\n때문이고, 본문이 필요한 이유는 스텝업이다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 없거나 challengeId·challengeResponse 가 비었다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 401 WORKSPACE_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다\n- 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다\n- 404 WORKSPACE_TARGET_UNKNOWN: 그 워크스페이스의 매니저가 아니다\n\n<Operation source=\"reference-policy\" id=\"policy-workspace-managers-revoke\" />\n"
+}

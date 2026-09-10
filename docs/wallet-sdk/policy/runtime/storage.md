@@ -1,0 +1,130 @@
+---
+title: 저장과 이동
+description: 각 산출물이 어디에 저장되고 무엇이 네트워크를 오가는가
+---
+
+export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+{/* 뷰어는 1440×900 데스크톱 기준의 자체 완결형 HTML이라 본문 칸(약 720px)에 그대로 넣으면 잘린다.
+    iframe을 1440×900으로 고정하고 칸 폭에 맞춰 축소한다 — 상호작용은 전체 화면·새 탭에서 한다. */}
+<script is:inline data-astro-rerun>{`
+(function () {
+  var W = 1440, H = 900;
+  function fit(w) {
+    var f = w.querySelector("iframe");
+    var fs = document.fullscreenElement === w;
+    var s = fs ? Math.min(innerWidth / W, innerHeight / H) : w.clientWidth / W;
+    f.style.transform = "scale(" + s + ")";
+    w.style.height = fs ? "100%" : Math.round(H * s) + "px";
+    f.style.left = fs ? Math.round((innerWidth - W * s) / 2) + "px" : "0";
+    f.style.top = fs ? Math.round((innerHeight - H * s) / 2) + "px" : "0";
+  }
+  function fitAll() { document.querySelectorAll(".dg-wrap").forEach(fit); }
+  window.__dgFit = fit;
+  window.__dgFull = function (btn) {
+    var w = btn.closest("figure").querySelector(".dg-wrap");
+    (w.requestFullscreen || w.webkitRequestFullscreen).call(w);
+  };
+  addEventListener("resize", fitAll);
+  addEventListener("fullscreenchange", fitAll);
+  if (document.readyState !== "loading") fitAll(); else addEventListener("DOMContentLoaded", fitAll);
+})();
+`}</script>
+
+export function Diagram({ name, title }) {
+  const src = `${base}/diagrams/${name}.html`;
+  return (
+    <figure class="dg" style="display:grid;gap:0;margin:.75rem 0 2.5rem 0">
+      <div class="dg-wrap" style="margin:0;position:relative;overflow:hidden;width:100%;height:450px;border:1px solid var(--color-border,#e5e7eb);border-radius:8px 8px 0 0;background:#fff">
+        <iframe
+          src={src}
+          title={title}
+          loading="lazy"
+          onload="window.__dgFit && window.__dgFit(this.parentElement)"
+          style="position:absolute;left:0;top:0;width:1440px;height:900px;border:0;transform-origin:0 0"
+        ></iframe>
+      </div>
+      <figcaption style="margin:0;display:flex;gap:.6rem;justify-content:flex-end;align-items:center;padding:.55rem .75rem;border:1px solid var(--color-border,#e5e7eb);border-top:0;border-radius:0 0 8px 8px;font-size:.95rem">
+        <span style="margin-right:auto;opacity:.6;font-size:.85rem">축소 미리보기 — 상호작용은 전체 화면에서</span>
+        <button type="button" onclick="window.__dgFull(this)" style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;padding:.45rem .9rem;border:1px solid var(--color-border,#e5e7eb);border-radius:8px;background:transparent;font:inherit;font-size:.95rem;font-weight:600;color:inherit;line-height:1">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          전체 화면
+        </button>
+        <a href={src} target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .9rem;border:1px solid var(--color-border,#e5e7eb);border-radius:8px;text-decoration:none;font-size:.95rem;font-weight:600;color:inherit;line-height:1">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+          새 탭에서 열기
+        </a>
+      </figcaption>
+    </figure>
+  );
+}
+
+_읽는 사람: 구현팀. 각 산출물이 어느 저장소에 저장되는지와 컴포넌트 사이의 네 가지 경로를 다룹니다._
+
+이 페이지는 저작부터 판정까지의 과정에서 만난 산출물이 어디에 저장되고 어떤 길로 이동하는지를
+한곳에 모은 지도입니다. 바이트는 전부 관계형 저장소에 저장되고, 컴포넌트 사이의 경로는 네
+가지입니다. 캐시를 두지 않는 곳도 함께 적습니다.
+
+저장소를 어떻게 나눴는지는 정책 엔진 내부의 영속 구조 문서가 다룹니다. 여기서는 어느 산출물이 어느
+저장소에 저장되는지만 봅니다.
+
+<Diagram name="artifact-homes" title="산출물 저장 위치 — 무엇이 어디에 저장되고 어떻게 오가는가" />
+
+## 산출물별 저장 위치
+
+저작 원문도, 번들 tarball도, 워크스페이스 번들도 파일 시스템이나 오브젝트 스토리지가 아니라
+관계형 저장소의 바이트 컬럼에 저장됩니다. 저장소를 앱 뒤에 두는 구조는
+[구조](/policy/architecture)에 있습니다.
+
+| 산출물 | 저장 위치 | 성질 |
+|---|---|---|
+| 저작 revision 원문 | 룰 저장소 | 추가 전용 체인 — 편집은 새 행 |
+| 검증 결과 | 룰 저장소 | revision과 1:1 |
+| 승인 기록과 표 | 서비스 저장소 | 내용 해시에 결속 |
+| 로직 번들 tarball | 룰 저장소 | revision마다 하나 |
+| 활성 포인터 | 룰 저장소 | 가변 단일 행 — 유일한 "지금" |
+| 워크스페이스 번들 | 룰 저장소 | 발행본 바이트 |
+| 결정 기록 | 서비스 저장소 | 추가 전용 해시 체인 |
+| 정규형 의도 | 서비스 저장소 | 요청 레코드의 JCS 전문 |
+| PIP 스냅샷 | 서비스 저장소 | 검증을 통과한 것만 수집 레코드에 |
+| 조립된 입력 문서 | 서비스 저장소 | 자기 컬럼 없이 결정 기록 전문 안에 |
+
+## 네 가지 경로
+
+- **콘솔 ↔ 정책 서버**: REST입니다. 조회 범위는 요청 파라미터가 아니라 세션에서 옵니다.
+  [인증과 스코프](/start/authentication)의 규율입니다.
+- **평가기 ← 정책 서버**: 정책 로직 번들은 룰과 선언 데이터를 커널과 함께 담아 발행한 배포
+  산출물입니다. 그 번들은 평가기가 당겨 갑니다(pull). 짧은 주기로 폴링하되 내용 해시가 그대로면
+  전송이 없습니다. 활성 포인터가 없으면 빈 번들이 아니라 실패로 답합니다.
+- **정책 서버 → 평가기**: 판정 질의는 같은 파드 안의 localhost 호출입니다. 트랜잭션 안에서는
+  부를 수 없게 기계로 막습니다. 판정 대기가 저장소 락을 쥔 채 늘어지는 길을 없애기 위해서입니다.
+- **정책 서버 → 지갑 서비스**: PIP는 판단에 필요한 사실을 평가 시점에 읽어 오는 수집
+  경로입니다([자세히](/policy/runtime/pip)). 그 조회는 요청마다의 HTTP 호출이고, 결과를 저장해
+  두지 않습니다. 재사용 규율도 그 페이지에 있습니다.
+
+## 두 평가기
+
+평가기는 완성된 입력 문서를 평가해 결정을 내는 역할입니다([구조](/policy/architecture)). 서빙
+평가기는 **활성 번들만 읽습니다.** draft를 적재하지 않으므로, 검증 중인 저작물이 운영 판정에
+섞이는 경로가 구조적으로 없습니다.
+
+draft 채점은 채점 전용 평가기가 맡습니다. 검증 요청마다 커널과 선언 데이터를 새로 적재해 케이스를
+돌립니다. 적재 위치가 고정 이름이라 다음 검증의 적재가 앞선 것을 덮습니다. 한 번에 하나의 검증만
+처리하도록 직렬화되어, 두 draft의 데이터가 한 평가기 안에서 섞이지 않습니다.
+
+## 캐시를 두지 않는 곳
+
+캐시가 없는 것은 의도입니다. 셋 다 값이 늦게 반영되면 곧바로 통제가 실패하는 지점입니다.
+
+- **활성 포인터**는 매번 조회합니다. 지금 무엇이 서빙되는지를 정하는 단일 기록이라, 캐시를 두면
+  레플리카마다 "지금"이 갈립니다. 자세한 것은 [구조](/policy/architecture)에 있습니다.
+- **PIP 결과**는 캐시하지 않습니다. 주소 회수처럼 즉시 반영돼야 하는 사실이 캐시 유효 시간만큼
+  남아 있는 것을 막기 위해서입니다. [PIP](/policy/runtime/pip)의 재사용 범위가 그 기준입니다.
+- **워크스페이스 번들**은 평가마다 다시 읽습니다. 저장 바이트를 그때마다 정규화해 해시를 셈하고
+  발행 시점에 고정한 값과 맞춥니다. 한 번 통과한 구획을 들고 있으면 그 뒤의 내용 변조가 프로세스가
+  실행되는 동안 관측되지 않기 때문입니다.
+
+## 다음으로
+
+- [저작과 발행](/policy/workflow) — 이 과정의 처음으로
+- [다이어그램](/policy/diagrams) — 배포 토폴로지와 코드 수준 호출 경로

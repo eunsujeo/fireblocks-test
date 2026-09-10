@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/auth/auth-login.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-login.md",
+  "route": "/reference/admin/auth/auth-login",
+  "title": "로그인",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-login",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Auth\n    - POST\nseo:\n  description: >-\n    로그인 Reference for the POST /admin/api/v1/auth/login endpoint in the Wallet\n    Admin API API.\nsidebar:\n  label: 로그인\n  badge: POST\ntitle: 로그인\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"auth-login\" />\n"
+}

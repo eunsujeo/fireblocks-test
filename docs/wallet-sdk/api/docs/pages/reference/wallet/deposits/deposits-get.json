@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet/deposits/deposits-get.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/deposits/deposits-get.md",
+  "route": "/reference/wallet/deposits/deposits-get",
+  "title": "입금 내역 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/deposits/deposits-get",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Deposits\n    - GET\nseo:\n  description: >-\n    입금 내역 상세 조회 Reference for the GET\n    /api/v1/accounts/{accountId}/deposits/{depositId} endpoint in the Wallet API\n    API.\nsidebar:\n  label: 입금 내역 상세 조회\n  badge: GET\ntitle: 입금 내역 상세 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-wallet\" id=\"deposits-get\" />\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet/accounts/accounts-get.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-get.md",
+  "route": "/reference/wallet/accounts/accounts-get",
+  "title": "계정 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-get",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Accounts\n    - GET\nseo:\n  description: >-\n    accountId로 계정을 상세 조회한다. 상태로 걸러내지 않으므로 비활성 계정도… Reference for the GET\n    /api/v1/accounts/{accountId} endpoint in the Wallet API API.\nsidebar:\n  label: 계정 상세 조회\n  badge: GET\ntitle: 계정 상세 조회\ntype: openapi-operation\n---\naccountId로 계정을 상세 조회한다.\n상태로 걸러내지 않으므로 비활성 계정도 status와 함께 반환한다.\n\nErrors:\n- 404 ACCOUNT_NOT_FOUND: accountId로 매칭되는 계정 없음\n\n<Operation source=\"reference-wallet\" id=\"accounts-get\" />\n"
+}

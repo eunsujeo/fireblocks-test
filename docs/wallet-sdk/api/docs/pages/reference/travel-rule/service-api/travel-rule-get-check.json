@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/travel-rule/service-api/travel-rule-get-check.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-get-check.md",
+  "route": "/reference/travel-rule/service-api/travel-rule-get-check",
+  "title": "PII 검증 결과 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-get-check",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Service API\n    - GET\nseo:\n  description: >-\n    검증 결과 조회(uuid 기준). Reference for the GET /api/v1/travel-rule/checks/{trId}\n    endpoint in the Travel Rule Gateway API API.\nsidebar:\n  label: PII 검증 결과 조회\n  badge: GET\ntitle: PII 검증 결과 조회\ntype: openapi-operation\n---\n검증 결과 조회(uuid 기준).\n\n<Operation source=\"reference-travel-rule\" id=\"travel-rule-get-check\" />\n"
+}

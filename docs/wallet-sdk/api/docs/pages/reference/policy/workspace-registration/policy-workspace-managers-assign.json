@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/workspace-registration/policy-workspace-managers-assign.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-assign.md",
+  "route": "/reference/policy/workspace-registration/policy-workspace-managers-assign",
+  "title": "워크스페이스 매니저 지명",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-assign",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Workspace Registration\n    - POST\nseo:\n  description: >-\n    매니저를 하나 더 지명하고 그 사람의… Reference for the POST\n    /platform/workspaces/{workspaceId}/managers endpoint in the Wallet Policy\n    Engine Internal API API.\nsidebar:\n  label: 워크스페이스 매니저 지명\n  badge: POST\ntitle: 워크스페이스 매니저 지명\ntype: openapi-operation\n---\n매니저를 하나 더 지명하고 그 사람의 1회용 등록 토큰을 낸다.\n\n등록 행 조회가 이 오퍼레이션의 유일한 관문이다 — 회수·재발급은 부여 조회에서 막히지만\n지명에는 대조할 부여가 아직 없다. 없으면 platform 매니저가 임의의 좌표에 소속과 부여를\n세우고, 그 계정은 사람을 더 들일 수 있으면서 그 좌표에는 시드가 없어 평가가 전부 거부다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 없거나 필수 필드가 비었거나 상한을 넘었다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 401 WORKSPACE_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다\n- 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다 (대상 계정의 소속 불변식 위반 포함)\n- 404 WORKSPACE_TARGET_UNKNOWN: 등록되지 않은 좌표다\n- 409 ADMIN_LOGIN_ID_TAKEN: 등록을 마친 계정이 그 loginId 를 쓴다\n\n<Operation source=\"reference-policy\" id=\"policy-workspace-managers-assign\" />\n"
+}

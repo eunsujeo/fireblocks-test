@@ -1,0 +1,4737 @@
+openapi: 3.1.0
+info:
+  title: Wallet Policy Engine Internal API
+  version: 0.0.0
+tags:
+  - name: Request
+    description: 정책 판단 요청 접수와 조회. 202 접수 후 비동기 평가다.
+  - name: Callback
+    description: 서명 인프라 콜백. 서명 이전의 마지막 관문이다.
+  - name: Approvals
+    description: maker-checker 승인. 정족수 obligation의 이행 표면이고, 요청자와 승인자는 같을 수 없다.
+  - name: Partner
+    description: 비동기 PIP 결과 제출. 아웃바운드 트리거에 대한 인증된 인바운드다.
+  - name: PIP Source Kinds
+    description: PIP 소스 종류 카탈로그.
+  - name: Admin Auth
+    description: 어드민 인증. 챌린지 모델로 2FA를 수집한다.
+  - name: Bootstrap
+    description: 초기 어드민 등재. 온보딩 런북의 첫 단계다.
+  - name: Admins
+    description: 어드민 신원·역할 디렉토리.
+  - name: Workspace Registration
+    description: 워크스페이스 등록과 매니저 관리. platform 문 전용이다.
+  - name: Policy Draft
+    description: 룰 저작. 컴파일 검증을 지나야 발행 후보가 된다.
+  - name: Policy Bundle
+    description: 정책 로직 번들 발행·활성화. 플랫폼 거버넌스가 소유한다.
+  - name: Workspace Bundle
+    description: 워크스페이스 번들 발행·활성화. 고객사가 자기 정책을 저작한다.
+  - name: Bundle Serving
+    description: OPA 사이드카가 활성 번들을 당겨 가는 표면. 자격은 서비스 크리덴셜이다.
+paths:
+  /admins:
+    post:
+      operationId: policyAdminDirectory_create
+      summary: 어드민 초대
+      description: |-
+        계정과 역할 부여를 만들고 1회용 등록 토큰을 낸다.
+
+        인가는 `policy_admin_manager` 부여이고, 새 부여의 스코프는 **그 부여의 스코프**다.
+        요청자가 그 역할을 여러 스코프에서 가지면 거부한다 — 스코프를 요청이 고르게 하면
+        격리 경계가 흐려진다.
+
+        부여할 역할은 요청이 고르되 요청자가 같은 스코프에서 이미 가진 역할이어야 한다.
+        닫힌 집합이라 오타는 거부로 떨어지고 권한 상향이 성립하지 않는다.
+
+        아직 등록을 마치지 않은 계정에 다시 호출하면 새 토큰이 나고 이전 토큰은 통하지
+        않는다. **이미 2팩터를 등록한 계정이면 거부한다** — 허용하면 활동 중인 어드민의
+        자격을 초기화해 그 사람 행세를 할 수 있다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 JSON 형태가 아니거나 필수 필드가 없다
+        - 401 AUTHENTICATION_FAILED: 세션이 확정되지 않았다
+        - 403 ADMIN_DIRECTORY_FORBIDDEN: 초대 권한이 없다
+        - 409 ADMIN_LOGIN_ID_TAKEN: 등록을 마친 계정이 그 loginId 를 쓴다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyAdminInvitedResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Admins
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyAdminInviteRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+    get:
+      operationId: policyAdminDirectory_list
+      summary: 어드민 목록 조회
+      description: |-
+        요청자의 초대 권한 부여 스코프에 있는 어드민 목록.
+
+        **스코프 파라미터가 없는 것이 계약이다** — 세션의 부여가 그것을 정한다. 초대와 달리
+        여러 스코프를 가진 요청자를 거부하지 않는다: 초대는 새 부여를 어디에 붙일지 하나로
+        정해야 해서 거부하는 것이고, 읽기에는 그 선택이 없어 가진 스코프를 합친다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 세션이 확정되지 않았다
+        - 403 ADMIN_DIRECTORY_FORBIDDEN: 목록 권한이 없다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyAdminListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Admins
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /approvals:
+    get:
+      operationId: policyApproval_getPending
+      summary: 승인 대기 목록 조회
+      description: |-
+        승인 가능 role 기준 대기 목록.
+
+        **양쪽 문에서 열린다** — `/approvals`와 `/platform/approvals`가 같은 오퍼레이션이고
+        계정의 소속이 어느 경로를 지날 수 있는지 정한다(policy-api.tsp 문 표).
+
+        **빈 페이지가 끝을 뜻하지 않는다.** 자격 판정이 SQL 술어로 좁혀지지 않아 스캔이 상한만
+        지고 필터가 뒤에서 도므로, 자격 밖 항목만 담긴 페이지는 비어 나오면서 커서가 다음을
+        가리킨다. 끝 신호는 `cursor`가 null인 것 하나다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 커서가 형태 밖이다 (limit은 서버 상한으로 접힌다)
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyPendingApprovalListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Approvals
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /auth/2fa:
+    post:
+      operationId: policyAdminAuth_verify2Fa
+      summary: 2FA 검증
+      description: |-
+        성공하면 세션 크리덴셜을 본문과 `Set-Cookie`로 함께 낸다(`PolicyAdminSessionResponse`).
+        실패 응답은 로그인과 같은 봉투다(§8 균일 오류).
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 JSON 형태가 아니다
+        - 401 AUTHENTICATION_FAILED: 그 밖의 모든 실패. 바디 부재도 여기로 접힌다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          headers:
+            Set-Cookie:
+              required: true
+              description: |-
+                `policy_admin_session=<credential>; Path=/; HttpOnly; SameSite=Strict; Max-Age=<세션 TTL 초>`.
+                `Secure`는 서버 설정(`policy.admin.session.cookie-secure`, 기본 켬)이 정한다 — 로컬 http 스택만 끈다.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyAdminSessionResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Admin Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyAdmin2FaRequest'
+      security:
+        - {}
+  /auth/enrollments:
+    post:
+      operationId: policyAdminAuth_enroll
+      summary: 2FA 자가 등록
+      description: |-
+        등록 1단계. 1회용 등록 토큰으로 비밀번호를 세우고 2FA 시드를 **한 번** 돌려준다.
+        이 호출은 토큰을 소진하지 않고, 2FA는 아직 활성이 아니다 — 활성은 `confirm`이 한다.
+
+        다시 부를 수 있다. QR을 못 찍은 사람이 갇히지 않게 하는 재시도 경로이고, 그 대가로
+        이전 시드와 이전 비밀번호가 폐기된다 — 마지막 1단계의 것만 산다.
+
+        실패 응답은 로그인과 같은 봉투다 — 토큰의 부재·만료·소진을 구분하지 않는다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 JSON 형태가 아니다
+        - 401 AUTHENTICATION_FAILED: 그 밖의 모든 실패. 바디 부재도 여기로 접힌다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyAdminEnrollmentIssuedResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Admin Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyAdminEnrollmentRequest'
+      security:
+        - {}
+  /auth/enrollments/confirm:
+    post:
+      operationId: policyAdminAuth_confirm
+      summary: 2FA 등록 확인
+      description: |-
+        등록 2단계. 1단계가 내준 시드로 만든 코드를 대조하고, 맞으면 2FA를 활성으로 넘기며
+        그때 토큰을 소진한다. **세션을 요구하지 않는다** — 아직 자격이 없는 사람이 부른다.
+
+        틀리면 아무것도 바뀌지 않는다 — 자격증명이 살아 있고 토큰도 남아 같은 시드로 다시
+        시도할 수 있다. 1단계를 지난 토큰은 남은 수명이 분 단위로 당겨지므로 그 재시도는
+        사람이 화면 앞에 있는 구간 안이다.
+
+        실패 응답은 로그인과 같은 봉투다 — **코드 불일치와 토큰의 부재·만료·소진을 구분하지
+        않는다.** 가르면 그 차이가 곧 "이 토큰은 살아 있다"를 알려 준다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 JSON 형태가 아니다
+        - 401 AUTHENTICATION_FAILED: 그 밖의 모든 실패. 바디 부재도 여기로 접힌다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyAdminEnrollmentConfirmedResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Admin Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyAdminEnrollmentConfirmRequest'
+      security:
+        - {}
+  /auth/login:
+    post:
+      operationId: policyAdminAuth_login
+      summary: 어드민 로그인
+      description: |-
+        로그인. 성공하면 2FA 챌린지를 반환한다.
+
+        실패 응답은 균일하다 — 자격 불일치·계정 부재·잠금을 구분하지 않아 계정 존재를 노출하지 않는다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 JSON 형태가 아니다
+        - 401 AUTHENTICATION_FAILED: 그 밖의 모든 실패. 바디 부재도 여기로 접힌다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyAdminChallengeResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Admin Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyAdminLoginRequest'
+      security:
+        - {}
+  /auth/logout:
+    post:
+      operationId: policyAdminAuth_logout
+      summary: 어드민 로그아웃
+      description: |-
+        로그아웃. 이 브라우저의 세션 쿠키를 지운다.
+
+        **자격을 요구하지 않는다** — 쿠키를 지우는 일은 무해하고 멱등이라 만료된 세션을 든 화면도
+        부를 수 있어야 한다. 요구하면 그 화면이 쿠키를 지우지 못한 채 남는다.
+
+        **서버측 폐기가 아니다** — 서버는 세션을 저장하지 않으므로(무상태 HMAC) 본문으로 옮겨 적은
+        크리덴셜은 만료 시각까지 산다.
+      parameters: []
+      responses:
+        '204':
+          description: 로그아웃 응답. 본문이 없고 쿠키를 지우는 헤더만 나간다.
+          headers:
+            Set-Cookie:
+              required: true
+              description: '`policy_admin_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`'
+              schema:
+                type: string
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Admin Auth
+      security:
+        - {}
+  /auth/session:
+    get:
+      operationId: policyAdminAuth_session
+      summary: 세션 신원 조회
+      description: |-
+        세션이 증명하는 신원 조회. 자격은 Bearer 헤더 또는 세션 쿠키다(`PolicyAdminSessionAuth`).
+        만료·변조 토큰은 401이고 봉투는 위 둘과 같다. 콘솔은 기동 시 이것으로 쿠키 세션을 되살린다.
+
+        인가 판정의 입력을 콘솔이 직접 볼 수 있게 하는 자리다 — 어드민 액션의 인가는
+        여기 실린 grants로 판정된다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 세션이 확정되지 않았다. 계정의 소속이 이 문과 어긋난 경우도 여기다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyAdminIdentityResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Admin Auth
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /bundles/{bundleName}.tar.gz:
+    get:
+      operationId: policyBundleServing_download
+      summary: 활성 번들 tarball 내려받기
+      description: |-
+        OPA 가 폴링하는 경로. 사이드카 설정의 `bundles.<name>.resource` 와 짝이다.
+
+        **ETag 가 내용 해시다.** 같은 내용이 같은 값을 갖고 다른 내용이 같은 값을 가질 수 없어
+        304 가 "내용이 바뀌지 않았다"는 뜻이 된다. 없으면 폴링마다 tarball 전체를 다시 내려보내고
+        사이드카가 매번 재활성화한다.
+
+        서버는 ETag 를 먼저 정하고 바이트는 필요할 때만 읽는다 — 304 로 끝나는 폴링에서도 번들
+        바이트를 끌어올리면 그것이 이 엔드포인트의 정상 부하가 된다.
+
+        Errors:
+        - 401 UNAUTHENTICATED: 서비스 크리덴셜이 신원을 확정하지 않는다
+        - 403 FORBIDDEN_ROLE: 그 크리덴셜의 역할이 이 표면을 부를 수 없다
+        - 503 no_active_bundle: 활성 포인터가 없다. **봉투가 다르다**
+      parameters:
+        - name: bundleName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: If-None-Match
+          in: header
+          required: false
+          description: 들고 있는 내용 해시. 같으면 304다
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+          content:
+            application/gzip:
+              schema:
+                contentMediaType: application/gzip
+        '304':
+          description: 내용이 바뀌지 않았다. 바이트를 내려보내지 않는다
+          headers:
+            ETag:
+              required: true
+              description: 내용 해시. 요청이 보낸 값과 같다
+              schema:
+                type: string
+        '503':
+          description: |-
+            활성 포인터 부재의 503. **공통 에러 봉투가 아니라 평면 맵이다** — 이 표면만의 예외이고 근거는
+            파일 머리말이 적는다. `error.code` 가 아니라 `error` 문자열 하나라 policy 오류 코드 집합과
+            겹치지 않는다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundleServingUnavailableResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Bundle Serving
+  /bundles/{bundleName}/active:
+    get:
+      operationId: policyBundleServing_active
+      summary: 활성 번들 조회 (서빙)
+      description: |-
+        활성 revision 조회. PDP 에 무엇이 활성인지 보는 운영 관측 지점이다.
+
+        레플리카들이 서로 다른 값을 주장하는 것이 결함이고, 사이드카 폴링 시차로 OPA 가 이보다
+        뒤의 revision 을 쓰는 것은 정상이다.
+
+        Errors:
+        - 401 UNAUTHENTICATED: 서비스 크리덴셜이 신원을 확정하지 않는다
+        - 403 FORBIDDEN_ROLE: 그 크리덴셜의 역할이 이 표면을 부를 수 없다
+        - 503 no_active_bundle: 활성 포인터가 없다. **봉투가 다르다**
+      parameters:
+        - name: bundleName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyServedBundle'
+        '503':
+          description: |-
+            활성 포인터 부재의 503. **공통 에러 봉투가 아니라 평면 맵이다** — 이 표면만의 예외이고 근거는
+            파일 머리말이 적는다. `error.code` 가 아니라 `error` 문자열 하나라 policy 오류 코드 집합과
+            겹치지 않는다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundleServingUnavailableResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Bundle Serving
+  /callback/fireblocks-cosigner:
+    post:
+      operationId: policyCallback_handle
+      summary: Co-Signer pre-signing 콜백
+      description: |-
+        PEP가 종단한다 — JWT 양방향 검증·서명 대상 추출·**산출물에서 signingAuthorizationId
+        추출**(owning service가 제출 시 externalTxId로 지정 — D-66. 조회 힌트이고 방어는 전체
+        canonical 대조 + CAS)·응답 서명. 승인 저장소 대조와 원자적 단회성 소비는
+        Orchestrator가 소유한다.
+
+        콜백이 거부하면 Co-Signer는 서명하지 않는다 — 이것이 최종 방어선이다.
+
+        미디어 타입은 요청·응답 모두 `application/jose`(JWT compact 직렬화, RFC 7515 §9.2.1)다
+        — provider 실물 Content-Type과의 대조는 실물 전환 게이트 항목이다(A8 확정 ⑥).
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/jose:
+              schema:
+                $ref: '#/components/schemas/PolicyCallbackJwt'
+      tags:
+        - Callback
+      requestBody:
+        required: true
+        content:
+          application/jose:
+            schema:
+              $ref: '#/components/schemas/PolicyCallbackJwt'
+      security:
+        - {}
+  /pip-source-kinds:
+    get:
+      operationId: pipSourceKind_list
+      summary: PIP 소스 종류 목록 조회
+      description: |-
+        소스 종류 카탈로그 조회. **read-only다** — 이 표면에 쓰기 오퍼레이션이 없는 것이
+        "종류는 코드, 인스턴스는 번들"의 표면 쪽 표현이다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 없거나 유효하지 않다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 하나도 없다 (스코프는 가리지 않는다)
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipSourceKindListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - PIP Source Kinds
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /pip/{policyDataRequestId}/result:
+    post:
+      operationId: policyPartnerSubmission_submit
+      summary: PIP 결과·이행 증거 제출
+      description: |-
+        PIP 결과와 obligation 이행 증거를 같은 표면·인증·도착 규칙으로 제출한다.
+
+        인증은 전송 계층이 아니라 본문이다 — JWS 서명키 → 등록 partnerId(파트너 PIP 계약 §4).
+        그래서 이 표면은 NoAuth이고, bearer류 크리덴셜을 요구하지 않는다.
+
+        policyDataRequestId는 single-use 상관 키다 — Orchestrator가 미결 수집을 조회해
+        canonical intent 바인딩을 검증하고 소비한 뒤 신선도를 재검사하고 EVALUATING에 재진입한다.
+
+        attach_travel_rule_payload는 여기 제출 없이 travel_rule 소스 재수집으로 이행을 확인한다.
+
+        ## 요청 형태
+        바디는 JWS compact 직렬화 하나이고 미디어 타입은 `application/jose`로 고정한다(콜백
+        선례). 서명 페이로드는 파트너 PIP 계약 §5의 인바운드 스키마
+        `{policyDataRequestId, source, snapshot{...}, evaluatedAt}`이고, **payload의
+        policyDataRequestId는 경로 변수와 같아야 한다** — 서명이 상관 키를 덮지 않으면 한
+        수집에 대한 유효 제출을 다른 수집의 경로로 재생할 수 있다.
+
+        ## 실패 응답은 균일하다
+        서명 검증 이전·이후를 가리지 않고 인증 실패는 전부 **401 + 같은 바디**다
+        (`UNAUTHENTICATED`). 사유(미등록 kid·서명 불일치·alg 변조)를 갈라 답하면 등록 키의
+        형태를 탐색할 수 있다. 상관 키의 **존재 여부도 응답을 가르지 않는다** — 존재 선조회를
+        서명 검증 앞에 두지 않으므로 미지 id와 유효 id가 같은 경로·같은 비용을 지난다.
+        인증을 지난 뒤의 도착 판정(§4.3의 여덟 갈래)은 전부 200 `REJECTED` 한 값으로 접힌다.
+
+        Errors:
+        - 401 UNAUTHENTICATED: JWS 인증 실패. 미등록 kid·서명 불일치·alg 변조를 가르지 않는다
+        - 415 UNSUPPORTED_MEDIA_TYPE: 바디가 `application/jose`가 아니다 (프레임워크 폴백)
+      parameters:
+        - name: policyDataRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyPartnerSubmitAckResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Partner
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              $ref: '#/components/schemas/PolicyPartnerJws'
+      security:
+        - {}
+  /platform/bootstrap/admins:
+    post:
+      operationId: policyBootstrap_createAdmin
+      summary: 초기 어드민 계정 생성
+      description: |-
+        어드민 계정과 역할을 만들고 1회용 등록 토큰을 낸다.
+
+        아직 등록을 마치지 않은 계정에 다시 호출하면 새 토큰이 나고 이전 토큰은 통하지
+        않는다 — 만료된 토큰 하나가 환경 전체를 굳히지 않게 하는 자리다.
+
+        **이미 2팩터를 등록한 계정이면 거부한다.** 허용하면 root 가 활동 중인 어드민의
+        자격을 초기화해 그 사람 행세를 할 수 있다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 loginId·displayName 이 없거나 형태를 벗어났다
+        - 401 AUTHENTICATION_FAILED: root 자격이 확정되지 않았다
+        - 403 BOOTSTRAP_CLOSED: 부트스트랩이 이미 끝났다
+        - 409 ADMIN_LOGIN_ID_TAKEN: 등록을 마친 계정이 그 loginId 를 쓴다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBootstrapAdminCreatedResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Bootstrap
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyBootstrapAdminRequest'
+  /platform/policy-bundles/activations:
+    post:
+      operationId: policyBundleActivation_activate
+      summary: 번들 활성화
+      description: |-
+        활성 포인터 전이. 발행된 번들만 대상이 된다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 bundleName·contentHash가 형태를 벗어났다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다
+        - 404 PUBLICATION_BUNDLE_UNKNOWN: 그 내용 해시로 발행된 번들이 없다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundleActivationResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyBundleActivateRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /platform/policy-bundles/activations/{bundleName}:
+    get:
+      operationId: policyBundleActivation_view
+      summary: 활성 번들 조회
+      description: |-
+        지금 활성인 번들. 승인 화면의 diff 기준선이다 — 서빙 표면(/bundles/{name}/active)이
+        같은 사실을 주지만 그쪽 자격은 서비스 크리덴셜이라 어드민 세션으로는 닿지 않는다.
+
+        최초 발행 이전에는 404 PUBLICATION_ACTIVE_ABSENT다. 빈 봉투를 200으로 주면
+        "기준선이 없다"와 "기준선을 못 읽었다"가 같은 자리에 섞인다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다
+        - 404 PUBLICATION_ACTIVE_ABSENT: 그 이름으로 활성인 번들이 없다
+      parameters:
+        - name: bundleName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundleActivationResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Bundle
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /platform/workspaces:
+    post:
+      operationId: policyWorkspaceRegistration_register
+      summary: 워크스페이스 등록
+      description: |-
+        워크스페이스를 세우고 첫 매니저를 지명한다.
+
+        인증: 어드민 세션 + 건별 2FA 스텝업. 인가: 초대 권한 role 의 platform 부여.
+
+        관문 순서는 좌표 형태 → 스텝업 → 등록 조회 → 시드 주입 → 등록·지명이다. **시드가 등록보다
+        앞인 것이 요건이다** — 실패하면 등록부에 아무것도 남지 않아 재시도가 안전하고, 시드 없는
+        워크스페이스가 default deny 로 죽는 상태가 생기지 않는다.
+
+        새로 세우면 201, 이미 등록돼 있었으면 200 이고 본문의 `alreadyRegistered` 가 그것을 말한다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 필수 필드가 비었거나 상한을 넘었다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 401 WORKSPACE_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다
+        - 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다 (매니저 계정의 소속 불변식 위반 포함)
+        - 409 ADMIN_LOGIN_ID_TAKEN: 등록을 마친 계정이 그 loginId 를 쓴다
+        - 500 WORKSPACE_SEED_FAILED: 시드 정책을 주입하지 못해 등록을 중단했다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceRegisteredResult'
+        '201':
+          description: 생성 성공 응답 (201 Created)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceRegisteredCreatedResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyWorkspaceRegisterRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+    get:
+      operationId: policyWorkspaceRegistration_list
+      summary: 워크스페이스 목록 조회
+      description: |-
+        등록된 워크스페이스 목록. **쓰기가 아니라 스텝업 없이 부여만 본다.**
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Registration
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /platform/workspaces/challenges:
+    post:
+      operationId: policyWorkspaceRegistration_challenge
+      summary: 스텝업 챌린지 발급
+      description: |-
+        스텝업 챌린지 발급. **아무것도 저장하지 않는다** — 본문을 정규화해 챌린지만 답한다.
+
+        Errors:
+        - 400 INVALID_REQUEST: action 이 등재된 값이 아니거나 그 행위의 필드가 없다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceChallengeResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyWorkspaceChallengeRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /platform/workspaces/{workspaceId}:
+    get:
+      operationId: policyWorkspaceRegistration_view
+      summary: 워크스페이스 상세 조회
+      description: |-
+        등록 상세와 매니저 목록.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다
+        - 404 WORKSPACE_TARGET_UNKNOWN: 등록되지 않은 좌표다
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceDetailResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Registration
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /platform/workspaces/{workspaceId}/managers:
+    post:
+      operationId: policyWorkspaceManagers_assign
+      summary: 워크스페이스 매니저 지명
+      description: |-
+        매니저를 하나 더 지명하고 그 사람의 1회용 등록 토큰을 낸다.
+
+        등록 행 조회가 이 오퍼레이션의 유일한 관문이다 — 회수·재발급은 부여 조회에서 막히지만
+        지명에는 대조할 부여가 아직 없다. 없으면 platform 매니저가 임의의 좌표에 소속과 부여를
+        세우고, 그 계정은 사람을 더 들일 수 있으면서 그 좌표에는 시드가 없어 평가가 전부 거부다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 필수 필드가 비었거나 상한을 넘었다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 401 WORKSPACE_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다
+        - 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다 (대상 계정의 소속 불변식 위반 포함)
+        - 404 WORKSPACE_TARGET_UNKNOWN: 등록되지 않은 좌표다
+        - 409 ADMIN_LOGIN_ID_TAKEN: 등록을 마친 계정이 그 loginId 를 쓴다
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: 생성 성공 응답 (201 Created)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceManagerEnrolledCreatedResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyWorkspaceManagerAssignRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /platform/workspaces/{workspaceId}/managers/{adminUserId}/enrollment-tokens:
+    post:
+      operationId: policyWorkspaceManagers_reissueEnrollmentToken
+      summary: 워크스페이스 매니저 등록 토큰 재발급
+      description: |-
+        매니저의 등록 토큰을 다시 낸다. 이전 토큰은 통하지 않는다 — 만료된 토큰 하나가 그 계정을
+        굳히지 않게 하는 자리다.
+
+        **이미 2팩터를 등록한 계정이면 거부한다**(409). 허용하면 활동 중인 매니저의 자격을
+        초기화해 그 사람 행세를 할 수 있다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 challengeId·challengeResponse 가 비었다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 401 WORKSPACE_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다
+        - 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다 (대상 계정의 소속 불변식 위반 포함)
+        - 404 WORKSPACE_TARGET_UNKNOWN: 그 워크스페이스의 매니저가 아니다
+        - 409 ADMIN_LOGIN_ID_TAKEN: 그 계정이 이미 2팩터 등록까지 마쳤다
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: adminUserId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceManagerEnrolledResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyWorkspaceStepUpRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /platform/workspaces/{workspaceId}/managers/{adminUserId}/revoke:
+    post:
+      operationId: policyWorkspaceManagers_revoke
+      summary: 워크스페이스 매니저 회수
+      description: |-
+        매니저 부여를 회수한다. 경로가 POST 인 것은 어드민 콘솔 CORS 가 GET·POST 만 허용하기
+        때문이고, 본문이 필요한 이유는 스텝업이다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 challengeId·challengeResponse 가 비었다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 401 WORKSPACE_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다
+        - 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다
+        - 404 WORKSPACE_TARGET_UNKNOWN: 그 워크스페이스의 매니저가 아니다
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: adminUserId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceManagerRevokedResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyWorkspaceStepUpRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-bundles/approvals:
+    post:
+      operationId: policyBundleApproval_open
+      summary: 발행 승인 레코드 개설
+      description: |-
+        발행 승인 레코드 개설(maker).
+
+        인증: 어드민 세션. 인가: 발행 권한 role의 platform 부여.
+
+        검증을 통과하지 않은 revision은 422 DRAFT_REVISION_NOT_VALIDATED다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 bundleName·draftRevisionId가 비었다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다
+        - 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없다
+        - 409 DRAFT_DISCARDED: 폐기된 draft의 칸이다
+        - 422 DRAFT_REVISION_NOT_VALIDATED: 검증을 통과한 revision이 아니다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundlePublicationApprovalResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyBundlePublicationApprovalRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+    get:
+      operationId: policyBundleApproval_list
+      summary: 발행 승인 목록
+      description: |-
+        checker가 대상을 찾는 자리. 집계·챌린지는 상세가 준다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 부여가 없다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundleApprovalListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Bundle
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-bundles/approvals/{publicationApprovalId}:
+    get:
+      operationId: policyBundleApprovalView_view
+      summary: 발행 승인 레코드 상세 조회
+      description: |-
+        승인 레코드 상세. **집계와 챌린지가 여기서만 나온다** — 목록은 레코드마다 왕복이 생기지
+        않게 그 둘을 싣지 않으므로, checker가 표를 던지기 전에 보는 값이 이 표면이다.
+
+        자격 밖 레코드는 부재와 같은 답을 받는다 — 갈라 답하면 그 id의 실재가 드러난다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 부여가 없다
+        - 404 PUBLICATION_APPROVAL_UNKNOWN: 그런 승인 레코드가 없다 (자격 밖 참조 포함)
+      parameters:
+        - name: publicationApprovalId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundlePublicationApprovalResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Bundle
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-bundles/approvals/{publicationApprovalId}/votes:
+    post:
+      operationId: policyBundleApprovalVote_vote
+      summary: 발행 승인 표 제출
+      description: |-
+        발행 승인 표 제출(checker). 건별 2FA 스텝업 필수이고 maker 본인은 던질 수 없다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 verdict·challengeId·challengeResponse가 형태를 벗어났다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 401 PUBLICATION_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다
+        - 403 SELF_APPROVAL_FORBIDDEN: maker 본인이다
+        - 404 PUBLICATION_APPROVAL_UNKNOWN: 표를 받을 수 있는 승인 레코드가 아니다 (자격 밖 참조 포함)
+        - 409 PUBLICATION_VOTE_ALREADY_CAST: 이미 표를 던졌다
+      parameters:
+        - name: publicationApprovalId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundlePublicationApprovalResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyBundleApprovalVoteRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-bundles/publications:
+    post:
+      operationId: policyBundlePublication_publish
+      summary: 번들 발행
+      description: |-
+        번들 발행(스테이징 + 검증). **활성화하지 않는다.**
+
+        승인 레코드 실재·정족수 충족·대상 바이트 결속을 전부 발행 이전에 확인한다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 필수 필드가 비었거나 approvalRef가 레코드 형태가 아니다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다
+        - 404 PUBLICATION_APPROVAL_UNKNOWN: 발행 승인 레코드가 없다 (자격 밖 참조 포함)
+        - 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없다
+        - 409 PUBLICATION_QUORUM_NOT_MET: 정족수가 채워지지 않았다
+        - 409 PUBLICATION_PAYLOAD_NOT_APPROVED: 승인된 대상과 다르다
+        - 409 PUBLICATION_APPROVAL_ALREADY_USED: 이미 발행에 쓰인 승인 참조다
+        - 409 DRAFT_DISCARDED: 폐기된 draft다
+        - 422 DRAFT_REVISION_NOT_VALIDATED: 검증을 통과한 revision이 아니다
+        - 422 PUBLICATION_COMPILE_CHECK_FAILED: 스냅샷이 컴파일 검사를 통과하지 못했다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyBundlePublicationResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyBundlePublishRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-drafts:
+    post:
+      operationId: policyDraft_create
+      summary: draft 생성
+      description: |-
+        draft와 첫 칸을 함께 만든다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 JSON 형태가 아니거나 name·content가 없다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없거나 여럿이다
+        - 409 DRAFT_NAME_DUPLICATE: 같은 이름의 활성 draft가 있다
+        - 413 DRAFT_CONTENT_TOO_LARGE: 본문이 256 KiB를 넘는다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftRevisionResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDraftCreateRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+    get:
+      operationId: policyDraft_list
+      summary: draft 목록
+      description: |-
+        콘솔 목록. **폐기된 것도 준다** — 목록이 활성/폐기를 구분해 보여야 한다.
+        목록의 술어는 세션이 확정한 스코프다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-drafts/baseline/{bundleName}:
+    get:
+      operationId: policyDraftBaseline_view
+      summary: 편집기 base 조회
+      description: |-
+        편집기 base 조회. **활성 번들이 없거나 git 채널 번들이어도 200이다** — 그 사실은
+        `hasBaseline`·`absentReason`이 말하고 편집기는 빈 스캐폴드로 이어 간다.
+
+        404로 답하지 않는 것이 활성 번들 조회(`/policy-bundles/activations/{bundleName}`·
+        `/workspace-bundles/activation`)와 갈리는 지점이다: 저쪽은 "지금 무엇이 활성인가"를
+        묻고 부재가 곧 답의 부재지만, 이쪽은 "무엇을 base로 편집을 시작하는가"를 묻고 부재도
+        답이다.
+
+        **어느 스코프의 base를 주는지는 세션의 발행 부여가 정한다** — 요청은 그것을 나르지
+        않는다. 부여가 없거나 여럿이면 거부하고 두 경우를 응답에서 가르지 않는다. platform과
+        workspace 발행 자격을 함께 가진 어드민이 여기서 거부되는 것이 그 계약 그대로다:
+        예외를 두면 어느 기준선을 받는지가 부여 조합에 따라 조용히 갈린다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 없거나 유효하지 않다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없거나 여럿이다
+      parameters:
+        - name: bundleName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftBaselineResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-drafts/revisions/{revisionId}:
+    get:
+      operationId: policyDraftRevisionByAddress_view
+      summary: revision 조회 (주소)
+      description: |-
+        주소만으로 읽는 칸. **draft를 지나지 않는 것이 의도다** — 발행 승인이 든 것은 revision
+        주소뿐이라(어느 draft의 칸인지는 담지 않는다), 승인 화면이 diff 기준선을 찾으려면 그
+        주소에서 콘텐츠로 갈 수 있어야 한다.
+
+        draft 종속 경로(/policy-drafts/{draftId}/revisions/{revisionId})는 저작 화면의 포함
+        관계 검사로 남는다 — 거기서는 URL의 두 id가 서로 맞는지가 뜻을 갖는다.
+
+        draft를 지나지 않아도 **스코프 판정은 지난다** — 없으면 revision id 하나로 남의
+        워크스페이스가 읽힌다. 자격 밖 revision은 부재와 같은 답을 받는다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다
+        - 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없다 (자격 밖 revision 포함)
+      parameters:
+        - name: revisionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftRevisionResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-drafts/{draftId}:
+    get:
+      operationId: policyDraft_view
+      summary: draft 조회
+      description: |-
+        head와 체인. 각 칸의 검증 결과가 함께 온다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다
+        - 404 DRAFT_UNKNOWN: 그런 draft가 없다 (자격 밖 draft 포함)
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-drafts/{draftId}/discard:
+    post:
+      operationId: policyDraftDiscard_discard
+      summary: draft 폐기
+      description: |-
+        head를 폐기로 전이한다. revision 기록은 불변으로 남는다.
+
+        **폐기는 그 draft의 열린 발행 승인을 무효화한다.** 승인 행을 고쳐서가 아니라(승인
+        기록은 불변이다) 발행 이전 관문이 revision의 draft 상태를 다시 읽기 때문이다 —
+        기승인이어도 발행은 409 DRAFT_DISCARDED로 거부된다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다
+        - 404 DRAFT_UNKNOWN: 그런 draft가 없다 (자격 밖 draft 포함)
+        - 409 DRAFT_DISCARDED: 이미 폐기된 draft다
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftHeadResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-drafts/{draftId}/revisions:
+    post:
+      operationId: policyDraftRevision_append
+      summary: revision 추가
+      description: |-
+        새 칸을 붙이고 head를 그리로 옮긴다. **새 칸에는 검증 기록이 없다** — 편집이 검증을
+        무효화하는 것이 아니라, 결과가 애초에 칸마다 붙기 때문이다.
+
+        head가 그 사이 옮겨졌거나 draft가 폐기됐으면 409다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 JSON 형태가 아니거나 content가 없다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다
+        - 404 DRAFT_UNKNOWN: 그런 draft가 없다 (자격 밖 draft 포함)
+        - 409 DRAFT_DISCARDED: 폐기된 draft다
+        - 409 DRAFT_HEAD_CONFLICT: head가 그 사이 옮겨졌다
+        - 413 DRAFT_CONTENT_TOO_LARGE: 본문이 256 KiB를 넘는다
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftRevisionResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDraftRevisionRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-drafts/{draftId}/revisions/{revisionId}:
+    get:
+      operationId: policyDraftRevision_view
+      summary: revision 조회
+      description: |-
+        칸 하나. 여기서만 content가 실린다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다
+        - 404 DRAFT_UNKNOWN: 그런 draft가 없다 (자격 밖 draft 포함)
+        - 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없거나 이 draft의 칸이 아니다
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: revisionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftRevisionResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /policy-drafts/{draftId}/revisions/{revisionId}/validation:
+    post:
+      operationId: policyDraftValidation_run
+      summary: revision 검증 실행
+      description: |-
+        컴파일 검사 전종 + 벡터 채점을 **동기로** 돌린다. 결과는 이 revision에 결속되고,
+        이미 있으면 다시 돌리지 않는다 — revision이 불변이라 답이 같다.
+
+        **검증 실패는 4xx가 아니다.** 검증 실행은 성공했고 판정이 FAILED인 것이므로 200에
+        outcome을 싣는다. 4xx로 답하면 "요청이 잘못됐다"와 "정책이 검사를 통과하지 못했다"가
+        같은 자리에 섞인다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다
+        - 404 DRAFT_UNKNOWN: 그런 draft가 없다 (자격 밖 draft 포함)
+        - 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없거나 이 draft의 칸이 아니다
+        - 409 DRAFT_DISCARDED: 폐기된 draft다
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: revisionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDraftValidationResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Policy Draft
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /request:
+    post:
+      operationId: policyRequest_submit
+      summary: 판단 요청 접수
+      description: |-
+        접수. 같은 serviceRequestId 재제출은 활성·CONSUMED 불문 409로 거부하고, 에러 바디에
+        기존 policyRequestId를 싣는다(D-78) — 202 유실 재시도는 그 id로 조회해 복구한다.
+        판단 결과는 응답이 아니라 이벤트로 통지된다(§2·§4).
+
+        인증: 인증된 owning service 신원이며 body의 신원 주장과 매칭 검증한다(§1).
+        스킴은 **정적 서비스 크리덴셜**로 확정됐다(D-159 · PD-4 — D-103 대체) — BearerAuth 표기가
+        그 스킴이고, `X-Caller-Service-Id` 선언은 크리덴셜 바인딩과 일치해야 한다(어긋나면 401).
+
+        Errors: (코드 값 정본은 PolicyRequestErrorCode — D-88)
+        - 400 INVALID_REQUEST: 요청 스키마 구조 위반 — 미등재 admin action(룰 스키마 명세 §1.5)과
+        256 KiB 본문 상한 초과가 여기로 접힌다. 이 표면은 상한 초과를 413으로 내지 않는다
+        - 400 UNKNOWN_OPERATION: 미지 연산
+        - 400 UNSUPPORTED_SCHEMA_VERSION: 미지 스키마 버전
+        - 401 UNAUTHENTICATED: 인증 실패
+        - 403 FORBIDDEN: caller-연산 인가 실패. **현재 `admin_action`이 전부 여기로 접힌다**
+        - 403 FORBIDDEN_ROLE: 서비스 크리덴셜의 역할이 이 표면을 부를 수 없다 (인증 필터가 낸다)
+        - 409 IDEMPOTENCY_CONFLICT: 같은 serviceRequestId 재제출 — details는 PolicyIdempotencyConflictDetails로 타입 고정(D-78)
+        - 503 DRAINING: 이 인스턴스가 드레인 중이다. `Retry-After`가 없다
+        - 503 INTAKE_SATURATED: 접수 버퍼가 포화다. `Retry-After`가 실린다
+      parameters: []
+      responses:
+        '202':
+          description: The request has been accepted for processing, but processing has not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicySubmitAccepted'
+        '409':
+          description: |-
+            409 IDEMPOTENCY_CONFLICT 전용 에러 응답(D-78) — 공통 envelope에서 details만 타입을
+            좁힌 것이다(CONVENTIONS §4).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyIdempotencyConflictResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicySubmitRequest'
+  /request/{policyRequestId}:
+    get:
+      operationId: policyRequest_getDetail
+      summary: 판단 요청 조회
+      description: |-
+        상태 조회. 이벤트 유실 시 재동기화용이자 서명 연산 소비자(owning service)의 실행 근거다 —
+        이벤트는 깨우는 신호이고 실행 근거는 조회다(§4). 어드민 액션은 집행이 결정 소유자와
+        같은 프로세스라 실행 전 재확인이 불요하다(D-65).
+
+        Errors: (코드 값 정본은 PolicyRequestErrorCode — D-88)
+        - 401 UNAUTHENTICATED: 인증 실패
+        - 403 FORBIDDEN_ROLE: 서비스 크리덴셜의 역할이 이 표면을 부를 수 없다 (인증 필터가 낸다)
+        - 404 NOT_FOUND: 그 policyRequestId가 없거나 caller의 것이 아니다 — **둘을 합쳐 답한다.**
+        갈라 답하면 남의 요청 id에 403이 돌아가 그 id의 존재가 드러난다
+      parameters:
+        - name: policyRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyRequestDetailResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Request
+  /request/{policyRequestId}/approvals:
+    post:
+      operationId: policyApprovalVote_vote
+      summary: 승인 표 제출
+      description: |-
+        표 제출. 건별 2FA 스텝업 필수.
+
+        인증: 어드민 세션(§8) 위에 건별 2FA 스텝업이다 — BearerAuth 표기는 세션 크리덴셜의
+        자리표시자이고, 토큰 포맷은 어드민 인증 API와 함께 후속 확정이다.
+        정족수 충족은 이행 증거의 완성일 뿐이고, 전체 표 자격 재검증 + stale 재조회 +
+        전체 재평가(design-draft §9.3)를 통과해야 APPROVED다.
+
+        **접두 사본이 없다** — 이 경로는 워크스페이스 문에만 있고 `/platform` 아래에 같은 표면이
+        없다(policy-api.tsp 문 표).
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 verdict·challengeId·challengeResponse가 형태를 벗어났다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 401 APPROVAL_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다
+        - 403 APPROVAL_NOT_ELIGIBLE: 이 요청의 승인 자격이 없다
+        - 403 SELF_APPROVAL_FORBIDDEN: 요청자 본인이다
+        - 404 APPROVAL_TARGET_UNKNOWN: 표를 받을 수 있는 요청이 아니다
+        - 409 APPROVAL_ALREADY_CAST: 이미 표를 던졌다
+      parameters:
+        - name: policyRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApprovalStateResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Approvals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyApprovalSubmitRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /workspace-bundles/activation:
+    get:
+      operationId: policyWorkspaceBundleActiveView_view
+      summary: 활성 워크스페이스 번들 조회
+      description: |-
+        요청자 워크스페이스의 지금 활성 번들. 승인 화면의 diff 기준선이다.
+
+        **경로 변수도 쿼리도 없는 것이 계약이다** — 대상 워크스페이스는 세션의 발행 부여가
+        정한다. 로직 번들 활성 조회(`/policy-bundles/activations/{bundleName}`)에 얹지 않는
+        이유가 같은 자리다: 그쪽 포인터는 이름으로 서고 이쪽은 workspaceId 로 서므로, 한 경로에
+        담으면 경로 변수의 의미가 표면 안에서 갈린다.
+
+        활성 번들이 없으면 404 다. 빈 봉투를 200 으로 주면 "기준선이 없다" 와 "기준선을 못
+        읽었다" 가 같은 자리에 섞인다 — 편집기 base 조회(draft.tsp)가 부재를 200 에 싣는 것과
+        갈리는 지점이고, 근거도 그쪽 doc 이 적은 것과 같다.
+
+        Errors:
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 워크스페이스 발행 권한이 없다 (platform 부여도 여기서 끝난다)
+        - 404 WORKSPACE_BUNDLE_ACTIVE_ABSENT: 이 워크스페이스에 활성 번들이 없다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceBundleActivationResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Bundle
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /workspace-bundles/activations:
+    post:
+      operationId: policyWorkspaceBundleActivation_activate
+      summary: 워크스페이스 번들 활성화
+      description: |-
+        활성 포인터 전이. 발행된 번들만 대상이 되고, 되돌리기는 옛 번호를 지목한다.
+
+        인증: 어드민 세션. 인가: 발행 권한 role 의 `workspace:{workspaceId}` 부여이고, **그
+        부여가 대상 워크스페이스를 정한다** — 활성화에는 스코프를 정해 줄 승인 참조가 없다.
+
+        이미 활성인 번호를 다시 세우면 `activationSeq` 를 올리지 않고 현재 상태를 돌려준다 —
+        재시도가 이력을 부풀리면 "몇 번 활성화됐는가" 가 감사 신호로서 의미를 잃는다.
+
+        Errors:
+        - 400 INVALID_REQUEST: bundleVersion 이 양의 정수가 아니거나 digest 가 소문자 hex 64자가 아니다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 워크스페이스 발행 권한이 없다 (platform 부여도 여기서 끝난다)
+        - 404 WORKSPACE_BUNDLE_UNKNOWN: 그 번호의 번들이 이 워크스페이스에 없다
+        - 409 WORKSPACE_BUNDLE_DIGEST_MISMATCH: 그 번호의 다이제스트가 요청과 다르다
+        - 409 WORKSPACE_BUNDLE_ACTIVATION_CONFLICT: 다른 활성화가 먼저 지나갔다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceBundleActivationResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyWorkspaceBundleActivateRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+  /workspace-bundles/publications:
+    post:
+      operationId: policyWorkspaceBundlePublication_publish
+      summary: 워크스페이스 번들 발행
+      description: |-
+        워크스페이스 번들 발행(스테이징 + 검증). **활성화하지 않는다** — 응답의
+        `bundleVersion`·`digest` 를 들고 활성화를 따로 부른다.
+
+        인증: 어드민 세션. 인가: 발행 권한 role 의 `workspace:{workspaceId}` 부여이고, 그
+        판정 축은 `approvalRef` 가 가리키는 승인 레코드의 스코프다.
+
+        관문 순서는 승인 대조 → 도메인 축 확정 → 스냅샷 산출 → 컴파일 검사 → 승인 payload
+        결속 → 구획 산출 → 채번이고, **위반은 전부 발행 이전에 접힌다.** 컴파일 검사를 승인
+        결속보다 앞에 두는 것이 의도다 — 위반한 스냅샷은 승인이 무엇이든 발행되지 않아야 하고,
+        실패 사유가 "승인 불일치" 로 바뀌면 저작자가 원인을 잘못 읽는다.
+
+        Errors:
+        - 400 INVALID_REQUEST: 바디가 없거나 필수 필드가 비었거나 approvalRef 가 레코드 형태가 아니다
+        - 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다
+        - 403 PUBLICATION_FORBIDDEN: 그 승인 스코프의 발행 권한이 없다
+        - 404 PUBLICATION_APPROVAL_UNKNOWN: 발행 승인 레코드가 없다 (자격 밖 참조 포함)
+        - 404 DRAFT_REVISION_UNKNOWN: 그런 revision 이 없다
+        - 409 PUBLICATION_QUORUM_NOT_MET: 정족수가 채워지지 않았다
+        - 409 PUBLICATION_PAYLOAD_NOT_APPROVED: 승인된 대상과 다르다 (platform 스코프 승인 포함)
+        - 409 PUBLICATION_APPROVAL_ALREADY_USED: 이미 다른 다이제스트의 번들에 묶인 승인이다
+        - 409 DRAFT_DISCARDED: 폐기된 draft 다
+        - 422 DRAFT_REVISION_NOT_VALIDATED: 검증을 통과한 revision 이 아니다
+        - 422 PUBLICATION_COMPILE_CHECK_FAILED: 스냅샷이 컴파일 검사를 통과하지 못했다
+        - 422 WORKSPACE_BUNDLE_INVALID: 산출된 구획이 선언과 어긋난다
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyWorkspaceBundlePublicationResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyApiErrorResponse'
+      tags:
+        - Workspace Bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyWorkspaceBundlePublishRequest'
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+security:
+  - BearerAuth: []
+components:
+  parameters:
+    PaginationParams.cursor:
+      name: cursor
+      in: query
+      required: false
+      description: 다음 페이지 커서 (opaque). 최초 요청 시 생략
+      schema:
+        type: string
+      explode: false
+    PaginationParams.limit:
+      name: limit
+      in: query
+      required: false
+      description: 한 페이지당 조회 건수. 미지정 시 20, 최대 100
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+      explode: false
+  schemas:
+    AdminActionPayload:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          description: Discriminator property for AdminActionPayload.
+      discriminator:
+        propertyName: action
+        mapping:
+          policy_param_change: '#/components/schemas/PolicyParamChangePayload'
+          role_grant: '#/components/schemas/RoleGrantPayload'
+          edit_policy_grant: '#/components/schemas/EditPolicyGrantPayload'
+          approver_set_change: '#/components/schemas/ApproverSetChangePayload'
+          workspace_rule_change: '#/components/schemas/WorkspaceRuleChangePayload'
+          rule_change: '#/components/schemas/RuleChangePayload'
+          slot_bound_change: '#/components/schemas/SlotBoundChangePayload'
+          registry_change: '#/components/schemas/RegistryChangePayload'
+    AdminActionSubmitRequest:
+      type: object
+      required:
+        - operation
+        - action
+        - payload
+      properties:
+        operation:
+          type: string
+          enum:
+            - admin_action
+        action:
+          $ref: '#/components/schemas/PolicyAdminAction'
+          description: 개별 연산. 미등재 값은 큐 진입 전 INVALID_REQUEST다(룰 스키마 명세 §1.5)
+        payload:
+          $ref: '#/components/schemas/AdminActionPayload'
+          description: |-
+            action별 payload. 아래 필드는 룰이 참조할 수 있도록 카탈로그가 고정한 것이고(§1.4),
+            변경 내용(슬롯의 새 값, 룰 모듈 본문 등)은 별도 필드로 실린다 — 그 형태는
+            빌더·발행 파이프라인 구현과 함께 확정한다(design-draft §13).
+            슬롯의 새 값이 참조 대상이 아닌 이유는 슬롯마다 타입이 달라 정적 타입을 줄 수 없어서다.
+      allOf:
+        - $ref: '#/components/schemas/PolicySubmitRequest'
+    ApproverSetChangePayload:
+      type: object
+      required:
+        - action
+        - slot
+      properties:
+        action:
+          type: string
+          enum:
+            - approver_set_change
+        slot:
+          type: string
+      allOf:
+        - $ref: '#/components/schemas/AdminActionPayload'
+    ContractCallSubmitRequest:
+      type: object
+      required:
+        - operation
+      properties:
+        operation:
+          type: string
+          enum:
+            - contract_call
+      allOf:
+        - $ref: '#/components/schemas/PolicySubmitRequest'
+      description: 등록제 연산. 레지스트리가 비어 있으면 전부 deny다(룰 스키마 명세 §1.3). 좌표·payload는 사용처 확정 시
+    CustodyTransferSubmitRequest:
+      type: object
+      required:
+        - operation
+        - destinationVaultId
+      properties:
+        operation:
+          type: string
+          enum:
+            - custody_transfer
+        destinationVaultId:
+          type: string
+          description: 내부 목적지 vault — destination.type = internal_vault. 주소는 엔진이 해석한다
+      allOf:
+        - $ref: '#/components/schemas/SigningSubmitRequest'
+    EditPolicyGrantPayload:
+      type: object
+      required:
+        - action
+        - targetAdminId
+      properties:
+        action:
+          type: string
+          enum:
+            - edit_policy_grant
+        targetAdminId:
+          type: string
+      allOf:
+        - $ref: '#/components/schemas/AdminActionPayload'
+    PipSnapshotFieldType:
+      type: string
+      enum:
+        - STRING
+        - IDENTIFIER
+        - ADDRESS
+        - NUMBER
+        - BOOLEAN
+        - AMOUNT
+      description: 스냅샷 필드의 값 종류. 레지스트리 메타스키마의 `snapshotField.type`과 같은 집합이다
+    PipSourceKind:
+      type: object
+      required:
+        - kind
+        - schemaVersion
+        - registration
+        - fields
+        - normalizationImplemented
+      properties:
+        kind:
+          type: string
+          description: 종류 이름. 선언의 `kind`가 이 값을 지목한다
+        schemaVersion:
+          type: string
+          description: |-
+            스냅샷 스키마 버전. **선언이 아니라 코드가 대는 값이다** — 선언에서 되읽으면 자가
+            점검이 항등식이 되어 배포를 잊은 상태가 조용한 통과가 된다.
+        registration:
+          $ref: '#/components/schemas/PipSourceKindRegistration'
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/PipSourceKindField'
+          description: 이 종류가 내놓는 스냅샷 필드
+        normalizationImplemented:
+          type: boolean
+          description: |-
+            정규화 구현이 배포돼 있는지. **false는 "발행은 되지만 수집은 거부된다"다** — 두
+            관문이 다른 것을 재기 때문에 성립하는 상태다.
+
+            소유 클래스 이름을 싣지 않는 것이 의도다 — 편집기가 판단하는 것은 "이 종류를 지금
+            쓸 수 있는가"이고, 내부 구현 좌표는 그 판단에 필요하지 않다.
+      description: 코드가 정의한 소스 종류 하나
+    PipSourceKindErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - DRAFT_FORBIDDEN
+      description: PIP 소스 종류 표면의 거부 코드. 이 목록은 이 표면 오퍼레이션의 `Errors:` doc과 일치해야 한다.
+    PipSourceKindField:
+      type: object
+      required:
+        - leaf
+        - type
+      properties:
+        leaf:
+          type: string
+          description: 잎 이름. 경로 구분자를 담지 않는다
+        type:
+          $ref: '#/components/schemas/PipSnapshotFieldType'
+          description: 값 종류. 도착 값이 이 종류로 읽히지 않으면 스냅샷에 실리지 않는다
+      description: |-
+        스냅샷 필드 하나의 **종류 수준** 정의.
+
+        경로가 아니라 잎 이름만 갖는다 — `소스명.잎`의 앞자리는 인스턴스(선언)가 붙이므로
+        종류는 그것을 모른다.
+    PipSourceKindList:
+      type: object
+      required:
+        - kinds
+      properties:
+        kinds:
+          type: array
+          items:
+            $ref: '#/components/schemas/PipSourceKind'
+      description: 카탈로그 전량. 여기 있는 종류가 곧 선언 가능한 종류다
+    PipSourceKindListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PipSourceKindList'
+      description: 단일 리소스 응답
+    PipSourceKindRegistration:
+      type: string
+      enum:
+        - CODE_ADAPTER
+        - DECLARED_GENERIC
+      description: 종류를 어떻게 등록하는가 — 무엇이 선언에 실리는지를 가른다
+    PolicyAdmin2FaRequest:
+      type: object
+      required:
+        - challengeId
+        - code
+      properties:
+        challengeId:
+          type: string
+        code:
+          type: string
+          description: 응답 형태는 팩터에 달려 있다 — escalation surface는 FIDO2 원칙(D-51의 서명자 검증 기준점은 D-95로 폐기). 팩터 전환(TOTP→FIDO2) 일정은 로드맵 §3 C
+    PolicyAdminAction:
+      type: string
+      enum:
+        - policy_param_change
+        - role_grant
+        - edit_policy_grant
+        - approver_set_change
+        - workspace_rule_change
+        - rule_change
+        - slot_bound_change
+        - registry_change
+      description: 어드민 액션. 카탈로그에서 생성한 닫힌 enum이다(룰 스키마 명세 §1.4·§1.5)
+    PolicyAdminAuthErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - INVALID_REQUEST
+      description: |-
+        어드민 인증 표면의 거부 코드. 이 목록은 이 표면 오퍼레이션들의 `Errors:` doc **합집합**과
+        일치해야 한다. 로그아웃은 실패 경로가 없어 `Errors:`를 갖지 않는다.
+
+        **401 의 원인을 가르는 값이 하나인 것이 계약이다.** 자격 불일치·계정 부재·잠금·챌린지
+        만료·시도 초과·토큰 변조를 구분하는 코드를 늘리면 그 코드가 곧 계정 존재·상태의
+        오라클이 된다(§8 "균일 오류"). 늘려야 할 이유가 생기면 그것은 이 표면의 결정 사안이다.
+    PolicyAdminChallenge:
+      type: object
+      required:
+        - challengeId
+      properties:
+        challengeId:
+          type: string
+      description: |-
+        2FA 챌린지. TTL과 시도 횟수 제한이 있다(값은 구현 상세).
+        표 제출의 건별 스텝업도 이 모델을 재사용한다(§7).
+    PolicyAdminChallengeResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyAdminChallenge'
+      description: 단일 리소스 응답
+    PolicyAdminDirectoryErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - INVALID_REQUEST
+        - ADMIN_DIRECTORY_FORBIDDEN
+        - ADMIN_LOGIN_ID_TAKEN
+      description: |-
+        디렉토리 표면의 거부 코드. 이 목록은 두 오퍼레이션의 `Errors:` doc **합집합**과
+        일치해야 한다.
+
+        **403 이 하나인 것이 계약이다.** 역할이 없어서인지 스코프를 정할 수 없어서인지를 가르면
+        그 차이가 곧 요청자 자신의 권한 지형을 되읽는 오라클이 된다.
+    PolicyAdminEnrollmentConfirmRequest:
+      type: object
+      required:
+        - token
+        - code
+      properties:
+        token:
+          type: string
+          description: 1단계에 쓴 것과 같은 등록 토큰
+        code:
+          type: string
+          description: 1단계가 내준 시드로 인증 앱이 만든 TOTP 코드
+      description: |-
+        2단계. 1단계가 내준 시드로 만든 코드와, 그 시드를 받을 때 쓴 **같은 토큰**을 다시 제시한다.
+
+        토큰을 다시 받는 이유는 이어받기 자격을 따로 내지 않기 때문이다 — 어드민 세션과 같은
+        포맷의 값을 내면 2FA를 아직 확인하지 않은 사람이 세션 표면을 부르게 된다. 브라우저는 두
+        호출 사이에 토큰을 이미 메모리로 들고 있다.
+    PolicyAdminEnrollmentConfirmed:
+      type: object
+      required:
+        - adminUserId
+      properties:
+        adminUserId:
+          type: string
+      description: |-
+        2단계 산출물. **시드를 다시 싣지 않는다** — 1단계 응답에서 한 번 보인 것이 전부이고,
+        여기서 또 내면 "한 번만 보인다"가 거짓이 된다.
+    PolicyAdminEnrollmentConfirmedResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyAdminEnrollmentConfirmed'
+      description: 단일 리소스 응답
+    PolicyAdminEnrollmentIssued:
+      type: object
+      required:
+        - adminUserId
+        - totpSecret
+        - otpauthUri
+      properties:
+        adminUserId:
+          type: string
+        totpSecret:
+          type: string
+          description: RFC 4648 base32. 인증 앱에 손으로 넣을 때 쓴다
+        otpauthUri:
+          type: string
+          description: '`otpauth://totp/...` — QR로 렌더한다. 파라미터는 서버의 검증기 상수에서 나온다'
+      description: |-
+        1단계 산출물. **시드는 이 응답에만 실린다** — 서버는 봉인된 값만 보관하고 다시 꺼내는
+        표면이 없다. 잃어버리면 재등록이지 조회가 아니다.
+
+        이 값을 받은 사람은 **아직 등록을 마치지 않았다** — 2FA가 활성이 아니라 로그인도 발행
+        정족수도 성립하지 않는다. 완료는 `PolicyAdminEnrollmentConfirmed`다.
+    PolicyAdminEnrollmentIssuedResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyAdminEnrollmentIssued'
+      description: 단일 리소스 응답
+    PolicyAdminEnrollmentRequest:
+      type: object
+      required:
+        - token
+        - credential
+      properties:
+        token:
+          type: string
+          description: '`bootstrap.tsp`의 계정 생성 응답이 한 번 실어 준 값'
+        credential:
+          type: string
+          description: 본인이 정하는 비밀번호
+      description: 1회용 등록 토큰과 본인이 정하는 1팩터.
+    PolicyAdminGrant:
+      type: object
+      required:
+        - roleKey
+        - scope
+      properties:
+        roleKey:
+          type: string
+        scope:
+          type: string
+      description: 어드민이 어느 범위에서 무슨 역할인가. scope 문법은 `platform` | `workspace:{workspaceId}`
+    PolicyAdminIdentity:
+      type: object
+      required:
+        - adminUserId
+        - homeScope
+        - grants
+        - permissions
+      properties:
+        adminUserId:
+          type: string
+          description: 어드민 사용자 식별자. TSID prefix usr-
+        homeScope:
+          type: string
+          description: |-
+            이 계정의 소속. 값 문법은 `grants`의 `scope`와 같다.
+
+            **부여와 나란히 싣고 부여에서 유도하게 두지 않는다** — 부여가 없거나 두 스코프에 걸친
+            계정에서 유도가 답을 못 내고, 그 답을 소비자가 각자 지어내면 콘솔과 릴레이가 서로 다른
+            문을 고른다. 어느 문을 지날 수 있는지가 이 값으로 판정된다.
+        grants:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyAdminGrant'
+        permissions:
+          type: array
+          items:
+            type: string
+          description: |-
+            부여한 역할들이 전개하는 권한 키. **전개된 값을 싣는 것이 의도다** — 역할만 실으면
+            소비자가 결선을 다시 물어야 하고 그 왕복이 요청마다 하나 더 는다.
+      description: 세션이 증명하는 신원. 인가 판정의 입력이다
+    PolicyAdminIdentityResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyAdminIdentity'
+      description: 단일 리소스 응답
+    PolicyAdminInviteRequest:
+      type: object
+      required:
+        - loginId
+        - displayName
+        - roleKey
+      properties:
+        loginId:
+          type: string
+          description: 로그인 식별자(admin_user.login_id). 등록을 마친 계정이 쓰는 값이면 거부된다
+        displayName:
+          type: string
+          description: 콘솔 표시용 이름
+        roleKey:
+          type: string
+          description: 부여할 역할 키. 요청자가 **같은 스코프에서 이미 가진 역할**이어야 한다
+      description: |-
+        초대 요청.
+
+        **스코프를 싣지 않는다** — 만들어질 부여의 스코프는 요청자의 초대 권한 부여가 정한다.
+        그 역할을 여러 스코프에서 가진 요청자는 거부된다.
+    PolicyAdminInvited:
+      type: object
+      required:
+        - adminUserId
+        - loginId
+        - enrollmentToken
+        - enrollmentTokenExpiresAt
+      properties:
+        adminUserId:
+          type: string
+          description: 어드민 사용자 식별자. TSID prefix usr-
+        loginId:
+          type: string
+        enrollmentToken:
+          type: string
+          description: 1회용 등록 토큰 평문. 이 값으로 본인이 비밀번호와 2팩터를 세운다
+        enrollmentTokenExpiresAt:
+          type: string
+          format: date-time
+          description: 토큰 만료 시각. 지나면 재초대가 필요하다
+      description: |-
+        초대된 계정과 그 사람이 쓸 1회용 등록 토큰.
+
+        **토큰 평문은 이 응답에만 실린다.** 서버는 해시만 보관하고 다시 꺼내는 표면이 없다 —
+        잃어버리면 재초대이지 조회가 아니다.
+    PolicyAdminInvitedResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyAdminInvited'
+      description: 단일 리소스 응답
+    PolicyAdminList:
+      type: object
+      required:
+        - admins
+      properties:
+        admins:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyAdminSummary'
+          description: 최근 만들어진 계정부터
+      description: |-
+        요청자의 초대 권한 부여 스코프에 있는 어드민.
+
+        커서를 두지 않고 서버 상한으로 자른다 — 이 목록의 모수는 한 스코프의 어드민 수이고
+        페이지가 필요할 만큼 자라기 전에 어드민 관리 방식 자체가 달라진다.
+    PolicyAdminListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyAdminList'
+      description: 단일 리소스 응답
+    PolicyAdminLoginRequest:
+      type: object
+      required:
+        - loginId
+        - credential
+      properties:
+        loginId:
+          type: string
+          description: 어드민 로그인 식별자(admin_user.login_id)
+        credential:
+          type: string
+          description: 1팩터 자격. 현행 팩터는 비밀번호다
+      description: |-
+        로그인 자격. **1팩터는 비밀번호다** — 콘솔의 LoginUserRequest(admin/auth.tsp)와 같은
+        모양이고, 그 email 자리에 AdminDB의 login_id가 온다.
+    PolicyAdminSession:
+      type: object
+      required:
+        - credential
+        - expiresAt
+      properties:
+        credential:
+          type: string
+          description: |-
+            세션 크리덴셜. **불투명 토큰이다** — 소비자는 형태에 의존하지 않고 그대로 되돌려
+            보낸다. 갱신 규칙은 없다(만료 시 재로그인).
+        expiresAt:
+          type: string
+          format: date-time
+          description: 만료 시각. 이 시각 이후의 제시는 거부된다
+    PolicyAdminSessionResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyAdminSession'
+      description: 단일 리소스 응답
+    PolicyAdminStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - SUSPENDED
+        - DISABLED
+      description: 어드민 계정 상태(admin_user.status)
+    PolicyAdminSummary:
+      type: object
+      required:
+        - adminUserId
+        - loginId
+        - displayName
+        - status
+        - roleKeys
+        - secondFactorEnrolled
+      properties:
+        adminUserId:
+          type: string
+          description: 어드민 사용자 식별자. TSID prefix usr-
+        loginId:
+          type: string
+        displayName:
+          type: string
+        status:
+          $ref: '#/components/schemas/PolicyAdminStatus'
+        roleKeys:
+          type: array
+          items:
+            type: string
+          description: 이 목록이 좁혀진 스코프 안에서 가진 역할 키. 스코프는 세션이 정한다
+        secondFactorEnrolled:
+          type: boolean
+          description: 2팩터가 활성인가. 시드를 받기만 하고 확인을 마치지 않은 사람은 false 다
+      description: |-
+        목록 한 줄.
+
+        **2팩터 시드도 봉인 암호문도 해시도 싣지 않는다** — 나가는 것은 등록 여부 하나다.
+        로그인 식별자·표시 이름은 개인정보이고, 이 표면이 그것을 내는 근거는 소비자가 인증
+        판정이 아니라 콘솔 표시이며 호출자가 이미 어드민 세션으로 인가됐다는 것이다.
+    PolicyApiErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              $ref: '#/components/schemas/PolicyErrorCode'
+            message:
+              type: string
+            details:
+              anyOf:
+                - type: object
+                  unevaluatedProperties: {}
+                - type: 'null'
+              description: 위반한 필드 경로 등. 없으면 null
+          required:
+            - code
+            - message
+            - details
+      description: |-
+        policy 표면의 공통 에러 응답. 필드 구성은 루트 `ApiErrorResponse`와 같고 **`code`의 값 집합만
+        다르다** — 그 차이가 이 모델이 따로 있는 이유다(CONVENTIONS §4).
+
+        소비자가 `details`를 파싱해야 하는 에러는 오퍼레이션 반환에 상태코드 지정 모델을 더해 details를
+        좁힌다(예: 접수의 409 `PolicyIdempotencyConflictResponse`). 그 밖의 `details`는 사람이 읽는
+        설명이고 없으면 null이다.
+    PolicyApprovalErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - INVALID_REQUEST
+        - APPROVAL_CHALLENGE_INVALID
+        - APPROVAL_NOT_ELIGIBLE
+        - SELF_APPROVAL_FORBIDDEN
+        - APPROVAL_TARGET_UNKNOWN
+        - APPROVAL_ALREADY_CAST
+      description: |-
+        승인 표면의 거부 코드. 이 목록은 두 오퍼레이션의 `Errors:` doc **합집합**과 일치해야 한다.
+
+        **표 거절이 네 값으로 갈리는 것이 계약이다.** 자격 없음·본인 승인·중복 표·챌린지 불일치는
+        콘솔이 서로 다르게 안내해야 하는 상태다. 반대로 대상 부재와 "표를 받을 상태가 아님"은 한 값으로
+        접는다 — 가르면 남의 요청 id에 대한 응답 차이가 그 id의 실재를 알려 준다.
+    PolicyApprovalState:
+      type: object
+      required:
+        - policyRequestId
+        - quorumRequired
+        - quorumApproved
+        - votes
+        - reachable
+      properties:
+        policyRequestId:
+          type: string
+        quorumRequired:
+          type: integer
+          format: int32
+        quorumApproved:
+          type: integer
+          format: int32
+        votes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyApprovalVote'
+        reachable:
+          type: boolean
+          description: |-
+            "남은 승인 가능 인원 ≥ 잔여 필요 표"가 깨지면 즉시 DENIED로 종결된다 —
+            영원히 성립할 수 없는 pending을 남기지 않는다(§7)
+    PolicyApprovalStateResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyApprovalState'
+      description: 단일 리소스 응답
+    PolicyApprovalSubmitRequest:
+      type: object
+      required:
+        - verdict
+        - challengeId
+        - challengeResponse
+      properties:
+        verdict:
+          $ref: '#/components/schemas/PolicyApprovalVerdict'
+        challengeId:
+          type: string
+          description: |-
+            해당 policyRequestId에 바인딩된 2FA 챌린지 id(§8 챌린지 모델 재사용).
+            세션 인증만으로는 표를 던질 수 없다 — 세션 탈취 방어. 챌린지 값은 난수가 아니라
+            policyRequestId + canonical intent 전문 해시에서 유도한다(D-86 — assertion 재사용 차단).
+        challengeResponse:
+          type: string
+          description: |-
+            2FA 응답. escalation surface는 FIDO2 원칙(영속 스키마 §4)이다.
+            D-51이 이 유도에 걸었던 "서명자가 같은 유도를 재계산해 독립 검증한다"는 D-95로 폐기됐고,
+            남는 것은 maker-checker 내부의 내용 바인딩이다(§7).
+    PolicyApprovalVerdict:
+      type: string
+      enum:
+        - approve
+        - reject
+      description: 표. 거부도 표다 — 거부 표는 요청을 종결시키지 않고 정족수 경쟁에 들어간다(§7)
+    PolicyApprovalVote:
+      type: object
+      required:
+        - adminUserId
+        - verdict
+        - castAt
+        - excludedFromTally
+      properties:
+        adminUserId:
+          type: string
+        verdict:
+          $ref: '#/components/schemas/PolicyApprovalVerdict'
+        castAt:
+          type: string
+          format: date-time
+        excludedFromTally:
+          type: boolean
+          description: |-
+            정족수 충족 시점의 자격 재검증에서 제외됐는지. 자격 상실 승인자의 표는 집계에서
+            빠지지만 레코드 자체는 불변으로 남는다(§7)
+      description: 표는 불변이다. 1인 1표이고 maker 본인은 던질 수 없다(§7)
+    PolicyBootstrapAdminCreated:
+      type: object
+      required:
+        - adminUserId
+        - loginId
+        - enrollmentToken
+        - enrollmentTokenExpiresAt
+      properties:
+        adminUserId:
+          type: string
+          description: TSID prefix usr-
+        loginId:
+          type: string
+        enrollmentToken:
+          type: string
+          description: 1회용 등록 토큰 평문. 이 값으로 본인이 비밀번호와 2팩터를 세운다
+        enrollmentTokenExpiresAt:
+          type: string
+          format: date-time
+          description: 토큰 만료 시각. 지나면 재발급이 필요하다
+      description: |-
+        만들어진 계정과 그 사람이 쓸 1회용 등록 토큰.
+
+        **토큰 평문은 이 응답에만 실린다.** 서버는 해시만 보관하므로 다시 꺼낼 수 없고,
+        잃어버리면 재발급이지 조회가 아니다.
+    PolicyBootstrapAdminCreatedResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyBootstrapAdminCreated'
+      description: 단일 리소스 응답
+    PolicyBootstrapAdminRequest:
+      type: object
+      required:
+        - loginId
+        - displayName
+      properties:
+        loginId:
+          type: string
+          description: 로그인 식별자(admin_user.login_id). 중복은 거부된다
+        displayName:
+          type: string
+          description: 콘솔 표시용 이름
+      description: |-
+        어드민 계정 생성 요청.
+
+        **역할과 스코프를 싣지 않는다** — 부여할 역할은 발행 자격 판정이 보는 값이고 서버가
+        정한다. 요청이 나르면 오타 하나로 발행 자격이 없는 계정이 생기고, 그 사실은 첫 발행
+        시도에서야 드러난다.
+    PolicyBootstrapErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - BOOTSTRAP_CLOSED
+        - ADMIN_LOGIN_ID_TAKEN
+        - INVALID_REQUEST
+      description: 부트스트랩 표면의 거부 코드. 이 목록은 이 표면 오퍼레이션의 `Errors:` doc과 일치해야 한다.
+    PolicyBundleActivateRequest:
+      type: object
+      required:
+        - bundleName
+        - contentHash
+      properties:
+        bundleName:
+          type: string
+        contentHash:
+          type: string
+          description: 활성으로 세울 번들의 내용 해시(소문자 hex)
+      description: 활성화 요청. 내용 해시로 지목한다 — 버전 번호로 받으면 대상이 조회 시점에 정해진다
+    PolicyBundleActivation:
+      type: object
+      required:
+        - bundleName
+        - revision
+        - bundleVersion
+        - contentHash
+        - approvalRef
+        - activationSeq
+        - activatedAt
+        - activatedBy
+      properties:
+        bundleName:
+          type: string
+        revision:
+          type: string
+        bundleVersion:
+          type: integer
+          format: int32
+        contentHash:
+          type: string
+        approvalRef:
+          type: string
+        activationSeq:
+          type: integer
+          format: int64
+        activatedAt:
+          type: string
+          format: date-time
+        activatedBy:
+          type: string
+          description: 활성화 주체. TSID prefix usr-
+      description: 활성 포인터의 상태
+    PolicyBundleActivationResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyBundleActivation'
+      description: 단일 리소스 응답
+    PolicyBundleApprovalList:
+      type: object
+      required:
+        - approvals
+      properties:
+        approvals:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyBundleApprovalSummary'
+      description: 승인 목록. 최근 레코드부터이고 서버가 상한을 둔다
+    PolicyBundleApprovalListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyBundleApprovalList'
+      description: 단일 리소스 응답
+    PolicyBundleApprovalSummary:
+      type: object
+      required:
+        - publicationApprovalId
+        - bundleName
+        - bundleVersion
+        - draftRevisionId
+        - payloadHash
+        - makerAdminId
+        - quorumRequired
+      properties:
+        publicationApprovalId:
+          type: string
+        bundleName:
+          type: string
+        bundleVersion:
+          type: integer
+          format: int32
+        draftRevisionId:
+          anyOf:
+            - type: string
+            - type: 'null'
+        payloadHash:
+          type: string
+        makerAdminId:
+          type: string
+        quorumRequired:
+          type: integer
+          format: int32
+      description: |-
+        승인 목록 한 줄. 상세와 갈라 둔 것은 집계·챌린지가 레코드마다 왕복이기 때문이다 —
+        목록에서 채우면 화면 하나가 레코드 수만큼 질의를 낸다.
+    PolicyBundleApprovalVerdict:
+      type: string
+      enum:
+        - approve
+        - reject
+      description: 발행 승인의 표. 거부도 표다 — 정족수 경쟁에 들어가고 레코드는 불변이다
+    PolicyBundleApprovalVote:
+      type: object
+      required:
+        - adminUserId
+        - verdict
+        - castAt
+        - excludedFromTally
+      properties:
+        adminUserId:
+          type: string
+          description: 어드민 사용자 식별자. TSID prefix usr-
+        verdict:
+          $ref: '#/components/schemas/PolicyBundleApprovalVerdict'
+        castAt:
+          type: string
+          format: date-time
+        excludedFromTally:
+          type: boolean
+          description: 정족수 판정 시점의 자격 재검증에서 제외됐는지. 레코드 자체는 불변으로 남는다
+      description: 표 한 장. 불변이고 1인 1표이며 maker 본인은 던질 수 없다
+    PolicyBundleApprovalVoteRequest:
+      type: object
+      required:
+        - verdict
+        - challengeId
+        - challengeResponse
+      properties:
+        verdict:
+          $ref: '#/components/schemas/PolicyBundleApprovalVerdict'
+        challengeId:
+          type: string
+          description: |-
+            이 승인 레코드에 바인딩된 2FA 챌린지 id. 난수가 아니라 승인 레코드 id + 대상
+            payloadHash에서 유도되므로 다른 레코드에 받은 값은 여기서 어긋난다
+            (dynamic linking — 정책 요청 표 제출과 같은 형태, §7).
+        challengeResponse:
+          type: string
+          description: 건별 2FA 응답. 세션 탈취만으로는 발행 승인을 채울 수 없다
+      description: 발행 승인 표 제출. 승인자 신원은 세션이 정한다
+    PolicyBundlePublication:
+      type: object
+      required:
+        - bundleName
+        - bundleVersion
+        - revision
+        - contentHash
+        - approvalRef
+        - alreadyPublished
+      properties:
+        bundleName:
+          type: string
+        bundleVersion:
+          type: integer
+          format: int32
+          description: 저장소가 채번한 발행 번호. 요청이 정하지 않는다
+        revision:
+          type: string
+          description: 발행된 번들의 revision. 활성화 전까지 평가에 쓰이지 않는다
+        contentHash:
+          type: string
+          description: tarball 바이트의 내용 해시(소문자 hex). 활성화가 이 값으로 대상을 지목한다
+        approvalRef:
+          type: string
+        alreadyPublished:
+          type: boolean
+          description: 이미 같은 바이트가 발행돼 있었는지(멱등 재실행)
+      description: 발행 결과. **활성 revision이 아니다** — 활성화는 별도 액션이다
+    PolicyBundlePublicationApproval:
+      type: object
+      required:
+        - publicationApprovalId
+        - bundleName
+        - bundleVersion
+        - draftRevisionId
+        - payloadHash
+        - makerAdminId
+        - challengeId
+        - quorumRequired
+        - quorumApproved
+        - votes
+        - quorumMet
+      properties:
+        publicationApprovalId:
+          type: string
+          description: |-
+            발행 승인 레코드 식별자. TSID prefix pba-
+
+            발행 요청이 이 값을 approvalRef로 싣는다.
+          examples:
+            - pba-1234567890abc
+        bundleName:
+          type: string
+        bundleVersion:
+          type: integer
+          format: int32
+          description: |-
+            개설 시점의 **채번 미리보기**. 실제 번호는 발행이 정한다 — 동시에 열린 승인 둘이
+            같은 번호를 집어 뒤늦게 부딪히지 않게, 개설은 예약하지 않고 보여만 준다.
+        draftRevisionId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 승인이 결속된 저작 revision. null은 이 계약 이전에 열린 행이고 발행되지 않는다
+        payloadHash:
+          type: string
+          description: 승인이 결속된 대상 바이트의 payloadHash(소문자 hex)
+        makerAdminId:
+          type: string
+          description: maker. 본인 승인 불허 판정의 기준이다. TSID prefix usr-
+        challengeId:
+          type: string
+          description: 이 레코드에 표를 던질 때 제출할 챌린지 id. 비밀이 아니라 바인딩이다
+        quorumRequired:
+          type: integer
+          format: int32
+        quorumApproved:
+          type: integer
+          format: int32
+        votes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyBundleApprovalVote'
+        quorumMet:
+          type: boolean
+          description: 정족수가 채워져 발행에 쓸 수 있는 상태인지
+      description: 발행 승인 레코드의 현재 상태
+    PolicyBundlePublicationApprovalRequest:
+      type: object
+      required:
+        - bundleName
+        - draftRevisionId
+      properties:
+        bundleName:
+          type: string
+          description: OPA 설정의 번들 이름(bundles.{name})과 같은 값
+        draftRevisionId:
+          type: string
+          description: |-
+            승인 대상 저작 revision(TSID prefix dfr-). **검증을 통과한 칸만 열 수 있다** —
+            승인이 결속하는 payloadHash가 그 칸의 검증 기록에서 나오므로, 검증을 지나지 않은
+            바이트에는 정족수를 채울 자리가 없다.
+
+            폐기된 draft의 칸도 여기서 거부된다(409 DRAFT_DISCARDED).
+      description: 발행 승인 레코드를 여는 요청. maker 신원은 세션이 정한다 — 본문에 없다
+    PolicyBundlePublicationApprovalResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyBundlePublicationApproval'
+      description: 단일 리소스 응답
+    PolicyBundlePublicationErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - INVALID_REQUEST
+        - PUBLICATION_CHALLENGE_INVALID
+        - PUBLICATION_FORBIDDEN
+        - SELF_APPROVAL_FORBIDDEN
+        - PUBLICATION_APPROVAL_UNKNOWN
+        - DRAFT_REVISION_UNKNOWN
+        - PUBLICATION_BUNDLE_UNKNOWN
+        - PUBLICATION_ACTIVE_ABSENT
+        - PUBLICATION_QUORUM_NOT_MET
+        - PUBLICATION_PAYLOAD_NOT_APPROVED
+        - PUBLICATION_APPROVAL_ALREADY_USED
+        - PUBLICATION_VOTE_ALREADY_CAST
+        - DRAFT_DISCARDED
+        - DRAFT_REVISION_NOT_VALIDATED
+        - PUBLICATION_COMPILE_CHECK_FAILED
+      description: |-
+        로직 번들 표면의 거부 코드. 이 목록은 일곱 오퍼레이션의 `Errors:` doc **합집합**과 일치해야 한다.
+
+        워크스페이스 번들 표면(workspace-publication.tsp)과 **겹치는 값이 대부분인 것이 의도다** — 두
+        표면이 같은 관문(승인 대조·정족수·컴파일 검사·draft 상태)을 지나므로 같은 거절에 다른 코드를
+        주면 콘솔이 두 벌의 분기를 갖는다. 활성화 쪽만 갈린다: 로직 번들은 내용 해시로 대상을 지목하고
+        워크스페이스 번들은 번호+다이제스트로 지목하기 때문이다.
+    PolicyBundlePublicationResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyBundlePublication'
+      description: 단일 리소스 응답
+    PolicyBundlePublishRequest:
+      type: object
+      required:
+        - bundleName
+        - draftRevisionId
+        - approvalRef
+      properties:
+        bundleName:
+          type: string
+        draftRevisionId:
+          type: string
+          description: |-
+            발행할 저작 revision(TSID prefix dfr-). **바이트의 출처다** — 서버가 이 칸의 저작
+            세트를 재컴파일해 번들을 만든다.
+
+            승인이 이미 이 값을 결속하고 있으므로 중복처럼 보이지만 중복이 아니라 방어다:
+            발행자가 자기가 무엇을 발행한다고 믿는지를 서버가 그 결속과 대조한다. 어긋나면
+            409 PUBLICATION_PAYLOAD_NOT_APPROVED다.
+        approvalRef:
+          type: string
+          description: |-
+            발행 승인 레코드 식별자(TSID prefix pba-).
+
+            **자기 주장 값이 아니다** — 레코드 실재와 정족수 충족을 서버가 확인하고, 이미
+            발행에 쓰인 레코드는 재사용할 수 없다.
+      description: 발행 요청. 스테이징 + 검증이며 활성화하지 않는다
+    PolicyBundleRef:
+      type: object
+      required:
+        - logicDigest
+        - workspaceDigest
+        - normalizerVersion
+      properties:
+        logicDigest:
+          type: string
+          description: 정책 로직 번들 다이제스트
+        workspaceDigest:
+          type: string
+          description: 워크스페이스 번들(서명 연산 룰 선언 + 슬롯 값 — D-57) 다이제스트(D-39)
+        normalizerVersion:
+          type: string
+          description: 정규화기 버전
+    PolicyBundleServingUnavailableResponse:
+      type: object
+      required:
+        - error
+        - bundleName
+      properties:
+        error:
+          type: string
+          enum:
+            - no_active_bundle
+          description: 고정 값이다. 사유를 세분하지 않는다
+        bundleName:
+          type: string
+      description: |-
+        활성 포인터 부재의 503. **공통 에러 봉투가 아니라 평면 맵이다** — 이 표면만의 예외이고 근거는
+        파일 머리말이 적는다. `error.code` 가 아니라 `error` 문자열 하나라 policy 오류 코드 집합과
+        겹치지 않는다.
+    PolicyCallbackDecision:
+      type: string
+      enum:
+        - APPROVE
+        - REJECT
+        - RETRY
+      description: 콜백 응답. "승인 사실을 확인 못 한 것은 RETRY, 승인 사실과 다른 것은 REJECT"가 매핑 원칙이다(§5).
+    PolicyCallbackJwt:
+      type: string
+      description: |-
+        provider 서명 JWT. 양방향 검증 대상이며 v1 어댑터(Fireblocks Co-Signer) 기준 RS256이다.
+
+        무응답은 재시도되지 않고 서명 요청이 취소되므로, 이 엔드포인트는 레플리카 2 이상 +
+        롤링 배포가 최소 요건이다(design-draft §2.1·D-45).
+    PolicyDecisionDetail:
+      type: object
+      required:
+        - decision
+        - reasons
+        - unevaluatedRules
+        - obligations
+        - required
+      properties:
+        decision:
+          $ref: '#/components/schemas/PolicyDecisionValue'
+          description: 커널 결정값(design-draft §5.1)
+        reasons:
+          type: array
+          items:
+            type: string
+          description: 판단 사유
+        unevaluatedRules:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyUnevaluatedRule'
+          description: |-
+            deny 단락(short-circuit)으로 평가되지 못한 룰(design-draft §5.3-3). 소스 장애로
+            룰을 건너뛰는 경로는 없다 — 소스 장애는 요청 단위 fail-closed다(D-70)
+        obligations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyObligationState'
+          description: 'pending일 때: 이행해야 할 obligation과 현재 충족 현황'
+        required:
+          type: array
+          items:
+            type: string
+          description: 'need_more_data일 때: 추가 소싱이 필요한 PIP 소스명 목록(design-draft §5.1)'
+    PolicyDecisionEvent:
+      type: object
+      required:
+        - eventId
+        - policyRequestId
+        - serviceRequestId
+        - publishSeq
+        - status
+        - occurredAt
+      properties:
+        eventId:
+          type: string
+        policyRequestId:
+          type: string
+        serviceRequestId:
+          type: string
+        publishSeq:
+          type: integer
+          format: int64
+          description: |-
+            요청별 이벤트 발행 순번(D-77). 소비자 멱등·역순 판별의 기준.
+            결정 로그의 evaluationRound와 대응하지 않는다 — 결정 전문 상관은 조회 API다(§3)
+        status:
+          $ref: '#/components/schemas/PolicyEventStatus'
+        signingAuthorizationId:
+          type: string
+          description: APPROVED일 때
+        expiresAt:
+          type: string
+          format: date-time
+          description: APPROVED일 때 결정 토큰의 유효 기한
+        reasonCode:
+          $ref: '#/components/schemas/PolicyReasonCode'
+          description: DENIED·FAILED·EXPIRED일 때 사유
+        policyDataRequestId:
+          type: string
+          description: |-
+            PENDING_OBLIGATION이고 principal이 user일 때. 파트너 이행 증거 제출용 single-use id다
+            (파트너 PIP 계약 §4.4) — policyRequestId는 파트너까지 전달하지 않는다.
+        occurredAt:
+          type: string
+          format: date-time
+      description: |-
+        결과 이벤트 페이로드 — 행동에 충분한 요지만 싣고 전문은 조회로 읽는다.
+
+        발행 보장은 transactional outbox + at-least-once이고, 버스의 파티션 순서에는
+        의존하지 않는다(D-40). 소비자가 (policyRequestId, publishSeq)로 중복 제거·역순 무시하는
+        것이 계약의 일부다 — 중복 수신은 정상 동작이다.
+    PolicyDecisionValue:
+      type: string
+      enum:
+        - allow
+        - deny
+        - pending
+        - need_more_data
+      description: 커널 결정값 4종(design-draft §5.1)
+    PolicyDraft:
+      type: object
+      required:
+        - draftId
+        - name
+        - state
+        - currentRevisionId
+        - revisions
+      properties:
+        draftId:
+          type: string
+        name:
+          type: string
+        state:
+          $ref: '#/components/schemas/PolicyDraftState'
+        currentRevisionId:
+          type: string
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyDraftRevision'
+          description: 오래된 칸부터. 편집 횟수만큼 자라므로 서버가 상한을 둔다
+      description: head와 체인. 각 칸이 자기 검증 결과를 함께 든다
+    PolicyDraftBaseline:
+      type: object
+      required:
+        - bundleName
+        - hasBaseline
+        - absentReason
+        - revision
+        - bundleVersion
+        - approvalRef
+        - draftRevisionId
+        - content
+      properties:
+        bundleName:
+          type: string
+          description: |-
+            요청 경로가 실은 번들 이름. **platform 스코프에서만 조회 축이다** — workspace
+            스코프에서는 포인터가 이름이 아니라 workspaceId로 서므로 응답에 되돌릴 뿐 조회에 쓰지
+            않는다. 어느 쪽에서도 스코프 키가 아니다.
+        hasBaseline:
+          type: boolean
+          description: |-
+            base로 쓸 저작 원문이 있는지. false면 편집기는 안내를 보이고 빈 `{"files": {}}`
+            스캐폴드로 저작을 이어 간다 — 오류가 아니라 상태다.
+        absentReason:
+          anyOf:
+            - $ref: '#/components/schemas/PolicyDraftBaselineAbsence'
+            - type: 'null'
+          description: base가 없는 사유. `hasBaseline`이 true면 null
+        revision:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: |-
+            활성 **로직** 번들의 revision. 활성 포인터가 없으면 null이고, **workspace 스코프에서도
+            항상 null이다** — 그쪽 활성 번들의 메타데이터는 전용 표면
+            (`GET /workspace-bundles/activation`)이 준다.
+        bundleVersion:
+          anyOf:
+            - type: integer
+              format: int32
+            - type: 'null'
+          description: 활성 로직 번들의 발행 번호. 활성 포인터가 없거나 workspace 스코프면 null
+        approvalRef:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 활성 로직 번들의 승인 참조. 활성 포인터가 없거나 workspace 스코프면 null
+        draftRevisionId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: |-
+            base가 나온 저작 revision. TSID prefix dfr-. base가 없으면 null이고, **시드 저작
+            세트로 폴백한 base도 null이다** — 그 바이트는 되짚은 revision이 아니라 배포에 구워진
+            파일이다.
+        content:
+          anyOf:
+            - type: object
+              unevaluatedProperties: {}
+            - type: 'null'
+          description: |-
+            저작 세트 원문 — `{"files": {"<상대경로>": <내용>}}`. base가 없으면 null.
+
+            **노출 면적이 작지 않다** — PIP 선언의 `credential_binding`(파트너 공개키)까지 포함한
+            저작 원문 전량이다. 그래서 인가 축이 저작 표면과 같고(발행 권한 role의 platform 부여),
+            세션 없는 호출은 401이다.
+      description: |-
+        편집기 base — **활성 번들이 나온 저작 파일 셋**.
+
+        draft 콘텐츠는 자기 완결(`{"files": …}`)이라 레지스트리 한 줄만 고치려 해도 전체 파일
+        셋이 필요하다. 그 셋을 얻는 경로가 이 표면이다: 활성 포인터 → 그 번들의 `approvalRef`
+        → 승인이 결속한 저작 revision → 그 revision의 콘텐츠.
+
+        **번들 tarball을 풀지 않는다.** tarball이 담는 것은 컴파일 산출물이지 저작 원문이
+        아니다 — 거기서 되돌리면 편집기가 자기가 만들지 않은 형태를 다시 저작하게 된다.
+
+        ## 출처가 스코프마다 다르다
+
+        사슬의 모양은 같고 **포인터가 무엇으로 서는지**가 갈린다.
+
+        - platform — 활성 **로직** 번들을 `bundleName`으로 세우고 위 사슬을 되짚는다.
+        - workspace — 활성 **워크스페이스** 번들을 요청자의 발행 부여가 정한 workspaceId로 세우고
+        같은 사슬을 되짚는다(workspace-publication.tsp). 그 번들이 등록이 심은
+        시드면(`approvalRef`가 `seed:{workspaceId}`) 되짚을 승인 레코드도 revision도 없으므로
+        **배포에 구워진 시드 저작 세트**가 그 자리를 채운다. 포인터 자체가 없는 것도 같은
+        갈래다 — 되짚을 것이 없다는 사실이 같고, 그 상태에서 시작점을 주지 않으면 저작자가 빈
+        스캐폴드에서 시작해 default deny를 발행한다.
+    PolicyDraftBaselineAbsence:
+      type: string
+      enum:
+        - NO_ACTIVE_BUNDLE
+        - GIT_CHANNEL_BUNDLE
+        - REVISION_UNAVAILABLE
+        - SEED_UNAVAILABLE
+      description: |-
+        편집기 base 저작 원문이 없는 사유.
+
+        **없음을 사유와 함께 말하는 것이 계약이다** — 편집기가 빈 스캐폴드로 이어 가야 하는
+        상태와 서버가 읽지 못한 상태를 같은 자리에 섞지 않는다.
+    PolicyDraftBaselineResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyDraftBaseline'
+      description: 단일 리소스 응답
+    PolicyDraftCreateRequest:
+      type: object
+      required:
+        - name
+        - content
+      properties:
+        name:
+          type: string
+          description: 활성 draft 사이에서 유일하다. 폐기된 것과는 겹쳐도 된다
+        content:
+          type: object
+          unevaluatedProperties: {}
+          description: |-
+            저작 세트 전량을 담은 콘텐츠 문서 — `{"files": {"<상대경로>": <내용>}}` 형태다.
+
+            **저장되는 해시는 이 객체의 정규형(JCS)에서 난다.** 서버가 타입 있는 DTO로
+            왕복시키지 않으므로 계약 밖 필드도 보존되고, 그래서 해시가 작성자가 보낸 바이트를
+            증언한다.
+      description: |-
+        draft 생성 요청.
+
+        본문 상한은 256 KiB다. 근거는 컬럼 폭이 아니라 INSERT 패킷이다 — MySQL 기본
+        max_allowed_packet이 1 MiB이고 바이너리는 패킷에서 두 배가 된다. 넘으면 413
+        DRAFT_CONTENT_TOO_LARGE.
+    PolicyDraftErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - INVALID_REQUEST
+        - DRAFT_FORBIDDEN
+        - DRAFT_UNKNOWN
+        - DRAFT_REVISION_UNKNOWN
+        - DRAFT_NAME_DUPLICATE
+        - DRAFT_HEAD_CONFLICT
+        - DRAFT_DISCARDED
+        - DRAFT_CONTENT_TOO_LARGE
+      description: |-
+        저작 표면의 거부 코드. 이 목록은 아홉 오퍼레이션의 `Errors:` doc **합집합**과 일치해야 한다.
+
+        **부재가 한 값으로 접히는 것이 계약이다.** 자격 밖 draft·revision은 실재해도 "없다"로 답한다 —
+        403과 404를 가르면 id 하나로 남의 워크스페이스의 저작 목록을 탐색할 수 있다. 그래서 판정
+        순서도 자격 → 조회 → 스코프다.
+    PolicyDraftHead:
+      type: object
+      required:
+        - draftId
+        - name
+        - state
+        - currentRevisionId
+      properties:
+        draftId:
+          type: string
+        name:
+          type: string
+        state:
+          $ref: '#/components/schemas/PolicyDraftState'
+        currentRevisionId:
+          type: string
+          description: head가 가리키는 칸. TSID prefix dfr-
+      description: draft head. 체인은 싣지 않는다
+    PolicyDraftHeadResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyDraftHead'
+      description: 단일 리소스 응답
+    PolicyDraftList:
+      type: object
+      required:
+        - drafts
+      properties:
+        drafts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyDraftHead'
+          description: 최근 draft부터. 서버가 상한을 둔다 — draft는 저작할 때마다 늘어난다
+      description: 콘솔 목록. head만 담는다 — 체인도 검증 결과도 상세에서 편다
+    PolicyDraftListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyDraftList'
+      description: 단일 리소스 응답
+    PolicyDraftResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyDraft'
+      description: 단일 리소스 응답
+    PolicyDraftRevision:
+      type: object
+      required:
+        - draftId
+        - state
+        - revisionId
+        - previousRevisionId
+        - contentHash
+        - authoredBy
+        - current
+        - content
+        - validation
+      properties:
+        draftId:
+          type: string
+          description: TSID prefix dft-
+        state:
+          $ref: '#/components/schemas/PolicyDraftState'
+          description: 그 칸이 속한 draft head의 현재 상태
+        revisionId:
+          type: string
+          description: TSID prefix dfr-
+        previousRevisionId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 체인의 이전 칸. 첫 revision만 null이다
+        contentHash:
+          type: string
+          description: 저장된 정규형(JCS) 바이트의 해시(소문자 hex)
+        authoredBy:
+          type: string
+          description: 이 칸을 쓴 어드민. TSID prefix usr-
+        current:
+          type: boolean
+          description: head가 지금 이 칸을 가리키는지
+        content:
+          anyOf:
+            - type: object
+              unevaluatedProperties: {}
+            - type: 'null'
+          description: |-
+            저작 세트 원문. **revision 단건 조회에서만 채운다** — 체인 응답이 모든 칸의 룰
+            바이트를 나르지 않게 한다.
+        validation:
+          anyOf:
+            - $ref: '#/components/schemas/PolicyDraftValidation'
+            - type: 'null'
+      description: 편집 한 칸. 불변이고 주소가 고정이다
+    PolicyDraftRevisionRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: object
+          unevaluatedProperties: {}
+      description: revision 추가 요청. 편집은 언제나 새 칸이다
+    PolicyDraftRevisionResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyDraftRevision'
+      description: 단일 리소스 응답
+    PolicyDraftState:
+      type: string
+      enum:
+        - ACTIVE
+        - DISCARDED
+      description: draft head의 상태. 삭제가 없다 — 폐기는 전이이고 revision 기록은 불변으로 남는다
+    PolicyDraftValidation:
+      type: object
+      required:
+        - revisionId
+        - outcome
+        - payloadHash
+        - authoredCaseCount
+        - executedCaseCount
+        - violations
+        - omittedViolations
+        - warnings
+      properties:
+        revisionId:
+          type: string
+          description: TSID prefix dfr-
+        outcome:
+          $ref: '#/components/schemas/PolicyDraftValidationOutcome'
+        payloadHash:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: |-
+            통과한 저작 세트가 낸 payload의 해시(소문자 hex). **발행 승인이 여기에 결속된다.**
+            FAILED면 null이다 — 검증되지 않은 바이트에 승인이 붙는 경로를 닫는다.
+        authoredCaseCount:
+          anyOf:
+            - type: integer
+              format: int32
+            - type: 'null'
+          description: |-
+            저작된 벡터 케이스 수. 실행 수와 따로 드는 것이 의도다 — 실행 수에서 유도하면 대조가
+            항등식이 되어 케이스가 조용히 빠진 상태가 "실패 0건"으로 통과한다.
+        executedCaseCount:
+          anyOf:
+            - type: integer
+              format: int32
+            - type: 'null'
+          description: 실제로 실행된 케이스 수. 저작 수와 다르면 통과 판정이 만들어지지 않는다
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyDraftViolation'
+        omittedViolations:
+          type: integer
+          format: int32
+          description: 상한에 걸려 싣지 못한 위반 수. 0이 아니면 위 목록이 전량이 아니다
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyDraftViolation'
+          description: |-
+            판정을 바꾸지 않는 권고. PASSED여도 비어 있지 않을 수 있다 — 기준 슬롯 카탈로그 부재,
+            저작 세트의 카탈로그 사본 드리프트, 슬롯 값이 지목한 테넌트의 부재·조회 불가처럼 **발행에서
+            거부되거나 값이 선택되지 않을 수 있는** 사정을 미리 알린다. 검증 시점의 스냅샷이고 발행이
+            같은 검사를 다시 한다. 승인된 revision은 불변이므로 승인 전에 읽어야 뜻이 있다.
+      description: 한 revision의 검증 결과 — 컴파일 검사 전종 + 채점 전용 커널의 벡터 채점
+    PolicyDraftValidationOutcome:
+      type: string
+      enum:
+        - PASSED
+        - FAILED
+      description: revision 검증의 판정
+    PolicyDraftValidationResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyDraftValidation'
+      description: 단일 리소스 응답
+    PolicyDraftViolation:
+      type: object
+      required:
+        - check
+        - target
+        - message
+        - why
+      properties:
+        check:
+          type: string
+          description: '검사 이름. 예: value-transfer-pin-missing'
+        target:
+          type: string
+          description: '걸린 대상. `key=value`를 공백으로 이은 형태. 예: rule=escalation/approve-grant slot=quorum'
+        message:
+          type: string
+          description: 무엇이 어긋났고 어느 방향으로 고치는지. 100자 이내
+        why:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 이 위반을 그대로 두면 무슨 일이 나는지. 컴파일 검사가 낸 위반에만 실리고 그 밖은 null
+      description: 검증 위반 하나. 값·리터럴을 담지 않는다 — 어느 검사가 무엇에서 걸렸는지만 말한다
+    PolicyErrorCode:
+      anyOf:
+        - $ref: '#/components/schemas/PolicyRequestErrorCode'
+        - $ref: '#/components/schemas/PolicyAdminAuthErrorCode'
+        - $ref: '#/components/schemas/PolicyBootstrapErrorCode'
+        - $ref: '#/components/schemas/PolicyAdminDirectoryErrorCode'
+        - $ref: '#/components/schemas/PolicyApprovalErrorCode'
+        - $ref: '#/components/schemas/PolicyDraftErrorCode'
+        - $ref: '#/components/schemas/PipSourceKindErrorCode'
+        - $ref: '#/components/schemas/PolicyBundlePublicationErrorCode'
+        - $ref: '#/components/schemas/PolicyWorkspaceBundleErrorCode'
+        - $ref: '#/components/schemas/PolicyWorkspaceRegistrationErrorCode'
+        - $ref: '#/components/schemas/PolicyFrameworkErrorCode'
+      description: |-
+        policy 표면이 내는 `error.code`의 전량. 표면 enum의 합집합에 프레임워크 코드를 더한 것이고,
+        이 union이 `PolicyApiErrorResponse`의 `code` 타입이다.
+
+        **wallet 도메인 `ErrorCode`(루트 common.tsp)와 섞이지 않는 것이 계약이다** — 두 값 집합은
+        겹치는 것이 `INTERNAL_ERROR` 하나뿐이라, 한 봉투로 묶으면 레퍼런스를 읽는 소비자가 policy
+        응답에서 결코 나오지 않는 코드 마흔여덟 개를 분기 대상으로 받는다.
+
+        새 표면 enum을 만들면 여기에 더한다. 더하지 않으면 그 코드는 응답 타입 어디에도 연결되지
+        않아 생성 스키마에 나타나지 않는다.
+    PolicyEventStatus:
+      anyOf:
+        - type: string
+          enum:
+            - PENDING_OBLIGATION
+        - type: string
+          enum:
+            - APPROVED
+        - type: string
+          enum:
+            - CONSUMED
+        - type: string
+          enum:
+            - DENIED
+        - type: string
+          enum:
+            - FAILED
+        - type: string
+          enum:
+            - EXPIRED
+      description: |-
+        이벤트로 발행되는 전이(내부 인터페이스 §4).
+        내부 전이(NORMALIZING·EVALUATING·PENDING_DATA)는 발행하지 않고 조회로만 관찰한다.
+    PolicyFrameworkErrorCode:
+      type: string
+      enum:
+        - NOT_FOUND
+        - METHOD_NOT_ALLOWED
+        - NOT_ACCEPTABLE
+        - CONTENT_TOO_LARGE
+        - UNSUPPORTED_MEDIA_TYPE
+        - INTERNAL_ERROR
+      description: |-
+        프레임워크가 표면과 무관하게 내는 코드. 라우팅·협상·파싱 단계에서 갈려 도메인 예외에
+        닿지 않은 요청의 값이고, 전역 advice가 `HttpStatus`의 이름을 그대로 코드로 쓴다.
+
+        **표면 enum과 겹치지 않게 읽는다** — 같은 `NOT_FOUND`라도 여기 것은 "그런 경로가 없다"이고
+        접수 표면의 것은 "그 요청 id가 없거나 caller의 것이 아니다"다. 400은 여기 없다:
+        프레임워크 400도 `INVALID_REQUEST`로 접혀 표면 enum의 값과 같아진다.
+
+        **표면 enum과 `Errors:` doc의 합집합 대조에서 이 값들은 제외한다** — 표면이 아니라 프레임워크가
+        내므로 어느 표면의 enum에도 들어가지 않고, doc에 적힐 때는 `(프레임워크 폴백)`을 붙인다.
+    PolicyIdempotencyConflictDetails:
+      type: object
+      required:
+        - policyRequestId
+      properties:
+        policyRequestId:
+          type: string
+          description: 같은 serviceRequestId로 접수된 기존 요청. 202 유실 재시도는 이 id로 조회해 복구한다
+      description: 중복 접수 409의 details(D-78) — 소비자가 파싱하는 필드라 계약으로 고정한다
+    PolicyIdempotencyConflictResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - IDEMPOTENCY_CONFLICT
+            message:
+              type: string
+            details:
+              $ref: '#/components/schemas/PolicyIdempotencyConflictDetails'
+          required:
+            - code
+            - message
+            - details
+      description: |-
+        409 IDEMPOTENCY_CONFLICT 전용 에러 응답(D-78) — 공통 envelope에서 details만 타입을
+        좁힌 것이다(CONVENTIONS §4).
+    PolicyObligationState:
+      type: object
+      required:
+        - type
+        - fulfilled
+      properties:
+        type:
+          $ref: '#/components/schemas/PolicyObligationType'
+        fulfilled:
+          type: boolean
+        quorumRequired:
+          type: integer
+          format: int32
+          description: require_quorum일 때 필요 표 수
+        quorumApproved:
+          type: integer
+          format: int32
+          description: require_quorum일 때 현재 유효 승인 표 수
+    PolicyObligationType:
+      type: string
+      enum:
+        - require_2fa
+        - require_quorum
+        - attach_travel_rule_payload
+      description: obligation 3종(룰 스키마 명세 §4.4)
+    PolicyOperation:
+      type: string
+      enum:
+        - withdrawal
+        - custody_transfer
+        - sweep
+        - contract_call
+        - typed_signature
+        - admin_action
+      description: 연산. 서명 연산은 5종, 어드민 액션은 admin_action 하나다(룰 스키마 명세 §1.1)
+    PolicyParamChangePayload:
+      type: object
+      required:
+        - action
+        - slot
+      properties:
+        action:
+          type: string
+          enum:
+            - policy_param_change
+        slot:
+          type: string
+          description: 대상 슬롯. 승인 role 슬롯은 여기 대상이 아니다 — approver_set_change로만 바꾼다(§1.4)
+      allOf:
+        - $ref: '#/components/schemas/AdminActionPayload'
+    PolicyPartnerJws:
+      type: string
+      description: |-
+        JWS로 서명된 결과 스냅샷.
+
+        인증은 서명키 → 등록 partnerId다 — 요청 body의 신원 주장은 신뢰하지 않는다.
+        mTLS 등 채널 보안은 인프라 레벨이고 이 계약 밖이다.
+    PolicyPartnerSubmitAck:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyPartnerSubmitResult'
+    PolicyPartnerSubmitAckResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyPartnerSubmitAck'
+      description: 단일 리소스 응답
+    PolicyPartnerSubmitResult:
+      type: string
+      enum:
+        - ACCEPTED
+        - DUPLICATE
+        - REJECTED
+      description: 제출 처리 결과(§6 응답 매핑)
+    PolicyPendingApproval:
+      type: object
+      required:
+        - policyRequestId
+        - operation
+        - challengeId
+        - quorumRequired
+        - quorumApproved
+        - expiresAt
+      properties:
+        policyRequestId:
+          type: string
+        operation:
+          $ref: '#/components/schemas/PolicyOperation'
+        action:
+          $ref: '#/components/schemas/PolicyAdminAction'
+          description: operation이 admin_action일 때
+        makerAdminId:
+          type: string
+          description: |-
+            요청자. 본인 승인 불허 판정의 기준.
+
+            **어드민 액션(어드민 세션이 낸 요청)일 때만 있다** — 서명 연산의 principal은 서비스이고
+            (D-103), 서비스 신원은 승인 주체 타입이 될 수 없다(D-104 sealed 계층). 없으면 본인 승인
+            불허가 무조건 성립하는 것이지 검사가 생략되는 것이 아니다.
+        challengeId:
+          type: string
+          description: |-
+            이 요청에 표를 던질 때 제출해야 하는 챌린지 id(§7). 난수가 아니라
+            `policyRequestId` + canonical intent 전문 해시(JCS+SHA-256 — D-91)에서 유도되므로
+            서버가 재계산해 대조한다 — 다른 요청에 받은 값은 여기서 어긋난다(dynamic linking).
+
+            비밀이 아니라 **바인딩**이다. 세션 탈취를 막는 것은 이 값이 아니라 함께 제출하는
+            `challengeResponse`(건별 2FA)다.
+        quorumRequired:
+          type: integer
+          format: int32
+        quorumApproved:
+          type: integer
+          format: int32
+        expiresAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          description: |-
+            미달인 채로 이 시각이 지나면 EXPIRED.
+
+            **승인 대기 구간에는 null이다** — TTL은 승인이 성립할 때 스탬프되고 그 전의
+            `policy_request.expires_at`은 비어 있다(D-74). obligation 시한은 이 값과 다른 축이라
+            여기에 실리지 않는다.
+      description: 승인 대기 항목. 승인 가능 role 보유자에게만 보인다
+    PolicyPendingApprovalListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/PolicyPendingApproval'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    PolicyReasonCode:
+      type: string
+      enum:
+        - VAULT_NOT_FOUND
+        - WORKSPACE_MISMATCH
+        - TOKEN_NOT_REGISTERED
+        - PRE_EVALUATION_SOURCE_UNAVAILABLE
+        - UNREGISTERED_TARGET
+        - UNRECOGNIZED_ARTIFACT
+        - NO_MATCHING_ALLOW
+        - DENY_RULE_MATCHED
+        - PARAM_BOUND_VIOLATION
+        - EVALUATION_ROUND_CAP
+        - RESOURCE_LIMIT_CHAIN_UNREGISTERED
+        - DATA_SOURCE_UNAVAILABLE
+        - INVALID_DATA_RESULT
+        - QUORUM_UNREACHABLE
+        - APPROVER_SET_EMPTY
+        - TTL_EXPIRED
+        - OBLIGATION_TIMEOUT
+        - NORMALIZER_ERROR
+        - ADAPTER_ERROR
+        - WORKSPACE_BUNDLE_INVALID
+        - LOGIC_BUNDLE_NOT_LOADED
+        - ENGINE_ERROR
+        - CALLBACK_PARAMETER_MISMATCH
+        - CALLBACK_SIGNER_SCOPE_MISMATCH
+        - CALLBACK_PAYLOAD_UNPARSABLE
+        - CALLBACK_RESOURCE_LIMIT_EXCEEDED
+        - CALLBACK_RESOURCE_LIMIT_UNSTAMPED
+        - CALLBACK_NORMALIZER_UNAVAILABLE
+      description: |-
+        결정 사유 코드 — 전수 확정(D-53). 이 enum이 정본이다(내부 인터페이스 §9).
+
+        코드는 소비자·운영이 다르게 반응해야 하는 구조 지점마다 하나다. 세부 식별(발동 룰 id·
+        PIP 소스명·슬롯명)은 코드가 아니라 reasons[]에 싣는다 — 룰마다 코드를 만들면 정책
+        변경이 enum 변경이 되어 계약이 정책에 종속된다(D-52와 같은 결합 배제).
+    PolicyRequestDetail:
+      type: object
+      required:
+        - policyRequestId
+        - serviceRequestId
+        - status
+        - requestBodyHash
+        - decision
+        - bundle
+        - transitions
+      properties:
+        policyRequestId:
+          type: string
+        serviceRequestId:
+          type: string
+        status:
+          $ref: '#/components/schemas/PolicyRequestStatus'
+        signingAuthorizationId:
+          type: string
+          description: APPROVED일 때. 서명 연산의 결정 토큰이다(design-draft §7.3)
+        expiresAt:
+          type: string
+          format: date-time
+        reasonCode:
+          $ref: '#/components/schemas/PolicyReasonCode'
+        requestBodyHash:
+          type: string
+          description: |-
+            접수 시 스탬프된 수신 바디의 SHA-256(JCS) 해시(D-92 — PolicySubmitAccepted와 동일 값).
+            승인 수신 시 owning service가 보관한 원문과 대조하고, 409 복구에서 기존 요청이
+            자기 재시도인지 판별하는 데 쓴다.
+        decision:
+          $ref: '#/components/schemas/PolicyDecisionDetail'
+          description: 결정 전문
+        bundle:
+          $ref: '#/components/schemas/PolicyBundleRef'
+          description: 평가에 실제 사용된 번들. 배포한 버전이 아니라 OPA가 응답에 실은 revision이다(design-draft §10·D-38)
+        transitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyTransition'
+          description: 상태 전이 이력
+      description: 조회 응답(§3). 이벤트에 싣지 않는 상세는 전부 여기서 읽는다
+    PolicyRequestDetailResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyRequestDetail'
+      description: 단일 리소스 응답
+    PolicyRequestErrorCode:
+      type: string
+      enum:
+        - UNAUTHENTICATED
+        - FORBIDDEN
+        - INVALID_REQUEST
+        - UNKNOWN_OPERATION
+        - UNSUPPORTED_SCHEMA_VERSION
+        - IDEMPOTENCY_CONFLICT
+        - NOT_FOUND
+        - DRAINING
+        - INTAKE_SATURATED
+        - FORBIDDEN_ROLE
+      description: |-
+        요청 표면(접수·조회) 동기 거부 코드(내부 인터페이스 §2)의 **값 정본**(D-53·D-88). wire 형태는
+        `PolicyApiErrorResponse`(code 필드)이고, 이 enum이 그 값을 확정한다 — 이 목록은 두 오퍼레이션의
+        Errors: doc **합집합**과 일치해야 한다.
+
+        표면마다 쓰는 값이 갈린다: UNAUTHENTICATED~IDEMPOTENCY_CONFLICT 여섯과 런타임 거부 둘
+        (DRAINING·INTAKE_SATURATED)은 submit 전용이고 NOT_FOUND는 getDetail 전용이며
+        FORBIDDEN_ROLE은 인증 필터가 내므로 둘 다에 나온다. 접수 여섯은 큐 진입 전에 저렴하고
+        결정적으로 판별 가능한 것만 있다 — 그 외는 전부 202 이후 비동기다.
+    PolicyRequestStatus:
+      type: string
+      enum:
+        - RECEIVED
+        - NORMALIZING
+        - EVALUATING
+        - PENDING_DATA
+        - PENDING_OBLIGATION
+        - APPROVED
+        - CONSUMED
+        - DENIED
+        - EXPIRED
+        - FAILED
+      description: 결정 상태 머신(design-draft §5.2)
+    PolicyRuleEffect:
+      type: string
+      enum:
+        - allow
+        - deny
+    PolicyServedBundle:
+      type: object
+      required:
+        - bundleName
+        - revision
+        - bundleVersion
+        - contentHash
+        - approvalRef
+        - activationSeq
+        - activatedAt
+      properties:
+        bundleName:
+          type: string
+        revision:
+          type: string
+          description: 앱이 활성으로 지정한 revision. 사이드카 폴링 시차 때문에 OPA 가 실제로 평가에 쓰는 값은 잠시 이보다 뒤일 수 있다
+        bundleVersion:
+          type: integer
+          format: int32
+        contentHash:
+          type: string
+          description: tarball 바이트의 내용 해시(소문자 hex). ETag 가 이 값이다
+        approvalRef:
+          type: string
+        activationSeq:
+          type: integer
+          format: int64
+        activatedAt:
+          type: string
+          format: date-time
+      description: |-
+        활성 번들의 메타데이터. **공통 `ApiResult` 봉투를 쓰지 않는다** — 이 표면의 소비자는 우리
+        콘솔이 아니라 사이드카·운영 관측이고, 응답 형태가 그쪽에 맞춰져 있다.
+
+        어드민 세션으로 같은 사실을 읽는 자리는 `GET /platform/policy-bundles/activations/{bundleName}`
+        이고 그쪽은 봉투를 쓴다(publication.tsp).
+    PolicySubmitAccepted:
+      type: object
+      required:
+        - policyRequestId
+        - status
+        - requestBodyHash
+      properties:
+        policyRequestId:
+          type: string
+        status:
+          $ref: '#/components/schemas/PolicyRequestStatus'
+        requestBodyHash:
+          type: string
+          description: |-
+            접수 시 엔진이 계산한 수신 바디의 해시 — SHA-256(JCS(수신 바디 JSON))(D-92, 직렬화 정본 D-91).
+            원시 바이트가 아니라 JCS 정규화 후 해시라 중간 재직렬화에 흔들리지 않는다.
+            owning service는 보관한 원문에서 같은 계산을 재실행해 대조한다 — 전송 변조 탐지·상호 부인방지 앵커.
+      description: 202 접수 응답(§2)
+    PolicySubmitRequest:
+      type: object
+      required:
+        - serviceRequestId
+        - schemaVersion
+        - operation
+      properties:
+        serviceRequestId:
+          type: string
+          description: |-
+            owning service의 리소스 ID(withdrawalId·vaultTransferId·sweepId — D-49). 접수 중복
+            거부 키(D-78)이자 실행 주체의 재생 방지 키다(§4·§12). 클라이언트 지정 referenceId류는
+            부적격이다. 요청 body의 신원 주장은 신뢰하지 않고 인증된 caller와 매칭 검증한다(§1).
+        schemaVersion:
+          type: string
+          description: 요청 스키마 버전. 미지 버전은 UNSUPPORTED_SCHEMA_VERSION
+        operation:
+          type: string
+          description: Discriminator property for PolicySubmitRequest.
+      discriminator:
+        propertyName: operation
+        mapping:
+          withdrawal: '#/components/schemas/WithdrawalSubmitRequest'
+          custody_transfer: '#/components/schemas/CustodyTransferSubmitRequest'
+          sweep: '#/components/schemas/SweepSubmitRequest'
+          contract_call: '#/components/schemas/ContractCallSubmitRequest'
+          typed_signature: '#/components/schemas/TypedSignatureSubmitRequest'
+          admin_action: '#/components/schemas/AdminActionSubmitRequest'
+    PolicyTransition:
+      type: object
+      required:
+        - status
+        - occurredAt
+      properties:
+        status:
+          $ref: '#/components/schemas/PolicyRequestStatus'
+        occurredAt:
+          type: string
+          format: date-time
+        reasonCode:
+          $ref: '#/components/schemas/PolicyReasonCode'
+    PolicyUnevaluatedRule:
+      type: object
+      required:
+        - rule
+        - effect
+      properties:
+        rule:
+          type: string
+        effect:
+          $ref: '#/components/schemas/PolicyRuleEffect'
+      description: |-
+        미평가 룰. `effect`가 함께 있어야 두 미평가의 위험 방향(XACML Indeterminate{D}/{P})을
+        구분할 수 있다 — 기록 의무는 D-34다(룰 스키마 명세 §4.3).
+    PolicyWorkspaceAdminAction:
+      type: string
+      enum:
+        - REGISTER
+        - ASSIGN_MANAGER
+        - REVOKE_MANAGER
+        - REISSUE_ENROLLMENT_TOKEN
+      description: 스텝업 챌린지가 결속하는 행위. 챌린지 요청이 이 값으로 어느 행위의 챌린지인지 정한다
+    PolicyWorkspaceBundleActivateRequest:
+      type: object
+      required:
+        - bundleVersion
+        - digest
+      properties:
+        bundleVersion:
+          type: integer
+          format: int32
+          description: 활성으로 세울 번들의 번호. 이 워크스페이스 계열 안의 값이다
+        digest:
+          type: string
+          description: 그 번호의 다이제스트(소문자 hex 64자). 다르면 409 WORKSPACE_BUNDLE_DIGEST_MISMATCH 다
+      description: |-
+        활성화 요청. **번호와 다이제스트를 둘 다 받는 것이 요건이다.**
+
+        번호만 받으면 활성화가 "그 번호의 번들이 지금 무엇인가" 에 딸려 가 대상이 조회 시점에
+        정해진다. 다이제스트만 받으면 대상이 유일하지 않다 — 워크스페이스 번들은 내용 해시에
+        유니크가 없어 같은 바이트가 여러 번호로 존재할 수 있다. 로직 번들이 내용 해시 하나로
+        지목하는 것과 갈리는 지점이 여기다.
+    PolicyWorkspaceBundleActivation:
+      type: object
+      required:
+        - workspaceId
+        - bundleVersion
+        - digest
+        - approvalRef
+        - activationSeq
+        - activatedAt
+        - activatedBy
+      properties:
+        workspaceId:
+          type: string
+          description: 요청자의 발행 부여가 정한 워크스페이스. 지갑이 발급한 식별자다. TSID prefix ws-
+          examples:
+            - ws-1234567890abcdef
+        bundleVersion:
+          type: integer
+          format: int32
+        digest:
+          type: string
+        approvalRef:
+          type: string
+          description: 이 번들을 낸 승인 참조. 시드 번들은 정족수를 지나지 않은 합성 값(`seed:{workspaceId}`)이다
+        activationSeq:
+          type: integer
+          format: int64
+          description: 이 워크스페이스의 활성화 순번. 같은 번호를 다시 세우는 재시도는 올리지 않는다
+        activatedAt:
+          type: string
+          format: date-time
+        activatedBy:
+          type: string
+          description: 활성화 주체. TSID prefix usr-
+      description: 워크스페이스 활성 포인터의 상태
+    PolicyWorkspaceBundleActivationResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceBundleActivation'
+      description: 단일 리소스 응답
+    PolicyWorkspaceBundleErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - INVALID_REQUEST
+        - PUBLICATION_FORBIDDEN
+        - PUBLICATION_APPROVAL_UNKNOWN
+        - DRAFT_REVISION_UNKNOWN
+        - PUBLICATION_QUORUM_NOT_MET
+        - PUBLICATION_PAYLOAD_NOT_APPROVED
+        - PUBLICATION_APPROVAL_ALREADY_USED
+        - DRAFT_DISCARDED
+        - DRAFT_REVISION_NOT_VALIDATED
+        - PUBLICATION_COMPILE_CHECK_FAILED
+        - WORKSPACE_BUNDLE_INVALID
+        - WORKSPACE_BUNDLE_ACTIVE_ABSENT
+        - WORKSPACE_BUNDLE_UNKNOWN
+        - WORKSPACE_BUNDLE_DIGEST_MISMATCH
+        - WORKSPACE_BUNDLE_ACTIVATION_CONFLICT
+      description: |-
+        워크스페이스 번들 표면의 거부 코드. 이 목록은 세 오퍼레이션의 `Errors:` doc **합집합**과
+        일치한다.
+
+        앞의 아홉은 로직 번들 발행과 **같은 값**이다 — 두 표면이 같은 관문(승인 대조·정족수·컴파일
+        검사·draft 상태)을 지나므로 같은 거절에 다른 코드를 주면 콘솔이 두 벌의 분기를 갖는다.
+        뒤의 다섯만 워크스페이스 고유다.
+    PolicyWorkspaceBundlePublication:
+      type: object
+      required:
+        - workspaceId
+        - bundleVersion
+        - digest
+        - approvalRef
+        - alreadyPublished
+      properties:
+        workspaceId:
+          type: string
+          description: |-
+            발행 대상 워크스페이스. **요청이 정하지 않는다** — 승인 레코드의 스코프에서 나온 값을
+            되돌려 주는 것이라 호출자가 서버의 판정을 확인하는 자리다.
+
+            지갑이 발급한 워크스페이스 식별자를 그대로 쓴다(TSID prefix ws-). policy 가 하는 것은
+            발급이 아니라 **등록**이고 대리 키를 두지 않는다 — 두면 "policy가 아는 워크스페이스"와
+            "지갑이 아는 워크스페이스"가 두 이름을 갖고 그 매핑이 또 하나의 정본 후보가 된다.
+          examples:
+            - ws-1234567890abcdef
+        bundleVersion:
+          type: integer
+          format: int32
+          description: 이 워크스페이스 계열에서 채번한 발행 번호. 첫 저작 발행이 2번이다(1번은 등록이 심은 시드)
+        digest:
+          type: string
+          description: 구획 정규형 바이트의 SHA-256(소문자 hex 64자). 활성화가 번호와 함께 이 값으로 대상을 못박는다
+        approvalRef:
+          type: string
+        alreadyPublished:
+          type: boolean
+          description: |-
+            같은 승인으로 이미 발행돼 있었는지 — **멱등 재전송**이다. 같은 번호·같은 다이제스트가
+            다시 돌아온다.
+
+            **판정 축이 `approvalRef` 인 이유는 내용 해시에 유니크가 없기 때문이다** — 신규
+            워크스페이스가 전부 같은 시드로 출발하므로 내용에 유니크를 걸면 두 번째 등록이
+            실패한다. 그 축으로는 무해한 재시도와 새 발행을 가를 수 없어 승인 참조가 그 자리를 진다.
+
+            같은 승인에 묶인 번들이 있는데 다이제스트가 **다르면** 재시도가 아니라 승인 절차를
+            통과한 것과 다른 물건을 배포하려는 시도다 — 409 PUBLICATION_APPROVAL_ALREADY_USED 다.
+      description: 발행 결과. **활성 구획이 아니다** — 활성화는 별도 액션이다
+    PolicyWorkspaceBundlePublicationResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceBundlePublication'
+      description: 단일 리소스 응답
+    PolicyWorkspaceBundlePublishRequest:
+      type: object
+      required:
+        - bundleName
+        - draftRevisionId
+        - approvalRef
+      properties:
+        bundleName:
+          type: string
+          description: |-
+            **스코프 키가 아니라 승인 대상 대조 축이다.** 승인 개설이 받은 이름과 같아야 지난다 —
+            어긋나면 그 승인은 이 발행의 것이 아니다.
+
+            로직 번들에서 이 값은 OPA 설정의 번들 이름이지만(publication.tsp), 워크스페이스 번들은
+            OPA 에 올라가지 않으므로 여기서는 서빙 좌표가 아니다. **워크스페이스 번들의 신원은
+            이름이 아니라 workspaceId 다.**
+        draftRevisionId:
+          type: string
+          description: |-
+            발행할 저작 revision(TSID prefix dfr-). **바이트의 출처다** — 서버가 이 칸의 저작 세트를
+            재컴파일해 구획을 만든다.
+
+            승인이 이미 이 값을 결속하고 있으므로 중복처럼 보이지만 방어다: 발행자가 자기가 무엇을
+            발행한다고 믿는지를 서버가 그 결속과 대조한다. 어긋나면 409
+            PUBLICATION_PAYLOAD_NOT_APPROVED 다.
+        approvalRef:
+          type: string
+          description: |-
+            발행 승인 레코드 식별자(TSID prefix pba-).
+
+            **레코드 형태만 받는다** — git 발행 채널의 `approval-git-<SHA>` 는 이 표면에 없다.
+            두 형태를 아무 경로에서나 받으면 자기 주장 SHA 로 maker-checker 를 건너뛸 수 있다.
+
+            인가가 이 값으로 스코프를 정하므로 다른 필드보다 먼저 읽힌다.
+          examples:
+            - pba-1234567890abc
+      description: |-
+        워크스페이스 번들 발행 요청. 스테이징 + 검증이며 활성화하지 않는다.
+
+        **`workspaceId` 를 받는 자리가 없다** — 대상 워크스페이스는 `approvalRef` 가 가리키는 승인
+        레코드의 스코프가 정한다.
+    PolicyWorkspaceChallenge:
+      type: object
+      required:
+        - challengeId
+      properties:
+        challengeId:
+          type: string
+      description: |-
+        발급된 챌린지. **비밀이 아니라 바인딩이다** — 난수가 아니라 요청자와 그 행위의 내용에서
+        유도되므로 서버가 재계산해 대조한다. 세션 탈취를 막는 것은 이 값이 아니라 함께 제출하는
+        건별 2FA 응답이다.
+    PolicyWorkspaceChallengeRequest:
+      type: object
+      required:
+        - action
+        - workspaceId
+      properties:
+        action:
+          $ref: '#/components/schemas/PolicyWorkspaceAdminAction'
+        workspaceId:
+          type: string
+          description: 대상 워크스페이스. 어느 행위에서도 필요하다. TSID prefix ws-
+          examples:
+            - ws-1234567890abcdef
+        displayName:
+          type: string
+          description: REGISTER 일 때
+        managerLoginId:
+          type: string
+          description: REGISTER·ASSIGN_MANAGER 일 때
+        managerDisplayName:
+          type: string
+          description: REGISTER·ASSIGN_MANAGER 일 때
+        adminUserId:
+          type: string
+          description: REVOKE_MANAGER·REISSUE_ENROLLMENT_TOKEN 일 때. 대상 매니저의 TSID prefix usr-
+      description: |-
+        챌린지 요청. 행위 이름과 그 행위의 필드를 함께 받아 행위 표면과 같은 방식으로 접는다.
+
+        **필드 검증을 여기서 다시 하지 않는 것이 의도다** — 챌린지는 제출한 내용 그대로에 묶여야 하고,
+        형태 판정은 행위 표면이 한다. 어느 필드가 필요한지는 `action` 이 정한다: REGISTER 는
+        displayName·managerLoginId·managerDisplayName, ASSIGN_MANAGER 는 managerLoginId·
+        managerDisplayName, 나머지 둘은 adminUserId 다.
+    PolicyWorkspaceChallengeResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceChallenge'
+      description: 단일 리소스 응답
+    PolicyWorkspaceDetail:
+      type: object
+      required:
+        - workspaceId
+        - displayName
+        - status
+        - registeredAt
+        - registeredByAdminUserId
+        - managers
+      properties:
+        workspaceId:
+          type: string
+          description: TSID prefix ws-
+          examples:
+            - ws-1234567890abcdef
+        displayName:
+          type: string
+        status:
+          $ref: '#/components/schemas/PolicyWorkspaceRegistrationStatus'
+        registeredAt:
+          type: string
+          format: date-time
+        registeredByAdminUserId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: |-
+            등록을 실행한 어드민. TSID prefix usr-.
+
+            **이 컬럼 이전에 심긴 행은 null 이다** — 주체를 지어내지 않고, 그 등록의 주체는
+            `WORKSPACE_REGISTER` 감사 줄에서 복원한다. 이후의 등록에는 값이 있다.
+        managers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyWorkspaceManager'
+      description: 등록 상세. 회수·재발급의 대상을 콘솔이 여기서 찾는다
+    PolicyWorkspaceDetailResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceDetail'
+      description: 단일 리소스 응답
+    PolicyWorkspaceList:
+      type: object
+      required:
+        - workspaces
+      properties:
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyWorkspaceSummary'
+      description: |-
+        등록된 워크스페이스 목록.
+
+        커서를 두지 않고 서버 상한으로 자른다 — 이 목록의 모수는 파트너사 수이고, 페이지가 필요할
+        만큼 자라기 전에 관리 방식 자체가 달라진다.
+    PolicyWorkspaceListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceList'
+      description: 단일 리소스 응답
+    PolicyWorkspaceManager:
+      type: object
+      required:
+        - adminUserId
+        - loginId
+        - displayName
+        - secondFactorEnrolled
+      properties:
+        adminUserId:
+          type: string
+          description: TSID prefix usr-
+        loginId:
+          type: string
+        displayName:
+          type: string
+        secondFactorEnrolled:
+          type: boolean
+          description: 2팩터가 활성인가. 토큰을 받기만 하고 등록을 마치지 않은 사람은 false 다
+      description: |-
+        매니저 한 줄.
+
+        **2팩터 시드도 토큰 해시도 싣지 않는다** — 나가는 것은 등록 여부 하나다. 로그인 식별자·표시
+        이름을 내는 근거는 소비자가 인증 판정이 아니라 콘솔 표시이고 호출자가 이미 초대 권한으로
+        인가됐다는 것이다.
+    PolicyWorkspaceManagerAssignRequest:
+      type: object
+      required:
+        - managerLoginId
+        - managerDisplayName
+        - challengeId
+        - challengeResponse
+      properties:
+        managerLoginId:
+          type: string
+          description: 로그인 식별자(admin_user.login_id). 등록을 마친 계정이 쓰는 값이면 거부된다
+        managerDisplayName:
+          type: string
+          description: 콘솔 표시용 이름
+        challengeId:
+          type: string
+          description: 이 지명 내용에 결속된 챌린지 id
+        challengeResponse:
+          type: string
+          description: 건별 2FA 응답
+      description: 매니저 지명 요청. **대상 워크스페이스는 경로가 정하므로 본문에 두지 않는다**
+    PolicyWorkspaceManagerEnrolled:
+      type: object
+      required:
+        - adminUserId
+        - enrollmentToken
+        - enrollmentTokenExpiresAt
+      properties:
+        adminUserId:
+          type: string
+          description: TSID prefix usr-
+        enrollmentToken:
+          type: string
+          description: 1회용 등록 토큰 평문. 이 값으로 본인이 비밀번호와 2팩터를 세운다
+        enrollmentTokenExpiresAt:
+          type: string
+          format: date-time
+          description: 토큰 만료 시각. 지나면 재발급이 필요하다
+      description: |-
+        지명·재발급 결과. **등록 토큰 평문은 이 응답에만 존재한다** — 서버는 해시만 보관하고 다시
+        꺼내는 표면이 없다.
+    PolicyWorkspaceManagerEnrolledCreatedResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceManagerEnrolled'
+      description: 생성 성공 응답 (201 Created)
+    PolicyWorkspaceManagerEnrolledResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceManagerEnrolled'
+      description: 단일 리소스 응답
+    PolicyWorkspaceManagerRevoked:
+      type: object
+      required:
+        - adminUserId
+      properties:
+        adminUserId:
+          type: string
+          description: TSID prefix usr-
+      description: 회수 결과. 돌려주는 것은 대상 식별자뿐이다
+    PolicyWorkspaceManagerRevokedResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceManagerRevoked'
+      description: 단일 리소스 응답
+    PolicyWorkspaceRegisterRequest:
+      type: object
+      required:
+        - workspaceId
+        - displayName
+        - managerLoginId
+        - managerDisplayName
+        - challengeId
+        - challengeResponse
+      properties:
+        workspaceId:
+          type: string
+          description: |-
+            지갑이 발급한 워크스페이스 식별자. TSID prefix ws-
+
+            **policy 가 발급하지 않는다** — 이 값의 authority 는 지갑이고 여기서는 등록 대상 좌표다.
+          examples:
+            - ws-1234567890abcdef
+        displayName:
+          type: string
+          description: 콘솔 표시용 이름
+        managerLoginId:
+          type: string
+          description: 첫 매니저의 로그인 식별자(admin_user.login_id)
+        managerDisplayName:
+          type: string
+          description: 첫 매니저의 콘솔 표시용 이름
+        challengeId:
+          type: string
+          description: 이 등록 내용에 결속된 챌린지 id. 챌린지 발급 오퍼레이션이 낸 값이다
+        challengeResponse:
+          type: string
+          description: 건별 2FA 응답. 세션만으로는 워크스페이스를 세울 수 없다
+      description: |-
+        등록 요청. 좌표와 첫 매니저를 함께 받는다 — **매니저 없는 워크스페이스를 만들 수 없는 것이
+        계약이다.** 만들 수 있으면 파트너사가 자기 정책을 저작할 사람 없이 시드 상태로 남는다.
+    PolicyWorkspaceRegistered:
+      type: object
+      required:
+        - workspaceId
+        - alreadyRegistered
+        - managerAdminUserId
+        - enrollmentToken
+        - enrollmentTokenExpiresAt
+      properties:
+        workspaceId:
+          type: string
+          description: 등록된 워크스페이스. TSID prefix ws-
+          examples:
+            - ws-1234567890abcdef
+        alreadyRegistered:
+          type: boolean
+          description: |-
+            이 호출 이전에 이미 등록돼 있었는지. true 면 아래 셋이 전부 null 이다 — 멱등 재호출에
+            토큰을 다시 내면 재생 하나로 매니저 계정을 탈취할 수 있다.
+
+            등록 경합에서 진 쪽도 같은 답을 받는다.
+        managerAdminUserId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 세워진 첫 매니저. TSID prefix usr-. `alreadyRegistered` 가 true 면 null
+        enrollmentToken:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 그 매니저의 1회용 등록 토큰 평문. `alreadyRegistered` 가 true 면 null
+        enrollmentTokenExpiresAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          description: 토큰 만료 시각. `alreadyRegistered` 가 true 면 null
+      description: |-
+        등록 결과.
+
+        **등록 토큰 평문은 이 응답에만 실린다.** 서버는 해시만 보관하므로 다시 꺼낼 수 없고, 잃어버리면
+        재발급이지 조회가 아니다.
+    PolicyWorkspaceRegisteredCreatedResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceRegistered'
+      description: 생성 성공 응답 (201 Created)
+    PolicyWorkspaceRegisteredResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyWorkspaceRegistered'
+      description: 단일 리소스 응답
+    PolicyWorkspaceRegistrationErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_FAILED
+        - INVALID_REQUEST
+        - WORKSPACE_CHALLENGE_INVALID
+        - WORKSPACE_ADMIN_FORBIDDEN
+        - WORKSPACE_TARGET_UNKNOWN
+        - ADMIN_LOGIN_ID_TAKEN
+        - WORKSPACE_SEED_FAILED
+      description: |-
+        워크스페이스 등록 표면의 거부 코드. 이 목록은 일곱 오퍼레이션의 `Errors:` doc **합집합**과
+        일치해야 한다.
+
+        **부재가 한 값으로 접히는 것이 계약이다.** 등록되지 않은 좌표와 그 워크스페이스의 매니저가
+        아닌 대상이 같은 코드·문구를 받는다 — 가르면 이 표면이 어느 좌표가 등록돼 있는지 되읽는
+        오라클이 된다. 매니저 계정의 소속 불변식 위반도 권한 부재와 같은 403 이다.
+    PolicyWorkspaceRegistrationStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - SUSPENDED
+      description: 등록의 상태(`workspace_registration.status`)
+    PolicyWorkspaceStepUpRequest:
+      type: object
+      required:
+        - challengeId
+        - challengeResponse
+      properties:
+        challengeId:
+          type: string
+        challengeResponse:
+          type: string
+      description: 회수·재발급 요청. 대상은 경로가 정하고 본문은 스텝업만 나른다
+    PolicyWorkspaceSummary:
+      type: object
+      required:
+        - workspaceId
+        - displayName
+        - status
+        - registeredAt
+        - registeredByAdminUserId
+      properties:
+        workspaceId:
+          type: string
+          description: TSID prefix ws-
+          examples:
+            - ws-1234567890abcdef
+        displayName:
+          type: string
+        status:
+          $ref: '#/components/schemas/PolicyWorkspaceRegistrationStatus'
+        registeredAt:
+          type: string
+          format: date-time
+        registeredByAdminUserId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: |-
+            등록을 실행한 어드민. TSID prefix usr-.
+
+            **이 컬럼 이전에 심긴 행은 null 이다** — 주체를 지어내지 않고, 그 등록의 주체는
+            `WORKSPACE_REGISTER` 감사 줄에서 복원한다. 이후의 등록에는 값이 있다.
+      description: 목록 한 줄. 매니저는 싣지 않는다 — 상세에서 편다
+    RegistryChangePayload:
+      type: object
+      required:
+        - action
+        - registry
+      properties:
+        action:
+          type: string
+          enum:
+            - registry_change
+        registry:
+          type: string
+      allOf:
+        - $ref: '#/components/schemas/AdminActionPayload'
+    RoleGrantPayload:
+      type: object
+      required:
+        - action
+        - targetAdminId
+        - role
+      properties:
+        action:
+          type: string
+          enum:
+            - role_grant
+        targetAdminId:
+          type: string
+        role:
+          type: string
+      allOf:
+        - $ref: '#/components/schemas/AdminActionPayload'
+    RuleChangePayload:
+      type: object
+      required:
+        - action
+        - module
+      properties:
+        action:
+          type: string
+          enum:
+            - rule_change
+        module:
+          type: string
+      allOf:
+        - $ref: '#/components/schemas/AdminActionPayload'
+    SigningSubmitRequest:
+      type: object
+      required:
+        - workspaceId
+        - sourceVaultId
+        - tokenId
+        - amount
+      properties:
+        workspaceId:
+          type: string
+          description: |-
+            대조 전용(D-50) — 번들 선택·판단 근거가 아니다. vault_ownership 해석 결과와
+            불일치하면 비동기 DENIED + 보안 이상 알림이다(동기 400이 아니다).
+        sourceVaultId:
+          type: string
+          description: 출발 vault. 온체인 주소가 아니라 vault 좌표다
+        tokenId:
+          type: string
+          description: |-
+            토큰 식별자. 정책의 자산 좌표는 이 값 자신이고(D-219 — 체인 무관 asset 키를 두지 않는다),
+            자산 레지스트리는 chain·contract·decimals만 붙인다. 미등재 tokenId는 비동기 DENIED다.
+            워크스페이스 스코프라 정책 로직 번들의 룰은 이 값을 참조할 수 없다.
+        amount:
+          type: string
+          description: 최소 단위 정수 문자열
+      allOf:
+        - $ref: '#/components/schemas/PolicySubmitRequest'
+      description: 서명 연산 공통 좌표
+    SlotBoundChangePayload:
+      type: object
+      required:
+        - action
+        - slot
+      properties:
+        action:
+          type: string
+          enum:
+            - slot_bound_change
+        slot:
+          type: string
+      allOf:
+        - $ref: '#/components/schemas/AdminActionPayload'
+    SweepSubmitRequest:
+      type: object
+      required:
+        - operation
+        - destinationVaultId
+        - depositId
+      properties:
+        operation:
+          type: string
+          enum:
+            - sweep
+        destinationVaultId:
+          type: string
+          description: 내부 집금 목적지 vault — destination.type = internal_vault
+        depositId:
+          type: string
+          description: 집금 대상 입금 — 업무 맥락(payload). 룰 참조 대상이 아니다
+      allOf:
+        - $ref: '#/components/schemas/SigningSubmitRequest'
+    TypedSignatureSubmitRequest:
+      type: object
+      required:
+        - operation
+        - workspaceId
+        - sourceVaultId
+        - tokenId
+        - primaryType
+        - domainChainId
+        - domainVerifyingContract
+        - message
+      properties:
+        operation:
+          type: string
+          enum:
+            - typed_signature
+        workspaceId:
+          type: string
+          description: 대조 전용(D-50) — 서명 연산 공통
+        sourceVaultId:
+          type: string
+          description: 서명 키 vault. 콜백의 서명 권한 바인딩 대조 기준(정규화 명세 §1.3)
+        tokenId:
+          type: string
+          description: |-
+            서명 주체 Wallet의 토큰 좌표(D-67). 자산 레지스트리가 chain을 붙이고(D-219),
+            vault_ownership이 (vault, token)으로 workspace·서명 주소를 해석한다 — 도메인 모델상
+            주소를 가진 실체는 토큰별 Wallet이다
+        primaryType:
+          type: string
+          description: 712 타입 레지스트리 키 → canonical `payload.type`
+        domainChainId:
+          type: string
+          description: |-
+            intent가 고정하는 domain 두 값(정규화 명세 §2.3) — cross-chain/cross-contract
+            replay 차단. `name`·`version`·`salt`는 레지스트리가 정의한다.
+            domainChainId는 tokenId의 chain과 대조되며 불일치는 비동기 DENIED다(D-67)
+        domainVerifyingContract:
+          type: string
+        message:
+          type: object
+          unevaluatedProperties: {}
+          description: |-
+            메시지 전문 — 모든 필드를 정확값으로 고정한다(정규화 명세 §2.3) → canonical
+            `payload.fields.*`. wire는 자유 형식이고 경로·타입 검증은 712 타입 레지스트리가 한다
+      allOf:
+        - $ref: '#/components/schemas/PolicySubmitRequest'
+      description: |-
+        EIP-712 서명 요청(D-62·D-67). 등록제 연산 — 레지스트리 미등재 primaryType은 비동기 DENIED고,
+        레지스트리가 비어 있는 동안은 전부 거부다(룰 스키마 명세 §1.3).
+        자산 이동 연산이 아니라 amount가 없다. 좌표는 다른 서명 연산과 같은 vault×token이고(D-49·D-67·D-219),
+        chain은 tokenId 해석에서 온다.
+    WithdrawalSubmitRequest:
+      type: object
+      required:
+        - operation
+        - destinationAddress
+      properties:
+        operation:
+          type: string
+          enum:
+            - withdrawal
+        destinationAddress:
+          type: string
+          description: 외부 목적지 주소 — destination.type = external_address. 주소록 등재 여부는 address_ownership PIP가 판정한다(D-49)
+      allOf:
+        - $ref: '#/components/schemas/SigningSubmitRequest'
+    WorkspaceRuleChangePayload:
+      type: object
+      required:
+        - action
+        - module
+      properties:
+        action:
+          type: string
+          enum:
+            - workspace_rule_change
+        module:
+          type: string
+      allOf:
+        - $ref: '#/components/schemas/AdminActionPayload'
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: Bearer
+    ApiKeyAuth:
+      type: apiKey
+      in: cookie
+      name: policy_admin_session
+x-tagGroups:
+  - name: 판단
+    tags:
+      - Request
+  - name: 집행
+    tags:
+      - Callback
+      - Approvals
+  - name: 수집
+    tags:
+      - Partner
+      - PIP Source Kinds
+  - name: 인증
+    tags:
+      - Admin Auth
+      - Bootstrap
+  - name: 디렉토리
+    tags:
+      - Admins
+      - Workspace Registration
+  - name: 발행
+    tags:
+      - Policy Draft
+      - Policy Bundle
+      - Workspace Bundle
+      - Bundle Serving

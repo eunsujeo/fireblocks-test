@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/workspace-registration/policy-workspace-registration-challenge.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-challenge.md",
+  "route": "/reference/policy/workspace-registration/policy-workspace-registration-challenge",
+  "title": "스텝업 챌린지 발급",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-challenge",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Workspace Registration\n    - POST\nseo:\n  description: >-\n    스텝업 챌린지 발급. 아무것도 저장하지 않는다 —… Reference for the POST\n    /platform/workspaces/challenges endpoint in the Wallet Policy Engine\n    Internal API API.\nsidebar:\n  label: 스텝업 챌린지 발급\n  badge: POST\ntitle: 스텝업 챌린지 발급\ntype: openapi-operation\n---\n스텝업 챌린지 발급. **아무것도 저장하지 않는다** — 본문을 정규화해 챌린지만 답한다.\n\nErrors:\n- 400 INVALID_REQUEST: action 이 등재된 값이 아니거나 그 행위의 필드가 없다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다\n\n<Operation source=\"reference-policy\" id=\"policy-workspace-registration-challenge\" />\n"
+}

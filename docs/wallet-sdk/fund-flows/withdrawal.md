@@ -1,0 +1,272 @@
+---
+title: 출금 (Withdrawal)
+description: 워크스페이스 vault에서 외부로, 그리고 계정 지갑의 오입금 반환
+---
+
+_읽는 사람: 파트너사 개발자. 워크스페이스 vault에서 나가는 출금 셋과 그 확인 근거를 설명합니다._
+
+출금은 워크스페이스 vault에서 외부로 자금이 나가는 이동이고, 계정 지갑에서 직접 나가는 오입금
+반환도 여기 들어갑니다. 목적지가 무엇이냐에 따라 앞 구간이 달라지고, 달라진 둘이 만난 뒤는 한
+절차입니다. 아래 세 다이어그램이 그 순서입니다.
+
+## VASP 출금은 상대 거래소와 정보를 두 번 주고받습니다
+
+이 흐름은 계약에만 있습니다. 지금 `CUSTODIAL` 목적지를 지정하면 첫 검증에서 400
+`ACCOUNT_WITHDRAWAL_CUSTODIAL_UNSUPPORTED` 가 돌아옵니다.
+
+다이어그램의 배역은 여섯입니다.
+
+- **상대 거래소 (VASP)**: 자산을 받는 상대편 가상자산사업자입니다
+- **최종 사용자**: 파트너사 서비스를 쓰는 사람입니다
+- **파트너사**: Wallet SDK를 도입한 회사, 곧 Workspace 하나입니다
+- **Wallet SDK**: 파트너 대상 API를 받아 정책 엔진에 판단을 묻고 서명 인프라에 제출하는 서버 컴포넌트입니다
+- **지갑 원장**: 출금·트래블룰·주소록 기록을 담는 Wallet SDK 쪽 저장소입니다
+- **트래블룰 게이트웨이**: 송·수신 정보를 사업자끼리 교환하는 트래블룰 경로를 중개합니다
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant EX as 상대 거래소 (VASP)
+    participant U as 최종 사용자
+    participant PT as 파트너사
+    participant SYS as Wallet SDK
+    participant DB as 지갑 원장
+    participant TR as 트래블룰 게이트웨이
+
+    U ->> +PT : 출금 화면 조회
+    PT ->> +SYS : 연동 VASP 목록 조회<br/>GET /travel-rules/vasps
+    SYS ->> +TR : 연동 VASP 목록 조회
+    TR -->> -SYS : VASP 목록 반환
+    SYS -->> -PT : VASP 목록 반환
+    PT -->> -U : VASP 목록 반환
+    U ->> U : VASP 선택, 수신인 이름·지갑 주소·토큰 입력
+    U ->> PT : 출금 요청
+    PT ->> PT : AML·FDS 검사
+    PT ->> +SYS : POST /accounts/{accountId}/withdrawals<br/>CUSTODIAL · vaspId · 송·수신인 PII · 지갑 주소 · 토큰 · 금액 · 출발 vault
+    SYS ->> DB : 계정 귀속 출금 / 출금 정보 저장
+
+    SYS ->> +TR : 수신인 지갑 주소 확인<br/>vaspId · address
+    TR ->> +EX : 수탁 지갑인지 확인<br/>vaspId · address
+    EX -->> -TR : OK
+    TR -->> -SYS : VASP 내 지갑 보유 여부 응답
+
+    alt 지갑 보유 여부 확인 실패
+        SYS ->> PT : 출금 실패 전달<br/>고객 정보 불일치 · withdrawalId
+    end
+
+    SYS ->> DB : 트래블룰 / 식별자 채번, withdrawalId 연결
+    SYS ->> +TR : VASP 간 PII 교환 요청<br/>트래블룰 식별자 · 송·수신인 PII · 지갑 주소 · 토큰 · 금액
+    TR ->> +EX : 송·수신인 PII 검증 요청
+    EX -->> -TR : 요청 응답 w/ 검증 UUID
+    TR -->> -SYS : 교환 요청 응답 w/ 트래블룰 식별자 · 검증 UUID
+    SYS -->> DB : 트래블룰 / 식별자로 검증 UUID 업데이트
+
+    SYS -->> -PT : 출금 정보 반환<br/>지갑 검증 여부 · withdrawalId · 트래블룰 식별자
+    Note right of SYS : 출금 추적용 식별자를 돌려줍니다
+    PT ->> PT : 트래블룰 기록 (withdrawalId 기준)
+
+    Note over EX, TR : 상대 VASP의 교환 응답이 오면 내부 상태를 바꾸고 파트너사에 알립니다
+
+    EX ->> +TR : 송·수신인 PII 검증 응답 (콜백)
+    TR -->> -EX : OK
+
+    TR ->> SYS : PII 검증 응답<br/>검증 UUID · 트래블룰 상태 (SUCCESS · DENIED)
+    SYS ->> DB : 트래블룰 / 검증 UUID로 상태 업데이트
+
+    SYS ->> PT : 통지 / 트래블룰 완료<br/>withdrawalId · 트래블룰 상태
+    Note left of SYS : 여기까지가 트래블룰 검증 흐름입니다
+    PT ->> PT : 트래블룰 상태 업데이트 (withdrawalId 기준)
+```
+
+## 개인 지갑 출금은 주소록 등재가 선행됩니다
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 최종 사용자
+    participant PT as 파트너사
+    participant SYS as Wallet SDK
+    participant DB as 지갑 원장
+
+    U ->> PT : 개인 지갑 등록
+    PT ->> +SYS : POST /accounts/{accountId}/address-books/nonce
+    SYS -->> -PT : nonce 발급
+    PT ->> PT : 개인 지갑으로 서명
+    PT ->> +SYS : POST /accounts/{accountId}/address-books
+    SYS ->> SYS : nonce와 서명 검증
+    SYS ->> DB : 계정 주소록 / 화이트리스트 주소 저장
+    SYS -->> -PT : 개인 지갑 등록 완료 응답
+
+    Note over PT, SYS : 개인 지갑 등록 절차 완료
+
+    U ->> PT : 개인 지갑으로 출금 요청
+
+    PT ->> PT : AML·FDS 검사
+    PT ->> +SYS : POST /accounts/{accountId}/withdrawals<br/>NON_CUSTODIAL · 수신인 지갑 주소 · 토큰 · 금액 · 출발 vault
+    SYS ->> +DB : 계정 주소록 / 등록 여부 조회
+    DB -->> -SYS : 등재 여부 응답 (address 기준)
+    Note left of SYS : 미등재는 거절 사유가 아닙니다 — 등재 여부를 정책 입력으로 넘기고 허용 여부는 정책이 판정합니다
+
+    SYS ->> DB : 계정 귀속 출금 / 출금 정보 저장<br/>등재분이면 주소록 참조
+    SYS -->> -PT : 출금 정보 반환<br/>지갑 검증 여부 · withdrawalId
+    Note left of SYS : 개인 지갑이므로 트래블룰 검증은 지나가고 기록만 남깁니다
+    PT ->> PT : 트래블룰 기록 (withdrawalId 기준)
+```
+
+## 두 경로가 합쳐진 뒤는 한 절차입니다
+
+앞 다이어그램에 없던 배역은 다섯입니다.
+
+- **KYT 심사**: KYT 검증을 수행하고 결과를 돌려주는 외부 심사입니다
+- **정책 엔진**: 자금을 움직이는 요청이 서명 인프라로 가기 전에 그 요청을 심사하는 별도 시스템입니다
+- **정책 저장소**: 판단 요청과 평가 결과, 서명 인가를 담는 정책 엔진 쪽 저장소입니다
+- **이벤트 스트림**: 판단 완료 이벤트를 구독자에게 나르는 경로입니다
+- **뒷단 플랫폼**: 지갑과 키를 보관하고 트랜잭션을 제출하는 외부 플랫폼입니다
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant PT as 파트너사
+    participant SYS as Wallet SDK
+    participant DB as 지갑 원장
+    participant KYT as KYT 심사
+    participant POL as 정책 엔진
+    participant PDB as 정책 저장소
+    participant EVT as 이벤트 스트림
+    participant PROV as 뒷단 플랫폼
+
+    Note right of SYS : 여기부터 출금 프로세스가 진행됩니다
+    opt KYT
+        SYS ->> KYT : KYT 검증
+        KYT -->> SYS : KYT OK
+    end
+    SYS ->> +POL : 판단 요청<br/>withdrawalId · 출발 vault · 토큰 · 금액 · 목적지 주소
+    POL -->> -SYS : 202 접수 (판단 요청 식별자)
+    Note over POL, PDB : 이하 평가는 내부 큐에서 비동기로 돕니다.<br/>목적지 주소의 주소록 등재 여부는 평가 시점에 PIP로 읽습니다
+    POL ->> PDB : 판단 요청 저장
+    POL ->> POL : 정책 평가
+    POL ->> PDB : 평가 결과 저장 (승인)
+    POL ->> PDB : 서명 인가 발급 (TTL · 1회용)
+    POL ->> EVT : 판단 완료 이벤트
+    EVT ->> SYS : 구독 수신
+    SYS ->> DB : 계정 귀속 출금 / 트랜잭션 시작 상태 마킹
+    SYS ->> PROV : 출금 트랜잭션 요청<br/>externalTxId = 서명 인가 식별자
+    SYS ->> PT : 통지 / withdrawalId · 출금 시작
+```
+
+이어지는 다이어그램에 새로 나오는 배역은 둘입니다.
+
+- **Co-Signer**: 서명 인프라 쪽에서 서명 직전에 정책 엔진 콜백으로 승인을 묻는 구성 요소입니다
+- **온체인**: 블록체인 네트워크입니다
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant PROV as 뒷단 플랫폼
+    participant CS as Co-Signer
+    participant POL as 정책 엔진
+    participant PDB as 정책 저장소
+    participant OC as 온체인
+    participant SYS as Wallet SDK
+    participant DB as 지갑 원장
+    participant TR as 트래블룰 게이트웨이
+    participant PT as 파트너사
+
+    PROV ->> CS : Co-Signer 승인 요청
+    CS ->> +POL : 콜백으로 승인 요청
+    POL ->> PDB : 승인 여부 확인
+    POL ->> PDB : 서명 인가 소비 저장
+    Note over POL, CS : 옛 설계에는 여기서 파트너사에 되묻는 구간이 있었습니다.<br/>지금 콜백 경로는 외부를 호출하지 않고, 파트너 심사는 평가 시점에 PIP로 수집합니다
+    POL -->> -CS : OK
+    CS -->> PROV : OK
+    PROV -->> OC : 트랜잭션
+
+    Note over SYS, PROV : 트랜잭션 전파 이후
+    PROV ->> +SYS : 출금 감지 통지<br/>뒷단 트랜잭션 식별자 · txHash
+    SYS ->> DB : 계정 귀속 출금 / 뒷단 식별자로 withdrawalId 조회
+    SYS ->> DB : 계정 귀속 출금 / 트랜잭션 상태 변경
+
+    SYS ->> DB : 트래블룰 / withdrawalId로 트래블룰 조회
+    SYS ->> TR : 조회한 검증 UUID를 키로 txHash 업데이트
+
+    SYS ->> PT : 통지 / withdrawalId · 출금 완료
+
+    SYS -->> -PROV : OK
+```
+
+서명 인가는 승인된 판단 요청이 발급하는 한 번만 쓸 수 있는 서명 근거입니다. **옛 설계는 판단
+요청에 그 인가를 동기로 돌려줬습니다.** 지금은 202로 접수만 하고 결과를 이벤트로 냅니다. 그
+2단계 규율은 [서명 게이트](/policy/signing-gate)에서 정합니다.
+
+## 예약은 지갑에서 나가는 송금 셋에 함께 적용됩니다
+
+계정 귀속 출금·자기 귀속 출금·vault 이체가 같은 가용 잔액을 예약해서 나갑니다. 가용 잔액은
+온체인 잔액에서 동결분과 진행 중 출금 예약분을 뺀 값입니다. 하나만 빼면 vault 이체로 옮긴 뒤
+출금하는 우회 경로가 생깁니다.
+
+**온체인 충분성은 요청 시점에 보지 않습니다.** 예약은 Wallet SDK 원장 기준이라, 예약을 통과한
+요청도 제출 단계에서 잔액 부족으로 실패합니다.
+
+예약이 어떤 단계에서 잡히고 언제 풀리는지는 [자금 동결](/fund-flows/release)에서 정합니다.
+
+## 출금 종류를 나누는 기준은 자금 귀속입니다
+
+자금 귀속은 그 자금이 Account 것인지 Workspace 것인지입니다.
+
+| 종류 | 자금 귀속 | 목적지 | 요청 주체 |
+|---|---|---|---|
+| 계정 귀속 출금 | 최종 사용자 | VASP · 개인 지갑 | 사용자 · 시스템 |
+| 자기 귀속 출금 | 회사 | 회사 외부 지갑 (등재분 한정) | 운영자 |
+| 계정 지갑 출금 | 최종 사용자 | 지정한 입금 건의 발신처 | 운영자 (오입금 반환) |
+
+스코프 축은 어떤 데이터가 어느 스코프 키로 격리되는지의 분류입니다. 계정 귀속 출금은 tenant
+축이고 자기 귀속 출금은 workspace 축이라, 같은 테이블에 담으면 어느 스코프로 조회해야 하는지가
+행마다 달라집니다.
+
+## 계정 지갑 출금은 오입금 반환 하나입니다
+
+계정 지갑 출금(`aww-`)은 계정 지갑에서 직접 밖으로 나가는 유일한 경로입니다. 앞의 둘과
+달리 워크스페이스 vault를 거치지 않습니다.
+
+- **목적지**: 임의 주소가 아니라 지정한 입금 건의 발신처입니다. 잘못 들어온 자금을 온 곳으로
+  돌려보내는 것이 알려진 용도의 전부입니다. 발신처가 기록되지 않은 입금 건은 지정할 수 없습니다.
+  목적지 근거가 없기 때문입니다. 발신처 밖까지 허용할지는 아직 정하지 않았습니다.
+- **요청 주체**: 운영자뿐입니다. 파트너사 API에는 이 경로가 없습니다.
+- **인가**: 어드민 액션이 승인자의 확인을 거쳐야 실행되는 통제인 승인 게이팅이 서명 인가에
+  더해집니다. 승인에 필요한 최소 인원인 정족수가 필요하고 요청자와 승인자가 같을 수 없습니다.
+  일곱 이동 중 승인이 붙는 출금은 이것뿐입니다.
+
+계정 지갑 자산을 워크스페이스 vault로 모으는 이동인 [집금](/fund-flows/sweep)과 같은 자원을
+씁니다. 입금 건을 지정하고 그 건의 해제를 겸합니다. 그래서 반환된 건은 `RELEASED`를 거치지 않고
+`WITHDRAWN`으로 직행합니다.
+
+**전용 시퀀스는 이 문서군에 없습니다.** 트래블룰 교환이 없는 점 외에는 위 "두 경로가 합쳐진 뒤"의
+서명·제출 구간을 그대로 거칩니다.
+
+## 목적지에 따라 확인 근거가 다릅니다
+
+개인 지갑은 최종 사용자의 소유 증명이 필요합니다. 소유 증명은 개인 지갑을 주소록에 올리기 전에
+최종 사용자가 그 키로 서명해 보이는 절차입니다. nonce에 서명해 그 주소를 자기 것으로 증명하고 그
+결과가 [주소록](/fund-flows/address-book)에 등재됩니다.
+
+**VASP 지갑은 소유 증명을 요구하지 않습니다.** 트래블룰이 그 역할을 대신하므로 제3자 송금이
+가능합니다. 파트너사 사용자가 상대 거래소의 다른 사람에게 보낼 수 있습니다. 다만 이때는 최소한
+실명 정보가 트래블룰 정보에 들어갑니다.
+
+## 화이트리스트는 거절 사유가 아닙니다
+
+미등재가 곧 거부는 아닙니다. 등재 여부가 정책 입력으로 들어가고 정책이 그것을 보고
+판단합니다.
+
+등재·회수와 그 반영 시점은 [주소록](/fund-flows/address-book)에 있습니다.
+
+**계정이 비활성이면 출금이 막힙니다.** 응답은 전용 에러 코드가 아니라 404입니다. 자세한 이유는
+[계정 계층](/accounts-wallets/accounts)에 있습니다.
+
+## 다음으로
+
+출금은 시작·완료·실패를 각각 통지합니다 —
+`WITHDRAWAL_INITIATED`·`WITHDRAWAL_FINALIZED`·`WITHDRAWAL_FAILED`. 통지 본문과 중복 제거 규칙은
+[웹훅](/fund-flows/webhooks)에 있습니다.
+
+출금이 예약하는 가용 잔액과 그 예약이 언제 풀리는지는 [자금 동결](/fund-flows/release)에 있습니다.

@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/admin-auth/policy-admin-auth-login.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-login.md",
+  "route": "/reference/policy/admin-auth/policy-admin-auth-login",
+  "title": "어드민 로그인",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-login",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Admin Auth\n    - POST\nseo:\n  description: >-\n    로그인. 성공하면 2FA 챌린지를 반환한다. Reference for the POST /auth/login endpoint in the\n    Wallet Policy Engine Internal API API.\nsidebar:\n  label: 어드민 로그인\n  badge: POST\ntitle: 어드민 로그인\ntype: openapi-operation\n---\n로그인. 성공하면 2FA 챌린지를 반환한다.\n\n실패 응답은 균일하다 — 자격 불일치·계정 부재·잠금을 구분하지 않아 계정 존재를 노출하지 않는다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 JSON 형태가 아니다\n- 401 AUTHENTICATION_FAILED: 그 밖의 모든 실패. 바디 부재도 여기로 접힌다\n\n<Operation source=\"reference-policy\" id=\"policy-admin-auth-login\" />\n"
+}

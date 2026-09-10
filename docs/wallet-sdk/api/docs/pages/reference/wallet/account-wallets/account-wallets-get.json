@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet/account-wallets/account-wallets-get.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/account-wallets/account-wallets-get.md",
+  "route": "/reference/wallet/account-wallets/account-wallets-get",
+  "title": "계정 지갑 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/account-wallets/account-wallets-get",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Account Wallets\n    - GET\nseo:\n  description: >-\n    계정 지갑 상세 조회 Reference for the GET\n    /api/v1/accounts/{accountId}/account-wallets/{accountWalletId} endpoint in\n    the Wallet API API.\nsidebar:\n  label: 계정 지갑 상세 조회\n  badge: GET\ntitle: 계정 지갑 상세 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-wallet\" id=\"account-wallets-get\" />\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account.md",
+  "route": "/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account",
+  "title": "타 VASP에서 주소 검증 요청",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - VerifyVASP Inbound\n    - POST\nseo:\n  description: >-\n    수취 계좌 검증(inbound). 결과는 로그만 남기고… Reference for the POST\n    /api/v1/verifyvasp/verifications/account endpoint in the Travel Rule Gateway\n    API API.\nsidebar:\n  label: 타 VASP에서 주소 검증 요청\n  badge: POST\ntitle: 타 VASP에서 주소 검증 요청\ntype: openapi-operation\n---\n수취 계좌 검증(inbound). 결과는 로그만 남기고 저장하지 않는다.\n\n<Operation source=\"reference-travel-rule\" id=\"verify-vasp-inbound-verifications-account\" />\n"
+}

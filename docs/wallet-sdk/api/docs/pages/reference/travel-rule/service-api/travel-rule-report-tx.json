@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/travel-rule/service-api/travel-rule-report-tx.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-report-tx.md",
+  "route": "/reference/travel-rule/service-api/travel-rule-report-tx",
+  "title": "PII 검증에 대한 tx 업데이트",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-report-tx",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Service API\n    - POST\nseo:\n  description: >-\n    검증에 대한 tx 보고. 성공 여부(boolean) 반환. Reference for the POST\n    /api/v1/travel-rule/checks/tx endpoint in the Travel Rule Gateway API API.\nsidebar:\n  label: PII 검증에 대한 tx 업데이트\n  badge: POST\ntitle: PII 검증에 대한 tx 업데이트\ntype: openapi-operation\n---\n검증에 대한 tx 보고. 성공 여부(boolean) 반환.\n\n<Operation source=\"reference-travel-rule\" id=\"travel-rule-report-tx\" />\n"
+}

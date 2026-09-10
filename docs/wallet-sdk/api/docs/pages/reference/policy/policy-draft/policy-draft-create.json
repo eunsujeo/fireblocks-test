@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-draft/policy-draft-create.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-create.md",
+  "route": "/reference/policy/policy-draft/policy-draft-create",
+  "title": "draft 생성",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-create",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Draft\n    - POST\nseo:\n  description: >-\n    draft와 첫 칸을 함께 만든다. Reference for the POST /policy-drafts endpoint in the\n    Wallet Policy Engine Internal API API.\nsidebar:\n  label: draft 생성\n  badge: POST\ntitle: draft 생성\ntype: openapi-operation\n---\ndraft와 첫 칸을 함께 만든다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 JSON 형태가 아니거나 name·content가 없다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없거나 여럿이다\n- 409 DRAFT_NAME_DUPLICATE: 같은 이름의 활성 draft가 있다\n- 413 DRAFT_CONTENT_TOO_LARGE: 본문이 256 KiB를 넘는다\n\n<Operation source=\"reference-policy\" id=\"policy-draft-create\" />\n"
+}

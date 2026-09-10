@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-10-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-10-0.md",
+  "route": "/changelog/v0-10-0",
+  "title": "v0.10.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-10-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.10.0\ndate: \"2026-09-01T12:00:00+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.10.0\"\n---\n\n### 문서\n\n- **정책 엔진 탭에 [전체 지도](/policy/map)를 새로 냈습니다.** 저작 산출물이 가는 경로(번들 탑재 ·\n  빌드 전용 · 런타임 조립)과 평가 입력 문서의 조립을 다이어그램 두 장과 표 하나로 요약했습니다.\n  각 조각의 정의는 기존 소유 페이지가 그대로 들고, 지도는 첫 진입점입니다.\n"
+}

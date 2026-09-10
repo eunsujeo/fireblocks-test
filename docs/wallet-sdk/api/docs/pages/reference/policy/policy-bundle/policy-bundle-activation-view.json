@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-bundle/policy-bundle-activation-view.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-activation-view.md",
+  "route": "/reference/policy/policy-bundle/policy-bundle-activation-view",
+  "title": "활성 번들 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-activation-view",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Bundle\n    - GET\nseo:\n  description: >-\n    지금 활성인 번들. 승인 화면의… Reference for the GET\n    /platform/policy-bundles/activations/{bundleName} endpoint in the Wallet\n    Policy Engine Internal API API.\nsidebar:\n  label: 활성 번들 조회\n  badge: GET\ntitle: 활성 번들 조회\ntype: openapi-operation\n---\n지금 활성인 번들. 승인 화면의 diff 기준선이다 — 서빙 표면(/bundles/&#123;name&#125;/active)이\n같은 사실을 주지만 그쪽 자격은 서비스 크리덴셜이라 어드민 세션으로는 닿지 않는다.\n\n최초 발행 이전에는 404 PUBLICATION_ACTIVE_ABSENT다. 빈 봉투를 200으로 주면\n\"기준선이 없다\"와 \"기준선을 못 읽었다\"가 같은 자리에 섞인다.\n\nErrors:\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다\n- 404 PUBLICATION_ACTIVE_ABSENT: 그 이름으로 활성인 번들이 없다\n\n<Operation source=\"reference-policy\" id=\"policy-bundle-activation-view\" />\n"
+}

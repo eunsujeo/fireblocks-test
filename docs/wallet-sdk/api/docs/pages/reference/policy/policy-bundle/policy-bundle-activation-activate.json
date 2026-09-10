@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-bundle/policy-bundle-activation-activate.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-activation-activate.md",
+  "route": "/reference/policy/policy-bundle/policy-bundle-activation-activate",
+  "title": "번들 활성화",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-activation-activate",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Bundle\n    - POST\nseo:\n  description: >-\n    활성 포인터 전이. 발행된 번들만 대상이 된다. Reference for the POST\n    /platform/policy-bundles/activations endpoint in the Wallet Policy Engine\n    Internal API API.\nsidebar:\n  label: 번들 활성화\n  badge: POST\ntitle: 번들 활성화\ntype: openapi-operation\n---\n활성 포인터 전이. 발행된 번들만 대상이 된다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 없거나 bundleName·contentHash가 형태를 벗어났다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다\n- 404 PUBLICATION_BUNDLE_UNKNOWN: 그 내용 해시로 발행된 번들이 없다\n\n<Operation source=\"reference-policy\" id=\"policy-bundle-activation-activate\" />\n"
+}

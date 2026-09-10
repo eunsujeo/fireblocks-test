@@ -1,0 +1,12 @@
+{
+  "contentType": "doc",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/travel-rule.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule.md",
+  "route": "/reference/travel-rule",
+  "title": "Travel Rule Gateway API",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule",
+  "version": "",
+  "markdown": "---\nseo:\n  description: >-\n    travel-rule-gateway HTTP API. Gateway가 연동하고 있는 VV의 Enclave는 별도 MYSQL을 운영해야하며\n    이 DB에서는 통신한 데이터 전문을 기록하고 있다. 해당 전문은…\nsidebar:\n  label: Overview\ntitle: Travel Rule Gateway API\n---\ntravel-rule-gateway HTTP API.\nGateway가 연동하고 있는 VV의 Enclave는 별도 MYSQL을 운영해야하며 이 DB에서는 통신한 데이터 전문을 기록하고 있다.\n해당 전문은 모두 암호화되고 있으며 암호화의 키는 사용측에서 발행하고 관리한다. (API 구현을 통해 암호화키 전달)\n따라서 암호화 되어있다고는 하지만 개인정보에 해당하는 데이터이므로 적격기관에서 운용하고 관리해야한다.\n이 Gateway는 트래블룰 처리를 위한 인터페이스 통합역할을 할수있지만 데이터 보관권한은 없으므로 DB와 Enclave는 보유대상이 아닌 연동대상이다.\n\n<ApiOverview source=\"reference-travel-rule\" />\n\n## Service API\n\n트래블룰 게이트웨이 서비스 표면.\n\n<ApiTagOperations source=\"reference-travel-rule\" tag=\"service-api\" />\n\n## VerifyVASP Inbound\n\nVerifyVASP 인바운드 수신.\n\n<ApiTagOperations source=\"reference-travel-rule\" tag=\"verifyvasp-inbound\" />\n"
+}

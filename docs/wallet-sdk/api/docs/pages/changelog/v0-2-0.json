@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-2-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-2-0.md",
+  "route": "/changelog/v0-2-0",
+  "title": "v0.2.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-2-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.2.0\ndate: \"2026-08-26T18:00:00+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.2.0\"\n---\n\n### 문서\n\n- **변경 이력·알려진 제약·구현 대기를 갈랐습니다.** 한 페이지에 섞여 있던 셋이 각자 답하는\n  질문이 다르고 갱신하는 주체가 다릅니다 — 변경 이력은 *무엇이 언제 바뀌었나*,\n  [알려진 제약](/start/known-limits)은 *그래서 지금 무엇이 막히나*,\n  구현 대기는 *계약 중 무엇이 아직 없나*입니다.\n- **구현 대기가 생겼습니다.** 계약에 있는데 아직 동작하지 않는 것의\n  전수입니다. 손으로 적은 목록이 아니라 **빌드마다 계약과 코드를 대조해 다시 셉니다.** 지금\n  **계약 118개 중 73개**가 동작하지 않고, 그중 29개는 경로가 살아 있고 값이 가짜인 「모형\n  응답」이라 연동이 통과하지만 값을 믿으면 안 됩니다.\n- **변경 이력이 버전 단위가 됐습니다.** 항목 하나가 릴리즈 하나이고, 그 버전이 곧 발행 태그\n  입니다. [`/changelog/rss.xml`](/changelog/rss.xml)로 구독하실 수 있습니다. 헤더에 지금 보고\n  계신 문서의 버전이 뜹니다 — **지금은 `v0`이고, 계약 118개 중 73개가 아직 동작하지 않는 동안\n  0점대를 유지합니다.**\n- **본문이 한 단계 커졌습니다.** 기준 16px → 17px. 단 폭이 같은 비율로 넓어져 **줄당 글자 수는\n  그대로입니다.** 탭 아이콘도 지갑 모양으로 바꿨습니다.\n"
+}

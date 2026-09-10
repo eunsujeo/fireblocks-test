@@ -1,0 +1,2919 @@
+openapi: 3.1.0
+info:
+  title: Wallet Admin API
+  version: 0.0.0
+tags:
+  - name: Initialize
+    description: 최초 어드민 부트스트랩. 한 번만 통과한다.
+  - name: Auth
+    description: 어드민 인증. 세션과 2FA를 다룬다.
+  - name: Users
+    description: 어드민 사용자 관리.
+  - name: Roles
+    description: 어드민 역할과 권한 부여.
+  - name: Tenants
+    description: 파트너사 단위 스코프. 파트너 대상 API의 격리 키다.
+  - name: API Keys
+    description: 파트너사 API 키 발급·회수. 스코프가 여기서 정해진다.
+  - name: Networks
+    description: 블록체인 네트워크 카탈로그. 계열에 따라 주소 체계가 갈린다.
+  - name: Tokens
+    description: 네트워크 위의 자산. 유일성은 (workspace, network, 컨트랙트 주소)에서 성립한다.
+  - name: Workspace Vaults
+    description: workspace에 귀속된 vault. 용도는 태그로 고객이 정의한다.
+  - name: Approvals
+    description: maker-checker 승인. 정족수 obligation의 이행 표면이고, 요청자와 승인자는 같을 수 없다.
+  - name: Policies
+    description: 정책 엔진 연동 표면.
+paths:
+  /admin/api/v1/approvals:
+    get:
+      operationId: Approvals_list
+      summary: 승인 진행 내역 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Approvals
+  /admin/api/v1/approvals/{approvalId}:
+    post:
+      operationId: Approvals_approve
+      summary: 단건 승인
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - {}
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Approvals
+    get:
+      operationId: Approvals_get
+      summary: 승인 진행 내역 상세 조회
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - {}
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Approvals
+  /admin/api/v1/auth/2fa:
+    post:
+      operationId: Auth_auth2fa
+      summary: 2FA 인증
+      parameters: []
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Auth2FaRequest'
+  /admin/api/v1/auth/2fa/register:
+    post:
+      operationId: Auth_register2Fa
+      summary: 2FA OTP 등록
+      parameters: []
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register2FaRequest'
+  /admin/api/v1/auth/join:
+    post:
+      operationId: Auth_join
+      summary: 유저 가입 (초대 수락)
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinUserResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinUserRequest'
+  /admin/api/v1/auth/login:
+    post:
+      operationId: Auth_login
+      summary: 로그인
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Auth2FaResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginUserRequest'
+  /admin/api/v1/networks:
+    get:
+      operationId: Networks_list
+      summary: 네트워크 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Networks
+  /admin/api/v1/networks/{networkId}:
+    get:
+      operationId: Networks_get
+      summary: 네트워크 상세 조회
+      parameters:
+        - name: networkId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Networks
+  /admin/api/v1/networks/{networkId}/status:
+    post:
+      operationId: Networks_changeStatus
+      summary: 네트워크 상태 변경
+      parameters:
+        - name: networkId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/NetworkResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Networks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+  /admin/api/v1/policies:
+    post:
+      operationId: Policies_create
+      summary: Policy 생성
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/PolicyResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Policies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePolicyRequest'
+    get:
+      operationId: Policies_list
+      summary: Policy 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Policies
+  /admin/api/v1/policies/{policyId}:
+    get:
+      operationId: Policies_get
+      summary: Policy 상세 조회
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Policies
+  /admin/api/v1/policies/{policyId}/status:
+    post:
+      operationId: Policies_changeStatus
+      summary: Policy 상태 변경
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/PolicyResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Policies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+  /admin/api/v1/roles:
+    post:
+      operationId: Roles_create
+      summary: Role 생성
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/RoleResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+    get:
+      operationId: Roles_list
+      summary: Role 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Roles
+  /admin/api/v1/roles/{roleId}:
+    get:
+      operationId: Roles_get
+      summary: Role 상세 조회
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Roles
+  /admin/api/v1/roles/{roleId}/status:
+    post:
+      operationId: Roles_changeStatus
+      summary: Role 상태 변경
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/RoleResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+  /admin/api/v1/tenants:
+    post:
+      operationId: Tenants_create
+      summary: 테넌트 생성
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/TenantResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Tenants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+    get:
+      operationId: Tenants_list
+      summary: 테넌트 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Tenants
+  /admin/api/v1/tenants/{tenantId}:
+    get:
+      operationId: Tenants_get
+      summary: 테넌트 상세 조회
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Tenants
+  /admin/api/v1/tenants/{tenantId}/api-keys:
+    post:
+      operationId: ApiKeys_create
+      summary: API Key 생성
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApiKeyResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - API Keys
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+    get:
+      operationId: ApiKeys_list
+      summary: API Key 목록 조회
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - API Keys
+  /admin/api/v1/tenants/{tenantId}/api-keys/{apiKeyId}:
+    get:
+      operationId: ApiKeys_get
+      summary: API Key 상세 조회
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: apiKeyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - API Keys
+  /admin/api/v1/tenants/{tenantId}/api-keys/{apiKeyId}/key:
+    get:
+      operationId: ApiKeys_getApiKey
+      summary: API Key 원문 조회
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: apiKeyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyUnmaskedKeyResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - API Keys
+  /admin/api/v1/tenants/{tenantId}/api-keys/{apiKeyId}/status:
+    post:
+      operationId: ApiKeys_changeStatus
+      summary: API Key 상태 변경
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: apiKeyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApiKeyResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - API Keys
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+  /admin/api/v1/tenants/{tenantId}/status:
+    post:
+      operationId: Tenants_changeStatus
+      summary: 테넌트 상태 변경
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/TenantResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Tenants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+  /admin/api/v1/tokens:
+    post:
+      operationId: Tokens_create
+      summary: 토큰 생성
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/TokenResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+    get:
+      operationId: Tokens_list
+      summary: 토큰 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Tokens
+  /admin/api/v1/tokens/{tokenId}:
+    get:
+      operationId: Tokens_get
+      summary: 토큰 상세 조회
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Tokens
+  /admin/api/v1/tokens/{tokenId}/status:
+    post:
+      operationId: Tokens_changeStatus
+      summary: 토큰 상태 변경
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/TokenResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+  /admin/api/v1/users:
+    post:
+      operationId: Users_invite
+      summary: 유저 초대
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteUserRequest'
+    get:
+      operationId: Users_list
+      summary: 유저 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Users
+  /admin/api/v1/users/me:
+    get:
+      operationId: Users_me
+      summary: 내 정보 조회
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Users
+  /admin/api/v1/users/{userId}:
+    get:
+      operationId: Users_get
+      summary: 유저 상세 조회
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Users
+    post:
+      operationId: Users_update
+      summary: 유저 수정
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/UserResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+  /admin/api/v1/users/{userId}/status:
+    post:
+      operationId: Users_changeStatus
+      summary: 유저 상태 변경
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/UserResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+  /admin/api/v1/workspace-vaults:
+    post:
+      operationId: WorkspaceVaults_create
+      summary: Workspace Vault 생성
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/WorkspaceVaultResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Workspace Vaults
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceVaultRequest'
+    get:
+      operationId: WorkspaceVaults_list
+      summary: Workspace Vault 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceVaultResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Workspace Vaults
+  /admin/api/v1/workspace-vaults/{workspaceVaultId}:
+    get:
+      operationId: WorkspaceVaults_get
+      summary: Workspace Vault 상세 조회
+      parameters:
+        - name: workspaceVaultId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceVaultResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Workspace Vaults
+  /admin/api/v1/workspace-vaults/{workspaceVaultId}/status:
+    post:
+      operationId: WorkspaceVaults_changeStatus
+      summary: Workspace Vault 상태 변경
+      parameters:
+        - name: workspaceVaultId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/WorkspaceVaultResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Workspace Vaults
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+  /admin/api/v1/workspace-vaults/{workspaceVaultId}/wallets:
+    post:
+      operationId: WorkspaceVaults_createWallet
+      summary: Workspace Wallet 생성
+      parameters:
+        - name: workspaceVaultId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - $ref: '#/components/schemas/WorkspaceWalletResponse'
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Workspace Vaults
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceWalletRequest'
+    get:
+      operationId: WorkspaceVaults_listWallets
+      summary: Workspace Wallet 목록 조회
+      parameters:
+        - name: workspaceVaultId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PaginationParams.limit'
+        - $ref: '#/components/parameters/PaginationParams.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceWalletResponseListResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Workspace Vaults
+  /admin/api/v1/workspace-vaults/{workspaceVaultId}/wallets/{workspaceWalletId}:
+    get:
+      operationId: WorkspaceVaults_getWallet
+      summary: Workspace Wallet 상세 조회
+      parameters:
+        - name: workspaceVaultId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspaceWalletId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceWalletResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Workspace Vaults
+  /initialize:
+    post:
+      operationId: Initialize_initialize
+      summary: 워크스페이스 부트스트랩 (1회, 무게이팅·멱등)
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitializeResponseResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Initialize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitializeRequest'
+      security:
+        - {}
+security:
+  - BearerAuth: []
+components:
+  parameters:
+    PaginationParams.cursor:
+      name: cursor
+      in: query
+      required: false
+      description: 다음 페이지 커서 (opaque). 최초 요청 시 생략
+      schema:
+        type: string
+      explode: false
+    PaginationParams.limit:
+      name: limit
+      in: query
+      required: false
+      description: 한 페이지당 조회 건수. 미지정 시 20, 최대 100
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+      explode: false
+  schemas:
+    ApiErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              $ref: '#/components/schemas/ErrorCode'
+            message:
+              type: string
+            details:
+              anyOf:
+                - type: object
+                  unevaluatedProperties: {}
+                - type: 'null'
+              description: validation 실패 시 field → message 맵 등. 없으면 null
+          required:
+            - code
+            - message
+            - details
+      description: 공통 에러 응답
+    ApiKeyResponse:
+      type: object
+      required:
+        - id
+        - tenantId
+        - name
+        - maskedKey
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: API Key 식별자. TSID prefix ak-
+          examples:
+            - ak-1234567890abcdef
+        tenantId:
+          type: string
+          description: 소속 테넌트 식별자. TSID prefix tnt-
+        name:
+          type: string
+        maskedKey:
+          type: string
+          description: 마스킹된 API key
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    ApiKeyResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ApiKeyResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    ApiKeyResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/ApiKeyResponse'
+      description: 단일 리소스 응답
+    ApiKeyUnmaskedKeyResponse:
+      type: object
+      required:
+        - id
+        - key
+      properties:
+        id:
+          type: string
+          description: API Key 식별자. TSID prefix ak-
+          examples:
+            - ak-1234567890abcdef
+        key:
+          type: string
+          description: API key 원문
+    ApiKeyUnmaskedKeyResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/ApiKeyUnmaskedKeyResponse'
+      description: 단일 리소스 응답
+    ApprovalQuorum:
+      type: object
+      required:
+        - threshold
+        - approved
+      properties:
+        threshold:
+          type: integer
+          format: int32
+          description: 정족 수
+        approved:
+          type: integer
+          format: int32
+          description: 승인 수
+    ApprovalStatus:
+      type: string
+      enum:
+        - PENDING_APPROVAL
+        - APPROVED
+        - DENIED
+    AsyncResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+                required:
+                  - status
+                  - approvalId
+                  - requesterAdminId
+                  - quorum
+                  - result
+                properties:
+                  status:
+                    $ref: '#/components/schemas/ApprovalStatus'
+                    description: 승인 상태
+                  approvalId:
+                    anyOf:
+                      - type: string
+                      - type: 'null'
+                    description: 승인 요청 식별자. TSID prefix apr-. 승인 절차 없이 즉시 확정되면 null
+                    examples:
+                      - apr-1234567890abcdef
+                  requesterAdminId:
+                    type: string
+                    description: 요청을 생성한 어드민 유저 식별자. TSID prefix usr-
+                  quorum:
+                    anyOf:
+                      - $ref: '#/components/schemas/ApprovalQuorum'
+                      - type: 'null'
+                    description: 정족수 정보. 승인 절차가 없으면 null
+                  result:
+                    anyOf:
+                      - {}
+                      - type: 'null'
+                    description: 결과. status가 APPROVED가 아니면 null
+                description: |-
+                  승인 절차가 필요한 요청의 공통 응답.
+                  요청은 즉시 실행되지 않고 승인 대기 상태로 생성되며,
+                  approvalId로 Approvals API에서 진행 상태 조회와 승인을 처리한다.
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    Auth2FaRequest:
+      type: object
+      required:
+        - code
+        - requestId
+      properties:
+        code:
+          type: string
+          description: TOTP code
+        requestId:
+          type: string
+          description: 인증 요청 ID
+    Auth2FaResponse:
+      type: object
+      required:
+        - status
+        - requestId
+      properties:
+        status:
+          $ref: '#/components/schemas/Auth2FaStatus'
+          description: 2FA 챌린지 상태
+        requestId:
+          type: string
+          description: 2FA 인증에 사용할 요청 ID
+      description: 2FA 인증이 필요한 요청의 공통 응답. 로그인 등 2FA가 필요한 흐름에서 반환한다.
+    Auth2FaResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/Auth2FaResponse'
+      description: 단일 리소스 응답
+    Auth2FaStatus:
+      type: string
+      enum:
+        - REQUIRED_2FA
+      description: 2FA 챌린지 상태
+    CreateApiKeyRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+    CreatePolicyRequest:
+      type: object
+      required:
+        - name
+        - rules
+      properties:
+        name:
+          type: string
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyRule'
+          description: 룰 목록 (필드 정의 필요)
+    CreateRoleRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: 이름
+    CreateTenantRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+    CreateTokenRequest:
+      type: object
+      required:
+        - networkId
+        - symbol
+        - name
+        - contractAddress
+      properties:
+        networkId:
+          type: string
+          description: 네트워크 식별자. TSID prefix net-
+        symbol:
+          type: string
+          description: 토큰 심볼
+          examples:
+            - USDC
+        name:
+          type: string
+        contractAddress:
+          type: string
+          description: 토큰 컨트랙트 주소
+        iconUrl:
+          type: string
+          description: 토큰 아이콘 URL
+    CreateWorkspaceVaultRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+    CreateWorkspaceWalletRequest:
+      type: object
+      required:
+        - tokenId
+      properties:
+        tokenId:
+          type: string
+          description: 보관 대상 토큰 식별자. TSID prefix tok-
+    ErrorCode:
+      type: string
+      enum:
+        - WORKSPACE_NOT_INITIALIZED
+        - TENANT_NOT_FOUND
+        - TENANT_APPROVAL_STALE
+        - NETWORK_NOT_FOUND
+        - NETWORK_UNSUPPORTED
+        - NETWORK_PROVIDER_UNAVAILABLE
+        - TOKEN_NOT_FOUND
+        - TOKEN_APPROVAL_STALE
+        - TOKEN_NETWORK_INACTIVE
+        - TOKEN_ALREADY_EXISTS
+        - TOKEN_INVALID_CONTRACT_ADDRESS
+        - TOKEN_UNSUPPORTED
+        - TOKEN_PROVIDER_UNAVAILABLE
+        - WORKSPACE_VAULT_NOT_FOUND
+        - WORKSPACE_VAULT_APPROVAL_STALE
+        - WORKSPACE_VAULT_PROVIDER_UNAVAILABLE
+        - WORKSPACE_VAULT_INACTIVE
+        - WORKSPACE_VAULT_TRANSFER_NOT_FOUND
+        - WORKSPACE_VAULT_TRANSFER_SOURCE_DESTINATION_SAME
+        - WORKSPACE_VAULT_TRANSFER_INVALID_AMOUNT
+        - WORKSPACE_VAULT_TRANSFER_REFERENCE_CONFLICT
+        - WORKSPACE_VAULT_TRANSFER_POLICY_DENIED
+        - WORKSPACE_VAULT_TRANSFER_PROVIDER_UNAVAILABLE
+        - WORKSPACE_VAULT_INSUFFICIENT_BALANCE
+        - WORKSPACE_WALLET_NOT_FOUND
+        - WORKSPACE_WALLET_ALREADY_EXISTS
+        - WORKSPACE_WALLET_VAULT_INACTIVE
+        - WORKSPACE_WALLET_TOKEN_INACTIVE
+        - WORKSPACE_WALLET_ASSET_UNSUPPORTED
+        - WORKSPACE_WALLET_PROVIDER_UNAVAILABLE
+        - ACCOUNT_NOT_FOUND
+        - ACCOUNT_ADDRESS_BOOK_NOT_FOUND
+        - ACCOUNT_ADDRESS_BOOK_ALREADY_EXISTS
+        - ACCOUNT_ADDRESS_BOOK_NETWORK_INACTIVE
+        - ACCOUNT_ADDRESS_BOOK_ADDRESS_INVALID
+        - ACCOUNT_ADDRESS_BOOK_NONCE_INVALID
+        - ACCOUNT_ADDRESS_BOOK_NONCE_EXPIRED
+        - ACCOUNT_ADDRESS_BOOK_PROOF_INVALID
+        - ACCOUNT_WALLET_DEPOSIT_NOT_FOUND
+        - ACCOUNT_WALLET_DEPOSIT_NOT_SWEEPABLE
+        - SWEEP_NOT_FOUND
+        - SWEEP_ALREADY_EXISTS
+        - SWEEP_POLICY_DENIED
+        - INVALID_CURSOR
+        - INVALID_PATH_VARIABLE
+        - INVALID_REQUEST_BODY
+        - RESOURCE_CONTENTION
+        - SERVICE_UNAVAILABLE
+        - UNAUTHORIZED
+        - INTERNAL_ERROR
+      description: |-
+        응답 error.code. 단일 출처는 backend `ErrorCode` 카탈로그이며 값 집합은 그와 일치한다.
+        코드 추가는 additive지만 tsp enum도 함께 갱신해야 계약이 정합한다.
+    InitializeNetwork:
+      type: object
+      required:
+        - id
+        - name
+        - providerReferenceId
+      properties:
+        id:
+          type: string
+          description: 네트워크 식별자. TSID prefix net-
+          examples:
+            - net-1234567890abcdef
+        name:
+          type: string
+        providerReferenceId:
+          type: string
+          description: 외부 provider가 부여한 네트워크 식별자 (provider-중립 명칭)
+    InitializeRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+    InitializeResponse:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - networks
+        - created
+      properties:
+        id:
+          type: string
+          description: 워크스페이스 식별자. TSID prefix ws-
+          examples:
+            - ws-1234567890abcdef
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+        networks:
+          type: array
+          items:
+            $ref: '#/components/schemas/InitializeNetwork'
+          description: 시드된 프리셋 네트워크
+        created:
+          type: boolean
+          description: 이번 호출로 생성됐으면 true, 이미 초기화돼 있었으면 false(멱등 no-op)
+    InitializeResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/InitializeResponse'
+      description: 단일 리소스 응답
+    InviteUserRequest:
+      type: object
+      required:
+        - email
+        - roleIds
+      properties:
+        email:
+          type: string
+        roleIds:
+          type: array
+          items:
+            type: string
+          description: 할당할 Role ID 목록
+    JoinUserRequest:
+      type: object
+      required:
+        - uuid
+        - password
+        - name
+      properties:
+        uuid:
+          type: string
+          description: 초대 시 발급된 가입 UUID
+        password:
+          type: string
+        name:
+          type: string
+    JoinUserResponse:
+      type: object
+      required:
+        - otpauthUri
+        - requestId
+      properties:
+        otpauthUri:
+          type: string
+          description: 2FA TOTP 등록 QR otpauth:// uri
+        requestId:
+          type: string
+          description: 2FA TOTP 등록 요청 ID
+    JoinUserResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/JoinUserResponse'
+      description: 단일 리소스 응답
+    LoginUserRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    NetworkEnvironment:
+      type: string
+      enum:
+        - MAINNET
+        - TESTNET
+      description: 네트워크 환경
+    NetworkProtocol:
+      type: string
+      enum:
+        - EVM
+      description: 네트워크 프로토콜. 현재 EVM만 지원
+    NetworkResponse:
+      type: object
+      required:
+        - id
+        - name
+        - environment
+        - protocol
+        - iconUrl
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: 네트워크 식별자. TSID prefix net-
+          examples:
+            - net-1234567890abcdef
+        name:
+          type: string
+          description: 네트워크 이름
+          examples:
+            - BASE
+        environment:
+          $ref: '#/components/schemas/NetworkEnvironment'
+          description: 네트워크 환경
+        protocol:
+          $ref: '#/components/schemas/NetworkProtocol'
+          description: 네트워크 프로토콜
+        iconUrl:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 네트워크 아이콘 URL. 없으면 null
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    NetworkResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/NetworkResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    NetworkResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/NetworkResponse'
+      description: 단일 리소스 응답
+    PolicyResponse:
+      type: object
+      required:
+        - id
+        - name
+        - rules
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Policy 식별자. TSID prefix pol-
+          examples:
+            - pol-1234567890abcdef
+        name:
+          type: string
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyRule'
+          description: 룰 목록 (필드 정의 필요)
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    PolicyResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/PolicyResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    PolicyResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/PolicyResponse'
+      description: 단일 리소스 응답
+    PolicyRule:
+      type: object
+      required:
+        - allowedRoleIds
+        - approverRoleIds
+        - quorumThreshold
+      properties:
+        allowedRoleIds:
+          type: array
+          items:
+            type: string
+          description: 수행가능 Role 목록
+        approverRoleIds:
+          type: array
+          items:
+            type: string
+          description: 승인가능 Role 목록
+        quorumThreshold:
+          type: integer
+          format: int32
+          description: 정족수
+    Register2FaRequest:
+      type: object
+      required:
+        - requestId
+        - code
+      properties:
+        requestId:
+          type: string
+          description: 2FA 등록 요청 ID
+        code:
+          type: string
+          description: TOTP code
+    RoleResponse:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Role 식별자. TSID prefix rol-
+          examples:
+            - rol-1234567890abcdef
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    RoleResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/RoleResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    RoleResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/RoleResponse'
+      description: 단일 리소스 응답
+    Status:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+      description: 활성화 상태
+    StatusChangeRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/Status'
+    TenantResponse:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: 테넌트 식별자. TSID prefix tnt-
+          examples:
+            - tnt-1234567890abcdef
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    TenantResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/TenantResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    TenantResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/TenantResponse'
+      description: 단일 리소스 응답
+    TokenResponse:
+      type: object
+      required:
+        - id
+        - networkId
+        - symbol
+        - name
+        - contractAddress
+        - iconUrl
+        - decimals
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: 토큰 식별자. TSID prefix tok-
+          examples:
+            - tok-1234567890abcdef
+        networkId:
+          type: string
+          description: 네트워크 식별자. TSID prefix net-
+        symbol:
+          type: string
+        name:
+          type: string
+        contractAddress:
+          type: string
+        iconUrl:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 토큰 아이콘 URL. 없으면 null
+        decimals:
+          type: integer
+          format: int32
+          description: 소수점 이하 자릿수
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    TokenResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/TokenResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    TokenResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/TokenResponse'
+      description: 단일 리소스 응답
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        roleIds:
+          type: array
+          items:
+            type: string
+          description: 할당할 Role ID 목록
+    UserResponse:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - roleIds
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: 유저 식별자. TSID prefix usr-
+          examples:
+            - usr-1234567890abcdef
+        name:
+          type: string
+        email:
+          type: string
+        roleIds:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    UserResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    UserResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/UserResponse'
+      description: 단일 리소스 응답
+    WorkspaceVaultResponse:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Workspace Vault 식별자. TSID prefix wv-
+          examples:
+            - wv-1234567890abcdef
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    WorkspaceVaultResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/WorkspaceVaultResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    WorkspaceVaultResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/WorkspaceVaultResponse'
+      description: 단일 리소스 응답
+    WorkspaceWalletResponse:
+      type: object
+      required:
+        - id
+        - workspaceVaultId
+        - tokenId
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Workspace Wallet 식별자. TSID prefix ww-
+          examples:
+            - ww-1234567890abcdef
+        workspaceVaultId:
+          type: string
+          description: 소속 Workspace Vault 식별자. TSID prefix wv-
+        tokenId:
+          type: string
+          description: 보관 대상 토큰 식별자. TSID prefix tok-
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시
+        updatedAt:
+          type: string
+          format: date-time
+          description: 수정 일시
+    WorkspaceWalletResponseListResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/WorkspaceWalletResponse'
+              description: 현재 페이지의 아이템 목록
+            cursor:
+              anyOf:
+                - type: string
+                - type: 'null'
+              description: 다음 페이지 조회용 cursor. 더 이상 페이지가 없으면 null
+          required:
+            - items
+            - cursor
+      description: 목록 응답
+    WorkspaceWalletResponseResult:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          $ref: '#/components/schemas/WorkspaceWalletResponse'
+      description: 단일 리소스 응답
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: Bearer

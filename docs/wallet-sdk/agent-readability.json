@@ -1,0 +1,28 @@
+{
+  "artifacts": {
+    "markdown": {
+      "pattern": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/{route}.md"
+    },
+    "api": {
+      "openapi": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/openapi.json",
+      "pages": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages.json"
+    },
+    "llmsFullTxt": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/llms-full.txt",
+    "llmsTxt": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/llms.txt",
+    "apiCatalog": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/.well-known/api-catalog",
+    "sitemap": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/sitemap.xml",
+    "feeds": [
+      "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/rss.xml"
+    ]
+  },
+  "description": "수탁형 지갑을 서비스에 붙이는 B2B 제품의 공개 문서",
+  "generator": "blume@1.6.3",
+  "name": "Wallet SDK",
+  "site": "https://static.pg166.io",
+  "contentUsage": {
+    "search": true,
+    "ai-input": true,
+    "ai-train": true
+  },
+  "repository": "https://github.com/dag-stf/wallet-isms-p"
+}

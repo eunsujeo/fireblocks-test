@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/users/users-update.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-update.md",
+  "route": "/reference/admin/users/users-update",
+  "title": "유저 수정",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-update",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Users\n    - POST\nseo:\n  description: >-\n    유저 수정 Reference for the POST /admin/api/v1/users/{userId} endpoint in the\n    Wallet Admin API API.\nsidebar:\n  label: 유저 수정\n  badge: POST\ntitle: 유저 수정\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"users-update\" />\n"
+}

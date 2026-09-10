@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-draft/policy-draft-revision-view.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-view.md",
+  "route": "/reference/policy/policy-draft/policy-draft-revision-view",
+  "title": "revision 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-view",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Draft\n    - GET\nseo:\n  description: >-\n    칸 하나. 여기서만 content가 실린다. Reference for the GET\n    /policy-drafts/{draftId}/revisions/{revisionId} endpoint in the Wallet\n    Policy Engine Internal API API.\nsidebar:\n  label: revision 조회\n  badge: GET\ntitle: revision 조회\ntype: openapi-operation\n---\n칸 하나. 여기서만 content가 실린다.\n\nErrors:\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다\n- 404 DRAFT_UNKNOWN: 그런 draft가 없다 (자격 밖 draft 포함)\n- 404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없거나 이 draft의 칸이 아니다\n\n<Operation source=\"reference-policy\" id=\"policy-draft-revision-view\" />\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/admin-auth/policy-admin-auth-session.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-session.md",
+  "route": "/reference/policy/admin-auth/policy-admin-auth-session",
+  "title": "세션 신원 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-session",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Admin Auth\n    - GET\nseo:\n  description: >-\n    세션이 증명하는 신원 조회. 자격은 Bearer 헤더 또는 세션… Reference for the GET /auth/session\n    endpoint in the Wallet Policy Engine Internal API API.\nsidebar:\n  label: 세션 신원 조회\n  badge: GET\ntitle: 세션 신원 조회\ntype: openapi-operation\n---\n세션이 증명하는 신원 조회. 자격은 Bearer 헤더 또는 세션 쿠키다(`PolicyAdminSessionAuth`).\n만료·변조 토큰은 401이고 봉투는 위 둘과 같다. 콘솔은 기동 시 이것으로 쿠키 세션을 되살린다.\n\n인가 판정의 입력을 콘솔이 직접 볼 수 있게 하는 자리다 — 어드민 액션의 인가는\n여기 실린 grants로 판정된다.\n\nErrors:\n- 401 AUTHENTICATION_FAILED: 세션이 확정되지 않았다. 계정의 소속이 이 문과 어긋난 경우도 여기다\n\n<Operation source=\"reference-policy\" id=\"policy-admin-auth-session\" />\n"
+}

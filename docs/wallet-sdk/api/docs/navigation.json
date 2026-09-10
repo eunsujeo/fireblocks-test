@@ -1,0 +1,1817 @@
+{
+  "actions": [],
+  "cta": null,
+  "featured": [],
+  "root": "/",
+  "selectors": [],
+  "sidebar": [
+    {
+      "description": "규제 준수형 집금 지갑을 서비스에 붙이는 B2B 제품",
+      "kind": "page",
+      "label": "Wallet SDK",
+      "pageId": "filesystem:index.mdx",
+      "route": "/"
+    },
+    {
+      "children": [
+        {
+          "description": "첫 요청에서 자금 이동까지, 파트너사 개발자가 읽는 순서",
+          "kind": "page",
+          "label": "시작하기",
+          "pageId": "filesystem:start/index.mdx",
+          "route": "/start"
+        },
+        {
+          "description": "계정을 만들고 입금 주소를 받기까지",
+          "kind": "page",
+          "label": "첫 요청",
+          "pageId": "filesystem:start/first-request.mdx",
+          "route": "/start/first-request"
+        },
+        {
+          "description": "어떤 API를 누가 부르고, 무엇이 인증에서 나오는가",
+          "kind": "page",
+          "label": "표면과 인증",
+          "pageId": "filesystem:start/authentication.mdx",
+          "route": "/start/authentication"
+        },
+        {
+          "description": "어느 말이 무엇을 가리키고 그 정의가 어디 있는지",
+          "kind": "page",
+          "label": "용어",
+          "pageId": "filesystem:start/terminology.mdx",
+          "route": "/start/terminology"
+        },
+        {
+          "description": "접속기록·개인정보·보존·암호키가 어느 페이지에 있는가",
+          "kind": "page",
+          "label": "규제 대응",
+          "pageId": "filesystem:start/compliance.mdx",
+          "route": "/start/compliance"
+        }
+      ],
+      "display": "flat",
+      "kind": "group",
+      "label": "시작하기",
+      "path": "/start"
+    },
+    {
+      "children": [
+        {
+          "description": "두 계층이 왜 따로 있고 각각 무슨 역할인지",
+          "kind": "page",
+          "label": "계정과 지갑",
+          "pageId": "filesystem:accounts-wallets/index.mdx",
+          "route": "/accounts-wallets"
+        },
+        {
+          "description": "엔티티가 서로를 어떻게 소유하는가",
+          "kind": "page",
+          "label": "도메인 모델",
+          "pageId": "filesystem:accounts-wallets/domain-model.mdx",
+          "route": "/accounts-wallets/domain-model"
+        },
+        {
+          "description": "Workspace · Tenant · Account",
+          "kind": "page",
+          "label": "계정 계층",
+          "pageId": "filesystem:accounts-wallets/accounts.mdx",
+          "route": "/accounts-wallets/accounts"
+        },
+        {
+          "description": "Vault · Wallet과 발급 단위 둘",
+          "kind": "page",
+          "label": "지갑 계층",
+          "pageId": "filesystem:accounts-wallets/wallets.mdx",
+          "route": "/accounts-wallets/wallets"
+        },
+        {
+          "description": "Network · Token — 무엇을 담을 수 있는지",
+          "kind": "page",
+          "label": "카탈로그",
+          "pageId": "filesystem:accounts-wallets/catalog.mdx",
+          "route": "/accounts-wallets/catalog"
+        },
+        {
+          "description": "워크스페이스 개설에서 첫 정책 활성화까지",
+          "kind": "page",
+          "label": "온보딩",
+          "pageId": "filesystem:accounts-wallets/onboarding.mdx",
+          "route": "/accounts-wallets/onboarding"
+        }
+      ],
+      "display": "flat",
+      "kind": "group",
+      "label": "계정과 지갑",
+      "path": "/accounts-wallets"
+    },
+    {
+      "children": [
+        {
+          "description": "온보딩에서 주소록까지, 자금이 흐르는 경로",
+          "kind": "page",
+          "label": "자금 이동",
+          "pageId": "filesystem:fund-flows/index.mdx",
+          "route": "/fund-flows"
+        },
+        {
+          "description": "어디서 어디로 갈 수 있는가",
+          "kind": "page",
+          "label": "이동 종류",
+          "pageId": "filesystem:fund-flows/movements.mdx",
+          "route": "/fund-flows/movements"
+        },
+        {
+          "children": [
+            {
+              "description": "온체인 전송에서 확정 통지까지, 그리고 동결을 풀어도 되는지 판단하는 사전·사후 확인",
+              "kind": "page",
+              "label": "입금 (Deposit)",
+              "pageId": "filesystem:fund-flows/(flows)/deposit.mdx",
+              "route": "/fund-flows/deposit"
+            },
+            {
+              "description": "입금 건을 지목해 옮기고, 그 이동이 해제를 겸한다",
+              "kind": "page",
+              "label": "집금 (Sweep)",
+              "pageId": "filesystem:fund-flows/(flows)/sweep.mdx",
+              "route": "/fund-flows/sweep"
+            },
+            {
+              "description": "워크스페이스 vault에서 외부로, 그리고 계정 지갑의 오입금 반환",
+              "kind": "page",
+              "label": "출금 (Withdrawal)",
+              "pageId": "filesystem:fund-flows/(flows)/withdrawal.mdx",
+              "route": "/fund-flows/withdrawal"
+            },
+            {
+              "description": "워크스페이스 vault 사이에서만 도는 이동",
+              "kind": "page",
+              "label": "Vault 이체 (Vault Transfer)",
+              "pageId": "filesystem:fund-flows/(flows)/vault-transfer.mdx",
+              "route": "/fund-flows/vault-transfer"
+            }
+          ],
+          "display": "flat",
+          "kind": "group",
+          "label": "이동",
+          "path": "/fund-flows"
+        },
+        {
+          "children": [
+            {
+              "description": "자동 해제가 없는 이유와 두 해제 경로, 그 아래 깔린 동시성 방어",
+              "kind": "page",
+              "label": "자금 동결",
+              "pageId": "filesystem:fund-flows/(controls)/release.mdx",
+              "route": "/fund-flows/release"
+            },
+            {
+              "description": "무엇이 언제 오고 무엇을 하면 되는가",
+              "kind": "page",
+              "label": "웹훅(Webhook)",
+              "pageId": "filesystem:fund-flows/(controls)/webhooks.mdx",
+              "route": "/fund-flows/webhooks"
+            },
+            {
+              "description": "출금 목적지 화이트리스트 — 주소에 근거를 붙이고, 정책이 그 근거를 읽습니다",
+              "kind": "page",
+              "label": "주소록 (Address Book · Whitelist)",
+              "pageId": "filesystem:fund-flows/(controls)/address-book.mdx",
+              "route": "/fund-flows/address-book"
+            }
+          ],
+          "display": "flat",
+          "kind": "group",
+          "label": "제어와 통지",
+          "path": "/fund-flows"
+        }
+      ],
+      "display": "flat",
+      "kind": "group",
+      "label": "자금 이동",
+      "path": "/fund-flows"
+    },
+    {
+      "children": [
+        {
+          "description": "서명 앞의 검사 단계",
+          "kind": "page",
+          "label": "정책",
+          "pageId": "filesystem:policy/index.mdx",
+          "route": "/policy"
+        },
+        {
+          "description": "저작 산출물이 가는 세 경로와 평가 입력의 조립, 두 장으로 요약한 정책 엔진",
+          "kind": "page",
+          "label": "전체 지도",
+          "pageId": "filesystem:policy/map.mdx",
+          "route": "/policy/map"
+        },
+        {
+          "description": "무엇이 어디에 배포되고 각자 무엇을 지는가",
+          "kind": "page",
+          "label": "구조",
+          "pageId": "filesystem:policy/architecture.mdx",
+          "route": "/policy/architecture"
+        },
+        {
+          "description": "판단과 집행이 두 단계로 나뉩니다",
+          "kind": "page",
+          "label": "서명 게이트",
+          "pageId": "filesystem:policy/signing-gate.mdx",
+          "route": "/policy/signing-gate"
+        },
+        {
+          "description": "정책 엔진의 배포 토폴로지·서명 게이트·상태 머신·발행 워크플로우와, rego·JSON 소스 구성, 코드 레벨 호출 경로를 상호작용 뷰어로 봅니다",
+          "kind": "page",
+          "label": "다이어그램",
+          "pageId": "filesystem:policy/diagrams.mdx",
+          "route": "/policy/diagrams"
+        },
+        {
+          "description": "draft 하나가 편집·검증·승인을 거쳐 활성 번들이 되기까지",
+          "kind": "page",
+          "label": "룰 저작과 발행",
+          "pageId": "filesystem:policy/workflow.mdx",
+          "route": "/policy/workflow"
+        },
+        {
+          "description": "fail-closed는 조용합니다",
+          "kind": "page",
+          "label": "운영과 관측",
+          "pageId": "filesystem:policy/operations.mdx",
+          "route": "/policy/operations"
+        },
+        {
+          "children": [
+            {
+              "description": "룰은 네 조각입니다",
+              "kind": "page",
+              "label": "룰 구조",
+              "pageId": "filesystem:policy/rule/structure.mdx",
+              "route": "/policy/rule/structure"
+            },
+            {
+              "description": "룰이 무엇을 가리킬 수 있고 무엇이 그것을 검사하는가",
+              "kind": "page",
+              "label": "룰 명세",
+              "pageId": "filesystem:policy/rule/reference.mdx",
+              "route": "/policy/rule/reference"
+            },
+            {
+              "description": "여러 룰이 다른 답을 낼 때",
+              "kind": "page",
+              "label": "결정과 결합",
+              "pageId": "filesystem:policy/rule/decision.mdx",
+              "route": "/policy/rule/decision"
+            }
+          ],
+          "display": "flat",
+          "kind": "group",
+          "label": "룰",
+          "path": "/policy/rule"
+        },
+        {
+          "children": [
+            {
+              "description": "승인한 것과 서명될 것이 같은가",
+              "kind": "page",
+              "label": "정규화",
+              "pageId": "filesystem:policy/runtime/normalization.mdx",
+              "route": "/policy/runtime/normalization"
+            },
+            {
+              "description": "세상의 상태를 언제 어떻게 읽는가",
+              "kind": "page",
+              "label": "PIP",
+              "pageId": "filesystem:policy/runtime/pip.mdx",
+              "route": "/policy/runtime/pip"
+            },
+            {
+              "description": "입력 문서가 조립되고 커널이 슬롯을 풀어 결정을 내리기까지",
+              "kind": "page",
+              "label": "평가의 순간",
+              "pageId": "filesystem:policy/runtime/evaluation.mdx",
+              "route": "/policy/runtime/evaluation"
+            },
+            {
+              "description": "각 산출물이 어디에 저장되고 무엇이 네트워크를 오가는가",
+              "kind": "page",
+              "label": "저장과 이동",
+              "pageId": "filesystem:policy/runtime/storage.mdx",
+              "route": "/policy/runtime/storage"
+            }
+          ],
+          "display": "flat",
+          "kind": "group",
+          "label": "평가",
+          "path": "/policy/runtime"
+        },
+        {
+          "children": [
+            {
+              "description": "어드민 액션과 정책 변경이 거치는 maker-checker",
+              "kind": "page",
+              "label": "승인 게이트",
+              "pageId": "filesystem:policy/sequences/approval-gate.mdx",
+              "route": "/policy/sequences/approval-gate"
+            },
+            {
+              "description": "파트너의 답을 기다리는 동안 요청은 어디에 있나",
+              "kind": "page",
+              "label": "비동기 수집",
+              "pageId": "filesystem:policy/sequences/pending-data.mdx",
+              "route": "/policy/sequences/pending-data"
+            },
+            {
+              "description": "통과 조건으로 붙은 이행을 어디서 모으나",
+              "kind": "page",
+              "label": "obligation 수집",
+              "pageId": "filesystem:policy/sequences/obligations.mdx",
+              "route": "/policy/sequences/obligations"
+            }
+          ],
+          "collapsed": true,
+          "display": "group",
+          "kind": "group",
+          "label": "승인과 수집 흐름",
+          "path": "/policy/sequences"
+        },
+        {
+          "children": [
+            {
+              "description": "조건 하나가 수집 루프 전체를 발동합니다",
+              "kind": "page",
+              "label": "출금 화이트리스트",
+              "pageId": "filesystem:policy/use-cases/whitelist-loop.mdx",
+              "route": "/policy/use-cases/whitelist-loop"
+            },
+            {
+              "description": "하한 룰은 조건 없이 적용됩니다",
+              "kind": "page",
+              "label": "권한 상승 게이트",
+              "pageId": "filesystem:policy/use-cases/escalation-pending.mdx",
+              "route": "/policy/use-cases/escalation-pending"
+            },
+            {
+              "description": "deny는 어떤 허가로도 뒤집히지 않습니다",
+              "kind": "page",
+              "label": "금지선",
+              "pageId": "filesystem:policy/use-cases/deny-override.mdx",
+              "route": "/policy/use-cases/deny-override"
+            },
+            {
+              "description": "정책을 바꾸는 요청도 정책 평가를 거칩니다",
+              "kind": "page",
+              "label": "룰 변경 게이트",
+              "pageId": "filesystem:policy/use-cases/rule-change.mdx",
+              "route": "/policy/use-cases/rule-change"
+            },
+            {
+              "description": "승인 스탬프는 서명 직전에 일합니다",
+              "kind": "page",
+              "label": "서명 상한 대조",
+              "pageId": "filesystem:policy/use-cases/callback-limit.mdx",
+              "route": "/policy/use-cases/callback-limit"
+            }
+          ],
+          "collapsed": true,
+          "display": "group",
+          "kind": "group",
+          "label": "유즈케이스",
+          "path": "/policy/use-cases"
+        }
+      ],
+      "display": "flat",
+      "kind": "group",
+      "label": "정책",
+      "path": "/policy"
+    },
+    {
+      "children": [
+        {
+          "description": "표면 다섯 개의 엔드포인트 전수",
+          "kind": "page",
+          "label": "API 레퍼런스",
+          "pageId": "filesystem:reference/index.mdx",
+          "route": "/reference"
+        },
+        {
+          "children": [
+            {
+              "kind": "page",
+              "label": "Overview",
+              "pageId": "openapi:reference/wallet/index.mdx",
+              "route": "/reference/wallet"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "계정 referenceId 조회",
+                  "pageId": "openapi:reference/wallet/accounts/accounts-get-by-reference-id.mdx",
+                  "route": "/reference/wallet/accounts/accounts-get-by-reference-id"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "계정 상세 조회",
+                  "pageId": "openapi:reference/wallet/accounts/accounts-get.mdx",
+                  "route": "/reference/wallet/accounts/accounts-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "계정 상태 변경",
+                  "pageId": "openapi:reference/wallet/accounts/accounts-change-status.mdx",
+                  "route": "/reference/wallet/accounts/accounts-change-status"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "계정 생성",
+                  "pageId": "openapi:reference/wallet/accounts/accounts-create.mdx",
+                  "route": "/reference/wallet/accounts/accounts-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Accounts",
+              "path": "/reference/wallet/accounts"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "계정 지갑 목록 조회",
+                  "pageId": "openapi:reference/wallet/account-wallets/account-wallets-list.mdx",
+                  "route": "/reference/wallet/account-wallets/account-wallets-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "계정 지갑 상세 조회",
+                  "pageId": "openapi:reference/wallet/account-wallets/account-wallets-get.mdx",
+                  "route": "/reference/wallet/account-wallets/account-wallets-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "계정 지갑 생성",
+                  "pageId": "openapi:reference/wallet/account-wallets/account-wallets-create.mdx",
+                  "route": "/reference/wallet/account-wallets/account-wallets-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Account Wallets",
+              "path": "/reference/wallet/account-wallets"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "토큰 목록 조회",
+                  "pageId": "openapi:reference/wallet/tokens/tokens-list.mdx",
+                  "route": "/reference/wallet/tokens/tokens-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "토큰 상세 조회",
+                  "pageId": "openapi:reference/wallet/tokens/tokens-get.mdx",
+                  "route": "/reference/wallet/tokens/tokens-get"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Tokens",
+              "path": "/reference/wallet/tokens"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "네트워크 목록 조회",
+                  "pageId": "openapi:reference/wallet/networks/networks-list.mdx",
+                  "route": "/reference/wallet/networks/networks-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "네트워크 상세 조회",
+                  "pageId": "openapi:reference/wallet/networks/networks-get.mdx",
+                  "route": "/reference/wallet/networks/networks-get"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Networks",
+              "path": "/reference/wallet/networks"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "입금 내역 목록 조회",
+                  "pageId": "openapi:reference/wallet/deposits/deposits-list.mdx",
+                  "route": "/reference/wallet/deposits/deposits-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "입금 내역 상세 조회",
+                  "pageId": "openapi:reference/wallet/deposits/deposits-get.mdx",
+                  "route": "/reference/wallet/deposits/deposits-get"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Deposits",
+              "path": "/reference/wallet/deposits"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "스윕 referenceId 조회",
+                  "pageId": "openapi:reference/wallet/sweeps/sweeps-get-by-reference-id.mdx",
+                  "route": "/reference/wallet/sweeps/sweeps-get-by-reference-id"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "스윕 상세 조회",
+                  "pageId": "openapi:reference/wallet/sweeps/sweeps-get.mdx",
+                  "route": "/reference/wallet/sweeps/sweeps-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "스윕 요청 생성",
+                  "pageId": "openapi:reference/wallet/sweeps/sweeps-create.mdx",
+                  "route": "/reference/wallet/sweeps/sweeps-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Sweeps",
+              "path": "/reference/wallet/sweeps"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "워크스페이스 Vault 이체 referenceId 조회",
+                  "pageId": "openapi:reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get-by-reference-id.mdx",
+                  "route": "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get-by-reference-id"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "워크스페이스 Vault 이체 상세 조회",
+                  "pageId": "openapi:reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get.mdx",
+                  "route": "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "워크스페이스 Vault 이체 요청 생성",
+                  "pageId": "openapi:reference/wallet/workspace-vault-transfers/workspace-vault-transfers-create.mdx",
+                  "route": "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Workspace Vault Transfers",
+              "path": "/reference/wallet/workspace-vault-transfers"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "출금 내역 목록 조회",
+                  "pageId": "openapi:reference/wallet/withdrawals/withdrawals-list.mdx",
+                  "route": "/reference/wallet/withdrawals/withdrawals-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "출금 내역 상세 조회",
+                  "pageId": "openapi:reference/wallet/withdrawals/withdrawals-get.mdx",
+                  "route": "/reference/wallet/withdrawals/withdrawals-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "출금 요청",
+                  "pageId": "openapi:reference/wallet/withdrawals/withdrawals-create.mdx",
+                  "route": "/reference/wallet/withdrawals/withdrawals-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Withdrawals",
+              "path": "/reference/wallet/withdrawals"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "주소록 등록 (지갑 소유 증명 nonce 서명 포함)",
+                  "pageId": "openapi:reference/wallet/address-books/address-books-create.mdx",
+                  "route": "/reference/wallet/address-books/address-books-create"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "주소록 등록용 지갑 소유 증명 nonce 발급",
+                  "pageId": "openapi:reference/wallet/address-books/address-books-create-nonce.mdx",
+                  "route": "/reference/wallet/address-books/address-books-create-nonce"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "주소록 목록 조회",
+                  "pageId": "openapi:reference/wallet/address-books/address-books-list.mdx",
+                  "route": "/reference/wallet/address-books/address-books-list"
+                },
+                {
+                  "badge": "DELETE",
+                  "kind": "page",
+                  "label": "주소록 삭제",
+                  "pageId": "openapi:reference/wallet/address-books/address-books-delete.mdx",
+                  "route": "/reference/wallet/address-books/address-books-delete"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "주소록 상세 조회",
+                  "pageId": "openapi:reference/wallet/address-books/address-books-get.mdx",
+                  "route": "/reference/wallet/address-books/address-books-get"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Address Books",
+              "path": "/reference/wallet/address-books"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "트래블룰 대상 VASP 목록 조회",
+                  "pageId": "openapi:reference/wallet/travel-rules/travel-rules-list-vasps.mdx",
+                  "route": "/reference/wallet/travel-rules/travel-rules-list-vasps"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Travel Rules",
+              "path": "/reference/wallet/travel-rules"
+            }
+          ],
+          "collapsed": true,
+          "display": "group",
+          "kind": "group",
+          "label": "Wallet API",
+          "path": "/reference/wallet"
+        },
+        {
+          "children": [
+            {
+              "kind": "page",
+              "label": "Overview",
+              "pageId": "openapi:reference/admin/index.mdx",
+              "route": "/reference/admin"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "워크스페이스 부트스트랩 (1회, 무게이팅·멱등)",
+                  "pageId": "openapi:reference/admin/initialize/initialize-initialize.mdx",
+                  "route": "/reference/admin/initialize/initialize-initialize"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Initialize",
+              "path": "/reference/admin/initialize"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "2FA OTP 등록",
+                  "pageId": "openapi:reference/admin/auth/auth-register2-fa.mdx",
+                  "route": "/reference/admin/auth/auth-register2-fa"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "2FA 인증",
+                  "pageId": "openapi:reference/admin/auth/auth-auth2fa.mdx",
+                  "route": "/reference/admin/auth/auth-auth2fa"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "로그인",
+                  "pageId": "openapi:reference/admin/auth/auth-login.mdx",
+                  "route": "/reference/admin/auth/auth-login"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "유저 가입 (초대 수락)",
+                  "pageId": "openapi:reference/admin/auth/auth-join.mdx",
+                  "route": "/reference/admin/auth/auth-join"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Auth",
+              "path": "/reference/admin/auth"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "내 정보 조회",
+                  "pageId": "openapi:reference/admin/users/users-me.mdx",
+                  "route": "/reference/admin/users/users-me"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "유저 목록 조회",
+                  "pageId": "openapi:reference/admin/users/users-list.mdx",
+                  "route": "/reference/admin/users/users-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "유저 상세 조회",
+                  "pageId": "openapi:reference/admin/users/users-get.mdx",
+                  "route": "/reference/admin/users/users-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "유저 상태 변경",
+                  "pageId": "openapi:reference/admin/users/users-change-status.mdx",
+                  "route": "/reference/admin/users/users-change-status"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "유저 수정",
+                  "pageId": "openapi:reference/admin/users/users-update.mdx",
+                  "route": "/reference/admin/users/users-update"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "유저 초대",
+                  "pageId": "openapi:reference/admin/users/users-invite.mdx",
+                  "route": "/reference/admin/users/users-invite"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Users",
+              "path": "/reference/admin/users"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "Role 목록 조회",
+                  "pageId": "openapi:reference/admin/roles/roles-list.mdx",
+                  "route": "/reference/admin/roles/roles-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "Role 상세 조회",
+                  "pageId": "openapi:reference/admin/roles/roles-get.mdx",
+                  "route": "/reference/admin/roles/roles-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "Role 상태 변경",
+                  "pageId": "openapi:reference/admin/roles/roles-change-status.mdx",
+                  "route": "/reference/admin/roles/roles-change-status"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "Role 생성",
+                  "pageId": "openapi:reference/admin/roles/roles-create.mdx",
+                  "route": "/reference/admin/roles/roles-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Roles",
+              "path": "/reference/admin/roles"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "테넌트 목록 조회",
+                  "pageId": "openapi:reference/admin/tenants/tenants-list.mdx",
+                  "route": "/reference/admin/tenants/tenants-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "테넌트 상세 조회",
+                  "pageId": "openapi:reference/admin/tenants/tenants-get.mdx",
+                  "route": "/reference/admin/tenants/tenants-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "테넌트 상태 변경",
+                  "pageId": "openapi:reference/admin/tenants/tenants-change-status.mdx",
+                  "route": "/reference/admin/tenants/tenants-change-status"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "테넌트 생성",
+                  "pageId": "openapi:reference/admin/tenants/tenants-create.mdx",
+                  "route": "/reference/admin/tenants/tenants-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Tenants",
+              "path": "/reference/admin/tenants"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "API Key 목록 조회",
+                  "pageId": "openapi:reference/admin/api-keys/api-keys-list.mdx",
+                  "route": "/reference/admin/api-keys/api-keys-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "API Key 상세 조회",
+                  "pageId": "openapi:reference/admin/api-keys/api-keys-get.mdx",
+                  "route": "/reference/admin/api-keys/api-keys-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "API Key 상태 변경",
+                  "pageId": "openapi:reference/admin/api-keys/api-keys-change-status.mdx",
+                  "route": "/reference/admin/api-keys/api-keys-change-status"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "API Key 생성",
+                  "pageId": "openapi:reference/admin/api-keys/api-keys-create.mdx",
+                  "route": "/reference/admin/api-keys/api-keys-create"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "API Key 원문 조회",
+                  "pageId": "openapi:reference/admin/api-keys/api-keys-get-api-key.mdx",
+                  "route": "/reference/admin/api-keys/api-keys-get-api-key"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "API Keys",
+              "path": "/reference/admin/api-keys"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "네트워크 목록 조회",
+                  "pageId": "openapi:reference/admin/networks/networks-list.mdx",
+                  "route": "/reference/admin/networks/networks-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "네트워크 상세 조회",
+                  "pageId": "openapi:reference/admin/networks/networks-get.mdx",
+                  "route": "/reference/admin/networks/networks-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "네트워크 상태 변경",
+                  "pageId": "openapi:reference/admin/networks/networks-change-status.mdx",
+                  "route": "/reference/admin/networks/networks-change-status"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Networks",
+              "path": "/reference/admin/networks"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "토큰 목록 조회",
+                  "pageId": "openapi:reference/admin/tokens/tokens-list.mdx",
+                  "route": "/reference/admin/tokens/tokens-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "토큰 상세 조회",
+                  "pageId": "openapi:reference/admin/tokens/tokens-get.mdx",
+                  "route": "/reference/admin/tokens/tokens-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "토큰 상태 변경",
+                  "pageId": "openapi:reference/admin/tokens/tokens-change-status.mdx",
+                  "route": "/reference/admin/tokens/tokens-change-status"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "토큰 생성",
+                  "pageId": "openapi:reference/admin/tokens/tokens-create.mdx",
+                  "route": "/reference/admin/tokens/tokens-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Tokens",
+              "path": "/reference/admin/tokens"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "Workspace Vault 목록 조회",
+                  "pageId": "openapi:reference/admin/workspace-vaults/workspace-vaults-list.mdx",
+                  "route": "/reference/admin/workspace-vaults/workspace-vaults-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "Workspace Vault 상세 조회",
+                  "pageId": "openapi:reference/admin/workspace-vaults/workspace-vaults-get.mdx",
+                  "route": "/reference/admin/workspace-vaults/workspace-vaults-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "Workspace Vault 상태 변경",
+                  "pageId": "openapi:reference/admin/workspace-vaults/workspace-vaults-change-status.mdx",
+                  "route": "/reference/admin/workspace-vaults/workspace-vaults-change-status"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "Workspace Vault 생성",
+                  "pageId": "openapi:reference/admin/workspace-vaults/workspace-vaults-create.mdx",
+                  "route": "/reference/admin/workspace-vaults/workspace-vaults-create"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "Workspace Wallet 목록 조회",
+                  "pageId": "openapi:reference/admin/workspace-vaults/workspace-vaults-list-wallets.mdx",
+                  "route": "/reference/admin/workspace-vaults/workspace-vaults-list-wallets"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "Workspace Wallet 상세 조회",
+                  "pageId": "openapi:reference/admin/workspace-vaults/workspace-vaults-get-wallet.mdx",
+                  "route": "/reference/admin/workspace-vaults/workspace-vaults-get-wallet"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "Workspace Wallet 생성",
+                  "pageId": "openapi:reference/admin/workspace-vaults/workspace-vaults-create-wallet.mdx",
+                  "route": "/reference/admin/workspace-vaults/workspace-vaults-create-wallet"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Workspace Vaults",
+              "path": "/reference/admin/workspace-vaults"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "단건 승인",
+                  "pageId": "openapi:reference/admin/approvals/approvals-approve.mdx",
+                  "route": "/reference/admin/approvals/approvals-approve"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "승인 진행 내역 목록 조회",
+                  "pageId": "openapi:reference/admin/approvals/approvals-list.mdx",
+                  "route": "/reference/admin/approvals/approvals-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "승인 진행 내역 상세 조회",
+                  "pageId": "openapi:reference/admin/approvals/approvals-get.mdx",
+                  "route": "/reference/admin/approvals/approvals-get"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Approvals",
+              "path": "/reference/admin/approvals"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "Policy 목록 조회",
+                  "pageId": "openapi:reference/admin/policies/policies-list.mdx",
+                  "route": "/reference/admin/policies/policies-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "Policy 상세 조회",
+                  "pageId": "openapi:reference/admin/policies/policies-get.mdx",
+                  "route": "/reference/admin/policies/policies-get"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "Policy 상태 변경",
+                  "pageId": "openapi:reference/admin/policies/policies-change-status.mdx",
+                  "route": "/reference/admin/policies/policies-change-status"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "Policy 생성",
+                  "pageId": "openapi:reference/admin/policies/policies-create.mdx",
+                  "route": "/reference/admin/policies/policies-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Policies",
+              "path": "/reference/admin/policies"
+            }
+          ],
+          "collapsed": true,
+          "display": "group",
+          "kind": "group",
+          "label": "Admin",
+          "path": "/reference/admin"
+        },
+        {
+          "children": [
+            {
+              "kind": "page",
+              "label": "Overview",
+              "pageId": "openapi:reference/policy/index.mdx",
+              "route": "/reference/policy"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "판단 요청 접수",
+                  "pageId": "openapi:reference/policy/request/policy-request-submit.mdx",
+                  "route": "/reference/policy/request/policy-request-submit"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "판단 요청 조회",
+                  "pageId": "openapi:reference/policy/request/policy-request-get-detail.mdx",
+                  "route": "/reference/policy/request/policy-request-get-detail"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Request",
+              "path": "/reference/policy/request"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "Co-Signer pre-signing 콜백",
+                  "pageId": "openapi:reference/policy/callback/policy-callback-handle.mdx",
+                  "route": "/reference/policy/callback/policy-callback-handle"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Callback",
+              "path": "/reference/policy/callback"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "승인 대기 목록 조회",
+                  "pageId": "openapi:reference/policy/approvals/policy-approval-get-pending.mdx",
+                  "route": "/reference/policy/approvals/policy-approval-get-pending"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "승인 표 제출",
+                  "pageId": "openapi:reference/policy/approvals/policy-approval-vote-vote.mdx",
+                  "route": "/reference/policy/approvals/policy-approval-vote-vote"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Approvals",
+              "path": "/reference/policy/approvals"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "PIP 결과·이행 증거 제출",
+                  "pageId": "openapi:reference/policy/partner/policy-partner-submission-submit.mdx",
+                  "route": "/reference/policy/partner/policy-partner-submission-submit"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Partner",
+              "path": "/reference/policy/partner"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "PIP 소스 종류 목록 조회",
+                  "pageId": "openapi:reference/policy/pip-source-kinds/pip-source-kind-list.mdx",
+                  "route": "/reference/policy/pip-source-kinds/pip-source-kind-list"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "PIP Source Kinds",
+              "path": "/reference/policy/pip-source-kinds"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "2FA 검증",
+                  "pageId": "openapi:reference/policy/admin-auth/policy-admin-auth-verify2-fa.mdx",
+                  "route": "/reference/policy/admin-auth/policy-admin-auth-verify2-fa"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "2FA 등록 확인",
+                  "pageId": "openapi:reference/policy/admin-auth/policy-admin-auth-confirm.mdx",
+                  "route": "/reference/policy/admin-auth/policy-admin-auth-confirm"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "2FA 자가 등록",
+                  "pageId": "openapi:reference/policy/admin-auth/policy-admin-auth-enroll.mdx",
+                  "route": "/reference/policy/admin-auth/policy-admin-auth-enroll"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "세션 신원 조회",
+                  "pageId": "openapi:reference/policy/admin-auth/policy-admin-auth-session.mdx",
+                  "route": "/reference/policy/admin-auth/policy-admin-auth-session"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "어드민 로그아웃",
+                  "pageId": "openapi:reference/policy/admin-auth/policy-admin-auth-logout.mdx",
+                  "route": "/reference/policy/admin-auth/policy-admin-auth-logout"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "어드민 로그인",
+                  "pageId": "openapi:reference/policy/admin-auth/policy-admin-auth-login.mdx",
+                  "route": "/reference/policy/admin-auth/policy-admin-auth-login"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Admin Auth",
+              "path": "/reference/policy/admin-auth"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "초기 어드민 계정 생성",
+                  "pageId": "openapi:reference/policy/bootstrap/policy-bootstrap-create-admin.mdx",
+                  "route": "/reference/policy/bootstrap/policy-bootstrap-create-admin"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Bootstrap",
+              "path": "/reference/policy/bootstrap"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "어드민 목록 조회",
+                  "pageId": "openapi:reference/policy/admins/policy-admin-directory-list.mdx",
+                  "route": "/reference/policy/admins/policy-admin-directory-list"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "어드민 초대",
+                  "pageId": "openapi:reference/policy/admins/policy-admin-directory-create.mdx",
+                  "route": "/reference/policy/admins/policy-admin-directory-create"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Admins",
+              "path": "/reference/policy/admins"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "스텝업 챌린지 발급",
+                  "pageId": "openapi:reference/policy/workspace-registration/policy-workspace-registration-challenge.mdx",
+                  "route": "/reference/policy/workspace-registration/policy-workspace-registration-challenge"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "워크스페이스 등록",
+                  "pageId": "openapi:reference/policy/workspace-registration/policy-workspace-registration-register.mdx",
+                  "route": "/reference/policy/workspace-registration/policy-workspace-registration-register"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "워크스페이스 매니저 등록 토큰 재발급",
+                  "pageId": "openapi:reference/policy/workspace-registration/policy-workspace-managers-reissue-enrollment-token.mdx",
+                  "route": "/reference/policy/workspace-registration/policy-workspace-managers-reissue-enrollment-token"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "워크스페이스 매니저 지명",
+                  "pageId": "openapi:reference/policy/workspace-registration/policy-workspace-managers-assign.mdx",
+                  "route": "/reference/policy/workspace-registration/policy-workspace-managers-assign"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "워크스페이스 매니저 회수",
+                  "pageId": "openapi:reference/policy/workspace-registration/policy-workspace-managers-revoke.mdx",
+                  "route": "/reference/policy/workspace-registration/policy-workspace-managers-revoke"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "워크스페이스 목록 조회",
+                  "pageId": "openapi:reference/policy/workspace-registration/policy-workspace-registration-list.mdx",
+                  "route": "/reference/policy/workspace-registration/policy-workspace-registration-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "워크스페이스 상세 조회",
+                  "pageId": "openapi:reference/policy/workspace-registration/policy-workspace-registration-view.mdx",
+                  "route": "/reference/policy/workspace-registration/policy-workspace-registration-view"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Workspace Registration",
+              "path": "/reference/policy/workspace-registration"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "draft 목록",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-list.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-list"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "draft 생성",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-create.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-create"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "draft 조회",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-view.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-view"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "draft 폐기",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-discard-discard.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-discard-discard"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "revision 검증 실행",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-validation-run.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-validation-run"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "revision 조회",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-revision-view.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-revision-view"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "revision 조회 (주소)",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-revision-by-address-view.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-revision-by-address-view"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "revision 추가",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-revision-append.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-revision-append"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "편집기 base 조회",
+                  "pageId": "openapi:reference/policy/policy-draft/policy-draft-baseline-view.mdx",
+                  "route": "/reference/policy/policy-draft/policy-draft-baseline-view"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Policy Draft",
+              "path": "/reference/policy/policy-draft"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "발행 승인 레코드 개설",
+                  "pageId": "openapi:reference/policy/policy-bundle/policy-bundle-approval-open.mdx",
+                  "route": "/reference/policy/policy-bundle/policy-bundle-approval-open"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "발행 승인 레코드 상세 조회",
+                  "pageId": "openapi:reference/policy/policy-bundle/policy-bundle-approval-view-view.mdx",
+                  "route": "/reference/policy/policy-bundle/policy-bundle-approval-view-view"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "발행 승인 목록",
+                  "pageId": "openapi:reference/policy/policy-bundle/policy-bundle-approval-list.mdx",
+                  "route": "/reference/policy/policy-bundle/policy-bundle-approval-list"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "발행 승인 표 제출",
+                  "pageId": "openapi:reference/policy/policy-bundle/policy-bundle-approval-vote-vote.mdx",
+                  "route": "/reference/policy/policy-bundle/policy-bundle-approval-vote-vote"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "번들 발행",
+                  "pageId": "openapi:reference/policy/policy-bundle/policy-bundle-publication-publish.mdx",
+                  "route": "/reference/policy/policy-bundle/policy-bundle-publication-publish"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "번들 활성화",
+                  "pageId": "openapi:reference/policy/policy-bundle/policy-bundle-activation-activate.mdx",
+                  "route": "/reference/policy/policy-bundle/policy-bundle-activation-activate"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "활성 번들 조회",
+                  "pageId": "openapi:reference/policy/policy-bundle/policy-bundle-activation-view.mdx",
+                  "route": "/reference/policy/policy-bundle/policy-bundle-activation-view"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Policy Bundle",
+              "path": "/reference/policy/policy-bundle"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "워크스페이스 번들 발행",
+                  "pageId": "openapi:reference/policy/workspace-bundle/policy-workspace-bundle-publication-publish.mdx",
+                  "route": "/reference/policy/workspace-bundle/policy-workspace-bundle-publication-publish"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "워크스페이스 번들 활성화",
+                  "pageId": "openapi:reference/policy/workspace-bundle/policy-workspace-bundle-activation-activate.mdx",
+                  "route": "/reference/policy/workspace-bundle/policy-workspace-bundle-activation-activate"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "활성 워크스페이스 번들 조회",
+                  "pageId": "openapi:reference/policy/workspace-bundle/policy-workspace-bundle-active-view-view.mdx",
+                  "route": "/reference/policy/workspace-bundle/policy-workspace-bundle-active-view-view"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Workspace Bundle",
+              "path": "/reference/policy/workspace-bundle"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "활성 번들 tarball 내려받기",
+                  "pageId": "openapi:reference/policy/bundle-serving/policy-bundle-serving-download.mdx",
+                  "route": "/reference/policy/bundle-serving/policy-bundle-serving-download"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "활성 번들 조회 (서빙)",
+                  "pageId": "openapi:reference/policy/bundle-serving/policy-bundle-serving-active.mdx",
+                  "route": "/reference/policy/bundle-serving/policy-bundle-serving-active"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Bundle Serving",
+              "path": "/reference/policy/bundle-serving"
+            }
+          ],
+          "collapsed": true,
+          "display": "group",
+          "kind": "group",
+          "label": "Policy",
+          "path": "/reference/policy"
+        },
+        {
+          "children": [
+            {
+              "kind": "page",
+              "label": "Overview",
+              "pageId": "openapi:reference/travel-rule/index.mdx",
+              "route": "/reference/travel-rule"
+            },
+            {
+              "children": [
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "PII 검증 결과 조회",
+                  "pageId": "openapi:reference/travel-rule/service-api/travel-rule-get-check.mdx",
+                  "route": "/reference/travel-rule/service-api/travel-rule-get-check"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "PII 검증에 대한 tx 업데이트",
+                  "pageId": "openapi:reference/travel-rule/service-api/travel-rule-report-tx.mdx",
+                  "route": "/reference/travel-rule/service-api/travel-rule-report-tx"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "PII 교환&검증 요청",
+                  "pageId": "openapi:reference/travel-rule/service-api/travel-rule-create-check.mdx",
+                  "route": "/reference/travel-rule/service-api/travel-rule-create-check"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "연동 VASP 리스트 조회",
+                  "pageId": "openapi:reference/travel-rule/service-api/vasps-list.mdx",
+                  "route": "/reference/travel-rule/service-api/vasps-list"
+                },
+                {
+                  "badge": "GET",
+                  "kind": "page",
+                  "label": "자신의 VASP 정보 조회",
+                  "pageId": "openapi:reference/travel-rule/service-api/vasps-get-self.mdx",
+                  "route": "/reference/travel-rule/service-api/vasps-get-self"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "주소 검증",
+                  "pageId": "openapi:reference/travel-rule/service-api/travel-rule-address-check.mdx",
+                  "route": "/reference/travel-rule/service-api/travel-rule-address-check"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "Service API",
+              "path": "/reference/travel-rule/service-api"
+            },
+            {
+              "children": [
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "verifyvasp enclave로부터 들어오는 Callback",
+                  "pageId": "openapi:reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive.mdx",
+                  "route": "/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "타 VASP에서 PII 교환&검증 요청",
+                  "pageId": "openapi:reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-user.mdx",
+                  "route": "/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-user"
+                },
+                {
+                  "badge": "POST",
+                  "kind": "page",
+                  "label": "타 VASP에서 주소 검증 요청",
+                  "pageId": "openapi:reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account.mdx",
+                  "route": "/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "VerifyVASP Inbound",
+              "path": "/reference/travel-rule/verifyvasp-inbound"
+            }
+          ],
+          "collapsed": true,
+          "display": "group",
+          "kind": "group",
+          "label": "Travel Rule Gateway API",
+          "path": "/reference/travel-rule"
+        }
+      ],
+      "display": "flat",
+      "kind": "group",
+      "label": "API 레퍼런스",
+      "path": "/reference"
+    },
+    {
+      "children": [
+        {
+          "kind": "page",
+          "label": "v1.0.0",
+          "pageId": "filesystem:changelog/v1-0-0.mdx",
+          "route": "/changelog/v1-0-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.16.0",
+          "pageId": "filesystem:changelog/v0-16-0.mdx",
+          "route": "/changelog/v0-16-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.15.0",
+          "pageId": "filesystem:changelog/v0-15-0.mdx",
+          "route": "/changelog/v0-15-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.14.1",
+          "pageId": "filesystem:changelog/v0-14-1.mdx",
+          "route": "/changelog/v0-14-1"
+        },
+        {
+          "kind": "page",
+          "label": "v0.14.0",
+          "pageId": "filesystem:changelog/v0-14-0.mdx",
+          "route": "/changelog/v0-14-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.13.1",
+          "pageId": "filesystem:changelog/v0-13-1.mdx",
+          "route": "/changelog/v0-13-1"
+        },
+        {
+          "kind": "page",
+          "label": "v0.13.0",
+          "pageId": "filesystem:changelog/v0-13-0.mdx",
+          "route": "/changelog/v0-13-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.12.0",
+          "pageId": "filesystem:changelog/v0-12-0.mdx",
+          "route": "/changelog/v0-12-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.11.0",
+          "pageId": "filesystem:changelog/v0-11-0.mdx",
+          "route": "/changelog/v0-11-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.10.1",
+          "pageId": "filesystem:changelog/v0-10-1.mdx",
+          "route": "/changelog/v0-10-1"
+        },
+        {
+          "kind": "page",
+          "label": "v0.10.0",
+          "pageId": "filesystem:changelog/v0-10-0.mdx",
+          "route": "/changelog/v0-10-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.9.0",
+          "pageId": "filesystem:changelog/v0-9-0.mdx",
+          "route": "/changelog/v0-9-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.8.1",
+          "pageId": "filesystem:changelog/v0-8-1.mdx",
+          "route": "/changelog/v0-8-1"
+        },
+        {
+          "kind": "page",
+          "label": "v0.8.0",
+          "pageId": "filesystem:changelog/v0-8-0.mdx",
+          "route": "/changelog/v0-8-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.7.0",
+          "pageId": "filesystem:changelog/v0-7-0.mdx",
+          "route": "/changelog/v0-7-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.6.0",
+          "pageId": "filesystem:changelog/v0-6-0.mdx",
+          "route": "/changelog/v0-6-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.5.2",
+          "pageId": "filesystem:changelog/v0-5-2.mdx",
+          "route": "/changelog/v0-5-2"
+        },
+        {
+          "kind": "page",
+          "label": "v0.5.1",
+          "pageId": "filesystem:changelog/v0-5-1.mdx",
+          "route": "/changelog/v0-5-1"
+        },
+        {
+          "kind": "page",
+          "label": "v0.5.0",
+          "pageId": "filesystem:changelog/v0-5-0.mdx",
+          "route": "/changelog/v0-5-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.4.1",
+          "pageId": "filesystem:changelog/v0-4-1.mdx",
+          "route": "/changelog/v0-4-1"
+        },
+        {
+          "kind": "page",
+          "label": "v0.4.0",
+          "pageId": "filesystem:changelog/v0-4-0.mdx",
+          "route": "/changelog/v0-4-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.3.0",
+          "pageId": "filesystem:changelog/v0-3-0.mdx",
+          "route": "/changelog/v0-3-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.2.0",
+          "pageId": "filesystem:changelog/v0-2-0.mdx",
+          "route": "/changelog/v0-2-0"
+        },
+        {
+          "kind": "page",
+          "label": "v0.1.0",
+          "pageId": "filesystem:changelog/v0-1-0.mdx",
+          "route": "/changelog/v0-1-0"
+        }
+      ],
+      "display": "flat",
+      "kind": "group",
+      "label": "변경 이력",
+      "path": "/changelog"
+    }
+  ],
+  "tabs": [
+    {
+      "label": "시작하기",
+      "path": "/start"
+    },
+    {
+      "label": "계정과 지갑",
+      "path": "/accounts-wallets"
+    },
+    {
+      "label": "자금 이동",
+      "path": "/fund-flows"
+    },
+    {
+      "label": "정책",
+      "path": "/policy"
+    },
+    {
+      "href": "/reference",
+      "label": "API 레퍼런스",
+      "path": "/reference"
+    },
+    {
+      "href": "/changelog",
+      "label": "변경 이력",
+      "path": "/changelog"
+    }
+  ]
+}

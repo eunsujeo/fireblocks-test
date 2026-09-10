@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-bundle/policy-bundle-approval-view-view.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-view-view.md",
+  "route": "/reference/policy/policy-bundle/policy-bundle-approval-view-view",
+  "title": "발행 승인 레코드 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-view-view",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Bundle\n    - GET\nseo:\n  description: >-\n    승인 레코드 상세. 집계와… Reference for the GET\n    /policy-bundles/approvals/{publicationApprovalId} endpoint in the Wallet\n    Policy Engine Internal API API.\nsidebar:\n  label: 발행 승인 레코드 상세 조회\n  badge: GET\ntitle: 발행 승인 레코드 상세 조회\ntype: openapi-operation\n---\n승인 레코드 상세. **집계와 챌린지가 여기서만 나온다** — 목록은 레코드마다 왕복이 생기지\n않게 그 둘을 싣지 않으므로, checker가 표를 던지기 전에 보는 값이 이 표면이다.\n\n자격 밖 레코드는 부재와 같은 답을 받는다 — 갈라 답하면 그 id의 실재가 드러난다.\n\nErrors:\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 PUBLICATION_FORBIDDEN: 발행 권한 role의 부여가 없다\n- 404 PUBLICATION_APPROVAL_UNKNOWN: 그런 승인 레코드가 없다 (자격 밖 참조 포함)\n\n<Operation source=\"reference-policy\" id=\"policy-bundle-approval-view-view\" />\n"
+}

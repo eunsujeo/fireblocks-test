@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/auth/auth-auth2fa.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-auth2fa.md",
+  "route": "/reference/admin/auth/auth-auth2fa",
+  "title": "2FA 인증",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-auth2fa",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Auth\n    - POST\nseo:\n  description: >-\n    2FA 인증 Reference for the POST /admin/api/v1/auth/2fa endpoint in the Wallet\n    Admin API API.\nsidebar:\n  label: 2FA 인증\n  badge: POST\ntitle: 2FA 인증\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"auth-auth2fa\" />\n"
+}

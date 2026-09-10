@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet/withdrawals/withdrawals-list.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-list.md",
+  "route": "/reference/wallet/withdrawals/withdrawals-list",
+  "title": "출금 내역 목록 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-list",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Withdrawals\n    - GET\nseo:\n  description: >-\n    출금 내역 목록 조회 Reference for the GET /api/v1/accounts/{accountId}/withdrawals\n    endpoint in the Wallet API API.\nsidebar:\n  label: 출금 내역 목록 조회\n  badge: GET\ntitle: 출금 내역 목록 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-wallet\" id=\"withdrawals-list\" />\n"
+}

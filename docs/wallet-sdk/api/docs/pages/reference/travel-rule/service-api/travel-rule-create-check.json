@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/travel-rule/service-api/travel-rule-create-check.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-create-check.md",
+  "route": "/reference/travel-rule/service-api/travel-rule-create-check",
+  "title": "PII 교환&검증 요청",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-create-check",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Service API\n    - POST\nseo:\n  description: >-\n    travel-rule 검증 생성(user). enclave 로 요청하고… Reference for the POST\n    /api/v1/travel-rule/checks endpoint in the Travel Rule Gateway API API.\nsidebar:\n  label: PII 교환&검증 요청\n  badge: POST\ntitle: PII 교환&검증 요청\ntype: openapi-operation\n---\ntravel-rule 검증 생성(user). enclave 로 요청하고 verificationUuid 를 반환.\n\n<Operation source=\"reference-travel-rule\" id=\"travel-rule-create-check\" />\n"
+}

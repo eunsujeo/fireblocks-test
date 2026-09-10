@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/roles/roles-get.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-get.md",
+  "route": "/reference/admin/roles/roles-get",
+  "title": "Role 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-get",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Roles\n    - GET\nseo:\n  description: >-\n    Role 상세 조회 Reference for the GET /admin/api/v1/roles/{roleId} endpoint in\n    the Wallet Admin API API.\nsidebar:\n  label: Role 상세 조회\n  badge: GET\ntitle: Role 상세 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"roles-get\" />\n"
+}

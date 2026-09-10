@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/travel-rule/service-api/vasps-list.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/vasps-list.md",
+  "route": "/reference/travel-rule/service-api/vasps-list",
+  "title": "연동 VASP 리스트 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/vasps-list",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Service API\n    - GET\nseo:\n  description: >-\n    VASP 목록. protocol 로 필터 가능. Reference for the GET /api/v1/travel-rule/vasps\n    endpoint in the Travel Rule Gateway API API.\nsidebar:\n  label: 연동 VASP 리스트 조회\n  badge: GET\ntitle: 연동 VASP 리스트 조회\ntype: openapi-operation\n---\nVASP 목록. protocol 로 필터 가능.\n\n<Operation source=\"reference-travel-rule\" id=\"vasps-list\" />\n"
+}

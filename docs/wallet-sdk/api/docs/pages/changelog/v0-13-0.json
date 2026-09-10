@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-13-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-0.md",
+  "route": "/changelog/v0-13-0",
+  "title": "v0.13.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.13.0\ndate: \"2026-09-08T10:06:58+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.13.0\"\n---\n\n### 문서\n\n- **OpenAPI 명세 파일을 내려받을 수 있습니다.** API 레퍼런스 첫 화면의 표면마다 내려받기 버튼이\n  생겼고, `/openapi/<파일>` 주소로 직접 받을 수도 있습니다. 파일은 레퍼런스 페이지를 만든 것과 같은\n  빌드에서 나온 OpenAPI 3.1 문서입니다. → [API 레퍼런스](/reference)\n"
+}

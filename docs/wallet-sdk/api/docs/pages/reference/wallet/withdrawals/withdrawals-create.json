@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet/withdrawals/withdrawals-create.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-create.md",
+  "route": "/reference/wallet/withdrawals/withdrawals-create",
+  "title": "출금 요청",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-create",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Withdrawals\n    - POST\nseo:\n  description: >-\n    출금 요청 Reference for the POST /api/v1/accounts/{accountId}/withdrawals\n    endpoint in the Wallet API API.\nsidebar:\n  label: 출금 요청\n  badge: POST\ntitle: 출금 요청\ntype: openapi-operation\n---\n<Operation source=\"reference-wallet\" id=\"withdrawals-create\" />\n"
+}

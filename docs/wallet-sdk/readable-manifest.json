@@ -1,0 +1,51 @@
+{
+  "source": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs",
+  "capturedDate": "2026-09-10",
+  "editorialPages": [
+    {
+      "path": "index.html",
+      "title": "Wallet SDK 개발 가이드"
+    },
+    {
+      "path": "_guide/concepts.html",
+      "title": "계정과 지갑"
+    },
+    {
+      "path": "_guide/start.html",
+      "title": "입금 주소 발급"
+    },
+    {
+      "path": "_guide/deposit.html",
+      "title": "입금과 집금 (Sweep)"
+    },
+    {
+      "path": "_guide/withdrawal.html",
+      "title": "출금과 오입금 반환"
+    },
+    {
+      "path": "_guide/transfer.html",
+      "title": "Vault 간 이체"
+    },
+    {
+      "path": "_guide/policy.html",
+      "title": "정책 평가와 서명"
+    },
+    {
+      "path": "_guide/recovery.html",
+      "title": "웹훅과 장애 복구"
+    },
+    {
+      "path": "_guide/status.html",
+      "title": "지원 현황과 미확정 사항"
+    },
+    {
+      "path": "_guide/originals.html",
+      "title": "API 명세와 원문"
+    }
+  ],
+  "originalPages": 198,
+  "originalHome": "original-overview.html",
+  "uiRevision": "2026-09-10-editorial",
+  "audience": "설계·개발자: 흐름과 연동 방법 파악",
+  "statusEvidence": "공개 문서; SDK 구현 또는 운영 환경 검증 아님"
+}

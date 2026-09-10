@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-13-1.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-1.md",
+  "route": "/changelog/v0-13-1",
+  "title": "v0.13.1",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-1",
+  "version": "",
+  "markdown": "---\ntitle: v0.13.1\ndate: \"2026-09-08T10:26:32+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.13.1\"\n---\n\n### 문서\n\n- **OpenAPI 명세 파일이 브라우저에서 바로 열립니다.** `/openapi/<파일>` 주소를 직접 열면 파일로\n  저장되던 것이 텍스트로 표시됩니다. 내려받기 버튼은 그대로 파일로 저장합니다. → [API 레퍼런스](/reference)\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-8-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-0.md",
+  "route": "/changelog/v0-8-0",
+  "title": "v0.8.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.8.0\ndate: \"2026-08-31T21:00:00+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.8.0\"\n---\n\n### 문서\n\n- **정책 엔진 탭을 질문 축의 네 섹션으로 재편했습니다** — 룰(`/policy/rule/*`) ·\n  저작과 발행(`/policy/authoring/*`) · 평가 런타임(`/policy/runtime/*`) ·\n  계약과 운영(`/policy/ops/*`). 열여섯 페이지의 URL이 움직였고 옛 주소는 전부 새 주소로\n  이동합니다. 「룰의 일생」 그룹은 해체되어 각 섹션에 들어갔습니다.\n- **모듈 결합(AND/OR)은 [결정과 결합](/policy/rule/decision)으로, 금액 리터럴 비교 규칙은\n  [룰 명세](/policy/rule/reference)로 옮겼습니다.** 번들 페이지는 번들과 발행 경로만 남습니다.\n- [평가의 순간](/policy/runtime/evaluation)의 조건 3치 서술을 기준 문서에 맞춰 정정했습니다 —\n  미지는 입력에 없는 PIP 소스를 가리켰을 때만 나오고, 요청의 빈 필드 비교는 거짓입니다.\n"
+}

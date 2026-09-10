@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-draft/policy-draft-revision-append.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-append.md",
+  "route": "/reference/policy/policy-draft/policy-draft-revision-append",
+  "title": "revision 추가",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-append",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Draft\n    - POST\nseo:\n  description: >-\n    새 칸을 붙이고 head를 그리로 옮긴다. 새… Reference for the POST\n    /policy-drafts/{draftId}/revisions endpoint in the Wallet Policy Engine\n    Internal API API.\nsidebar:\n  label: revision 추가\n  badge: POST\ntitle: revision 추가\ntype: openapi-operation\n---\n새 칸을 붙이고 head를 그리로 옮긴다. **새 칸에는 검증 기록이 없다** — 편집이 검증을\n무효화하는 것이 아니라, 결과가 애초에 칸마다 붙기 때문이다.\n\nhead가 그 사이 옮겨졌거나 draft가 폐기됐으면 409다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 JSON 형태가 아니거나 content가 없다\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다\n- 404 DRAFT_UNKNOWN: 그런 draft가 없다 (자격 밖 draft 포함)\n- 409 DRAFT_DISCARDED: 폐기된 draft다\n- 409 DRAFT_HEAD_CONFLICT: head가 그 사이 옮겨졌다\n- 413 DRAFT_CONTENT_TOO_LARGE: 본문이 256 KiB를 넘는다\n\n<Operation source=\"reference-policy\" id=\"policy-draft-revision-append\" />\n"
+}

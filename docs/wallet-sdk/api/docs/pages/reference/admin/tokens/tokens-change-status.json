@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/tokens/tokens-change-status.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-change-status.md",
+  "route": "/reference/admin/tokens/tokens-change-status",
+  "title": "토큰 상태 변경",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-change-status",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Tokens\n    - POST\nseo:\n  description: >-\n    토큰 상태 변경 Reference for the POST /admin/api/v1/tokens/{tokenId}/status\n    endpoint in the Wallet Admin API API.\nsidebar:\n  label: 토큰 상태 변경\n  badge: POST\ntitle: 토큰 상태 변경\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"tokens-change-status\" />\n"
+}

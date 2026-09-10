@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/admins/policy-admin-directory-create.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admins/policy-admin-directory-create.md",
+  "route": "/reference/policy/admins/policy-admin-directory-create",
+  "title": "어드민 초대",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admins/policy-admin-directory-create",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Admins\n    - POST\nseo:\n  description: >-\n    계정과 역할 부여를 만들고 1회용 등록 토큰을 낸다. Reference for the POST /admins endpoint in the\n    Wallet Policy Engine Internal API API.\nsidebar:\n  label: 어드민 초대\n  badge: POST\ntitle: 어드민 초대\ntype: openapi-operation\n---\n계정과 역할 부여를 만들고 1회용 등록 토큰을 낸다.\n\n인가는 `policy_admin_manager` 부여이고, 새 부여의 스코프는 **그 부여의 스코프**다.\n요청자가 그 역할을 여러 스코프에서 가지면 거부한다 — 스코프를 요청이 고르게 하면\n격리 경계가 흐려진다.\n\n부여할 역할은 요청이 고르되 요청자가 같은 스코프에서 이미 가진 역할이어야 한다.\n닫힌 집합이라 오타는 거부로 떨어지고 권한 상향이 성립하지 않는다.\n\n아직 등록을 마치지 않은 계정에 다시 호출하면 새 토큰이 나고 이전 토큰은 통하지\n않는다. **이미 2팩터를 등록한 계정이면 거부한다** — 허용하면 활동 중인 어드민의\n자격을 초기화해 그 사람 행세를 할 수 있다.\n\nErrors:\n- 400 INVALID_REQUEST: 바디가 JSON 형태가 아니거나 필수 필드가 없다\n- 401 AUTHENTICATION_FAILED: 세션이 확정되지 않았다\n- 403 ADMIN_DIRECTORY_FORBIDDEN: 초대 권한이 없다\n- 409 ADMIN_LOGIN_ID_TAKEN: 등록을 마친 계정이 그 loginId 를 쓴다\n\n<Operation source=\"reference-policy\" id=\"policy-admin-directory-create\" />\n"
+}

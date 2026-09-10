@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/auth/auth-register2-fa.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-register2-fa.md",
+  "route": "/reference/admin/auth/auth-register2-fa",
+  "title": "2FA OTP 등록",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-register2-fa",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Auth\n    - POST\nseo:\n  description: >-\n    2FA OTP 등록 Reference for the POST /admin/api/v1/auth/2fa/register endpoint\n    in the Wallet Admin API API.\nsidebar:\n  label: 2FA OTP 등록\n  badge: POST\ntitle: 2FA OTP 등록\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"auth-register2-fa\" />\n"
+}

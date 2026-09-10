@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/callback/policy-callback-handle.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/callback/policy-callback-handle.md",
+  "route": "/reference/policy/callback/policy-callback-handle",
+  "title": "Co-Signer pre-signing 콜백",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/callback/policy-callback-handle",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Callback\n    - POST\nseo:\n  description: >-\n    PEP가 종단한다 — JWT 양방향 검증·서명 대상… Reference for the POST\n    /callback/fireblocks-cosigner endpoint in the Wallet Policy Engine Internal\n    API API.\nsidebar:\n  label: Co-Signer pre-signing 콜백\n  badge: POST\ntitle: Co-Signer pre-signing 콜백\ntype: openapi-operation\n---\nPEP가 종단한다 — JWT 양방향 검증·서명 대상 추출·**산출물에서 signingAuthorizationId\n추출**(owning service가 제출 시 externalTxId로 지정 — D-66. 조회 힌트이고 방어는 전체\ncanonical 대조 + CAS)·응답 서명. 승인 저장소 대조와 원자적 단회성 소비는\nOrchestrator가 소유한다.\n\n콜백이 거부하면 Co-Signer는 서명하지 않는다 — 이것이 최종 방어선이다.\n\n미디어 타입은 요청·응답 모두 `application/jose`(JWT compact 직렬화, RFC 7515 §9.2.1)다\n— provider 실물 Content-Type과의 대조는 실물 전환 게이트 항목이다(A8 확정 ⑥).\n\n<Operation source=\"reference-policy\" id=\"policy-callback-handle\" />\n"
+}

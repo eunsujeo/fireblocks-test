@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/approvals/policy-approval-get-pending.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/approvals/policy-approval-get-pending.md",
+  "route": "/reference/policy/approvals/policy-approval-get-pending",
+  "title": "승인 대기 목록 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/approvals/policy-approval-get-pending",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Approvals\n    - GET\nseo:\n  description: >-\n    승인 가능 role 기준 대기 목록. Reference for the GET /approvals endpoint in the Wallet\n    Policy Engine Internal API API.\nsidebar:\n  label: 승인 대기 목록 조회\n  badge: GET\ntitle: 승인 대기 목록 조회\ntype: openapi-operation\n---\n승인 가능 role 기준 대기 목록.\n\n**양쪽 문에서 열린다** — `/approvals`와 `/platform/approvals`가 같은 오퍼레이션이고\n계정의 소속이 어느 경로를 지날 수 있는지 정한다(policy-api.tsp 문 표).\n\n**빈 페이지가 끝을 뜻하지 않는다.** 자격 판정이 SQL 술어로 좁혀지지 않아 스캔이 상한만\n지고 필터가 뒤에서 도므로, 자격 밖 항목만 담긴 페이지는 비어 나오면서 커서가 다음을\n가리킨다. 끝 신호는 `cursor`가 null인 것 하나다.\n\nErrors:\n- 400 INVALID_REQUEST: 커서가 형태 밖이다 (limit은 서버 상한으로 접힌다)\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n\n<Operation source=\"reference-policy\" id=\"policy-approval-get-pending\" />\n"
+}

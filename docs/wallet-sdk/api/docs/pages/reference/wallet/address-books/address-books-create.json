@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet/address-books/address-books-create.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-create.md",
+  "route": "/reference/wallet/address-books/address-books-create",
+  "title": "주소록 등록 (지갑 소유 증명 nonce 서명 포함)",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-create",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Address Books\n    - POST\nseo:\n  description: >-\n    발급받은 nonce의 message에 대한 지갑 서명을 검증해 등재한다.… Reference for the POST\n    /api/v1/accounts/{accountId}/address-books endpoint in the Wallet API API.\nsidebar:\n  label: 주소록 등록 (지갑 소유 증명 nonce 서명 포함)\n  badge: POST\ntitle: 주소록 등록 (지갑 소유 증명 nonce 서명 포함)\ntype: openapi-operation\n---\n발급받은 nonce의 `message`에 대한 지갑 서명을 검증해 등재한다. 등록 자체가 소유 증명\n게이트라 별도 승인 절차가 없다.\n\nErrors:\n- 400 OWNERSHIP_PROOF_REJECTED: nonce가 없거나 만료·소비됐거나 서명이 대상 주소의 것이 아니다\n- 400 ADDRESS_ALREADY_REGISTERED: 같은 체인 좌표에 이미 등재된 주소다\n\n<Operation source=\"reference-wallet\" id=\"address-books-create\" />\n"
+}

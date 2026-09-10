@@ -1,0 +1,12 @@
+{
+  "contentType": "doc",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet.md",
+  "route": "/reference/wallet",
+  "title": "Wallet API",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet",
+  "version": "",
+  "markdown": "---\nseo:\n  description: Wallet API API reference.\nsidebar:\n  label: Overview\ntitle: Wallet API\n---\n<ApiOverview source=\"reference-wallet\" />\n\n## Accounts\n\n파트너사의 최종 사용자를 wallet 안에서 대리하는 계정. 삭제 없이 활성·비활성만 전환한다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"accounts\" />\n\n## Account Wallets\n\n계정에 귀속된 토큰별 입금 지갑. 온체인 주소가 여기 붙는다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"account-wallets\" />\n\n## Address Books\n\n출금 목적지 등록. 등재 여부는 거절 사유가 아니라 정책 입력이다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"address-books\" />\n\n## Deposits\n\n온체인 관측으로 기록된 유입. 확정되면 기본 동결로 들어간다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"deposits\" />\n\n## Withdrawals\n\nworkspace vault에서 외부 주소로의 출금. 자금 귀속에 따라 표면이 갈린다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"withdrawals\" />\n\n## Networks\n\n블록체인 네트워크 카탈로그. 계열에 따라 주소 체계가 갈린다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"networks\" />\n\n## Sweeps\n\n동결 유입 건을 지목해 집금 vault로 옮긴다. 해제와 이동이 원자적이다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"sweeps\" />\n\n## Tokens\n\n네트워크 위의 자산. 유일성은 (workspace, network, 컨트랙트 주소)에서 성립한다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"tokens\" />\n\n## Travel Rules\n\n트래블룰 정보 교환. 판단 주체는 wallet이고 상대 VASP에는 단일 boolean만 낸다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"travel-rules\" />\n\n## Workspace Vault Transfers\n\nworkspace vault 사이의 자산 이동. 동결되지 않은 자산만 움직인다.\n\n<ApiTagOperations source=\"reference-wallet\" tag=\"workspace-vault-transfers\" />\n"
+}

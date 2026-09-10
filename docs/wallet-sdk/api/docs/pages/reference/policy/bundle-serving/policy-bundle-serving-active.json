@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/bundle-serving/policy-bundle-serving-active.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/bundle-serving/policy-bundle-serving-active.md",
+  "route": "/reference/policy/bundle-serving/policy-bundle-serving-active",
+  "title": "활성 번들 조회 (서빙)",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/bundle-serving/policy-bundle-serving-active",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Bundle Serving\n    - GET\nseo:\n  description: >-\n    활성 revision 조회. PDP 에 무엇이 활성인지 보는 운영… Reference for the GET\n    /bundles/{bundleName}/active endpoint in the Wallet Policy Engine Internal\n    API API.\nsidebar:\n  label: 활성 번들 조회 (서빙)\n  badge: GET\ntitle: 활성 번들 조회 (서빙)\ntype: openapi-operation\n---\n활성 revision 조회. PDP 에 무엇이 활성인지 보는 운영 관측 지점이다.\n\n레플리카들이 서로 다른 값을 주장하는 것이 결함이고, 사이드카 폴링 시차로 OPA 가 이보다\n뒤의 revision 을 쓰는 것은 정상이다.\n\nErrors:\n- 401 UNAUTHENTICATED: 서비스 크리덴셜이 신원을 확정하지 않는다\n- 403 FORBIDDEN_ROLE: 그 크리덴셜의 역할이 이 표면을 부를 수 없다\n- 503 no_active_bundle: 활성 포인터가 없다. **봉투가 다르다**\n\n<Operation source=\"reference-policy\" id=\"policy-bundle-serving-active\" />\n"
+}

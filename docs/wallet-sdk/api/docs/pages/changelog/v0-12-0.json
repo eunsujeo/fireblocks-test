@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-12-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-12-0.md",
+  "route": "/changelog/v0-12-0",
+  "title": "v0.12.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-12-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.12.0\ndate: \"2026-09-07T18:00:00+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.12.0\"\n---\n\n### 문서\n\n- **API 레퍼런스의 엔드포인트 페이지 주소가 단어 단위로 끊깁니다.** 문서 사이트 엔진이 1.6으로 오르며\n  `operationId`의 낙타 표기를 하이픈으로 자릅니다. `/reference/wallet/sweeps/sweeps-getbyreferenceid`가\n  `/reference/wallet/sweeps/sweeps-get-by-reference-id`가 되는 식으로 79개 주소가 옮겨졌고, 옛 주소는\n  모두 새 주소로 넘어갑니다. 저장해 둔 링크를 고치실 필요는 없습니다. → [API 레퍼런스](/reference)\n- **에이전트용 읽기 표면이 늘었습니다.** 페이지 목록·본문·탐색 트리를 JSON으로 주는 `/api/docs/`와\n  그 명세인 `/openapi.json`이 생겼습니다. `/openapi.json`은 Wallet API가 아니라 이 문서 사이트 자체의\n  명세입니다. Wallet API 명세는 지금처럼 각 레퍼런스 페이지에서 받으십시오.\n"
+}

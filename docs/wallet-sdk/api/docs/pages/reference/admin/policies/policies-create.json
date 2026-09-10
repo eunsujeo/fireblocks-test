@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/policies/policies-create.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-create.md",
+  "route": "/reference/admin/policies/policies-create",
+  "title": "Policy 생성",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-create",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policies\n    - POST\nseo:\n  description: >-\n    Policy 생성 Reference for the POST /admin/api/v1/policies endpoint in the\n    Wallet Admin API API.\nsidebar:\n  label: Policy 생성\n  badge: POST\ntitle: Policy 생성\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"policies-create\" />\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-5-1.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-1.md",
+  "route": "/changelog/v0-5-1",
+  "title": "v0.5.1",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-1",
+  "version": "",
+  "markdown": "---\ntitle: v0.5.1\ndate: \"2026-08-30T23:30:00+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.5.1\"\n---\n\n### 문서\n\n- **정책 엔진 다이어그램 여덟 장을 상호작용 뷰어로 실었습니다.** 배포 토폴로지·서명 게이트 두 단계·판단\n  요청 상태 머신·번들 발행 워크플로우 다섯 장과, 판단 요청·콜백·번들/PIP의 코드 레벨 호출 경로\n  세 장입니다. 본문 칸에서는 축소 미리보기이고 전체 화면·새 탭에서 확대·검색·관계 추적이 됩니다 —\n  → [다이어그램](/policy/diagrams)\n- **protected 본은 private 자산도 뺍니다.** 페이지만 가리던 빌드가 이제 `public/` 아래 private 자산\n  디렉토리까지 산출물에서 지우고, 검사가 그 부재를 확인합니다.\n"
+}

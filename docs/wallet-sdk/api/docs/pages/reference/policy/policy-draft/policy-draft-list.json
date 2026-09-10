@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/policy-draft/policy-draft-list.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-list.md",
+  "route": "/reference/policy/policy-draft/policy-draft-list",
+  "title": "draft 목록",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-list",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policy Draft\n    - GET\nseo:\n  description: >-\n    콘솔 목록. 폐기된 것도 준다 — 목록이 활성/폐기를 구분해 보여야… Reference for the GET /policy-drafts\n    endpoint in the Wallet Policy Engine Internal API API.\nsidebar:\n  label: draft 목록\n  badge: GET\ntitle: draft 목록\ntype: openapi-operation\n---\n콘솔 목록. **폐기된 것도 준다** — 목록이 활성/폐기를 구분해 보여야 한다.\n목록의 술어는 세션이 확정한 스코프다.\n\nErrors:\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없다\n\n<Operation source=\"reference-policy\" id=\"policy-draft-list\" />\n"
+}

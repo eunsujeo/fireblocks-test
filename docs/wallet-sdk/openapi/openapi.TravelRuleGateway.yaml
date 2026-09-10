@@ -1,0 +1,749 @@
+openapi: 3.1.0
+info:
+  title: Travel Rule Gateway API
+  version: v1
+  description: |-
+    travel-rule-gateway HTTP API.
+    Gateway가 연동하고 있는 VV의 Enclave는 별도 MYSQL을 운영해야하며 이 DB에서는 통신한 데이터 전문을 기록하고 있다.
+    해당 전문은 모두 암호화되고 있으며 암호화의 키는 사용측에서 발행하고 관리한다. (API 구현을 통해 암호화키 전달)
+    따라서 암호화 되어있다고는 하지만 개인정보에 해당하는 데이터이므로 적격기관에서 운용하고 관리해야한다.
+    이 Gateway는 트래블룰 처리를 위한 인터페이스 통합역할을 할수있지만 데이터 보관권한은 없으므로 DB와 Enclave는 보유대상이 아닌 연동대상이다.
+tags:
+  - name: Service API
+    description: 트래블룰 게이트웨이 서비스 표면.
+  - name: VerifyVASP Inbound
+    description: VerifyVASP 인바운드 수신.
+paths:
+  /api/v1/travel-rule/address-checks:
+    post:
+      operationId: TravelRule_addressCheck
+      summary: 주소 검증
+      description: 수취 주소(계좌) 검증. 이름 비교 없음.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    $ref: '#/components/schemas/AddressCheckResponse'
+                description: 단일 리소스 성공 응답 래퍼.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Service API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressCheckRequest'
+      security:
+        - BearerAuth: []
+  /api/v1/travel-rule/checks:
+    post:
+      operationId: TravelRule_createCheck
+      summary: PII 교환&검증 요청
+      description: travel-rule 검증 생성(user). enclave 로 요청하고 verificationUuid 를 반환.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    $ref: '#/components/schemas/TravelRuleCheckResponse'
+                description: 단일 리소스 성공 응답 래퍼.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Service API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTravelRuleCheckRequest'
+      security:
+        - BearerAuth: []
+  /api/v1/travel-rule/checks/tx:
+    post:
+      operationId: TravelRule_reportTx
+      summary: PII 검증에 대한 tx 업데이트
+      description: 검증에 대한 tx 보고. 성공 여부(boolean) 반환.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    type: boolean
+                description: 단일 리소스 성공 응답 래퍼.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Service API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TxReportRequest'
+      security:
+        - BearerAuth: []
+  /api/v1/travel-rule/checks/{trId}:
+    get:
+      operationId: TravelRule_getCheck
+      summary: PII 검증 결과 조회
+      description: 검증 결과 조회(uuid 기준).
+      parameters:
+        - name: trId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: provider
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Provider'
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    $ref: '#/components/schemas/GetVerificationResultResponse'
+                description: 단일 리소스 성공 응답 래퍼.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Service API
+      security:
+        - BearerAuth: []
+  /api/v1/travel-rule/vasps:
+    get:
+      operationId: Vasps_list
+      summary: 연동 VASP 리스트 조회
+      description: VASP 목록. protocol 로 필터 가능.
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Provider'
+          explode: false
+        - name: protocol
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    type: object
+                    required:
+                      - items
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VaspResponse'
+                      cursor:
+                        type: string
+                        description: cursor 기반 페이지네이션. 다음 페이지 없으면 생략.
+                description: 목록 성공 응답 래퍼.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Service API
+      security:
+        - {}
+  /api/v1/travel-rule/vasps/self:
+    get:
+      operationId: Vasps_getSelf
+      summary: 자신의 VASP 정보 조회
+      description: 자기 VASP 식별자.
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Provider'
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    $ref: '#/components/schemas/VaspResponse'
+                description: 단일 리소스 성공 응답 래퍼.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - Service API
+      security:
+        - {}
+  /api/v1/verifyvasp/callback:
+    post:
+      operationId: VerifyVaspCallback_receive
+      summary: verifyvasp enclave로부터 들어오는 Callback
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallbackResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - VerifyVASP Inbound
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CallbackEnvelope'
+      security:
+        - BearerAuth: []
+  /api/v1/verifyvasp/verifications:
+    post:
+      operationId: VerifyVaspInboundVerifications_user
+      summary: 타 VASP에서 PII 교환&검증 요청
+      description: 수취인 검증(inbound). 이름 완전 일치 대조.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundUserVerificationResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - VerifyVASP Inbound
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InboundUserVerificationRequest'
+      security:
+        - BearerAuth: []
+  /api/v1/verifyvasp/verifications/account:
+    post:
+      operationId: VerifyVaspInboundVerifications_account
+      summary: 타 VASP에서 주소 검증 요청
+      description: 수취 계좌 검증(inbound). 결과는 로그만 남기고 저장하지 않는다.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundAccountVerificationResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+      tags:
+        - VerifyVASP Inbound
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InboundAccountVerificationRequest'
+      security:
+        - BearerAuth: []
+components:
+  schemas:
+    AddressCheckRequest:
+      type: object
+      required:
+        - provider
+        - beneficiaryVaspId
+        - symbol
+        - beneficiaryAccountNumber
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        beneficiaryVaspId:
+          type: string
+        symbol:
+          type: string
+        beneficiaryAccountNumber:
+          type: string
+        network:
+          type: string
+    AddressCheckResponse:
+      type: object
+      required:
+        - status
+        - verifiedAt
+      properties:
+        status:
+          type: string
+          description: provider 판정 결과 문자열.
+        verifiedAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601. 미검증 시 null.
+        reason:
+          type: string
+    ApiErrorDetail:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: 'SCREAMING_SNAKE_CASE (예: NOT_FOUND, INVALID_REQUEST, UNAUTHORIZED, INVALID_STATE).'
+        message:
+          type: string
+        details:
+          description: validation 실패 시 field→message 맵 등. 필요할 때만 채워진다.
+    ApiErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: '#/components/schemas/ApiErrorDetail'
+      description: 전역 에러 응답(GlobalExceptionHandler). null 필드는 직렬화에서 제외된다.
+    AssetInfo:
+      type: object
+      required:
+        - symbol
+        - amount
+        - isExceedingThreshold
+        - tradePrice
+        - tradeCurrency
+        - tradeISODatetime
+      properties:
+        symbol:
+          type: string
+        amount:
+          type: string
+        isExceedingThreshold:
+          type: boolean
+        tradePrice:
+          type: string
+        tradeCurrency:
+          type: string
+        tradeISODatetime:
+          type: string
+          description: ISO-8601 문자열.
+        network:
+          type: string
+    CallbackEnvelope:
+      type: object
+      required:
+        - callbackType
+        - data
+      properties:
+        callbackType:
+          $ref: '#/components/schemas/CallbackType'
+        data:
+          type: object
+          unevaluatedProperties: {}
+      description: enclave 콜백 봉투. `data` 는 callbackType 별 payload(자유형 JSON).
+    CallbackResponse:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: boolean
+    CallbackType:
+      type: string
+      enum:
+        - VERIFICATION_RESULT
+        - TX_REPORT
+        - ERROR_REPORT
+        - CHAINALYSIS_KYT_RESULT
+        - REFINITIV_WCO_RESULT
+    CreateTravelRuleCheckRequest:
+      type: object
+      required:
+        - provider
+        - beneficiaryVaspId
+        - assetInfo
+        - originator
+        - beneficiary
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        beneficiaryVaspId:
+          type: string
+        assetInfo:
+          $ref: '#/components/schemas/SlimAssetInfo'
+        originator:
+          $ref: '#/components/schemas/TravelRuleParty'
+          description: 송신 당사자 정보.
+        beneficiary:
+          $ref: '#/components/schemas/SimpleTravelRuleParty'
+          description: 수취 당사자 정보.
+    GetVerificationResultResponse:
+      type: object
+      required:
+        - provider
+        - trId
+        - assetInfo
+        - originatingVaspId
+        - originatorAccountNumber
+        - ivms101Originator
+        - ivms101OriginatingVasp
+        - beneficiaryVaspId
+        - beneficiaryAccountNumber
+        - ivms101Beneficiary
+        - ivms101BeneficiaryVasp
+        - verifiedAt
+        - createdAt
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        trId:
+          type: string
+        assetInfo:
+          $ref: '#/components/schemas/AssetInfo'
+        txHash:
+          type: string
+        originatingVaspId:
+          type: string
+        originatorAccountNumber:
+          type: string
+        ivms101Originator:
+          type: string
+        ivms101OriginatingVasp:
+          type: string
+        beneficiaryVaspId:
+          type: string
+        beneficiaryAccountNumber:
+          type: string
+        ivms101Beneficiary:
+          type: string
+        ivms101BeneficiaryVasp:
+          type: string
+        verifiedAt:
+          type: string
+          description: ISO-8601.
+        orderedAt:
+          type: string
+        createdAt:
+          type: string
+        result:
+          type: string
+        reason:
+          type: string
+    InboundAccountVerificationRequest:
+      type: object
+      required:
+        - originatingVaspId
+        - symbol
+        - version
+        - ivms101
+      properties:
+        originatingVaspId:
+          type: string
+        symbol:
+          type: string
+        version:
+          type: string
+        ivms101:
+          type: object
+          unevaluatedProperties: {}
+        network:
+          type: string
+    InboundAccountVerificationResponse:
+      type: object
+      required:
+        - accountVerificationResult
+        - verifiedAt
+      properties:
+        accountVerificationResult:
+          type: string
+        verifiedAt:
+          type: string
+        reason:
+          type: string
+    InboundUserVerificationRequest:
+      type: object
+      required:
+        - verificationUuid
+        - originatingVaspId
+        - assetInfo
+        - beneficiaryInfo
+        - version
+        - ivms101
+      properties:
+        verificationUuid:
+          type: string
+        originatingVaspId:
+          type: string
+        assetInfo:
+          $ref: '#/components/schemas/AssetInfo'
+        beneficiaryInfo:
+          type: string
+          description: 반환 희망 필드 CSV. resolver 전달용(비교에는 미사용).
+        version:
+          type: string
+        ivms101:
+          type: object
+          unevaluatedProperties: {}
+    InboundUserVerificationResponse:
+      type: object
+      required:
+        - result
+        - reason
+        - message
+        - version
+      properties:
+        result:
+          type: string
+        reason:
+          type: string
+        message:
+          type: string
+        version:
+          type: string
+        ivms101:
+          type: object
+          unevaluatedProperties: {}
+      description: null 필드는 직렬화에서 제외된다.
+    NationalIdentifierType:
+      type: string
+      enum:
+        - ARNU
+        - CCPT
+        - RAID
+        - DRLC
+        - FIIN
+        - TXID
+        - SOCS
+        - IDCD
+        - LEIX
+        - MISC
+      description: IVMS101 nationalIdentifierType (자연인). ARNU/CCPT/... 코드.
+    Provider:
+      type: string
+      enum:
+        - VERIFYVASP
+    SimpleTravelRuleParty:
+      type: object
+      required:
+        - name
+        - accountNumber
+      properties:
+        name:
+          type: string
+          description: 성(IVMS101 primaryIdentifier). 필수.
+        accountNumber:
+          type: string
+          description: 계좌/지갑 주소. 검증 대상 식별자. 필수.
+        secondaryName:
+          type: string
+          description: 이름(IVMS101 secondaryIdentifier).
+    SlimAssetInfo:
+      type: object
+      required:
+        - symbol
+        - amount
+      properties:
+        symbol:
+          type: string
+        amount:
+          type: string
+          description: 10진수 문자열. 정규식 `\d+(\.\d+)?`.
+      description: 금액은 정밀도 보존을 위해 문자열(decimal)로 전달한다.
+    TravelRuleCheckResponse:
+      type: object
+      required:
+        - provider
+        - trId
+        - createdAt
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        trId:
+          type: string
+          description: provider가 발급한 검증 식별자.
+        createdAt:
+          type: string
+          description: ISO-8601.
+    TravelRuleParty:
+      type: object
+      required:
+        - name
+        - accountNumber
+      properties:
+        name:
+          type: string
+          description: 성(IVMS101 primaryIdentifier). 필수.
+        accountNumber:
+          type: string
+          description: 계좌/지갑 주소. 검증 대상 식별자. 필수.
+        secondaryName:
+          type: string
+          description: 이름(IVMS101 secondaryIdentifier).
+        address:
+          type: string
+          description: 물리 주소(IVMS101 geographicAddress, 자유형 라인).
+        country:
+          type: string
+          description: 주소 국가(IVMS101 geographicAddress.country). ISO 3166-1 alpha-2.
+        dateOfBirth:
+          type: string
+          description: 생년월일(IVMS101 dateAndPlaceOfBirth.dateOfBirth). YYYY-MM-DD.
+        placeOfBirth:
+          type: string
+          description: 출생지(IVMS101 dateAndPlaceOfBirth.placeOfBirth).
+        countryOfResidence:
+          type: string
+          description: 거주 국가(IVMS101 countryOfResidence). ISO 3166-1 alpha-2.
+        nationalIdentifier:
+          type: string
+          description: 신분 식별 번호(IVMS101 nationalIdentification.nationalIdentifier).
+        nationalIdentifierType:
+          $ref: '#/components/schemas/NationalIdentifierType'
+          description: 신분 식별 타입(IVMS101 nationalIdentification.nationalIdentifierType).
+        identifierCountryOfIssue:
+          type: string
+          description: 신분 식별 발행 국가(IVMS101 nationalIdentification.countryOfIssue). ISO 3166-1 alpha-2.
+        customerIdentification:
+          type: string
+          description: VASP 내부 고객 식별자(IVMS101 customerIdentification).
+      description: |-
+        travel-rule 당사자(자연인) 정보. originator/beneficiary 공통 형태.
+
+        IVMS101 naturalPerson 필드를 flat 하게 받는다(name/accountNumber 만 필수).
+        백엔드가 이 flat 필드를 IVMS101 구조(naturalPerson.name[]/geographicAddress[]/
+        dateAndPlaceOfBirth/nationalIdentification 등)로 조립한다.
+    TxReportRequest:
+      type: object
+      required:
+        - provider
+        - trId
+        - txHash
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        trId:
+          type: string
+        txHash:
+          type: string
+    VaspResponse:
+      type: object
+      required:
+        - provider
+        - vaspId
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        vaspId:
+          type: string
+        vaspName:
+          type: string
+        legalName:
+          type: string
+        health:
+          type: string
+        jurisdiction:
+          type: string
+        isAlliance:
+          type: boolean
+        country:
+          type: string
+        countryCode:
+          type: string
+        protocol:
+          type: string
+        licensedStatus:
+          type: string
+        vaspStatus:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: Bearer

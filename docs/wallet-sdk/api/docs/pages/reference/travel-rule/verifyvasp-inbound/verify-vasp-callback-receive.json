@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive.md",
+  "route": "/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive",
+  "title": "verifyvasp enclave로부터 들어오는 Callback",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - VerifyVASP Inbound\n    - POST\nseo:\n  description: >-\n    verifyvasp enclave로부터 들어오는 Callback Reference for the POST\n    /api/v1/verifyvasp/callback endpoint in the Travel Rule Gateway API API.\nsidebar:\n  label: verifyvasp enclave로부터 들어오는 Callback\n  badge: POST\ntitle: verifyvasp enclave로부터 들어오는 Callback\ntype: openapi-operation\n---\n<Operation source=\"reference-travel-rule\" id=\"verify-vasp-callback-receive\" />\n"
+}

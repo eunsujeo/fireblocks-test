@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-9-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-9-0.md",
+  "route": "/changelog/v0-9-0",
+  "title": "v0.9.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-9-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.9.0\ndate: \"2026-08-31T23:00:00+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.9.0\"\n---\n\n### 문서\n\n- **정책 탭에 유즈케이스 그룹을 새로 열었습니다.** 룰·스탬프의 형태가 어떤 런타임 흐름을\n  발동하는지를 다섯 편이 다룹니다 — 각 편에 상호작용 다이어그램이 붙습니다.\n  → [출금 화이트리스트](/policy/use-cases/whitelist-loop)\n  · [권한 상승 게이트](/policy/use-cases/escalation-pending)\n  · [금지선](/policy/use-cases/deny-override)\n  · [룰 변경 게이트](/policy/use-cases/rule-change)\n  · [서명 상한 대조](/policy/use-cases/callback-limit)\n"
+}

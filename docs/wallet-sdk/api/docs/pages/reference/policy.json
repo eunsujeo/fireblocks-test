@@ -1,0 +1,12 @@
+{
+  "contentType": "doc",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy.md",
+  "route": "/reference/policy",
+  "title": "Wallet Policy Engine Internal API",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy",
+  "version": "",
+  "markdown": "---\nseo:\n  description: Wallet Policy Engine Internal API API reference.\nsidebar:\n  label: Overview\ntitle: Wallet Policy Engine Internal API\n---\n<ApiOverview source=\"reference-policy\" />\n\n## Admins\n\n어드민 신원·역할 디렉토리.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"admins\" />\n\n## Approvals\n\nmaker-checker 승인. 정족수 obligation의 이행 표면이고, 요청자와 승인자는 같을 수 없다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"approvals\" />\n\n## Admin Auth\n\n어드민 인증. 챌린지 모델로 2FA를 수집한다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"admin-auth\" />\n\n## Bundle Serving\n\nOPA 사이드카가 활성 번들을 당겨 가는 표면. 자격은 서비스 크리덴셜이다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"bundle-serving\" />\n\n## Callback\n\n서명 인프라 콜백. 서명 이전의 마지막 관문이다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"callback\" />\n\n## PIP Source Kinds\n\nPIP 소스 종류 카탈로그.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"pip-source-kinds\" />\n\n## Partner\n\n비동기 PIP 결과 제출. 아웃바운드 트리거에 대한 인증된 인바운드다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"partner\" />\n\n## Bootstrap\n\n초기 어드민 등재. 온보딩 런북의 첫 단계다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"bootstrap\" />\n\n## Policy Bundle\n\n정책 로직 번들 발행·활성화. 플랫폼 거버넌스가 소유한다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"policy-bundle\" />\n\n## Workspace Registration\n\n워크스페이스 등록과 매니저 관리. platform 문 전용이다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"workspace-registration\" />\n\n## Policy Draft\n\n룰 저작. 컴파일 검증을 지나야 발행 후보가 된다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"policy-draft\" />\n\n## Request\n\n정책 판단 요청 접수와 조회. 202 접수 후 비동기 평가다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"request\" />\n\n## Workspace Bundle\n\n워크스페이스 번들 발행·활성화. 고객사가 자기 정책을 저작한다.\n\n<ApiTagOperations source=\"reference-policy\" tag=\"workspace-bundle\" />\n"
+}

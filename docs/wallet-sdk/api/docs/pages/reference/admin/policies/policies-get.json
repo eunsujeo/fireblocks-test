@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/policies/policies-get.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-get.md",
+  "route": "/reference/admin/policies/policies-get",
+  "title": "Policy 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-get",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Policies\n    - GET\nseo:\n  description: >-\n    Policy 상세 조회 Reference for the GET /admin/api/v1/policies/{policyId}\n    endpoint in the Wallet Admin API API.\nsidebar:\n  label: Policy 상세 조회\n  badge: GET\ntitle: Policy 상세 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"policies-get\" />\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/workspace-vaults/workspace-vaults-get-wallet.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-get-wallet.md",
+  "route": "/reference/admin/workspace-vaults/workspace-vaults-get-wallet",
+  "title": "Workspace Wallet 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-get-wallet",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Workspace Vaults\n    - GET\nseo:\n  description: >-\n    Workspace Wallet… Reference for the GET\n    /admin/api/v1/workspace-vaults/{workspaceVaultId}/wallets/{workspaceWalletId}\n    endpoint in the Wallet Admin API API.\nsidebar:\n  label: Workspace Wallet 상세 조회\n  badge: GET\ntitle: Workspace Wallet 상세 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"workspace-vaults-get-wallet\" />\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/api-keys/api-keys-get-api-key.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-get-api-key.md",
+  "route": "/reference/admin/api-keys/api-keys-get-api-key",
+  "title": "API Key 원문 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-get-api-key",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - API Keys\n    - GET\nseo:\n  description: >-\n    API Key 원문 조회 Reference for the GET\n    /admin/api/v1/tenants/{tenantId}/api-keys/{apiKeyId}/key endpoint in the\n    Wallet Admin API API.\nsidebar:\n  label: API Key 원문 조회\n  badge: GET\ntitle: API Key 원문 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"api-keys-get-api-key\" />\n"
+}

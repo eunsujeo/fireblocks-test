@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-6-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-6-0.md",
+  "route": "/changelog/v0-6-0",
+  "title": "v0.6.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-6-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.6.0\ndate: \"2026-08-31T15:27:08+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.6.0\"\n---\n\n### 문서\n\n- **정책 엔진 탭에 페이지 둘을 더했습니다.** 저작 세트가 어떤 JSON 파일로 이루어지고 각 파일이\n  무엇을 드는지, 그리고 그 세트가 검증·정규화·채점을 지나 번들로 증명되는 과정입니다. 두 페이지\n  모두 상호작용 다이어그램을 싣습니다 — → [저작 세트](/policy/authoring/sources) ·\n  [컴파일과 채점](/policy/authoring/compilation)\n- **다이어그램 페이지가 이 본에도 실립니다.** 배포 토폴로지·서명 게이트·상태 머신·발행\n  워크플로우·코드 호출 경로·소스 구성까지 상호작용 뷰어 열두 장입니다 —\n  → [다이어그램](/policy/diagrams)\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/wallet/address-books/address-books-create-nonce.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-create-nonce.md",
+  "route": "/reference/wallet/address-books/address-books-create-nonce",
+  "title": "주소록 등록용 지갑 소유 증명 nonce 발급",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-create-nonce",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Address Books\n    - POST\nseo:\n  description: >-\n    주소록 등록용 지갑 소유 증명 nonce 발급 Reference for the POST\n    /api/v1/accounts/{accountId}/address-books/nonce endpoint in the Wallet API\n    API.\nsidebar:\n  label: 주소록 등록용 지갑 소유 증명 nonce 발급\n  badge: POST\ntitle: 주소록 등록용 지갑 소유 증명 nonce 발급\ntype: openapi-operation\n---\n<Operation source=\"reference-wallet\" id=\"address-books-create-nonce\" />\n"
+}

@@ -1,0 +1,34 @@
+---
+search:
+  tags:
+    - Policy Draft
+    - GET
+seo:
+  description: >-
+    편집기 base 조회. 활성 번들이 없거나 git… Reference for the GET
+    /policy-drafts/baseline/{bundleName} endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: 편집기 base 조회
+  badge: GET
+title: 편집기 base 조회
+type: openapi-operation
+---
+편집기 base 조회. **활성 번들이 없거나 git 채널 번들이어도 200이다** — 그 사실은
+`hasBaseline`·`absentReason`이 말하고 편집기는 빈 스캐폴드로 이어 간다.
+
+404로 답하지 않는 것이 활성 번들 조회(`/policy-bundles/activations/{bundleName}`·
+`/workspace-bundles/activation`)와 갈리는 지점이다: 저쪽은 "지금 무엇이 활성인가"를
+묻고 부재가 곧 답의 부재지만, 이쪽은 "무엇을 base로 편집을 시작하는가"를 묻고 부재도
+답이다.
+
+**어느 스코프의 base를 주는지는 세션의 발행 부여가 정한다** — 요청은 그것을 나르지
+않는다. 부여가 없거나 여럿이면 거부하고 두 경우를 응답에서 가르지 않는다. platform과
+workspace 발행 자격을 함께 가진 어드민이 여기서 거부되는 것이 그 계약 그대로다:
+예외를 두면 어느 기준선을 받는지가 부여 조합에 따라 조용히 갈린다.
+
+Errors:
+- 401 AUTHENTICATION_FAILED: 어드민 세션이 없거나 유효하지 않다
+- 403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없거나 여럿이다
+
+<Operation source="reference-policy" id="policy-draft-baseline-view" />

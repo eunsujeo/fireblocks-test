@@ -1,0 +1,13 @@
+{
+  "contentType": "doc",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/policy.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy.md",
+  "route": "/policy",
+  "title": "정책",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy",
+  "description": "서명 앞의 검사 단계",
+  "version": "",
+  "markdown": "---\ntitle: 정책\ndescription: 서명 앞의 검사 단계\n---\n\n_읽는 사람: 파트너사 개발자와 구현팀. 정책 엔진 문서군의 진입점이고, 어느 문서가 어느 질문에 답하는지를 모아 둡니다._\n\n정책 엔진은 자금을 움직이는 요청이 서명 인프라로 가기 전에 그 요청을 심사하는 별도 시스템입니다.\nWallet 서버가 요청을 받으면 정책 엔진에 판단을 묻고, 허가가 있어야만 서명을 요청합니다. 심사\n기준인 룰은 플랫폼과 파트너사가 각자 저작합니다.\n\n## 정책 위반은 서명 이전에 막습니다\n\n서명한 뒤 거절하는 방식을 두지 않습니다. 서명이 나가면 그것은 이미 나간 것이라, 거절할 여지가\n남지 않기 때문입니다.\n\n정책 엔진은 서명 인프라로 요청이 나가기 전의 마지막 검사 단계입니다.\n\n## 판단 주체를 갈라 두면 한쪽이 침해돼도 서명이 나가지 않습니다\n\n**Wallet SDK만 탈취당해도 서명이 나가지 않습니다.** 정책 엔진이 별도 판단 주체라, 침해된 쪽이\n자기 판단으로 서명을 얻어낼 수 없습니다.\n\n정책 엔진을 제외한 전부가 침해돼도 한 번에 다량이 나가지 않습니다. 1회 송금 한도 같은 룰이 그\n즉시 작동하기 때문입니다.\n\n## 문서는 답하는 질문에 따라 나뉩니다\n\n먼저 여섯 장이 정책 엔진 전체를 덮습니다. 전체 그림부터 잡으려면 전체 지도가 첫 진입입니다.\n\n- [전체 지도](/policy/map) — 저작 산출물이 가는 세 경로와 평가 입력의 조립을 두 장으로 요약합니다\n- [구조](/policy/architecture) — 각 역할이 어디에 배포되고 무엇을 맡는지\n- [서명 게이트](/policy/signing-gate) — 판단과 집행이 나뉘는 두 단계\n- [다이어그램](/policy/diagrams) — 배포 토폴로지부터 코드 호출 경로까지 상호작용 뷰어로\n- [룰 저작과 발행](/policy/workflow) — draft 하나가 검증·승인을 거쳐 활성 번들이 되기까지\n- [운영과 관측](/policy/operations) — 무엇을 보고 무엇을 알리나\n\n그 아래로 그룹이 넷입니다.\n\n- **룰**: 룰이라는 언어 자체를 씁니다. [룰 구조](/policy/rule/structure)·[룰 명세](/policy/rule/reference)·[결정과 결합](/policy/rule/decision) 셋입니다\n- **평가**: 요청 하나가 거치는 런타임을 씁니다. [정규화](/policy/runtime/normalization)·[PIP](/policy/runtime/pip)·[평가의 순간](/policy/runtime/evaluation)·[저장과 이동](/policy/runtime/storage) 넷입니다\n- **승인과 수집 흐름**: 사람의 승인과 파트너의 답을 기다리는 흐름입니다. [승인 게이트](/policy/sequences/approval-gate)·[비동기 수집](/policy/sequences/pending-data)·[obligation 수집](/policy/sequences/obligations) 셋입니다\n- **유즈케이스**: 룰과 승인 스탬프의 형태가 어떤 런타임 흐름을 발동하는지를 [사례 다섯](/policy/use-cases/whitelist-loop)으로 봅니다\n\n저작에서 발행까지의 파이프라인은 [구조](/policy/architecture)와\n[룰 저작과 발행](/policy/workflow)이 한 문단으로 서술합니다.\n\n## 저작은 번들 두 종류로 나뉩니다\n\n정책 로직 번들은 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물입니다. 플랫폼 거버넌스가\n소유하고, 배포 단위당 하나이며, 변경은 제안자와 승인자를 갈라 두는 maker-checker 승인을 거칩니다.\n\n워크스페이스 번들은 한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다. 값 이동은 출금·vault\n이체·집금처럼 자산을 실제로 움직이는 연산 셋입니다.\n\n플랫폼이 파라미터의 하한(floor)을 정하고 파트너사는 그 안에서 값을 고릅니다.\n\n하한만 두고 상한을 두지 않습니다. 인가 TTL의 상한은 슬롯 선언이 아니라 검사 둘이 강제합니다.\n발행 시점의 컴파일 검사와, 승인 스탬프를 찍는 절차입니다.\n\n조건 트리를 평가하고 결정을 결합하는 [커널](/policy/rule/decision)은 평가 시점에 그 상한을 읽지\n않습니다. 그래서 조정을 불허할 값은 슬롯이 아니라 룰에 직접 씁니다. 슬롯은 카탈로그에 선언되고\n워크스페이스가 조정할 수 있는 값입니다([룰 구조](/policy/rule/structure)).\n"
+}

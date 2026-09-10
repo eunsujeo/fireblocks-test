@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-14-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-0.md",
+  "route": "/changelog/v0-14-0",
+  "title": "v0.14.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.14.0\ndate: \"2026-09-08T13:18:54+09:00\"\ntype: changelog\nchangelog:\n  category: 계약 변경 포함\n  version: \"0.14.0\"\n---\n\n### 계약 변경\n\n- **입금 갱신 통지 `DEPOSIT_UPDATED`가 생깁니다.** 확정 뒤에 트래블룰 매핑이나 KYT 결과가 붙을 때마다\n  그 순간까지의 정보를 전부 실어 다시 보냅니다. 한 건에 여러 번 올 수 있으니 수신 핸들러가 같은\n  `depositId`의 통지를 여러 번 받는 것을 전제로 하십시오. → [웹훅](/fund-flows/webhooks)\n- **입금 통지 본문에 `travelRule`과 `kyt`가 붙습니다.** 아직 확인되지 않았으면 `null`입니다. 확정\n  통지에 `null`로 왔다가 갱신 통지에서 채워지는 것이 보통입니다. 두 필드를 필수로 파싱하지 마십시오.\n- **갱신 통지의 중복 제거 키는 `{depositId}:DEPOSIT_UPDATED:{순번}`입니다.** 관측·확정 통지의 키\n  형태는 그대로입니다. 순번이 큰 통지가 최신 상태입니다.\n- 위 셋은 계약이 먼저 정해진 것이고 구현은 뒤따릅니다. 지금 나가는 통지는 바뀌지 않습니다.\n\n### 문서\n\n- **입금 페이지를 다시 썼습니다.** 동결을 풀어도 되는지 판단하는 재료를 온체인 확정 이전(트래블룰·\n  주소록)과 이후(AML·FDS·KYT)로 나눠 담고, 트래블룰 정보가 확정보다 늦게 오는 현실에서 통지가 어떤\n  순서로 나가는지를 설명합니다. 주소는 그대로입니다. 워크스페이스 지갑 입금은 이 페이지에서 빠졌고\n  [자금 동결](/fund-flows/release)이 다룹니다. → [입금](/fund-flows/deposit)\n- 트래블룰 1차 주소 확인에서 Wallet SDK 소유 주소면 파트너사에 허용 VASP 여부를 동기로 묻습니다.\n  1초 응답 제한 안에 들어가는 호출이고, 제한 시간 안에 답이 없으면 허용으로 간주합니다. 인터페이스와\n  제한 시간 값은 파트너사와 함께 정합니다.\n- KYT 결과가 BLOCKED여도 Wallet SDK는 갱신 통지에 결과만 싣습니다. 차단 조치는 파트너사 몫입니다.\n"
+}

@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/auth/auth-join.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-join.md",
+  "route": "/reference/admin/auth/auth-join",
+  "title": "유저 가입 (초대 수락)",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-join",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Auth\n    - POST\nseo:\n  description: >-\n    유저 가입 (초대 수락) Reference for the POST /admin/api/v1/auth/join endpoint in the\n    Wallet Admin API API.\nsidebar:\n  label: 유저 가입 (초대 수락)\n  badge: POST\ntitle: 유저 가입 (초대 수락)\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"auth-join\" />\n"
+}

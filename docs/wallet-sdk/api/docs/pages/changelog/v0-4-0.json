@@ -1,0 +1,12 @@
+{
+  "contentType": "changelog",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/changelog/v0-4-0.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-4-0.md",
+  "route": "/changelog/v0-4-0",
+  "title": "v0.4.0",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-4-0",
+  "version": "",
+  "markdown": "---\ntitle: v0.4.0\ndate: \"2026-08-27T14:45:11+09:00\"\ntype: changelog\nchangelog:\n  category: 문서만\n  version: \"0.4.0\"\n---\n\n### 문서\n\n- **사이트가 둘로 나갑니다.** 이 주소는 그중 하나이고, 설계 기록은 다른 쪽에 실립니다.\n- **자금 이동 탭의 제목이 전부 명사가 됐습니다.** 「입금이 도착하는 길」은 [입금](/fund-flows/deposit),\n  「이동 일곱 가지」는 [이동 종류](/fund-flows/movements), 「동결과 해제」는 [자금 동결](/fund-flows/release),\n  「통지」는 [웹훅](/fund-flows/webhooks)입니다. 주장은 각 페이지의 설명과 소제목이 맡습니다.\n- **입금·집금·출금·Vault 이체가 「이동 종류」 바로 아래에 순서대로 놓였습니다.** 제목에 영문을\n  붙였습니다 — 입금 (Deposit) · 집금 (Sweep) · 출금 (Withdrawal) · Vault 이체 (Vault Transfer).\n  주소는 그대로입니다.\n- **일곱 이동 중 둘이 자기 자리를 얻었습니다.** 워크스페이스 지갑 입금(`wwd-`)은\n  [입금](/fund-flows/deposit)에, 계정 지갑 출금(`aww-`, 오입금 반환)은\n  [출금](/fund-flows/withdrawal)에 절이 생겼습니다. 이전에는 표의 한 행이 전부였습니다.\n- **동결 서술이 한 곳으로 모였습니다.** 탭 첫 페이지와 [자금 동결](/fund-flows/release)이 같은 말을\n  두 번 하던 것을 후자로 몰았습니다.\n- **주소록이 화이트리스트라는 것을 적었습니다.** 제목은 [주소록 (Address Book · Whitelist)](/fund-flows/address-book)이고,\n  정책 문서가 화이트리스트라고 부르는 것이 같은 장부임을 본문과 [용어](/concepts/terminology)에 밝혔습니다.\n- **웹훅과 통지를 갈랐습니다.** 채널이 웹훅이고 실리는 것이 통지입니다 — [용어](/concepts/terminology)에\n  두 항목이 따로 있습니다.\n"
+}

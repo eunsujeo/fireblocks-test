@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/workspace-vaults/workspace-vaults-create.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-create.md",
+  "route": "/reference/admin/workspace-vaults/workspace-vaults-create",
+  "title": "Workspace Vault 생성",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-create",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Workspace Vaults\n    - POST\nseo:\n  description: >-\n    Workspace Vault 생성 Reference for the POST /admin/api/v1/workspace-vaults\n    endpoint in the Wallet Admin API API.\nsidebar:\n  label: Workspace Vault 생성\n  badge: POST\ntitle: Workspace Vault 생성\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"workspace-vaults-create\" />\n"
+}

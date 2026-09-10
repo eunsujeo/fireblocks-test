@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/tokens/tokens-create.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-create.md",
+  "route": "/reference/admin/tokens/tokens-create",
+  "title": "토큰 생성",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-create",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Tokens\n    - POST\nseo:\n  description: >-\n    토큰 생성 Reference for the POST /admin/api/v1/tokens endpoint in the Wallet\n    Admin API API.\nsidebar:\n  label: 토큰 생성\n  badge: POST\ntitle: 토큰 생성\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"tokens-create\" />\n"
+}

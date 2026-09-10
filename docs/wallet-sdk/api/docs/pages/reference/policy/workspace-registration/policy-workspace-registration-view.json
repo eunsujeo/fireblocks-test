@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/policy/workspace-registration/policy-workspace-registration-view.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-view.md",
+  "route": "/reference/policy/workspace-registration/policy-workspace-registration-view",
+  "title": "워크스페이스 상세 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-view",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Workspace Registration\n    - GET\nseo:\n  description: >-\n    등록 상세와 매니저 목록. Reference for the GET /platform/workspaces/{workspaceId}\n    endpoint in the Wallet Policy Engine Internal API API.\nsidebar:\n  label: 워크스페이스 상세 조회\n  badge: GET\ntitle: 워크스페이스 상세 조회\ntype: openapi-operation\n---\n등록 상세와 매니저 목록.\n\nErrors:\n- 401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다\n- 403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다\n- 404 WORKSPACE_TARGET_UNKNOWN: 등록되지 않은 좌표다\n\n<Operation source=\"reference-policy\" id=\"policy-workspace-registration-view\" />\n"
+}

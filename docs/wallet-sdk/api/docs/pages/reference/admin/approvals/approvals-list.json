@@ -1,0 +1,12 @@
+{
+  "contentType": "openapi-operation",
+  "json": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/api/docs/pages/reference/admin/approvals/approvals-list.json",
+  "lastModified": null,
+  "locale": "ko",
+  "markdownUrl": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-list.md",
+  "route": "/reference/admin/approvals/approvals-list",
+  "title": "승인 진행 내역 목록 조회",
+  "url": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-list",
+  "version": "",
+  "markdown": "---\nsearch:\n  tags:\n    - Approvals\n    - GET\nseo:\n  description: >-\n    승인 진행 내역 목록 조회 Reference for the GET /admin/api/v1/approvals endpoint in the\n    Wallet Admin API API.\nsidebar:\n  label: 승인 진행 내역 목록 조회\n  badge: GET\ntitle: 승인 진행 내역 목록 조회\ntype: openapi-operation\n---\n<Operation source=\"reference-admin\" id=\"approvals-list\" />\n"
+}
