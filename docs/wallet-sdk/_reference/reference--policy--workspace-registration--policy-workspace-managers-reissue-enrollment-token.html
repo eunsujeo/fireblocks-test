@@ -1,0 +1,72 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>워크스페이스 매니저 등록 토큰 재발급 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>워크스페이스 매니저 등록 토큰 재발급</h1><p>매니저의 등록 토큰을 다시 낸다. 이전 토큰은 통하지 않는다 — 만료된 토큰 하나가 그 계정을
+굳히지 않게 하는 자리다.</p>
+<p><strong>이미 2팩터를 등록한 계정이면 거부한다</strong>(409). 허용하면 활동 중인 매니저의 자격을
+초기화해 그 사람 행세를 할 수 있다.</p>
+<p>Errors:</p>
+<ul>
+<li>400 INVALID_REQUEST: 바디가 없거나 challengeId·challengeResponse 가 비었다</li>
+<li>401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다</li>
+<li>401 WORKSPACE_CHALLENGE_INVALID: 건별 2FA 스텝업에 실패했다</li>
+<li>403 WORKSPACE_ADMIN_FORBIDDEN: 초대 권한의 platform 부여가 없다 (대상 계정의 소속 불변식 위반 포함)</li>
+<li>404 WORKSPACE_TARGET_UNKNOWN: 그 워크스페이스의 매니저가 아니다</li>
+<li>409 ADMIN_LOGIN_ID_TAKEN: 그 계정이 이미 2팩터 등록까지 마쳤다</li>
+</ul>
+<div><div class="ref-endpoint"><span>POST</span><code>/platform/workspaces/{workspaceId}/managers/{adminUserId}/enrollment-tokens</code></div><div><div><section><h2>Authorization</h2><div class="schema"><div class="field"><div class="field-signature"><code>Authorization</code><span class="ref-meta">Bearer token · header</span><span class="ref-required">required</span></div></div></div><div class="ref-meta">or</div><div class="schema"><div class="field"><div class="field-signature"><code>policy_admin_session</code><span class="ref-meta">API key · cookie</span><span class="ref-required">required</span></div></div></div></section><section><h2>Path parameters</h2><div class="schema"><div class="field"><div class="field-signature"><code>workspaceId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>adminUserId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div></div></section><section><div><h2>Request body</h2><span class="ref-required">required</span><code class="ref-meta">application/json</code></div><div><div><div class="field"><div class="field-signature"><code>challengeId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>challengeResponse</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div></div></div></section><section><h2>Responses</h2><div><div><div><span>200</span><span class="ref-meta">The request has succeeded.</span></div><div><div><div class="field"><div class="field-signature"><code>result</code><span class="ref-meta">PolicyWorkspaceManagerEnrolled</span><span class="ref-required">required</span></div><div class="ref-meta">지명·재발급 결과. **등록 토큰 평문은 이 응답에만 존재한다** — 서버는 해시만 보관하고 다시
+꺼내는 표면이 없다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>adminUserId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">TSID prefix usr-</div></div><div class="field"><div class="field-signature"><code>enrollmentToken</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">1회용 등록 토큰 평문. 이 값으로 본인이 비밀번호와 2팩터를 세운다</div></div><div class="field"><div class="field-signature"><code>enrollmentTokenExpiresAt</code><span class="ref-meta">string&lt;date-time&gt;</span><span class="ref-required">required</span></div><div class="ref-meta">토큰 만료 시각. 지나면 재발급이 필요하다</div></div></div></div></details></div></div></div></div><div><div><span class="ref-meta">default</span><span class="ref-meta">An unexpected error response.</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">PolicyErrorCode</span><span class="ref-required">required</span></div><div class="ref-meta">policy 표면이 내는 `error.code`의 전량. 표면 enum의 합집합에 프레임워크 코드를 더한 것이고,
+이 union이 `PolicyApiErrorResponse`의 `code` 타입이다.
+
+**wallet 도메인 `ErrorCode`(루트 common.tsp)와 섞이지 않는 것이 계약이다** — 두 값 집합은
+겹치는 것이 `INTERNAL_ERROR` 하나뿐이라, 한 봉투로 묶으면 레퍼런스를 읽는 소비자가 policy
+응답에서 결코 나오지 않는 코드 마흔여덟 개를 분기 대상으로 받는다.
+
+새 표면 enum을 만들면 여기에 더한다. 더하지 않으면 그 코드는 응답 타입 어디에도 연결되지
+않아 생성 스키마에 나타나지 않는다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyRequestErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminAuthErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBootstrapErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminDirectoryErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyApprovalErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyDraftErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PipSourceKindErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBundlePublicationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceBundleErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceRegistrationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyFrameworkErrorCode</div><div class="ref-meta"><code>string</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">위반한 필드 경로 등. 없으면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div></div></section></div><div><div><div><h3>Request</h3><div><details open=""><summary>cURL</summary><div id="panel-tabs-request-panel-curl"><div><pre tabindex="0"><code>curl -X POST "/platform/workspaces/string/managers/string/enrollment-tokens" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "challengeId": "string",
+  "challengeResponse": "string"
+}'</code></pre></div></div></details><details><summary>JavaScript</summary><div id="panel-tabs-request-panel-js"><div><pre tabindex="0"><code>const response = await fetch("/platform/workspaces/string/managers/string/enrollment-tokens", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN",
+    "Content-Type": "application/json"
+  },
+  body: "{\n  \"challengeId\": \"string\",\n  \"challengeResponse\": \"string\"\n}"
+});</code></pre></div></div></details><details><summary>Python</summary><div id="panel-tabs-request-panel-python"><div><pre tabindex="0"><code>import requests
+
+response = requests.post(
+    "/platform/workspaces/string/managers/string/enrollment-tokens",
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN",
+        "Content-Type": "application/json"
+    },
+    data="{\n  \"challengeId\": \"string\",\n  \"challengeResponse\": \"string\"\n}",
+)</code></pre></div></div></details></div></div><div><h3>Response</h3><div><details open=""><summary>200</summary><div id="panel-tabs-response-panel-200"><div><pre tabindex="0"><code>{
+  "result": {
+    "adminUserId": "string",
+    "enrollmentToken": "string",
+    "enrollmentTokenExpiresAt": "2019-08-24T14:15:22Z"
+  }
+}</code></pre></div></div></details><details><summary>default</summary><div id="panel-tabs-response-panel-default"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "string",
+    "details": {}
+  }
+}</code></pre></div></div></details></div></div></div></div></div></div></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

@@ -1,0 +1,72 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PIP 소스 종류 목록 조회 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>PIP 소스 종류 목록 조회</h1><p>소스 종류 카탈로그 조회. <strong>read-only다</strong> — 이 표면에 쓰기 오퍼레이션이 없는 것이
+“종류는 코드, 인스턴스는 번들”의 표면 쪽 표현이다.</p>
+<p>Errors:</p>
+<ul>
+<li>401 AUTHENTICATION_FAILED: 어드민 세션이 없거나 유효하지 않다</li>
+<li>403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 하나도 없다 (스코프는 가리지 않는다)</li>
+</ul>
+<div><div class="ref-endpoint"><span>GET</span><code>/pip-source-kinds</code></div><div><div><section><h2>Authorization</h2><div class="schema"><div class="field"><div class="field-signature"><code>Authorization</code><span class="ref-meta">Bearer token · header</span><span class="ref-required">required</span></div></div></div><div class="ref-meta">or</div><div class="schema"><div class="field"><div class="field-signature"><code>policy_admin_session</code><span class="ref-meta">API key · cookie</span><span class="ref-required">required</span></div></div></div></section><section><h2>Responses</h2><div><div><div><span>200</span><span class="ref-meta">The request has succeeded.</span></div><div><div><div class="field"><div class="field-signature"><code>result</code><span class="ref-meta">PipSourceKindList</span><span class="ref-required">required</span></div><div class="ref-meta">카탈로그 전량. 여기 있는 종류가 곧 선언 가능한 종류다</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>kinds</code><span class="ref-meta">PipSourceKind[]</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Array of <code>PipSourceKind</code></div><div><div class="field"><div class="field-signature"><code>kind</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">종류 이름. 선언의 `kind`가 이 값을 지목한다</div></div><div class="field"><div class="field-signature"><code>schemaVersion</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">스냅샷 스키마 버전. **선언이 아니라 코드가 대는 값이다** — 선언에서 되읽으면 자가
+점검이 항등식이 되어 배포를 잊은 상태가 조용한 통과가 된다.</div></div><div class="field"><div class="field-signature"><code>registration</code><span class="ref-meta">PipSourceKindRegistration</span><span class="ref-required">required</span></div><div class="ref-meta">종류를 어떻게 등록하는가 — 무엇이 선언에 실리는지를 가른다</div><div><span class="ref-meta">Allowed:</span><code>CODE_ADAPTER</code><code>DECLARED_GENERIC</code></div></div><div class="field"><div class="field-signature"><code>fields</code><span class="ref-meta">PipSourceKindField[]</span><span class="ref-required">required</span></div><div class="ref-meta">이 종류가 내놓는 스냅샷 필드</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Array of <code>PipSourceKindField</code></div><div><div class="field"><div class="field-signature"><code>leaf</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">잎 이름. 경로 구분자를 담지 않는다</div></div><div class="field"><div class="field-signature"><code>type</code><span class="ref-meta">PipSnapshotFieldType</span><span class="ref-required">required</span></div><div class="ref-meta">스냅샷 필드의 값 종류. 레지스트리 메타스키마의 `snapshotField.type`과 같은 집합이다</div><div><span class="ref-meta">Allowed:</span><code>STRING</code><code>IDENTIFIER</code><code>ADDRESS</code><code>NUMBER</code><code>BOOLEAN</code><code>AMOUNT</code></div></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>normalizationImplemented</code><span class="ref-meta">boolean</span><span class="ref-required">required</span></div><div class="ref-meta">정규화 구현이 배포돼 있는지. **false는 "발행은 되지만 수집은 거부된다"다** — 두
+관문이 다른 것을 재기 때문에 성립하는 상태다.
+
+소유 클래스 이름을 싣지 않는 것이 의도다 — 편집기가 판단하는 것은 "이 종류를 지금
+쓸 수 있는가"이고, 내부 구현 좌표는 그 판단에 필요하지 않다.</div></div></div></div></div></details></div></div></div></details></div></div></div></div><div><div><span class="ref-meta">default</span><span class="ref-meta">An unexpected error response.</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">PolicyErrorCode</span><span class="ref-required">required</span></div><div class="ref-meta">policy 표면이 내는 `error.code`의 전량. 표면 enum의 합집합에 프레임워크 코드를 더한 것이고,
+이 union이 `PolicyApiErrorResponse`의 `code` 타입이다.
+
+**wallet 도메인 `ErrorCode`(루트 common.tsp)와 섞이지 않는 것이 계약이다** — 두 값 집합은
+겹치는 것이 `INTERNAL_ERROR` 하나뿐이라, 한 봉투로 묶으면 레퍼런스를 읽는 소비자가 policy
+응답에서 결코 나오지 않는 코드 마흔여덟 개를 분기 대상으로 받는다.
+
+새 표면 enum을 만들면 여기에 더한다. 더하지 않으면 그 코드는 응답 타입 어디에도 연결되지
+않아 생성 스키마에 나타나지 않는다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyRequestErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminAuthErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBootstrapErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminDirectoryErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyApprovalErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyDraftErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PipSourceKindErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBundlePublicationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceBundleErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceRegistrationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyFrameworkErrorCode</div><div class="ref-meta"><code>string</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">위반한 필드 경로 등. 없으면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div></div></section></div><div><div><div><h3>Request</h3><div><details open=""><summary>cURL</summary><div id="panel-tabs-request-panel-curl"><div><pre tabindex="0"><code>curl -X GET "/pip-source-kinds" \
+  -H "Authorization: Bearer YOUR_TOKEN"</code></pre></div></div></details><details><summary>JavaScript</summary><div id="panel-tabs-request-panel-js"><div><pre tabindex="0"><code>const response = await fetch("/pip-source-kinds", {
+  method: "GET",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN"
+  }
+});</code></pre></div></div></details><details><summary>Python</summary><div id="panel-tabs-request-panel-python"><div><pre tabindex="0"><code>import requests
+
+response = requests.get(
+    "/pip-source-kinds",
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN"
+    },
+)</code></pre></div></div></details></div></div><div><h3>Response</h3><div><details open=""><summary>200</summary><div id="panel-tabs-response-panel-200"><div><pre tabindex="0"><code>{
+  "result": {
+    "kinds": [
+      {
+        "kind": "string",
+        "schemaVersion": "string",
+        "registration": "CODE_ADAPTER",
+        "fields": [
+          {
+            "leaf": "string",
+            "type": "STRING"
+          }
+        ],
+        "normalizationImplemented": true
+      }
+    ]
+  }
+}</code></pre></div></div></details><details><summary>default</summary><div id="panel-tabs-response-panel-default"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "string",
+    "details": {}
+  }
+}</code></pre></div></div></details></div></div></div></div></div></div></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

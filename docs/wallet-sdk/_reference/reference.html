@@ -1,0 +1,81 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>API 레퍼런스 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>API 레퍼런스</h1><p class="ref-meta">표면 다섯 개의 엔드포인트 전수</p>
+<p>계약 소유자와 인증 방식이 하나로 정해지는 API 경로 묶음인 표면(<a data-reference-title="표면과 인증" href="start--authentication.html">자세히</a>)이
+다섯 가지 있습니다. 부르는 주체와 인증 방식이 갈라서 다섯으로 나뉜 것입니다. 먼저 어느 표면인지를
+고르고 그 안에서 엔드포인트를 찾는 편이 빠릅니다.</p>
+<p>헤더의 드롭다운으로 표면 사이를 오갈 수 있습니다.</p>
+<h2 id="파트너사가-쓰는-표면"><a data-reference-title="API 레퍼런스" href="reference.html#파트너사가-쓰는-표면">파트너사가 쓰는 표면</a></h2>
+<h3 id="wallet-api"><a data-reference-title="Wallet API" href="reference--wallet.html">Wallet API</a></h3>
+<p><a download="openapi.WalletApi.yaml" href="../openapi/openapi.WalletApi.yaml" rel="noopener" target="_blank"><svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>OpenAPI 명세 내려받기</a><code>openapi.WalletApi.yaml</code></p>
+<p>일상적인 연동에서 부르는 것은 이것 하나입니다. 계정과 지갑을 만들고, 입금을 조회하고, 집금과
+출금을 요청합니다.</p>
+<p>인증은 파트너사 API 키입니다. 스코프는 그 키가 정하고 요청이 싣지 않습니다.</p>
+<ul>
+<li><strong>관련 서술</strong>: <a data-reference-title="자금 이동" href="fund-flows.html">자금 이동</a> · 설계 기록의 「식별자」</li>
+</ul>
+<h2 id="운영자가-쓰는-표면"><a data-reference-title="API 레퍼런스" href="reference.html#운영자가-쓰는-표면">운영자가 쓰는 표면</a></h2>
+<h3 id="admin-api"><a data-reference-title="Wallet Admin API" href="reference--admin.html">Admin API</a></h3>
+<p><a download="openapi.WalletAdminApi.yaml" href="../openapi/openapi.WalletAdminApi.yaml" rel="noopener" target="_blank"><svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>OpenAPI 명세 내려받기</a><code>openapi.WalletAdminApi.yaml</code></p>
+<p>카탈로그(네트워크·토큰), 테넌트, API 키를 관리하고 승인 게이팅을 처리합니다. 격리 키가
+workspace입니다.</p>
+<p>승인 게이팅은 어드민 액션이 승인자의 확인을 거쳐야 실행되는
+통제입니다(<a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">자세히</a>).</p>
+<ul>
+<li><strong>관련 서술</strong>: <a data-reference-title="카탈로그" href="accounts-wallets--catalog.html">카탈로그</a> · <a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a></li>
+</ul>
+<h3 id="policy-api"><a data-reference-title="Wallet Policy Engine Internal API" href="reference--policy.html">Policy API</a></h3>
+<p><a download="openapi.PolicyApi.yaml" href="../openapi/openapi.PolicyApi.yaml" rel="noopener" target="_blank"><svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>OpenAPI 명세 내려받기</a><code>openapi.PolicyApi.yaml</code></p>
+<p>정책 판단 요청과 조회, 룰 저작·발행, 어드민 인증입니다. 사람이 콘솔로 접근하는 어드민 표면과
+서비스가 부르는 판단 표면이 같은 포트에 있습니다. 어느 쪽인지는 경로가 정합니다. 겹치면 어드민
+세션 인증이 우선하고, 엇갈린 자격은 401입니다.</p>
+<ul>
+<li><strong>관련 서술</strong>: <a data-reference-title="정책" href="policy.html">정책 엔진</a> · <a data-reference-title="표면과 인증" href="start--authentication.html">표면과 인증</a></li>
+</ul>
+<h2 id="서비스끼리-부르는-표면"><a data-reference-title="API 레퍼런스" href="reference.html#서비스끼리-부르는-표면">서비스끼리 부르는 표면</a></h2>
+<p>파트너사는 이 둘을 직접 부르지 않습니다. Wallet 서버가 게이트웨이를 겸해 대신 호출합니다.
+Wallet 서버는 파트너 대상 API를 받아 정책 엔진에 판단을 묻고 서명 인프라에 제출하는 Wallet SDK의
+서버 컴포넌트입니다(<a data-reference-title="구조" href="policy--architecture.html">자세히</a>). 문서에 실린 이유는 그 계약이 무엇인지가 자금
+흐름과 정책 판단을 읽는 데 필요해서입니다.</p>
+<h3 id="travel-rule-gateway-api"><a data-reference-title="Travel Rule Gateway API" href="reference--travel-rule.html">Travel Rule Gateway API</a></h3>
+<p><a download="openapi.TravelRuleGateway.yaml" href="../openapi/openapi.TravelRuleGateway.yaml" rel="noopener" target="_blank"><svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>OpenAPI 명세 내려받기</a><code>openapi.TravelRuleGateway.yaml</code></p>
+<p>가상자산 이전 시 송·수신 정보를 사업자끼리 교환하는 규제 의무인
+트래블룰(<a data-reference-title="Wallet SDK" href="overview.html#%ED%95%A8%EA%BB%98-%EC%A0%9C%EA%B3%B5%ED%95%98%EB%8A%94-%EB%AA%A8%EB%93%88">자세히</a>)의 정보 교환입니다. 판단 주체는 wallet이고, 상대 VASP에는 단일
+boolean만 냅니다. 그 이상을 내면 상대가 파트너사의 최종 사용자를 열거할 수 있습니다.</p>
+<ul>
+<li><strong>관련 서술</strong>: <a data-reference-title="이동 종류" href="fund-flows--movements.html">이동 종류</a> · <a data-reference-title="Wallet SDK" href="overview.html#%ED%95%A8%EA%BB%98-%EC%A0%9C%EA%B3%B5%ED%95%98%EB%8A%94-%EB%AA%A8%EB%93%88">에코시스템</a></li>
+</ul>
+<h3 id="internal-api"><a data-reference-title="API 레퍼런스" href="reference.html#internal-api">Internal API</a></h3>
+<p>자금을 움직이는 요청이 서명 인프라로 가기 전에 그 요청을 심사하는 별도 시스템인 정책
+엔진(<a data-reference-title="구조" href="policy--architecture.html">자세히</a>)이 평가 전에 사실을 읽는 경로입니다. vault 소유, 토큰 카탈로그,
+주소 등재 상태가 여기서 나옵니다.</p>
+<p><strong>조회 순서 자체가 격리의 근거입니다.</strong> 토큰 카탈로그 조회는 요청이 신고한 workspace가 아니라
+vault 소유 해석에서 얻은 workspace로 스코프합니다. vault 소유 해석은 vault 식별자 하나로 소유
+workspace와 tenant를 확정하는 조회입니다(<a data-reference-title="PIP" href="policy--runtime--pip.html">자세히</a>).</p>
+<ul>
+<li><strong>관련 서술</strong>: <a data-reference-title="PIP" href="policy--runtime--pip.html">PIP</a> · <a data-reference-title="도메인 모델" href="accounts-wallets--domain-model.html">도메인 모델</a></li>
+</ul>
+<h2 id="계약의-기준-문서"><a data-reference-title="API 레퍼런스" href="reference.html#계약의-기준-문서">계약의 기준 문서</a></h2>
+<p>계약의 기준 문서는 TypeSpec입니다. 이 레퍼런스는 <code>docs/wallet-system/tsp/</code>에서 생성됩니다.
+엔드포인트·스키마·에러 코드가 바뀌면 그쪽이 먼저 바뀌고 여기가 따라옵니다.</p>
+<p>표면마다 있는 내려받기 버튼은 그 TypeSpec에서 생성한 OpenAPI 3.1 파일을 줍니다. 이 사이트의
+레퍼런스 페이지도 같은 파일에서 만들어지므로, 받은 파일과 화면의 내용은 같은 빌드에서 나온 것입니다.
+클라이언트 코드 생성이나 모의 서버에 넣을 때 씁니다.</p>
+<p>계약이 바뀐 것은 <span title="현재 문서 묶음에 없는 참조입니다.">변경 이력</span>에 적습니다. 계약과 서술이 갈려 있는 것은
+설계 기록의 「알려진 제약」에 모아 두었습니다. <strong>에러 코드 이름과 주소록 접두사가 지금
+그렇습니다.</strong></p>
+<p><strong>여기 실린 것이 다 동작하지는 않습니다.</strong> 어느 오퍼레이션이 아직 모형 응답이고 어느 것이
+계약뿐인지는 설계 기록의 「구현 대기」가 빌드마다 코드에서 다시 셉니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

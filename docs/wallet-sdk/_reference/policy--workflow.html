@@ -1,0 +1,111 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>룰 저작과 발행 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>룰 저작과 발행</h1><p class="ref-meta">draft 하나가 편집·검증·승인을 거쳐 활성 번들이 되기까지</p>
+
+
+<p>저작과 발행은 draft를 열고, 검증을 받고, 승인을 모아 발행과 활성화까지 가는 과정입니다. 이
+페이지는 그 과정에서 사람이 거치는 길을 씁니다.</p>
+<p>룰은 저작 세트에서 시작해 번들이 되어 서빙됩니다. 저작 세트는 룰 모듈과 카탈로그·레지스트리
+파일이 놓이는 묶음입니다.</p>
+<p>컴파일이 그것을 평가기가 읽는 선언 데이터로 바꾸고, 채점이 컴파일된 룰을 테스트 벡터로 돌려
+기대 결과와 맞는지 확인합니다.</p>
+<p>둘을 통과한 내용이 정책 로직 번들로 묶여 발행되고, 활성 포인터가 그중 한 revision을 지목하면
+그것이 서빙됩니다. 번들 바이트와 발행 이력은 관계형 저장소에 남습니다.</p>
+<figure><div class="interactive-diagram"><iframe loading="lazy" src="../diagrams/rule-draft-lifecycle.html" title="룰 draft의 일생 — 저작에서 활성까지"></iframe></div><figcaption><a href="../diagrams/rule-draft-lifecycle.html" rel="noopener" target="_blank">다이어그램 크게 보기</a></figcaption></figure>
+<h2 id="저작은-기준선에서-시작합니다"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#저작은-기준선에서-시작합니다">저작은 기준선에서 시작합니다</a></h2>
+<p>콘솔의 편집기는 빈 화면이 아니라 <strong>활성 번들에서 유도한 기준선</strong>으로 시작합니다. 지금 서빙되는
+내용을 받아 고치는 구조라, 저작이 현재 상태와 동떨어지지 않습니다.</p>
+<p>활성 번들이 없을 때 무엇을 받는지는 두 경우로 갈립니다. 워크스페이스 저작은 앱에 미리 넣어 둔
+시드 저작 세트를 받습니다. 그 시드도 없으면 기준선이 비고, 플랫폼 저작은 활성 번들이 없으면 그대로
+빕니다.</p>
+<p>빈 기준선은 오류가 아니라 첫 저작의 정상 출발점입니다.</p>
+<h2 id="편집은-지우지-않고-누적합니다"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#편집은-지우지-않고-누적합니다">편집은 지우지 않고 누적합니다</a></h2>
+<p>draft 하나는 편집의 머리(head)이고, <strong>편집은 언제나 새 revision을 추가하는 일입니다.</strong> 지난
+revision은 고쳐지지 않고 그대로 남아, 언제든 주소로 되찾을 수 있습니다.</p>
+<p>폐기도 삭제가 아니라 상태 전이입니다. 폐기된 draft의 revision 체인은 기록으로 남습니다.</p>
+<p>조회 범위는 요청이 아니라 인증에서 옵니다. <a data-reference-title="표면과 인증" href="start--authentication.html">인증과 스코프</a>의 규율
+그대로입니다.</p>
+<h2 id="검증은-revision-하나에-묶입니다"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#검증은-revision-하나에-묶입니다">검증은 revision 하나에 묶입니다</a></h2>
+<p>검증 요청은 draft가 아니라 <strong>특정 revision을 지목합니다.</strong> 컴파일 검사 전부와 케이스 채점이 한
+요청에서 함께 실행됩니다.</p>
+<p>결과는 그 revision에 1 남습니다. 통과 여부, 위반 목록, 실행된 케이스 수, 그리고 통과 시의
+내용 해시입니다.</p>
+<p>그래서 “검증 통과”라는 말에는 항상 대상이 있습니다. revision을 더 쌓으면 새 revision은 다시
+검증받아야 합니다.</p>
+<p>콘솔 검증과 발행 빌드는 같은 컴파일러를 거칩니다. 그래서 검증 화면에서 통과한 내용이 발행
+시점에 다른 판정을 받지 않습니다.</p>
+<h3 id="경고는-판정을-바꾸지-않습니다"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#경고는-판정을-바꾸지-않습니다">경고는 판정을 바꾸지 않습니다</a></h3>
+<p>결과에는 위반 말고 경고가 함께 들어갑니다. <strong>경고는 통과 여부를 뒤집지 않습니다.</strong> 발행 검사에서
+막힐 것을 검증 화면이 미리 보여 주기 때문입니다. 그래서 오타 하나가 정족수 승인 한 벌을 헛되게
+하지 않습니다. 정족수는 승인이 성립하는 데 필요한 최소 승인자 수입니다.</p>
+<p>경고 종류는 셋입니다.</p>
+<ul>
+<li><strong>슬롯 카탈로그 드리프트</strong>: 세트가 담은 카탈로그 사본이 기준 카탈로그와 갈렸습니다</li>
+<li><strong>기준 카탈로그 미확정</strong>: 대조할 기준을 찾지 못해 세트가 담은 사본으로 검증했습니다. 발행은
+기준을 확정하지 못하면 거부합니다</li>
+<li><strong>테넌트 부재</strong>: 슬롯 값 구획이 적은 테넌트를 그 워크스페이스에서 찾지 못했습니다</li>
+</ul>
+<h2 id="승인은-통과한-revision만-받습니다"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#승인은-통과한-revision만-받습니다">승인은 통과한 revision만 받습니다</a></h2>
+<p>승인을 여는 것(maker)과 표를 던지는 것(checker)이 갈립니다. maker-checker는 제안자와 승인자를
+갈라 두는 정책 변경 거버넌스입니다(<a data-reference-title="정책" href="policy.html">자세히</a>).</p>
+<p><strong>승인은 언제나 검증 통과 revision의 내용 해시에 붙습니다.</strong> 통과하지 않은 revision은 승인의
+대상이 될 수 없고, 승인이 붙은 뒤 내용이 바뀌면 그 해시가 달라집니다.</p>
+<p>표 접수와 자격 재검증, 재평가로 이어지는 maker-checker 흐름은
+<a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a>에 있습니다. 이 페이지가 더하는 것은 승인이 내용
+해시에 묶인다는 사실 하나입니다.</p>
+<h2 id="발행은-다시-컴파일해-대조합니다"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#발행은-다시-컴파일해-대조합니다">발행은 다시 컴파일해 대조합니다</a></h2>
+<p>발행은 승인된 revision의 콘텐츠를 다시 컴파일해 내용 해시를 새로 계산하고, 승인이 묶인 해시와
+대조합니다. 같아야 번들이 만들어집니다. 승인과 발행 사이에 내용이 바뀌는 길이 이 대조에서
+막힙니다.</p>
+<p>발행 시점에 채점을 되풀이하지는 않습니다. 채점은 검증 시점에 끝났고, 해시가 같다는 것은 채점받은
+바이트와 발행되는 바이트가 같다는 뜻이기 때문입니다.</p>
+<p><strong>발행에는 컴파일 밖의 검사가 하나 더 있습니다.</strong> 슬롯 값 구획이 테넌트를 지목하면, 그 테넌트가
+그 워크스페이스에 실재하는지 지갑 쪽에 물어봅니다. 판정에 외부 조회가 필요해 순수 컴파일 검사에
+둘 수 없고, 그래서 발행 서비스 안에 있습니다.</p>
+<p>거절 사유는 셋으로 갈립니다. 없다는 사실 확인, 물어보지 못한 상태, 그리고 배선 결함입니다. 물을
+테넌트 키가 없으면 조회 자체를 하지 않습니다.</p>
+<h2 id="활성화는-별도-액션입니다"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#활성화는-별도-액션입니다">활성화는 별도 액션입니다</a></h2>
+<p>발행은 번들 revision을 만드는 일입니다. 서빙되는 것은 지금 무엇이 서빙되는지를 정하는 단일
+기록인 활성 포인터가 가리키는 revision입니다. 발행이 곧 활성화가 되지 않게 두 단계를 갈라
+두었습니다.</p>
+<p>포인터 전환은 경합에 안전한 조건부 갱신이고, 전환 이력은 추가 전용으로 남습니다. <strong>되돌림도
+재발행이 아니라 포인터 재전환입니다.</strong> 이전 revision은 저장소에 그대로 있습니다.</p>
+<h2 id="콘솔은-두-배포로-갈립니다"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#콘솔은-두-배포로-갈립니다">콘솔은 두 배포로 갈립니다</a></h2>
+<p>이 과정을 사람이 거치는 화면이 정책 콘솔입니다. 파트너사 워크스페이스가 쓰는 콘솔과, 플랫폼
+통제 구역이 쓰는 콘솔로 갈립니다.</p>
+<p>두 배포가 부를 수 있는 표면이 다르므로 화면 구성도 다릅니다. 표면은 계약 소유자와 인증 방식이
+하나로 정해지는 API 경로 묶음입니다(<a data-reference-title="표면과 인증" href="start--authentication.html">자세히</a>).</p>
+<p>양쪽에 함께 있는 화면입니다.</p>
+<ul>
+<li><strong>로그인</strong>(<code>/login</code>)과 <strong>자격 등록</strong>(<code>/enroll</code>): 세션을 세우는 화면입니다. 자격 등록은 아직
+세션이 없는 사람이 1회용 등록 토큰으로 부릅니다</li>
+<li><strong>draft 목록</strong>(<code>/drafts</code>)과 <strong>draft 상세</strong>(<code>/drafts/:draftId</code>): revision 체인과 편집기가 여기
+있습니다</li>
+<li><strong>승인 목록</strong>(<code>/approvals</code>)과 <strong>승인 상세</strong>(<code>/approvals/:approvalId</code>): 표를 던지는 화면이고,
+상세가 활성 번들을 기준선 삼아 내용 차이를 보여 줍니다</li>
+<li><strong>어드민 목록</strong>(<code>/admins</code>): 지명과 회수 화면입니다</li>
+</ul>
+<p>파트너사 콘솔에만 판단 요청 생성(<code>/requests/new</code>)과 판단 요청 상세(<code>/requests/:policyRequestId</code>)가
+있습니다. 접수 자격이 어드민 세션과 다른 기준이라 통제 구역 콘솔에는 이 화면을 두지 않습니다.</p>
+<p>통제 구역 콘솔에만 셋이 있습니다. 부트스트랩(<code>/bootstrap</code>)은 최초 어드민을 만들고, 활성
+번들(<code>/bundles</code>)은 지금 서빙되는 번들을 보여 주며, 워크스페이스 등록(<code>/workspaces/new</code>)은 새
+워크스페이스와 그 매니저를 만듭니다.</p>
+<h2 id="다음으로"><a data-reference-title="룰 저작과 발행" href="policy--workflow.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a> — 표 접수와 자격 재검증이 거치는 흐름</li>
+<li><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a> — 여기서 저작하는 룰이 무엇으로 이루어지나</li>
+<li><a data-reference-title="구조" href="policy--architecture.html">구조</a> — 발행된 번들이 어디에 배포되고 어떻게 서빙되나</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

@@ -1,0 +1,99 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>편집기 base 조회 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>편집기 base 조회</h1><p>편집기 base 조회. <strong>활성 번들이 없거나 git 채널 번들이어도 200이다</strong> — 그 사실은
+<code>hasBaseline</code>·<code>absentReason</code>이 말하고 편집기는 빈 스캐폴드로 이어 간다.</p>
+<p>404로 답하지 않는 것이 활성 번들 조회(<code>/policy-bundles/activations/{bundleName}</code>·
+<code>/workspace-bundles/activation</code>)와 갈리는 지점이다: 저쪽은 “지금 무엇이 활성인가”를
+묻고 부재가 곧 답의 부재지만, 이쪽은 “무엇을 base로 편집을 시작하는가”를 묻고 부재도
+답이다.</p>
+<p><strong>어느 스코프의 base를 주는지는 세션의 발행 부여가 정한다</strong> — 요청은 그것을 나르지
+않는다. 부여가 없거나 여럿이면 거부하고 두 경우를 응답에서 가르지 않는다. platform과
+workspace 발행 자격을 함께 가진 어드민이 여기서 거부되는 것이 그 계약 그대로다:
+예외를 두면 어느 기준선을 받는지가 부여 조합에 따라 조용히 갈린다.</p>
+<p>Errors:</p>
+<ul>
+<li>401 AUTHENTICATION_FAILED: 어드민 세션이 없거나 유효하지 않다</li>
+<li>403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없거나 여럿이다</li>
+</ul>
+<div><div class="ref-endpoint"><span>GET</span><code>/policy-drafts/baseline/{bundleName}</code></div><div><div><section><h2>Authorization</h2><div class="schema"><div class="field"><div class="field-signature"><code>Authorization</code><span class="ref-meta">Bearer token · header</span><span class="ref-required">required</span></div></div></div><div class="ref-meta">or</div><div class="schema"><div class="field"><div class="field-signature"><code>policy_admin_session</code><span class="ref-meta">API key · cookie</span><span class="ref-required">required</span></div></div></div></section><section><h2>Path parameters</h2><div class="schema"><div class="field"><div class="field-signature"><code>bundleName</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div></div></section><section><h2>Responses</h2><div><div><div><span>200</span><span class="ref-meta">The request has succeeded.</span></div><div><div><div class="field"><div class="field-signature"><code>result</code><span class="ref-meta">PolicyDraftBaseline</span><span class="ref-required">required</span></div><div class="ref-meta">편집기 base — **활성 번들이 나온 저작 파일 셋**.
+
+draft 콘텐츠는 자기 완결(`{"files": …}`)이라 레지스트리 한 줄만 고치려 해도 전체 파일
+셋이 필요하다. 그 셋을 얻는 경로가 이 표면이다: 활성 포인터 → 그 번들의 `approvalRef`
+→ 승인이 결속한 저작 revision → 그 revision의 콘텐츠.
+
+**번들 tarball을 풀지 않는다.** tarball이 담는 것은 컴파일 산출물이지 저작 원문이
+아니다 — 거기서 되돌리면 편집기가 자기가 만들지 않은 형태를 다시 저작하게 된다.
+
+## 출처가 스코프마다 다르다
+
+사슬의 모양은 같고 **포인터가 무엇으로 서는지**가 갈린다.
+
+- platform — 활성 **로직** 번들을 `bundleName`으로 세우고 위 사슬을 되짚는다.
+- workspace — 활성 **워크스페이스** 번들을 요청자의 발행 부여가 정한 workspaceId로 세우고
+같은 사슬을 되짚는다(workspace-publication.tsp). 그 번들이 등록이 심은
+시드면(`approvalRef`가 `seed:{workspaceId}`) 되짚을 승인 레코드도 revision도 없으므로
+**배포에 구워진 시드 저작 세트**가 그 자리를 채운다. 포인터 자체가 없는 것도 같은
+갈래다 — 되짚을 것이 없다는 사실이 같고, 그 상태에서 시작점을 주지 않으면 저작자가 빈
+스캐폴드에서 시작해 default deny를 발행한다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>bundleName</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">요청 경로가 실은 번들 이름. **platform 스코프에서만 조회 축이다** — workspace
+스코프에서는 포인터가 이름이 아니라 workspaceId로 서므로 응답에 되돌릴 뿐 조회에 쓰지
+않는다. 어느 쪽에서도 스코프 키가 아니다.</div></div><div class="field"><div class="field-signature"><code>hasBaseline</code><span class="ref-meta">boolean</span><span class="ref-required">required</span></div><div class="ref-meta">base로 쓸 저작 원문이 있는지. false면 편집기는 안내를 보이고 빈 `{"files": {}}`
+스캐폴드로 저작을 이어 간다 — 오류가 아니라 상태다.</div></div><div class="field"><div class="field-signature"><code>absentReason</code><span class="ref-meta">PolicyDraftBaselineAbsence | any</span><span class="ref-required">required</span></div><div class="ref-meta">base가 없는 사유. `hasBaseline`이 true면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyDraftBaselineAbsence</div><div class="ref-meta"><code>string</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>revision</code><span class="ref-meta">string | any</span><span class="ref-required">required</span></div><div class="ref-meta">활성 **로직** 번들의 revision. 활성 포인터가 없으면 null이고, **workspace 스코프에서도
+항상 null이다** — 그쪽 활성 번들의 메타데이터는 전용 표면
+(`GET /workspace-bundles/activation`)이 준다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>string</div><div class="ref-meta"><code>string</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>bundleVersion</code><span class="ref-meta">integer&lt;int32&gt; | any</span><span class="ref-required">required</span></div><div class="ref-meta">활성 로직 번들의 발행 번호. 활성 포인터가 없거나 workspace 스코프면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>integer&lt;int32&gt;</div><div class="ref-meta"><code>integer&lt;int32&gt;</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>approvalRef</code><span class="ref-meta">string | any</span><span class="ref-required">required</span></div><div class="ref-meta">활성 로직 번들의 승인 참조. 활성 포인터가 없거나 workspace 스코프면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>string</div><div class="ref-meta"><code>string</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>draftRevisionId</code><span class="ref-meta">string | any</span><span class="ref-required">required</span></div><div class="ref-meta">base가 나온 저작 revision. TSID prefix dfr-. base가 없으면 null이고, **시드 저작
+세트로 폴백한 base도 null이다** — 그 바이트는 되짚은 revision이 아니라 배포에 구워진
+파일이다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>string</div><div class="ref-meta"><code>string</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>content</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">저작 세트 원문 — `{"files": {"&lt;상대경로&gt;": &lt;내용&gt;}}`. base가 없으면 null.
+
+**노출 면적이 작지 않다** — PIP 선언의 `credential_binding`(파트너 공개키)까지 포함한
+저작 원문 전량이다. 그래서 인가 축이 저작 표면과 같고(발행 권한 role의 platform 부여),
+세션 없는 호출은 401이다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div><div><div><span class="ref-meta">default</span><span class="ref-meta">An unexpected error response.</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">PolicyErrorCode</span><span class="ref-required">required</span></div><div class="ref-meta">policy 표면이 내는 `error.code`의 전량. 표면 enum의 합집합에 프레임워크 코드를 더한 것이고,
+이 union이 `PolicyApiErrorResponse`의 `code` 타입이다.
+
+**wallet 도메인 `ErrorCode`(루트 common.tsp)와 섞이지 않는 것이 계약이다** — 두 값 집합은
+겹치는 것이 `INTERNAL_ERROR` 하나뿐이라, 한 봉투로 묶으면 레퍼런스를 읽는 소비자가 policy
+응답에서 결코 나오지 않는 코드 마흔여덟 개를 분기 대상으로 받는다.
+
+새 표면 enum을 만들면 여기에 더한다. 더하지 않으면 그 코드는 응답 타입 어디에도 연결되지
+않아 생성 스키마에 나타나지 않는다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyRequestErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminAuthErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBootstrapErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminDirectoryErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyApprovalErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyDraftErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PipSourceKindErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBundlePublicationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceBundleErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceRegistrationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyFrameworkErrorCode</div><div class="ref-meta"><code>string</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">위반한 필드 경로 등. 없으면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div></div></section></div><div><div><div><h3>Request</h3><div><details open=""><summary>cURL</summary><div id="panel-tabs-request-panel-curl"><div><pre tabindex="0"><code>curl -X GET "/policy-drafts/baseline/string" \
+  -H "Authorization: Bearer YOUR_TOKEN"</code></pre></div></div></details><details><summary>JavaScript</summary><div id="panel-tabs-request-panel-js"><div><pre tabindex="0"><code>const response = await fetch("/policy-drafts/baseline/string", {
+  method: "GET",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN"
+  }
+});</code></pre></div></div></details><details><summary>Python</summary><div id="panel-tabs-request-panel-python"><div><pre tabindex="0"><code>import requests
+
+response = requests.get(
+    "/policy-drafts/baseline/string",
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN"
+    },
+)</code></pre></div></div></details></div></div><div><h3>Response</h3><div><details open=""><summary>200</summary><div id="panel-tabs-response-panel-200"><div><pre tabindex="0"><code>{
+  "result": {
+    "bundleName": "string",
+    "hasBaseline": true,
+    "absentReason": "NO_ACTIVE_BUNDLE",
+    "revision": "string",
+    "bundleVersion": 0,
+    "approvalRef": "string",
+    "draftRevisionId": "string",
+    "content": {}
+  }
+}</code></pre></div></div></details><details><summary>default</summary><div id="panel-tabs-response-panel-default"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "string",
+    "details": {}
+  }
+}</code></pre></div></div></details></div></div></div></div></div></div></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

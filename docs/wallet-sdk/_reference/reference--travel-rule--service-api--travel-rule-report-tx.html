@@ -1,0 +1,48 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PII 검증에 대한 tx 업데이트 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>PII 검증에 대한 tx 업데이트</h1><p>검증에 대한 tx 보고. 성공 여부(boolean) 반환.</p>
+<div><div class="ref-endpoint"><span>POST</span><code>/api/v1/travel-rule/checks/tx</code></div><div><div><section><h2>Authorization</h2><div class="schema"><div class="field"><div class="field-signature"><code>Authorization</code><span class="ref-meta">Bearer token · header</span><span class="ref-required">required</span></div></div></div></section><section><div><h2>Request body</h2><span class="ref-required">required</span><code class="ref-meta">application/json</code></div><div><div><div class="field"><div class="field-signature"><code>provider</code><span class="ref-meta">Provider</span><span class="ref-required">required</span></div><div><span class="ref-meta">Allowed:</span><code>VERIFYVASP</code></div></div><div class="field"><div class="field-signature"><code>trId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>txHash</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div></div></div></section><section><h2>Responses</h2><div><div><div><span>200</span><span class="ref-meta">The request has succeeded.</span></div><div><div><div class="field"><div class="field-signature"><code>result</code><span class="ref-meta">boolean</span><span class="ref-required">required</span></div></div></div></div></div><div><div><span class="ref-meta">default</span><span class="ref-meta">An unexpected error response.</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">ApiErrorDetail</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">SCREAMING_SNAKE_CASE (예: NOT_FOUND, INVALID_REQUEST, UNAUTHORIZED, INVALID_STATE).</div></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">any</span></div><div class="ref-meta">validation 실패 시 field→message 맵 등. 필요할 때만 채워진다.</div></div></div></div></details></div></div></div></div></div></section></div><div><div><div><h3>Request</h3><div><details open=""><summary>cURL</summary><div id="panel-tabs-request-panel-curl"><div><pre tabindex="0"><code>curl -X POST "/api/v1/travel-rule/checks/tx" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "provider": "VERIFYVASP",
+  "trId": "string",
+  "txHash": "string"
+}'</code></pre></div></div></details><details><summary>JavaScript</summary><div id="panel-tabs-request-panel-js"><div><pre tabindex="0"><code>const response = await fetch("/api/v1/travel-rule/checks/tx", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN",
+    "Content-Type": "application/json"
+  },
+  body: "{\n  \"provider\": \"VERIFYVASP\",\n  \"trId\": \"string\",\n  \"txHash\": \"string\"\n}"
+});</code></pre></div></div></details><details><summary>Python</summary><div id="panel-tabs-request-panel-python"><div><pre tabindex="0"><code>import requests
+
+response = requests.post(
+    "/api/v1/travel-rule/checks/tx",
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN",
+        "Content-Type": "application/json"
+    },
+    data="{\n  \"provider\": \"VERIFYVASP\",\n  \"trId\": \"string\",\n  \"txHash\": \"string\"\n}",
+)</code></pre></div></div></details></div></div><div><h3>Response</h3><div><details open=""><summary>200</summary><div id="panel-tabs-response-panel-200"><div><pre tabindex="0"><code>{
+  "result": true
+}</code></pre></div></div></details><details><summary>default</summary><div id="panel-tabs-response-panel-default"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "string",
+    "message": "string",
+    "details": null
+  }
+}</code></pre></div></div></details></div></div></div></div></div></div></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

@@ -1,0 +1,146 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>웹훅(Webhook) · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>웹훅(Webhook)</h1><p class="ref-meta">무엇이 언제 오고 무엇을 하면 되는가</p>
+<p>웹훅은 통지를 나르는 채널입니다. 파트너사가 등록한 URL로 HTTP 호출이 갑니다. 통지는 온체인
+이벤트를 파트너사에 보내는 아웃바운드 호출이고, 웹훅에 담기는 내용물입니다.</p>
+<h2 id="인지할-수-있는-온체인-이벤트는-걸러내지-않고-보냅니다"><a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html#인지할-수-있는-온체인-이벤트는-걸러내지-않고-보냅니다">인지할 수 있는 온체인 이벤트는 걸러내지 않고 보냅니다</a></h2>
+<p>온체인 이벤트는 최대한 보냅니다. 파트너사가 무엇을 원장에 반영할지는 파트너사가 정할 문제입니다.</p>
+<p>입금 통지는 두 단계로 오고, 확정 뒤에 확인 재료가 늘면 갱신 통지가 따라옵니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>이벤트</th>
+<th>언제</th>
+<th>파트너사에게 보이는 상태</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DEPOSIT_DETECTED</code></td>
+<td>온체인에서 관측했을 때</td>
+<td><code>DETECTED</code></td>
+</tr>
+<tr>
+<td><code>DEPOSIT_FINALIZED</code></td>
+<td>확정됐을 때</td>
+<td><code>FINALIZED</code></td>
+</tr>
+<tr>
+<td><code>DEPOSIT_UPDATED</code></td>
+<td>확정 뒤에 트래블룰 매핑이나 KYT 결과가 붙었을 때</td>
+<td><code>FINALIZED</code></td>
+</tr>
+<tr>
+<td><code>DEPOSIT_FAILED</code></td>
+<td>확정 전에 실패했을 때</td>
+<td><code>FAILED</code></td>
+</tr>
+</tbody>
+</table></div></div>
+<p>갱신 통지는 한 건에 여러 번 올 수 있고, 매번 그 순간까지 확인된 정보를 전부 담습니다. 트래블룰
+정보가 온체인 확정보다 늦게 오는 것이 보통이라 확정 통지에는 없던 값이 갱신 통지에 들어갑니다.
+왜 그 순서인지는 <a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a>에 있습니다.</p>
+<p><strong>파트너사에게 보이는 상태는 도메인 상태와 다릅니다.</strong> 확정된 입금의 도메인 상태는
+동결(<code>FROZEN</code>)이지만 통지에는 <code>FINALIZED</code>로 나갑니다. 동결은 입금을 확정 시 fail-closed로 잡아
+두는 상태입니다(<a data-reference-title="자금 동결" href="fund-flows--release.html">자세히</a>).</p>
+<p>해제는 파트너사가 요청하는 흐름입니다. 그래서 통지는 “확정됐다”까지만 말하고, 동결 여부를
+파트너사에게 보이는 상태 이름에 섞지 않습니다.</p>
+<h2 id="나가는-자금도-시작과-끝을-통지합니다"><a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html#나가는-자금도-시작과-끝을-통지합니다">나가는 자금도 시작과 끝을 통지합니다</a></h2>
+<p>출금·집금·vault 이체도 각각 통지를 냅니다. 이동 종류마다 이벤트 이름이 갈립니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>이벤트</th>
+<th>언제</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WITHDRAWAL_INITIATED</code></td>
+<td>출금 트랜잭션을 제출했을 때</td>
+</tr>
+<tr>
+<td><code>WITHDRAWAL_FINALIZED</code></td>
+<td>출금이 온체인에서 확정됐을 때</td>
+</tr>
+<tr>
+<td><code>WITHDRAWAL_FAILED</code></td>
+<td>출금이 실패로 끝났을 때</td>
+</tr>
+<tr>
+<td><code>SWEEP_INITIATED</code></td>
+<td>집금 트랜잭션을 제출했을 때</td>
+</tr>
+<tr>
+<td><code>SWEEP_FINALIZED</code></td>
+<td>집금이 온체인에서 확정됐을 때</td>
+</tr>
+<tr>
+<td><code>SWEEP_FAILED</code></td>
+<td>집금이 실패로 끝났을 때</td>
+</tr>
+<tr>
+<td><code>VAULT_TRANSFER_FINALIZED</code></td>
+<td>vault 이체가 온체인에서 확정됐을 때</td>
+</tr>
+<tr>
+<td><code>VAULT_TRANSFER_FAILED</code></td>
+<td>vault 이체가 실패로 끝났을 때</td>
+</tr>
+</tbody>
+</table></div></div>
+<p><strong>vault 이체에는 시작 통지가 없습니다.</strong> 출금과 집금에는 <code>..._INITIATED</code>가 있지만 vault 이체는
+완료와 실패만 냅니다. 접수 직후의 진행 상태가 필요하면 조회로 확인합니다.</p>
+<h2 id="통지-본문에는-판단-재료가-들어갑니다"><a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html#통지-본문에는-판단-재료가-들어갑니다">통지 본문에는 판단 재료가 들어갑니다</a></h2>
+<p>관측·확정 통지의 본문은 아래 형태입니다.</p>
+<pre tabindex="0"><code>{
+  "depositId": "awd-...",
+  "status": "FINALIZED",
+  "workspaceId": "ws-...",
+  "tenantId": "tn-...",
+  "accountId": "acc-...",
+  "accountWalletId": "aw-...",
+  "tokenId": "tok-...",
+  "amount": "100.00",
+  "amountRaw": "100000000",
+  "txHash": "0x...",
+  "sourceRegistered": true,
+  "addressBookId": "aab-...",
+  "travelRule": null,
+  "kyt": null
+}</code></pre>
+<p><code>sourceRegistered</code>는 발신 주소가 그 계정의 주소록에 등록돼 있는지입니다. 주소록은 주소에 등재
+근거를 붙이는 장부입니다(<a data-reference-title="주소록 (Address Book · Whitelist)" href="fund-flows--address-book.html">자세히</a>). 해제를 요청할지 판단하는 근거로
+씁니다. 등록돼 있으면 <code>addressBookId</code>가 함께 옵니다.</p>
+<p><code>travelRule</code>은 트래블룰 매핑이 끝난 뒤 <code>trId</code>와 상대 VASP 식별자를 담고, <code>kyt</code>는 KYT 검사가 끝난
+뒤 결과와 시각을 담습니다. 둘 다 아직 없으면 <code>null</code>입니다. 확정 통지에 <code>null</code>로 왔다가 갱신 통지에서
+채워지는 것이 보통입니다.</p>
+<p><strong>실패 통지에는 <code>sourceRegistered</code>·<code>addressBookId</code>가 없습니다.</strong> 판단할 것이 없기 때문입니다.</p>
+<h2 id="중복-수신을-전제로-만듭니다"><a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html#중복-수신을-전제로-만듭니다">중복 수신을 전제로 만듭니다</a></h2>
+<p>수신 측은 같은 통지를 두 번 받을 수 있다고 보고 만듭니다. <code>correlationKey</code>가
+<code>{depositId}:{eventType}</code> 형태로 오므로, 수신 측은 그 값으로 중복을 제거합니다.</p>
+<p><code>depositId</code>만으로 제거하면 안 됩니다. 관측 통지와 확정 통지가 같은 <code>depositId</code>를 공유해서, 키만
+보면 확정 통지가 중복으로 걸러집니다.</p>
+<p>갱신 통지는 <code>{depositId}:DEPOSIT_UPDATED:{순번}</code>입니다. 한 건에 갱신이 여러 번 오므로 이벤트
+종류만으로는 갈리지 않고, 순번이 1씩 오릅니다. 순번이 큰 통지가 최신 상태입니다.</p>
+<h2 id="아직-지키지-못하는-것"><a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html#아직-지키지-못하는-것">아직 지키지 못하는 것</a></h2>
+<p>통지가 아직 지키지 못하는 것이 둘입니다.</p>
+<p><strong>트래블룰 정보와 갱신 통지는 아직 나가지 않습니다.</strong> 트래블룰은 가상자산 이전 시 송·수신 정보를
+사업자끼리 교환하는 규제 의무입니다(<a data-reference-title="Wallet SDK" href="overview.html#%ED%95%A8%EA%BB%98-%EC%A0%9C%EA%B3%B5%ED%95%98%EB%8A%94-%EB%AA%A8%EB%93%88">자세히</a>). <code>DEPOSIT_UPDATED</code>와 <code>travelRule</code>·<code>kyt</code>
+필드는 계약으로 정해졌지만 트래블룰 매칭과 KYT 연동이 아직 구현되지 않았습니다. 그때까지 VASP
+입금의 해제 판단은 주소록 등록 여부 하나에 기댑니다.</p>
+<p>재시도가 4xx와 5xx를 구분하지 않습니다. 지금은 둘 다 똑같이 재시도해서, 영구 실패로 판정해야 할
+응답도 재시도 대상이 됩니다. 진행 상황은 <span title="현재 문서 묶음에 없는 참조입니다.">변경 이력</span>에서 추적합니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

@@ -1,0 +1,86 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>번들 발행 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>번들 발행</h1><p>번들 발행(스테이징 + 검증). <strong>활성화하지 않는다.</strong></p>
+<p>승인 레코드 실재·정족수 충족·대상 바이트 결속을 전부 발행 이전에 확인한다.</p>
+<p>Errors:</p>
+<ul>
+<li>400 INVALID_REQUEST: 바디가 없거나 필수 필드가 비었거나 approvalRef가 레코드 형태가 아니다</li>
+<li>401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다</li>
+<li>403 PUBLICATION_FORBIDDEN: 발행 권한 role의 platform 부여가 없다</li>
+<li>404 PUBLICATION_APPROVAL_UNKNOWN: 발행 승인 레코드가 없다 (자격 밖 참조 포함)</li>
+<li>404 DRAFT_REVISION_UNKNOWN: 그런 revision이 없다</li>
+<li>409 PUBLICATION_QUORUM_NOT_MET: 정족수가 채워지지 않았다</li>
+<li>409 PUBLICATION_PAYLOAD_NOT_APPROVED: 승인된 대상과 다르다</li>
+<li>409 PUBLICATION_APPROVAL_ALREADY_USED: 이미 발행에 쓰인 승인 참조다</li>
+<li>409 DRAFT_DISCARDED: 폐기된 draft다</li>
+<li>422 DRAFT_REVISION_NOT_VALIDATED: 검증을 통과한 revision이 아니다</li>
+<li>422 PUBLICATION_COMPILE_CHECK_FAILED: 스냅샷이 컴파일 검사를 통과하지 못했다</li>
+</ul>
+<div><div class="ref-endpoint"><span>POST</span><code>/policy-bundles/publications</code></div><div><div><section><h2>Authorization</h2><div class="schema"><div class="field"><div class="field-signature"><code>Authorization</code><span class="ref-meta">Bearer token · header</span><span class="ref-required">required</span></div></div></div><div class="ref-meta">or</div><div class="schema"><div class="field"><div class="field-signature"><code>policy_admin_session</code><span class="ref-meta">API key · cookie</span><span class="ref-required">required</span></div></div></div></section><section><div><h2>Request body</h2><span class="ref-required">required</span><code class="ref-meta">application/json</code></div><div><div><div class="field"><div class="field-signature"><code>bundleName</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>draftRevisionId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">발행할 저작 revision(TSID prefix dfr-). **바이트의 출처다** — 서버가 이 칸의 저작
+세트를 재컴파일해 번들을 만든다.
+
+승인이 이미 이 값을 결속하고 있으므로 중복처럼 보이지만 중복이 아니라 방어다:
+발행자가 자기가 무엇을 발행한다고 믿는지를 서버가 그 결속과 대조한다. 어긋나면
+409 PUBLICATION_PAYLOAD_NOT_APPROVED다.</div></div><div class="field"><div class="field-signature"><code>approvalRef</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">발행 승인 레코드 식별자(TSID prefix pba-).
+
+**자기 주장 값이 아니다** — 레코드 실재와 정족수 충족을 서버가 확인하고, 이미
+발행에 쓰인 레코드는 재사용할 수 없다.</div></div></div></div></section><section><h2>Responses</h2><div><div><div><span>200</span><span class="ref-meta">The request has succeeded.</span></div><div><div><div class="field"><div class="field-signature"><code>result</code><span class="ref-meta">PolicyBundlePublication</span><span class="ref-required">required</span></div><div class="ref-meta">발행 결과. **활성 revision이 아니다** — 활성화는 별도 액션이다</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>bundleName</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>bundleVersion</code><span class="ref-meta">integer&lt;int32&gt;</span><span class="ref-required">required</span></div><div class="ref-meta">저장소가 채번한 발행 번호. 요청이 정하지 않는다</div></div><div class="field"><div class="field-signature"><code>revision</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">발행된 번들의 revision. 활성화 전까지 평가에 쓰이지 않는다</div></div><div class="field"><div class="field-signature"><code>contentHash</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">tarball 바이트의 내용 해시(소문자 hex). 활성화가 이 값으로 대상을 지목한다</div></div><div class="field"><div class="field-signature"><code>approvalRef</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>alreadyPublished</code><span class="ref-meta">boolean</span><span class="ref-required">required</span></div><div class="ref-meta">이미 같은 바이트가 발행돼 있었는지(멱등 재실행)</div></div></div></div></details></div></div></div></div><div><div><span class="ref-meta">default</span><span class="ref-meta">An unexpected error response.</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">PolicyErrorCode</span><span class="ref-required">required</span></div><div class="ref-meta">policy 표면이 내는 `error.code`의 전량. 표면 enum의 합집합에 프레임워크 코드를 더한 것이고,
+이 union이 `PolicyApiErrorResponse`의 `code` 타입이다.
+
+**wallet 도메인 `ErrorCode`(루트 common.tsp)와 섞이지 않는 것이 계약이다** — 두 값 집합은
+겹치는 것이 `INTERNAL_ERROR` 하나뿐이라, 한 봉투로 묶으면 레퍼런스를 읽는 소비자가 policy
+응답에서 결코 나오지 않는 코드 마흔여덟 개를 분기 대상으로 받는다.
+
+새 표면 enum을 만들면 여기에 더한다. 더하지 않으면 그 코드는 응답 타입 어디에도 연결되지
+않아 생성 스키마에 나타나지 않는다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyRequestErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminAuthErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBootstrapErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminDirectoryErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyApprovalErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyDraftErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PipSourceKindErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBundlePublicationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceBundleErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceRegistrationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyFrameworkErrorCode</div><div class="ref-meta"><code>string</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">위반한 필드 경로 등. 없으면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div></div></section></div><div><div><div><h3>Request</h3><div><details open=""><summary>cURL</summary><div id="panel-tabs-request-panel-curl"><div><pre tabindex="0"><code>curl -X POST "/policy-bundles/publications" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "bundleName": "string",
+  "draftRevisionId": "string",
+  "approvalRef": "string"
+}'</code></pre></div></div></details><details><summary>JavaScript</summary><div id="panel-tabs-request-panel-js"><div><pre tabindex="0"><code>const response = await fetch("/policy-bundles/publications", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN",
+    "Content-Type": "application/json"
+  },
+  body: "{\n  \"bundleName\": \"string\",\n  \"draftRevisionId\": \"string\",\n  \"approvalRef\": \"string\"\n}"
+});</code></pre></div></div></details><details><summary>Python</summary><div id="panel-tabs-request-panel-python"><div><pre tabindex="0"><code>import requests
+
+response = requests.post(
+    "/policy-bundles/publications",
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN",
+        "Content-Type": "application/json"
+    },
+    data="{\n  \"bundleName\": \"string\",\n  \"draftRevisionId\": \"string\",\n  \"approvalRef\": \"string\"\n}",
+)</code></pre></div></div></details></div></div><div><h3>Response</h3><div><details open=""><summary>200</summary><div id="panel-tabs-response-panel-200"><div><pre tabindex="0"><code>{
+  "result": {
+    "bundleName": "string",
+    "bundleVersion": 0,
+    "revision": "string",
+    "contentHash": "string",
+    "approvalRef": "string",
+    "alreadyPublished": true
+  }
+}</code></pre></div></div></details><details><summary>default</summary><div id="panel-tabs-response-panel-default"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "string",
+    "details": {}
+  }
+}</code></pre></div></div></details></div></div></div></div></div></div></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

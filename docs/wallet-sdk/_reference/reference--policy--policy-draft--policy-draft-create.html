@@ -1,0 +1,106 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>draft 생성 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>draft 생성</h1><p>draft와 첫 칸을 함께 만든다.</p>
+<p>Errors:</p>
+<ul>
+<li>400 INVALID_REQUEST: 바디가 JSON 형태가 아니거나 name·content가 없다</li>
+<li>401 AUTHENTICATION_FAILED: 어드민 세션이 확정되지 않았다</li>
+<li>403 DRAFT_FORBIDDEN: 발행 권한 role의 부여가 없거나 여럿이다</li>
+<li>409 DRAFT_NAME_DUPLICATE: 같은 이름의 활성 draft가 있다</li>
+<li>413 DRAFT_CONTENT_TOO_LARGE: 본문이 256 KiB를 넘는다</li>
+</ul>
+<div><div class="ref-endpoint"><span>POST</span><code>/policy-drafts</code></div><div><div><section><h2>Authorization</h2><div class="schema"><div class="field"><div class="field-signature"><code>Authorization</code><span class="ref-meta">Bearer token · header</span><span class="ref-required">required</span></div></div></div><div class="ref-meta">or</div><div class="schema"><div class="field"><div class="field-signature"><code>policy_admin_session</code><span class="ref-meta">API key · cookie</span><span class="ref-required">required</span></div></div></div></section><section><div><h2>Request body</h2><span class="ref-required">required</span><code class="ref-meta">application/json</code></div><div><div><div class="field"><div class="field-signature"><code>name</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">활성 draft 사이에서 유일하다. 폐기된 것과는 겹쳐도 된다</div></div><div class="field"><div class="field-signature"><code>content</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><div class="ref-meta">저작 세트 전량을 담은 콘텐츠 문서 — `{"files": {"&lt;상대경로&gt;": &lt;내용&gt;}}` 형태다.
+
+**저장되는 해시는 이 객체의 정규형(JCS)에서 난다.** 서버가 타입 있는 DTO로
+왕복시키지 않으므로 계약 밖 필드도 보존되고, 그래서 해시가 작성자가 보낸 바이트를
+증언한다.</div></div></div></div></section><section><h2>Responses</h2><div><div><div><span>200</span><span class="ref-meta">The request has succeeded.</span></div><div><div><div class="field"><div class="field-signature"><code>result</code><span class="ref-meta">PolicyDraftRevision</span><span class="ref-required">required</span></div><div class="ref-meta">편집 한 칸. 불변이고 주소가 고정이다</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>draftId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">TSID prefix dft-</div></div><div class="field"><div class="field-signature"><code>state</code><span class="ref-meta">PolicyDraftState</span><span class="ref-required">required</span></div><div class="ref-meta">draft head의 상태. 삭제가 없다 — 폐기는 전이이고 revision 기록은 불변으로 남는다</div><div><span class="ref-meta">Allowed:</span><code>ACTIVE</code><code>DISCARDED</code></div></div><div class="field"><div class="field-signature"><code>revisionId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">TSID prefix dfr-</div></div><div class="field"><div class="field-signature"><code>previousRevisionId</code><span class="ref-meta">string | any</span><span class="ref-required">required</span></div><div class="ref-meta">체인의 이전 칸. 첫 revision만 null이다</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>string</div><div class="ref-meta"><code>string</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>contentHash</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">저장된 정규형(JCS) 바이트의 해시(소문자 hex)</div></div><div class="field"><div class="field-signature"><code>authoredBy</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">이 칸을 쓴 어드민. TSID prefix usr-</div></div><div class="field"><div class="field-signature"><code>current</code><span class="ref-meta">boolean</span><span class="ref-required">required</span></div><div class="ref-meta">head가 지금 이 칸을 가리키는지</div></div><div class="field"><div class="field-signature"><code>content</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">저작 세트 원문. **revision 단건 조회에서만 채운다** — 체인 응답이 모든 칸의 룰
+바이트를 나르지 않게 한다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>validation</code><span class="ref-meta">PolicyDraftValidation | any</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyDraftValidation</div><div><div class="field"><div class="field-signature"><code>revisionId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">TSID prefix dfr-</div></div><div class="field"><div class="field-signature"><code>outcome</code><span class="ref-meta">PolicyDraftValidationOutcome</span><span class="ref-required">required</span></div><div class="ref-meta">revision 검증의 판정</div><div><span class="ref-meta">Allowed:</span><code>PASSED</code><code>FAILED</code></div></div><div class="field"><div class="field-signature"><code>payloadHash</code><span class="ref-meta">string | any</span><span class="ref-required">required</span></div><div class="ref-meta">통과한 저작 세트가 낸 payload의 해시(소문자 hex). **발행 승인이 여기에 결속된다.**
+FAILED면 null이다 — 검증되지 않은 바이트에 승인이 붙는 경로를 닫는다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>string</div><div class="ref-meta"><code>string</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>authoredCaseCount</code><span class="ref-meta">integer&lt;int32&gt; | any</span><span class="ref-required">required</span></div><div class="ref-meta">저작된 벡터 케이스 수. 실행 수와 따로 드는 것이 의도다 — 실행 수에서 유도하면 대조가
+항등식이 되어 케이스가 조용히 빠진 상태가 "실패 0건"으로 통과한다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>integer&lt;int32&gt;</div><div class="ref-meta"><code>integer&lt;int32&gt;</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>executedCaseCount</code><span class="ref-meta">integer&lt;int32&gt; | any</span><span class="ref-required">required</span></div><div class="ref-meta">실제로 실행된 케이스 수. 저작 수와 다르면 통과 판정이 만들어지지 않는다</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>integer&lt;int32&gt;</div><div class="ref-meta"><code>integer&lt;int32&gt;</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>violations</code><span class="ref-meta">PolicyDraftViolation[]</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Array of <code>PolicyDraftViolation</code></div><div><div class="field"><div class="field-signature"><code>check</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">검사 이름. 예: value-transfer-pin-missing</div></div><div class="field"><div class="field-signature"><code>target</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">걸린 대상. `key=value`를 공백으로 이은 형태. 예: rule=escalation/approve-grant slot=quorum</div></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">무엇이 어긋났고 어느 방향으로 고치는지. 100자 이내</div></div><div class="field"><div class="field-signature"><code>why</code><span class="ref-meta">string | any</span><span class="ref-required">required</span></div><div class="ref-meta">이 위반을 그대로 두면 무슨 일이 나는지. 컴파일 검사가 낸 위반에만 실리고 그 밖은 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>string</div><div class="ref-meta"><code>string</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>omittedViolations</code><span class="ref-meta">integer&lt;int32&gt;</span><span class="ref-required">required</span></div><div class="ref-meta">상한에 걸려 싣지 못한 위반 수. 0이 아니면 위 목록이 전량이 아니다</div></div><div class="field"><div class="field-signature"><code>warnings</code><span class="ref-meta">PolicyDraftViolation[]</span><span class="ref-required">required</span></div><div class="ref-meta">판정을 바꾸지 않는 권고. PASSED여도 비어 있지 않을 수 있다 — 기준 슬롯 카탈로그 부재,
+저작 세트의 카탈로그 사본 드리프트, 슬롯 값이 지목한 테넌트의 부재·조회 불가처럼 **발행에서
+거부되거나 값이 선택되지 않을 수 있는** 사정을 미리 알린다. 검증 시점의 스냅샷이고 발행이
+같은 검사를 다시 한다. 승인된 revision은 불변이므로 승인 전에 읽어야 뜻이 있다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Array of <code>PolicyDraftViolation</code></div><div><div class="field"><div class="field-signature"><code>check</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">검사 이름. 예: value-transfer-pin-missing</div></div><div class="field"><div class="field-signature"><code>target</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">걸린 대상. `key=value`를 공백으로 이은 형태. 예: rule=escalation/approve-grant slot=quorum</div></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">무엇이 어긋났고 어느 방향으로 고치는지. 100자 이내</div></div><div class="field"><div class="field-signature"><code>why</code><span class="ref-meta">string | any</span><span class="ref-required">required</span></div><div class="ref-meta">이 위반을 그대로 두면 무슨 일이 나는지. 컴파일 검사가 낸 위반에만 실리고 그 밖은 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>string</div><div class="ref-meta"><code>string</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></div></details></div></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div><div><div><span class="ref-meta">default</span><span class="ref-meta">An unexpected error response.</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">PolicyErrorCode</span><span class="ref-required">required</span></div><div class="ref-meta">policy 표면이 내는 `error.code`의 전량. 표면 enum의 합집합에 프레임워크 코드를 더한 것이고,
+이 union이 `PolicyApiErrorResponse`의 `code` 타입이다.
+
+**wallet 도메인 `ErrorCode`(루트 common.tsp)와 섞이지 않는 것이 계약이다** — 두 값 집합은
+겹치는 것이 `INTERNAL_ERROR` 하나뿐이라, 한 봉투로 묶으면 레퍼런스를 읽는 소비자가 policy
+응답에서 결코 나오지 않는 코드 마흔여덟 개를 분기 대상으로 받는다.
+
+새 표면 enum을 만들면 여기에 더한다. 더하지 않으면 그 코드는 응답 타입 어디에도 연결되지
+않아 생성 스키마에 나타나지 않는다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyRequestErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminAuthErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBootstrapErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminDirectoryErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyApprovalErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyDraftErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PipSourceKindErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBundlePublicationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceBundleErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceRegistrationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyFrameworkErrorCode</div><div class="ref-meta"><code>string</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">위반한 필드 경로 등. 없으면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div></div></section></div><div><div><div><h3>Request</h3><div><details open=""><summary>cURL</summary><div id="panel-tabs-request-panel-curl"><div><pre tabindex="0"><code>curl -X POST "/policy-drafts" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "name": "string",
+  "content": {}
+}'</code></pre></div></div></details><details><summary>JavaScript</summary><div id="panel-tabs-request-panel-js"><div><pre tabindex="0"><code>const response = await fetch("/policy-drafts", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN",
+    "Content-Type": "application/json"
+  },
+  body: "{\n  \"name\": \"string\",\n  \"content\": {}\n}"
+});</code></pre></div></div></details><details><summary>Python</summary><div id="panel-tabs-request-panel-python"><div><pre tabindex="0"><code>import requests
+
+response = requests.post(
+    "/policy-drafts",
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN",
+        "Content-Type": "application/json"
+    },
+    data="{\n  \"name\": \"string\",\n  \"content\": {}\n}",
+)</code></pre></div></div></details></div></div><div><h3>Response</h3><div><details open=""><summary>200</summary><div id="panel-tabs-response-panel-200"><div><pre tabindex="0"><code>{
+  "result": {
+    "draftId": "string",
+    "state": "ACTIVE",
+    "revisionId": "string",
+    "previousRevisionId": "string",
+    "contentHash": "string",
+    "authoredBy": "string",
+    "current": true,
+    "content": {},
+    "validation": {
+      "revisionId": "string",
+      "outcome": "PASSED",
+      "payloadHash": "string",
+      "authoredCaseCount": 0,
+      "executedCaseCount": 0,
+      "violations": [
+        {
+          "check": "string",
+          "target": "string",
+          "message": "string",
+          "why": "string"
+        }
+      ],
+      "omittedViolations": 0,
+      "warnings": [
+        {
+          "check": "string",
+          "target": "string",
+          "message": "string",
+          "why": "string"
+        }
+      ]
+    }
+  }
+}</code></pre></div></div></details><details><summary>default</summary><div id="panel-tabs-response-panel-default"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "string",
+    "details": {}
+  }
+}</code></pre></div></div></details></div></div></div></div></div></div></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

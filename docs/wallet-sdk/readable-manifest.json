@@ -45,7 +45,999 @@
   ],
   "originalPages": 198,
   "originalHome": "original-overview.html",
-  "uiRevision": "2026-09-10-editorial",
+  "uiRevision": "2026-09-10-reference-reader",
   "audience": "설계·개발자: 흐름과 연동 방법 파악",
-  "statusEvidence": "공개 문서; SDK 구현 또는 운영 환경 검증 아님"
+  "statusEvidence": "공개 문서; SDK 구현 또는 운영 환경 검증 아님",
+  "referencePages": [
+    {
+      "route": "/",
+      "path": "_reference/overview.html",
+      "title": "Wallet SDK"
+    },
+    {
+      "route": "/accounts-wallets",
+      "path": "_reference/accounts-wallets.html",
+      "title": "계정과 지갑"
+    },
+    {
+      "route": "/accounts-wallets/accounts",
+      "path": "_reference/accounts-wallets--accounts.html",
+      "title": "계정 계층"
+    },
+    {
+      "route": "/accounts-wallets/catalog",
+      "path": "_reference/accounts-wallets--catalog.html",
+      "title": "카탈로그"
+    },
+    {
+      "route": "/accounts-wallets/domain-model",
+      "path": "_reference/accounts-wallets--domain-model.html",
+      "title": "도메인 모델"
+    },
+    {
+      "route": "/accounts-wallets/onboarding",
+      "path": "_reference/accounts-wallets--onboarding.html",
+      "title": "온보딩"
+    },
+    {
+      "route": "/accounts-wallets/wallets",
+      "path": "_reference/accounts-wallets--wallets.html",
+      "title": "지갑 계층"
+    },
+    {
+      "route": "/changelog/v0-1-0",
+      "path": "_reference/changelog--v0-1-0.html",
+      "title": "v0.1.0"
+    },
+    {
+      "route": "/changelog/v0-10-0",
+      "path": "_reference/changelog--v0-10-0.html",
+      "title": "v0.10.0"
+    },
+    {
+      "route": "/changelog/v0-10-1",
+      "path": "_reference/changelog--v0-10-1.html",
+      "title": "v0.10.1"
+    },
+    {
+      "route": "/changelog/v0-11-0",
+      "path": "_reference/changelog--v0-11-0.html",
+      "title": "v0.11.0"
+    },
+    {
+      "route": "/changelog/v0-12-0",
+      "path": "_reference/changelog--v0-12-0.html",
+      "title": "v0.12.0"
+    },
+    {
+      "route": "/changelog/v0-13-0",
+      "path": "_reference/changelog--v0-13-0.html",
+      "title": "v0.13.0"
+    },
+    {
+      "route": "/changelog/v0-13-1",
+      "path": "_reference/changelog--v0-13-1.html",
+      "title": "v0.13.1"
+    },
+    {
+      "route": "/changelog/v0-14-0",
+      "path": "_reference/changelog--v0-14-0.html",
+      "title": "v0.14.0"
+    },
+    {
+      "route": "/changelog/v0-14-1",
+      "path": "_reference/changelog--v0-14-1.html",
+      "title": "v0.14.1"
+    },
+    {
+      "route": "/changelog/v0-15-0",
+      "path": "_reference/changelog--v0-15-0.html",
+      "title": "v0.15.0"
+    },
+    {
+      "route": "/changelog/v0-16-0",
+      "path": "_reference/changelog--v0-16-0.html",
+      "title": "v0.16.0"
+    },
+    {
+      "route": "/changelog/v0-2-0",
+      "path": "_reference/changelog--v0-2-0.html",
+      "title": "v0.2.0"
+    },
+    {
+      "route": "/changelog/v0-3-0",
+      "path": "_reference/changelog--v0-3-0.html",
+      "title": "v0.3.0"
+    },
+    {
+      "route": "/changelog/v0-4-0",
+      "path": "_reference/changelog--v0-4-0.html",
+      "title": "v0.4.0"
+    },
+    {
+      "route": "/changelog/v0-4-1",
+      "path": "_reference/changelog--v0-4-1.html",
+      "title": "v0.4.1"
+    },
+    {
+      "route": "/changelog/v0-5-0",
+      "path": "_reference/changelog--v0-5-0.html",
+      "title": "v0.5.0"
+    },
+    {
+      "route": "/changelog/v0-5-1",
+      "path": "_reference/changelog--v0-5-1.html",
+      "title": "v0.5.1"
+    },
+    {
+      "route": "/changelog/v0-5-2",
+      "path": "_reference/changelog--v0-5-2.html",
+      "title": "v0.5.2"
+    },
+    {
+      "route": "/changelog/v0-6-0",
+      "path": "_reference/changelog--v0-6-0.html",
+      "title": "v0.6.0"
+    },
+    {
+      "route": "/changelog/v0-7-0",
+      "path": "_reference/changelog--v0-7-0.html",
+      "title": "v0.7.0"
+    },
+    {
+      "route": "/changelog/v0-8-0",
+      "path": "_reference/changelog--v0-8-0.html",
+      "title": "v0.8.0"
+    },
+    {
+      "route": "/changelog/v0-8-1",
+      "path": "_reference/changelog--v0-8-1.html",
+      "title": "v0.8.1"
+    },
+    {
+      "route": "/changelog/v0-9-0",
+      "path": "_reference/changelog--v0-9-0.html",
+      "title": "v0.9.0"
+    },
+    {
+      "route": "/changelog/v1-0-0",
+      "path": "_reference/changelog--v1-0-0.html",
+      "title": "v1.0.0"
+    },
+    {
+      "route": "/fund-flows",
+      "path": "_reference/fund-flows.html",
+      "title": "자금 이동"
+    },
+    {
+      "route": "/fund-flows/address-book",
+      "path": "_reference/fund-flows--address-book.html",
+      "title": "주소록 (Address Book · Whitelist)"
+    },
+    {
+      "route": "/fund-flows/deposit",
+      "path": "_reference/fund-flows--deposit.html",
+      "title": "입금 (Deposit)"
+    },
+    {
+      "route": "/fund-flows/movements",
+      "path": "_reference/fund-flows--movements.html",
+      "title": "이동 종류"
+    },
+    {
+      "route": "/fund-flows/release",
+      "path": "_reference/fund-flows--release.html",
+      "title": "자금 동결"
+    },
+    {
+      "route": "/fund-flows/sweep",
+      "path": "_reference/fund-flows--sweep.html",
+      "title": "집금 (Sweep)"
+    },
+    {
+      "route": "/fund-flows/vault-transfer",
+      "path": "_reference/fund-flows--vault-transfer.html",
+      "title": "Vault 이체 (Vault Transfer)"
+    },
+    {
+      "route": "/fund-flows/webhooks",
+      "path": "_reference/fund-flows--webhooks.html",
+      "title": "웹훅(Webhook)"
+    },
+    {
+      "route": "/fund-flows/withdrawal",
+      "path": "_reference/fund-flows--withdrawal.html",
+      "title": "출금 (Withdrawal)"
+    },
+    {
+      "route": "/policy",
+      "path": "_reference/policy.html",
+      "title": "정책"
+    },
+    {
+      "route": "/policy/architecture",
+      "path": "_reference/policy--architecture.html",
+      "title": "구조"
+    },
+    {
+      "route": "/policy/diagrams",
+      "path": "_reference/policy--diagrams.html",
+      "title": "다이어그램"
+    },
+    {
+      "route": "/policy/map",
+      "path": "_reference/policy--map.html",
+      "title": "전체 지도"
+    },
+    {
+      "route": "/policy/operations",
+      "path": "_reference/policy--operations.html",
+      "title": "운영과 관측"
+    },
+    {
+      "route": "/policy/rule/decision",
+      "path": "_reference/policy--rule--decision.html",
+      "title": "결정과 결합"
+    },
+    {
+      "route": "/policy/rule/reference",
+      "path": "_reference/policy--rule--reference.html",
+      "title": "룰 명세"
+    },
+    {
+      "route": "/policy/rule/structure",
+      "path": "_reference/policy--rule--structure.html",
+      "title": "룰 구조"
+    },
+    {
+      "route": "/policy/runtime/evaluation",
+      "path": "_reference/policy--runtime--evaluation.html",
+      "title": "평가의 순간"
+    },
+    {
+      "route": "/policy/runtime/normalization",
+      "path": "_reference/policy--runtime--normalization.html",
+      "title": "정규화"
+    },
+    {
+      "route": "/policy/runtime/pip",
+      "path": "_reference/policy--runtime--pip.html",
+      "title": "PIP"
+    },
+    {
+      "route": "/policy/runtime/storage",
+      "path": "_reference/policy--runtime--storage.html",
+      "title": "저장과 이동"
+    },
+    {
+      "route": "/policy/sequences/approval-gate",
+      "path": "_reference/policy--sequences--approval-gate.html",
+      "title": "승인 게이트"
+    },
+    {
+      "route": "/policy/sequences/obligations",
+      "path": "_reference/policy--sequences--obligations.html",
+      "title": "obligation 수집"
+    },
+    {
+      "route": "/policy/sequences/pending-data",
+      "path": "_reference/policy--sequences--pending-data.html",
+      "title": "비동기 수집"
+    },
+    {
+      "route": "/policy/signing-gate",
+      "path": "_reference/policy--signing-gate.html",
+      "title": "서명 게이트"
+    },
+    {
+      "route": "/policy/use-cases/callback-limit",
+      "path": "_reference/policy--use-cases--callback-limit.html",
+      "title": "서명 상한 대조"
+    },
+    {
+      "route": "/policy/use-cases/deny-override",
+      "path": "_reference/policy--use-cases--deny-override.html",
+      "title": "금지선"
+    },
+    {
+      "route": "/policy/use-cases/escalation-pending",
+      "path": "_reference/policy--use-cases--escalation-pending.html",
+      "title": "권한 상승 게이트"
+    },
+    {
+      "route": "/policy/use-cases/rule-change",
+      "path": "_reference/policy--use-cases--rule-change.html",
+      "title": "룰 변경 게이트"
+    },
+    {
+      "route": "/policy/use-cases/whitelist-loop",
+      "path": "_reference/policy--use-cases--whitelist-loop.html",
+      "title": "출금 화이트리스트"
+    },
+    {
+      "route": "/policy/workflow",
+      "path": "_reference/policy--workflow.html",
+      "title": "룰 저작과 발행"
+    },
+    {
+      "route": "/reference",
+      "path": "_reference/reference.html",
+      "title": "API 레퍼런스"
+    },
+    {
+      "route": "/reference/admin",
+      "path": "_reference/reference--admin.html",
+      "title": "Wallet Admin API"
+    },
+    {
+      "route": "/reference/admin/api-keys/api-keys-change-status",
+      "path": "_reference/reference--admin--api-keys--api-keys-change-status.html",
+      "title": "API Key 상태 변경"
+    },
+    {
+      "route": "/reference/admin/api-keys/api-keys-create",
+      "path": "_reference/reference--admin--api-keys--api-keys-create.html",
+      "title": "API Key 생성"
+    },
+    {
+      "route": "/reference/admin/api-keys/api-keys-get",
+      "path": "_reference/reference--admin--api-keys--api-keys-get.html",
+      "title": "API Key 상세 조회"
+    },
+    {
+      "route": "/reference/admin/api-keys/api-keys-get-api-key",
+      "path": "_reference/reference--admin--api-keys--api-keys-get-api-key.html",
+      "title": "API Key 원문 조회"
+    },
+    {
+      "route": "/reference/admin/api-keys/api-keys-list",
+      "path": "_reference/reference--admin--api-keys--api-keys-list.html",
+      "title": "API Key 목록 조회"
+    },
+    {
+      "route": "/reference/admin/approvals/approvals-approve",
+      "path": "_reference/reference--admin--approvals--approvals-approve.html",
+      "title": "단건 승인"
+    },
+    {
+      "route": "/reference/admin/approvals/approvals-get",
+      "path": "_reference/reference--admin--approvals--approvals-get.html",
+      "title": "승인 진행 내역 상세 조회"
+    },
+    {
+      "route": "/reference/admin/approvals/approvals-list",
+      "path": "_reference/reference--admin--approvals--approvals-list.html",
+      "title": "승인 진행 내역 목록 조회"
+    },
+    {
+      "route": "/reference/admin/auth/auth-auth2fa",
+      "path": "_reference/reference--admin--auth--auth-auth2fa.html",
+      "title": "2FA 인증"
+    },
+    {
+      "route": "/reference/admin/auth/auth-join",
+      "path": "_reference/reference--admin--auth--auth-join.html",
+      "title": "유저 가입 (초대 수락)"
+    },
+    {
+      "route": "/reference/admin/auth/auth-login",
+      "path": "_reference/reference--admin--auth--auth-login.html",
+      "title": "로그인"
+    },
+    {
+      "route": "/reference/admin/auth/auth-register2-fa",
+      "path": "_reference/reference--admin--auth--auth-register2-fa.html",
+      "title": "2FA OTP 등록"
+    },
+    {
+      "route": "/reference/admin/initialize/initialize-initialize",
+      "path": "_reference/reference--admin--initialize--initialize-initialize.html",
+      "title": "워크스페이스 부트스트랩 (1회, 무게이팅·멱등)"
+    },
+    {
+      "route": "/reference/admin/networks/networks-change-status",
+      "path": "_reference/reference--admin--networks--networks-change-status.html",
+      "title": "네트워크 상태 변경"
+    },
+    {
+      "route": "/reference/admin/networks/networks-get",
+      "path": "_reference/reference--admin--networks--networks-get.html",
+      "title": "네트워크 상세 조회"
+    },
+    {
+      "route": "/reference/admin/networks/networks-list",
+      "path": "_reference/reference--admin--networks--networks-list.html",
+      "title": "네트워크 목록 조회"
+    },
+    {
+      "route": "/reference/admin/policies/policies-change-status",
+      "path": "_reference/reference--admin--policies--policies-change-status.html",
+      "title": "Policy 상태 변경"
+    },
+    {
+      "route": "/reference/admin/policies/policies-create",
+      "path": "_reference/reference--admin--policies--policies-create.html",
+      "title": "Policy 생성"
+    },
+    {
+      "route": "/reference/admin/policies/policies-get",
+      "path": "_reference/reference--admin--policies--policies-get.html",
+      "title": "Policy 상세 조회"
+    },
+    {
+      "route": "/reference/admin/policies/policies-list",
+      "path": "_reference/reference--admin--policies--policies-list.html",
+      "title": "Policy 목록 조회"
+    },
+    {
+      "route": "/reference/admin/roles/roles-change-status",
+      "path": "_reference/reference--admin--roles--roles-change-status.html",
+      "title": "Role 상태 변경"
+    },
+    {
+      "route": "/reference/admin/roles/roles-create",
+      "path": "_reference/reference--admin--roles--roles-create.html",
+      "title": "Role 생성"
+    },
+    {
+      "route": "/reference/admin/roles/roles-get",
+      "path": "_reference/reference--admin--roles--roles-get.html",
+      "title": "Role 상세 조회"
+    },
+    {
+      "route": "/reference/admin/roles/roles-list",
+      "path": "_reference/reference--admin--roles--roles-list.html",
+      "title": "Role 목록 조회"
+    },
+    {
+      "route": "/reference/admin/tenants/tenants-change-status",
+      "path": "_reference/reference--admin--tenants--tenants-change-status.html",
+      "title": "테넌트 상태 변경"
+    },
+    {
+      "route": "/reference/admin/tenants/tenants-create",
+      "path": "_reference/reference--admin--tenants--tenants-create.html",
+      "title": "테넌트 생성"
+    },
+    {
+      "route": "/reference/admin/tenants/tenants-get",
+      "path": "_reference/reference--admin--tenants--tenants-get.html",
+      "title": "테넌트 상세 조회"
+    },
+    {
+      "route": "/reference/admin/tenants/tenants-list",
+      "path": "_reference/reference--admin--tenants--tenants-list.html",
+      "title": "테넌트 목록 조회"
+    },
+    {
+      "route": "/reference/admin/tokens/tokens-change-status",
+      "path": "_reference/reference--admin--tokens--tokens-change-status.html",
+      "title": "토큰 상태 변경"
+    },
+    {
+      "route": "/reference/admin/tokens/tokens-create",
+      "path": "_reference/reference--admin--tokens--tokens-create.html",
+      "title": "토큰 생성"
+    },
+    {
+      "route": "/reference/admin/tokens/tokens-get",
+      "path": "_reference/reference--admin--tokens--tokens-get.html",
+      "title": "토큰 상세 조회"
+    },
+    {
+      "route": "/reference/admin/tokens/tokens-list",
+      "path": "_reference/reference--admin--tokens--tokens-list.html",
+      "title": "토큰 목록 조회"
+    },
+    {
+      "route": "/reference/admin/users/users-change-status",
+      "path": "_reference/reference--admin--users--users-change-status.html",
+      "title": "유저 상태 변경"
+    },
+    {
+      "route": "/reference/admin/users/users-get",
+      "path": "_reference/reference--admin--users--users-get.html",
+      "title": "유저 상세 조회"
+    },
+    {
+      "route": "/reference/admin/users/users-invite",
+      "path": "_reference/reference--admin--users--users-invite.html",
+      "title": "유저 초대"
+    },
+    {
+      "route": "/reference/admin/users/users-list",
+      "path": "_reference/reference--admin--users--users-list.html",
+      "title": "유저 목록 조회"
+    },
+    {
+      "route": "/reference/admin/users/users-me",
+      "path": "_reference/reference--admin--users--users-me.html",
+      "title": "내 정보 조회"
+    },
+    {
+      "route": "/reference/admin/users/users-update",
+      "path": "_reference/reference--admin--users--users-update.html",
+      "title": "유저 수정"
+    },
+    {
+      "route": "/reference/admin/workspace-vaults/workspace-vaults-change-status",
+      "path": "_reference/reference--admin--workspace-vaults--workspace-vaults-change-status.html",
+      "title": "Workspace Vault 상태 변경"
+    },
+    {
+      "route": "/reference/admin/workspace-vaults/workspace-vaults-create",
+      "path": "_reference/reference--admin--workspace-vaults--workspace-vaults-create.html",
+      "title": "Workspace Vault 생성"
+    },
+    {
+      "route": "/reference/admin/workspace-vaults/workspace-vaults-create-wallet",
+      "path": "_reference/reference--admin--workspace-vaults--workspace-vaults-create-wallet.html",
+      "title": "Workspace Wallet 생성"
+    },
+    {
+      "route": "/reference/admin/workspace-vaults/workspace-vaults-get",
+      "path": "_reference/reference--admin--workspace-vaults--workspace-vaults-get.html",
+      "title": "Workspace Vault 상세 조회"
+    },
+    {
+      "route": "/reference/admin/workspace-vaults/workspace-vaults-get-wallet",
+      "path": "_reference/reference--admin--workspace-vaults--workspace-vaults-get-wallet.html",
+      "title": "Workspace Wallet 상세 조회"
+    },
+    {
+      "route": "/reference/admin/workspace-vaults/workspace-vaults-list",
+      "path": "_reference/reference--admin--workspace-vaults--workspace-vaults-list.html",
+      "title": "Workspace Vault 목록 조회"
+    },
+    {
+      "route": "/reference/admin/workspace-vaults/workspace-vaults-list-wallets",
+      "path": "_reference/reference--admin--workspace-vaults--workspace-vaults-list-wallets.html",
+      "title": "Workspace Wallet 목록 조회"
+    },
+    {
+      "route": "/reference/policy",
+      "path": "_reference/reference--policy.html",
+      "title": "Wallet Policy Engine Internal API"
+    },
+    {
+      "route": "/reference/policy/admin-auth/policy-admin-auth-confirm",
+      "path": "_reference/reference--policy--admin-auth--policy-admin-auth-confirm.html",
+      "title": "2FA 등록 확인"
+    },
+    {
+      "route": "/reference/policy/admin-auth/policy-admin-auth-enroll",
+      "path": "_reference/reference--policy--admin-auth--policy-admin-auth-enroll.html",
+      "title": "2FA 자가 등록"
+    },
+    {
+      "route": "/reference/policy/admin-auth/policy-admin-auth-login",
+      "path": "_reference/reference--policy--admin-auth--policy-admin-auth-login.html",
+      "title": "어드민 로그인"
+    },
+    {
+      "route": "/reference/policy/admin-auth/policy-admin-auth-logout",
+      "path": "_reference/reference--policy--admin-auth--policy-admin-auth-logout.html",
+      "title": "어드민 로그아웃"
+    },
+    {
+      "route": "/reference/policy/admin-auth/policy-admin-auth-session",
+      "path": "_reference/reference--policy--admin-auth--policy-admin-auth-session.html",
+      "title": "세션 신원 조회"
+    },
+    {
+      "route": "/reference/policy/admin-auth/policy-admin-auth-verify2-fa",
+      "path": "_reference/reference--policy--admin-auth--policy-admin-auth-verify2-fa.html",
+      "title": "2FA 검증"
+    },
+    {
+      "route": "/reference/policy/admins/policy-admin-directory-create",
+      "path": "_reference/reference--policy--admins--policy-admin-directory-create.html",
+      "title": "어드민 초대"
+    },
+    {
+      "route": "/reference/policy/admins/policy-admin-directory-list",
+      "path": "_reference/reference--policy--admins--policy-admin-directory-list.html",
+      "title": "어드민 목록 조회"
+    },
+    {
+      "route": "/reference/policy/approvals/policy-approval-get-pending",
+      "path": "_reference/reference--policy--approvals--policy-approval-get-pending.html",
+      "title": "승인 대기 목록 조회"
+    },
+    {
+      "route": "/reference/policy/approvals/policy-approval-vote-vote",
+      "path": "_reference/reference--policy--approvals--policy-approval-vote-vote.html",
+      "title": "승인 표 제출"
+    },
+    {
+      "route": "/reference/policy/bootstrap/policy-bootstrap-create-admin",
+      "path": "_reference/reference--policy--bootstrap--policy-bootstrap-create-admin.html",
+      "title": "초기 어드민 계정 생성"
+    },
+    {
+      "route": "/reference/policy/bundle-serving/policy-bundle-serving-active",
+      "path": "_reference/reference--policy--bundle-serving--policy-bundle-serving-active.html",
+      "title": "활성 번들 조회 (서빙)"
+    },
+    {
+      "route": "/reference/policy/bundle-serving/policy-bundle-serving-download",
+      "path": "_reference/reference--policy--bundle-serving--policy-bundle-serving-download.html",
+      "title": "활성 번들 tarball 내려받기"
+    },
+    {
+      "route": "/reference/policy/callback/policy-callback-handle",
+      "path": "_reference/reference--policy--callback--policy-callback-handle.html",
+      "title": "Co-Signer pre-signing 콜백"
+    },
+    {
+      "route": "/reference/policy/partner/policy-partner-submission-submit",
+      "path": "_reference/reference--policy--partner--policy-partner-submission-submit.html",
+      "title": "PIP 결과·이행 증거 제출"
+    },
+    {
+      "route": "/reference/policy/pip-source-kinds/pip-source-kind-list",
+      "path": "_reference/reference--policy--pip-source-kinds--pip-source-kind-list.html",
+      "title": "PIP 소스 종류 목록 조회"
+    },
+    {
+      "route": "/reference/policy/policy-bundle/policy-bundle-activation-activate",
+      "path": "_reference/reference--policy--policy-bundle--policy-bundle-activation-activate.html",
+      "title": "번들 활성화"
+    },
+    {
+      "route": "/reference/policy/policy-bundle/policy-bundle-activation-view",
+      "path": "_reference/reference--policy--policy-bundle--policy-bundle-activation-view.html",
+      "title": "활성 번들 조회"
+    },
+    {
+      "route": "/reference/policy/policy-bundle/policy-bundle-approval-list",
+      "path": "_reference/reference--policy--policy-bundle--policy-bundle-approval-list.html",
+      "title": "발행 승인 목록"
+    },
+    {
+      "route": "/reference/policy/policy-bundle/policy-bundle-approval-open",
+      "path": "_reference/reference--policy--policy-bundle--policy-bundle-approval-open.html",
+      "title": "발행 승인 레코드 개설"
+    },
+    {
+      "route": "/reference/policy/policy-bundle/policy-bundle-approval-view-view",
+      "path": "_reference/reference--policy--policy-bundle--policy-bundle-approval-view-view.html",
+      "title": "발행 승인 레코드 상세 조회"
+    },
+    {
+      "route": "/reference/policy/policy-bundle/policy-bundle-approval-vote-vote",
+      "path": "_reference/reference--policy--policy-bundle--policy-bundle-approval-vote-vote.html",
+      "title": "발행 승인 표 제출"
+    },
+    {
+      "route": "/reference/policy/policy-bundle/policy-bundle-publication-publish",
+      "path": "_reference/reference--policy--policy-bundle--policy-bundle-publication-publish.html",
+      "title": "번들 발행"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-baseline-view",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-baseline-view.html",
+      "title": "편집기 base 조회"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-create",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-create.html",
+      "title": "draft 생성"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-discard-discard",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-discard-discard.html",
+      "title": "draft 폐기"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-list",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-list.html",
+      "title": "draft 목록"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-revision-append",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-revision-append.html",
+      "title": "revision 추가"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-revision-by-address-view",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-revision-by-address-view.html",
+      "title": "revision 조회 (주소)"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-revision-view",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-revision-view.html",
+      "title": "revision 조회"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-validation-run",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-validation-run.html",
+      "title": "revision 검증 실행"
+    },
+    {
+      "route": "/reference/policy/policy-draft/policy-draft-view",
+      "path": "_reference/reference--policy--policy-draft--policy-draft-view.html",
+      "title": "draft 조회"
+    },
+    {
+      "route": "/reference/policy/request/policy-request-get-detail",
+      "path": "_reference/reference--policy--request--policy-request-get-detail.html",
+      "title": "판단 요청 조회"
+    },
+    {
+      "route": "/reference/policy/request/policy-request-submit",
+      "path": "_reference/reference--policy--request--policy-request-submit.html",
+      "title": "판단 요청 접수"
+    },
+    {
+      "route": "/reference/policy/workspace-bundle/policy-workspace-bundle-activation-activate",
+      "path": "_reference/reference--policy--workspace-bundle--policy-workspace-bundle-activation-activate.html",
+      "title": "워크스페이스 번들 활성화"
+    },
+    {
+      "route": "/reference/policy/workspace-bundle/policy-workspace-bundle-active-view-view",
+      "path": "_reference/reference--policy--workspace-bundle--policy-workspace-bundle-active-view-view.html",
+      "title": "활성 워크스페이스 번들 조회"
+    },
+    {
+      "route": "/reference/policy/workspace-bundle/policy-workspace-bundle-publication-publish",
+      "path": "_reference/reference--policy--workspace-bundle--policy-workspace-bundle-publication-publish.html",
+      "title": "워크스페이스 번들 발행"
+    },
+    {
+      "route": "/reference/policy/workspace-registration/policy-workspace-managers-assign",
+      "path": "_reference/reference--policy--workspace-registration--policy-workspace-managers-assign.html",
+      "title": "워크스페이스 매니저 지명"
+    },
+    {
+      "route": "/reference/policy/workspace-registration/policy-workspace-managers-reissue-enrollment-token",
+      "path": "_reference/reference--policy--workspace-registration--policy-workspace-managers-reissue-enrollment-token.html",
+      "title": "워크스페이스 매니저 등록 토큰 재발급"
+    },
+    {
+      "route": "/reference/policy/workspace-registration/policy-workspace-managers-revoke",
+      "path": "_reference/reference--policy--workspace-registration--policy-workspace-managers-revoke.html",
+      "title": "워크스페이스 매니저 회수"
+    },
+    {
+      "route": "/reference/policy/workspace-registration/policy-workspace-registration-challenge",
+      "path": "_reference/reference--policy--workspace-registration--policy-workspace-registration-challenge.html",
+      "title": "스텝업 챌린지 발급"
+    },
+    {
+      "route": "/reference/policy/workspace-registration/policy-workspace-registration-list",
+      "path": "_reference/reference--policy--workspace-registration--policy-workspace-registration-list.html",
+      "title": "워크스페이스 목록 조회"
+    },
+    {
+      "route": "/reference/policy/workspace-registration/policy-workspace-registration-register",
+      "path": "_reference/reference--policy--workspace-registration--policy-workspace-registration-register.html",
+      "title": "워크스페이스 등록"
+    },
+    {
+      "route": "/reference/policy/workspace-registration/policy-workspace-registration-view",
+      "path": "_reference/reference--policy--workspace-registration--policy-workspace-registration-view.html",
+      "title": "워크스페이스 상세 조회"
+    },
+    {
+      "route": "/reference/travel-rule",
+      "path": "_reference/reference--travel-rule.html",
+      "title": "Travel Rule Gateway API"
+    },
+    {
+      "route": "/reference/travel-rule/service-api/travel-rule-address-check",
+      "path": "_reference/reference--travel-rule--service-api--travel-rule-address-check.html",
+      "title": "주소 검증"
+    },
+    {
+      "route": "/reference/travel-rule/service-api/travel-rule-create-check",
+      "path": "_reference/reference--travel-rule--service-api--travel-rule-create-check.html",
+      "title": "PII 교환&검증 요청"
+    },
+    {
+      "route": "/reference/travel-rule/service-api/travel-rule-get-check",
+      "path": "_reference/reference--travel-rule--service-api--travel-rule-get-check.html",
+      "title": "PII 검증 결과 조회"
+    },
+    {
+      "route": "/reference/travel-rule/service-api/travel-rule-report-tx",
+      "path": "_reference/reference--travel-rule--service-api--travel-rule-report-tx.html",
+      "title": "PII 검증에 대한 tx 업데이트"
+    },
+    {
+      "route": "/reference/travel-rule/service-api/vasps-get-self",
+      "path": "_reference/reference--travel-rule--service-api--vasps-get-self.html",
+      "title": "자신의 VASP 정보 조회"
+    },
+    {
+      "route": "/reference/travel-rule/service-api/vasps-list",
+      "path": "_reference/reference--travel-rule--service-api--vasps-list.html",
+      "title": "연동 VASP 리스트 조회"
+    },
+    {
+      "route": "/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive",
+      "path": "_reference/reference--travel-rule--verifyvasp-inbound--verify-vasp-callback-receive.html",
+      "title": "verifyvasp enclave로부터 들어오는 Callback"
+    },
+    {
+      "route": "/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account",
+      "path": "_reference/reference--travel-rule--verifyvasp-inbound--verify-vasp-inbound-verifications-account.html",
+      "title": "타 VASP에서 주소 검증 요청"
+    },
+    {
+      "route": "/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-user",
+      "path": "_reference/reference--travel-rule--verifyvasp-inbound--verify-vasp-inbound-verifications-user.html",
+      "title": "타 VASP에서 PII 교환&검증 요청"
+    },
+    {
+      "route": "/reference/wallet",
+      "path": "_reference/reference--wallet.html",
+      "title": "Wallet API"
+    },
+    {
+      "route": "/reference/wallet/account-wallets/account-wallets-create",
+      "path": "_reference/reference--wallet--account-wallets--account-wallets-create.html",
+      "title": "계정 지갑 생성"
+    },
+    {
+      "route": "/reference/wallet/account-wallets/account-wallets-get",
+      "path": "_reference/reference--wallet--account-wallets--account-wallets-get.html",
+      "title": "계정 지갑 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/account-wallets/account-wallets-list",
+      "path": "_reference/reference--wallet--account-wallets--account-wallets-list.html",
+      "title": "계정 지갑 목록 조회"
+    },
+    {
+      "route": "/reference/wallet/accounts/accounts-change-status",
+      "path": "_reference/reference--wallet--accounts--accounts-change-status.html",
+      "title": "계정 상태 변경"
+    },
+    {
+      "route": "/reference/wallet/accounts/accounts-create",
+      "path": "_reference/reference--wallet--accounts--accounts-create.html",
+      "title": "계정 생성"
+    },
+    {
+      "route": "/reference/wallet/accounts/accounts-get",
+      "path": "_reference/reference--wallet--accounts--accounts-get.html",
+      "title": "계정 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/accounts/accounts-get-by-reference-id",
+      "path": "_reference/reference--wallet--accounts--accounts-get-by-reference-id.html",
+      "title": "계정 referenceId 조회"
+    },
+    {
+      "route": "/reference/wallet/address-books/address-books-create",
+      "path": "_reference/reference--wallet--address-books--address-books-create.html",
+      "title": "주소록 등록 (지갑 소유 증명 nonce 서명 포함)"
+    },
+    {
+      "route": "/reference/wallet/address-books/address-books-create-nonce",
+      "path": "_reference/reference--wallet--address-books--address-books-create-nonce.html",
+      "title": "주소록 등록용 지갑 소유 증명 nonce 발급"
+    },
+    {
+      "route": "/reference/wallet/address-books/address-books-delete",
+      "path": "_reference/reference--wallet--address-books--address-books-delete.html",
+      "title": "주소록 삭제"
+    },
+    {
+      "route": "/reference/wallet/address-books/address-books-get",
+      "path": "_reference/reference--wallet--address-books--address-books-get.html",
+      "title": "주소록 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/address-books/address-books-list",
+      "path": "_reference/reference--wallet--address-books--address-books-list.html",
+      "title": "주소록 목록 조회"
+    },
+    {
+      "route": "/reference/wallet/deposits/deposits-get",
+      "path": "_reference/reference--wallet--deposits--deposits-get.html",
+      "title": "입금 내역 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/deposits/deposits-list",
+      "path": "_reference/reference--wallet--deposits--deposits-list.html",
+      "title": "입금 내역 목록 조회"
+    },
+    {
+      "route": "/reference/wallet/networks/networks-get",
+      "path": "_reference/reference--wallet--networks--networks-get.html",
+      "title": "네트워크 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/networks/networks-list",
+      "path": "_reference/reference--wallet--networks--networks-list.html",
+      "title": "네트워크 목록 조회"
+    },
+    {
+      "route": "/reference/wallet/sweeps/sweeps-create",
+      "path": "_reference/reference--wallet--sweeps--sweeps-create.html",
+      "title": "스윕 요청 생성"
+    },
+    {
+      "route": "/reference/wallet/sweeps/sweeps-get",
+      "path": "_reference/reference--wallet--sweeps--sweeps-get.html",
+      "title": "스윕 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/sweeps/sweeps-get-by-reference-id",
+      "path": "_reference/reference--wallet--sweeps--sweeps-get-by-reference-id.html",
+      "title": "스윕 referenceId 조회"
+    },
+    {
+      "route": "/reference/wallet/tokens/tokens-get",
+      "path": "_reference/reference--wallet--tokens--tokens-get.html",
+      "title": "토큰 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/tokens/tokens-list",
+      "path": "_reference/reference--wallet--tokens--tokens-list.html",
+      "title": "토큰 목록 조회"
+    },
+    {
+      "route": "/reference/wallet/travel-rules/travel-rules-list-vasps",
+      "path": "_reference/reference--wallet--travel-rules--travel-rules-list-vasps.html",
+      "title": "트래블룰 대상 VASP 목록 조회"
+    },
+    {
+      "route": "/reference/wallet/withdrawals/withdrawals-create",
+      "path": "_reference/reference--wallet--withdrawals--withdrawals-create.html",
+      "title": "출금 요청"
+    },
+    {
+      "route": "/reference/wallet/withdrawals/withdrawals-get",
+      "path": "_reference/reference--wallet--withdrawals--withdrawals-get.html",
+      "title": "출금 내역 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/withdrawals/withdrawals-list",
+      "path": "_reference/reference--wallet--withdrawals--withdrawals-list.html",
+      "title": "출금 내역 목록 조회"
+    },
+    {
+      "route": "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-create",
+      "path": "_reference/reference--wallet--workspace-vault-transfers--workspace-vault-transfers-create.html",
+      "title": "워크스페이스 Vault 이체 요청 생성"
+    },
+    {
+      "route": "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get",
+      "path": "_reference/reference--wallet--workspace-vault-transfers--workspace-vault-transfers-get.html",
+      "title": "워크스페이스 Vault 이체 상세 조회"
+    },
+    {
+      "route": "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get-by-reference-id",
+      "path": "_reference/reference--wallet--workspace-vault-transfers--workspace-vault-transfers-get-by-reference-id.html",
+      "title": "워크스페이스 Vault 이체 referenceId 조회"
+    },
+    {
+      "route": "/start",
+      "path": "_reference/start.html",
+      "title": "시작하기"
+    },
+    {
+      "route": "/start/authentication",
+      "path": "_reference/start--authentication.html",
+      "title": "표면과 인증"
+    },
+    {
+      "route": "/start/compliance",
+      "path": "_reference/start--compliance.html",
+      "title": "규제 대응"
+    },
+    {
+      "route": "/start/first-request",
+      "path": "_reference/start--first-request.html",
+      "title": "첫 요청"
+    },
+    {
+      "route": "/start/terminology",
+      "path": "_reference/start--terminology.html",
+      "title": "용어"
+    }
+  ]
 }

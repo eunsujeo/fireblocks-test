@@ -1,0 +1,133 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>자금 동결 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>자금 동결</h1><p class="ref-meta">자동 해제가 없는 이유와 두 해제 경로, 그 아래 깔린 동시성 방어</p>
+<p>동결은 입금을 확정 시 fail-closed로 잡아 두는 상태입니다. 이 페이지는 자동 해제가 없는 이유와
+해제가 일어나는 두 경로, 그리고 그 아래에 깔린 동시성 방어를 설명합니다.</p>
+<h2 id="입금은-동결로-도착합니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#입금은-동결로-도착합니다">입금은 동결로 도착합니다</a></h2>
+<p>온체인 전송에는 Wallet SDK의 허가가 필요하지 않습니다. 받을지 말지를 고를 수 없어서 <strong>확정된 입금은
+전부 동결(<code>FROZEN</code>)로 받습니다.</strong></p>
+<p>동결은 “이 자금은 아직 움직일 수 없다”는 상태입니다. 원장 CREDIT도 이 시점이 아니라 해제
+시점에 새겨집니다.</p>
+<p>동결은 온체인이나 컨트랙트 위의 동결이 아니라 Wallet SDK 오프체인 DB의 상태입니다. 온체인 잔액은
+그대로이고, Wallet SDK가 그 자금을 움직이는 요청을 받지 않는 것입니다.</p>
+<h2 id="자동-해제는-없습니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#자동-해제는-없습니다">자동 해제는 없습니다</a></h2>
+<p>가상자산 이전 시 송·수신 정보를 사업자끼리 교환하는 규제 의무인 트래블룰의 정보가 맞아떨어져도
+시스템이 스스로 풀지 않습니다. 주소에 등재 근거를 붙이는 장부인
+<a data-reference-title="주소록 (Address Book · Whitelist)" href="fund-flows--address-book.html">주소록</a>에 등록된 주소에서 왔어도 마찬가지입니다.</p>
+<p><strong>확인 근거는 판단 재료일 뿐 방아쇠가 아닙니다.</strong> 근거를 확정 통지에 담아 보내면, 그것을 본
+파트너사나 운영자가 해제를 요청합니다. 그래서 해제 근거는 두 가지뿐입니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>값</th>
+<th>누가 요청했나</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SERVICE_REQUEST</code></td>
+<td>파트너사</td>
+</tr>
+<tr>
+<td><code>ADMIN_REQUEST</code></td>
+<td>운영자</td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="해제가-어디서-일어나는지는-용도가-정합니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#해제가-어디서-일어나는지는-용도가-정합니다">해제가 어디서 일어나는지는 용도가 정합니다</a></h2>
+<p><strong>해제의 용도가 경로를 가릅니다.</strong> 그냥 가용 자산으로 만들려는 것이면 해제는 독립된 상태
+전이이고, 특정 건을 옮기려는 것이면 해제와 이동이 원자적이어야 합니다.</p>
+<h3 id="워크스페이스-지갑-입금은-독립-해제로-풉니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#워크스페이스-지갑-입금은-독립-해제로-풉니다">워크스페이스 지갑 입금은 독립 해제로 풉니다</a></h3>
+<p>워크스페이스 지갑으로 들어온 자금은 <strong>해제 요청으로 풀고, 풀린 금액이 가용 잔액으로 편입</strong>됩니다.
+가용 잔액은 온체인 잔액에서 동결분과 진행 중 출금 예약분을 뺀 값입니다. 그 뒤로는 누가 쓰든
+상관없습니다. 해제의 목적이 가용 자산을 늘리는 것이기 때문입니다.</p>
+<p>해제는 건 단위 전액입니다. 입금 레코드가 <code>FROZEN</code>에서 <code>RELEASED</code>로 전이합니다.</p>
+<h3 id="계정-지갑-입금은-이동이-해제를-겸합니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#계정-지갑-입금은-이동이-해제를-겸합니다">계정 지갑 입금은 이동이 해제를 겸합니다</a></h3>
+<p>계정 지갑 자산을 워크스페이스 vault로 모으는 이동인 <a data-reference-title="집금 (Sweep)" href="fund-flows--sweep.html">집금</a>을 요청할 때 입금 건
+하나를 지목하면, 그 건의 해제와 워크스페이스 vault로의 송금이 한 트랜잭션에 들어갑니다. 상태는
+<code>FROZEN</code>에서 <code>WITHDRAWN</code>으로 직행하고 <code>RELEASED</code>를 거치지 않습니다.</p>
+<p><strong>해제와 송금을 순차로 하면 그 사이에 시간차가 생깁니다.</strong> 해제로 늘어난 금액을 그 창에서 다른 요청이
+소진하면, 원래 옮기려던 건이 옮겨지지 않습니다.</p>
+<h2 id="확인-근거는-입금마다-다릅니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#확인-근거는-입금마다-다릅니다">확인 근거는 입금마다 다릅니다</a></h2>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>입금</th>
+<th>확인 근거</th>
+<th>해제</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VASP → 계정 지갑</td>
+<td>트래블룰 정보</td>
+<td>그 건을 지정한 이동이 겸합니다</td>
+</tr>
+<tr>
+<td>개인 지갑 → 계정 지갑</td>
+<td>그 계정의 주소록 항목</td>
+<td>그 건을 지정한 이동이 겸합니다</td>
+</tr>
+<tr>
+<td>회사 외부 → 워크스페이스 지갑</td>
+<td>워크스페이스 주소록 항목</td>
+<td>독립 해제 요청</td>
+</tr>
+<tr>
+<td>VASP·개인 → 워크스페이스 지갑</td>
+<td>없음 — vault의 확인 근거는 워크스페이스 주소록뿐입니다</td>
+<td>독립 해제 요청</td>
+</tr>
+<tr>
+<td>미등록 발신처</td>
+<td>없음</td>
+<td>위 규칙을 그대로 따릅니다</td>
+</tr>
+</tbody>
+</table></div></div>
+<p><strong>근거가 없다고 해제가 막히는 것은 아닙니다.</strong> 근거는 파트너사와 운영자가 판단할 재료이고, 판단의
+책임은 요청하는 쪽에 있습니다.</p>
+<h2 id="동시성-방어는-두-자원에-적용됩니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#동시성-방어는-두-자원에-적용됩니다">동시성 방어는 두 자원에 적용됩니다</a></h2>
+<p>같은 목적을 서로 다른 자원에 적용합니다. 하나는 금액에, 하나는 건에.</p>
+<h3 id="지갑을-출발지로-쓰는-송금은-금액을-예약합니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#지갑을-출발지로-쓰는-송금은-금액을-예약합니다">지갑을 출발지로 쓰는 송금은 금액을 예약합니다</a></h3>
+<p>가용 잔액은 조회가 아니라 예약입니다. 조회만 하면 동시 요청 두 건이 같은 값을 보고 둘 다
+통과합니다.</p>
+<pre tabindex="0"><code>가용 잔액 = 온체인 잔액 − 동결 금액 − 진행 중 송금 예약분</code></pre>
+<p>예약은 두 단계입니다. 요청을 접수할 때 금액을 예약하고, 송금이 성공하면 그 예약을 확정합니다.</p>
+<p>송금이 실패하면 예약이 풀려 가용 잔액으로 돌아옵니다. 예약된 동안에는 그 금액이 다른 요청의
+가용 잔액에서 빠져 있습니다.</p>
+<p>예약은 지갑에서 나가는 송금 셋에 함께 적용됩니다 — 계정 귀속 출금·자기 귀속 출금·vault 이체입니다.
+하나만 빼면 vault 이체로 옮긴 뒤 출금하는 우회 경로가 생깁니다.</p>
+<p>예약은 Wallet SDK 원장 기준의 방어입니다. 온체인 잔액이 충분한지를 요청 시점에 조회하지는 않아,
+예약을 통과한 요청도 뒷단 플랫폼이 제출을 거절하면 잔액 부족으로 실패합니다.</p>
+<p><strong>이 예약은 vault 이체에만 들어와 있습니다.</strong> 계정 귀속 출금과 자기 귀속 출금은 아직 잔액을 사전
+검증하지 않고 접수되며, 부족은 제출 결과로만 드러납니다. 그동안은 vault 이체로 옮긴 뒤 출금하는
+우회 경로가 아직 있습니다.</p>
+<h3 id="입금-건을-출발지로-쓰는-송금은-건을-지정합니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#입금-건을-출발지로-쓰는-송금은-건을-지정합니다">입금 건을 출발지로 쓰는 송금은 건을 지정합니다</a></h3>
+<p>입금 건 지정을 조건부 갱신으로 취합니다. “그 건이 동결 상태이고 활성 지정이 없다”를 조건에 담아
+갱신하고, 영향받은 행이 1건일 때만 통과시킵니다.</p>
+<p>선조회 후 검사로 하면 동시 요청 둘이 모두 “지정 없음”을 관측해 같은 건을 이중 소진합니다. 입금
+1건은 <strong>활성 이동 1건</strong>에만 지정됩니다.</p>
+<h2 id="인가의-강도는-요청한-주체에-따라-달라집니다"><a data-reference-title="자금 동결" href="fund-flows--release.html#인가의-강도는-요청한-주체에-따라-달라집니다">인가의 강도는 요청한 주체에 따라 달라집니다</a></h2>
+<p><strong>파트너사 API 요청에는 정족수가 없습니다.</strong> 정족수는 승인에 필요한 최소 인원입니다.</p>
+<p>그 요청이 만든 이동의 서명 인가 하나만 통과하면 됩니다.</p>
+<p>어드민 액션이 승인자의 확인을 거쳐야 실행되는 통제인 승인 게이팅은 운영자가 시작한 요청 중
+일부에만 적용됩니다. 그리고 승인이 필요한 경로에서는 요청자와 승인자가 같을 수 없습니다.</p>
+<p>정족수를 실제로 요구하는 것은 워크스페이스 지갑 입금 해제와 오입금 반환이고, 둘 다 운영자
+경로입니다.</p>
+<h2 id="다음으로"><a data-reference-title="자금 동결" href="fund-flows--release.html#다음으로">다음으로</a></h2>
+<p>집금이 해제를 겸하는 구간의 상세는 <a data-reference-title="집금 (Sweep)" href="fund-flows--sweep.html">집금</a>에 있습니다. 예약을 실제로 소비하는
+쪽은 <a data-reference-title="출금 (Withdrawal)" href="fund-flows--withdrawal.html">출금</a>과 <a data-reference-title="Vault 이체 (Vault Transfer)" href="fund-flows--vault-transfer.html">Vault 이체</a>입니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

@@ -1,0 +1,125 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>저장과 이동 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>저장과 이동</h1><p class="ref-meta">각 산출물이 어디에 저장되고 무엇이 네트워크를 오가는가</p>
+
+
+<p>이 페이지는 저작부터 판정까지의 과정에서 만난 산출물이 어디에 저장되고 어떤 길로 이동하는지를
+한곳에 모은 지도입니다. 바이트는 전부 관계형 저장소에 저장되고, 컴포넌트 사이의 경로는 네
+가지입니다. 캐시를 두지 않는 곳도 함께 적습니다.</p>
+<p>저장소를 어떻게 나눴는지는 정책 엔진 내부의 영속 구조 문서가 다룹니다. 여기서는 어느 산출물이 어느
+저장소에 저장되는지만 봅니다.</p>
+<figure><div class="interactive-diagram"><iframe loading="lazy" src="../diagrams/artifact-homes.html" title="산출물 저장 위치 — 무엇이 어디에 저장되고 어떻게 오가는가"></iframe></div><figcaption><a href="../diagrams/artifact-homes.html" rel="noopener" target="_blank">다이어그램 크게 보기</a></figcaption></figure>
+<h2 id="산출물별-저장-위치"><a data-reference-title="저장과 이동" href="policy--runtime--storage.html#산출물별-저장-위치">산출물별 저장 위치</a></h2>
+<p>저작 원문도, 번들 tarball도, 워크스페이스 번들도 파일 시스템이나 오브젝트 스토리지가 아니라
+관계형 저장소의 바이트 컬럼에 저장됩니다. 저장소를 앱 뒤에 두는 구조는
+<a data-reference-title="구조" href="policy--architecture.html">구조</a>에 있습니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>산출물</th>
+<th>저장 위치</th>
+<th>성질</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>저작 revision 원문</td>
+<td>룰 저장소</td>
+<td>추가 전용 체인 — 편집은 새 행</td>
+</tr>
+<tr>
+<td>검증 결과</td>
+<td>룰 저장소</td>
+<td>revision과 1</td>
+</tr>
+<tr>
+<td>승인 기록과 표</td>
+<td>서비스 저장소</td>
+<td>내용 해시에 결속</td>
+</tr>
+<tr>
+<td>로직 번들 tarball</td>
+<td>룰 저장소</td>
+<td>revision마다 하나</td>
+</tr>
+<tr>
+<td>활성 포인터</td>
+<td>룰 저장소</td>
+<td>가변 단일 행 — 유일한 “지금”</td>
+</tr>
+<tr>
+<td>워크스페이스 번들</td>
+<td>룰 저장소</td>
+<td>발행본 바이트</td>
+</tr>
+<tr>
+<td>결정 기록</td>
+<td>서비스 저장소</td>
+<td>추가 전용 해시 체인</td>
+</tr>
+<tr>
+<td>정규형 의도</td>
+<td>서비스 저장소</td>
+<td>요청 레코드의 JCS 전문</td>
+</tr>
+<tr>
+<td>PIP 스냅샷</td>
+<td>서비스 저장소</td>
+<td>검증을 통과한 것만 수집 레코드에</td>
+</tr>
+<tr>
+<td>조립된 입력 문서</td>
+<td>서비스 저장소</td>
+<td>자기 컬럼 없이 결정 기록 전문 안에</td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="네-가지-경로"><a data-reference-title="저장과 이동" href="policy--runtime--storage.html#네-가지-경로">네 가지 경로</a></h2>
+<ul>
+<li><strong>콘솔 ↔ 정책 서버</strong>: REST입니다. 조회 범위는 요청 파라미터가 아니라 세션에서 옵니다.
+<a data-reference-title="표면과 인증" href="start--authentication.html">인증과 스코프</a>의 규율입니다.</li>
+<li><strong>평가기 ← 정책 서버</strong>: 정책 로직 번들은 룰과 선언 데이터를 커널과 함께 담아 발행한 배포
+산출물입니다. 그 번들은 평가기가 당겨 갑니다(pull). 짧은 주기로 폴링하되 내용 해시가 그대로면
+전송이 없습니다. 활성 포인터가 없으면 빈 번들이 아니라 실패로 답합니다.</li>
+<li><strong>정책 서버 → 평가기</strong>: 판정 질의는 같은 파드 안의 localhost 호출입니다. 트랜잭션 안에서는
+부를 수 없게 기계로 막습니다. 판정 대기가 저장소 락을 쥔 채 늘어지는 길을 없애기 위해서입니다.</li>
+<li><strong>정책 서버 → 지갑 서비스</strong>: PIP는 판단에 필요한 사실을 평가 시점에 읽어 오는 수집
+경로입니다(<a data-reference-title="PIP" href="policy--runtime--pip.html">자세히</a>). 그 조회는 요청마다의 HTTP 호출이고, 결과를 저장해
+두지 않습니다. 재사용 규율도 그 페이지에 있습니다.</li>
+</ul>
+<h2 id="두-평가기"><a data-reference-title="저장과 이동" href="policy--runtime--storage.html#두-평가기">두 평가기</a></h2>
+<p>평가기는 완성된 입력 문서를 평가해 결정을 내는 역할입니다(<a data-reference-title="구조" href="policy--architecture.html">구조</a>). 서빙
+평가기는 <strong>활성 번들만 읽습니다.</strong> draft를 적재하지 않으므로, 검증 중인 저작물이 운영 판정에
+섞이는 경로가 구조적으로 없습니다.</p>
+<p>draft 채점은 채점 전용 평가기가 맡습니다. 검증 요청마다 커널과 선언 데이터를 새로 적재해 케이스를
+돌립니다. 적재 위치가 고정 이름이라 다음 검증의 적재가 앞선 것을 덮습니다. 한 번에 하나의 검증만
+처리하도록 직렬화되어, 두 draft의 데이터가 한 평가기 안에서 섞이지 않습니다.</p>
+<h2 id="캐시를-두지-않는-곳"><a data-reference-title="저장과 이동" href="policy--runtime--storage.html#캐시를-두지-않는-곳">캐시를 두지 않는 곳</a></h2>
+<p>캐시가 없는 것은 의도입니다. 셋 다 값이 늦게 반영되면 곧바로 통제가 실패하는 지점입니다.</p>
+<ul>
+<li><strong>활성 포인터</strong>는 매번 조회합니다. 지금 무엇이 서빙되는지를 정하는 단일 기록이라, 캐시를 두면
+레플리카마다 “지금”이 갈립니다. 자세한 것은 <a data-reference-title="구조" href="policy--architecture.html">구조</a>에 있습니다.</li>
+<li><strong>PIP 결과</strong>는 캐시하지 않습니다. 주소 회수처럼 즉시 반영돼야 하는 사실이 캐시 유효 시간만큼
+남아 있는 것을 막기 위해서입니다. <a data-reference-title="PIP" href="policy--runtime--pip.html">PIP</a>의 재사용 범위가 그 기준입니다.</li>
+<li><strong>워크스페이스 번들</strong>은 평가마다 다시 읽습니다. 저장 바이트를 그때마다 정규화해 해시를 셈하고
+발행 시점에 고정한 값과 맞춥니다. 한 번 통과한 구획을 들고 있으면 그 뒤의 내용 변조가 프로세스가
+실행되는 동안 관측되지 않기 때문입니다.</li>
+</ul>
+<h2 id="다음으로"><a data-reference-title="저장과 이동" href="policy--runtime--storage.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">저작과 발행</a> — 이 과정의 처음으로</li>
+<li><a data-reference-title="다이어그램" href="policy--diagrams.html">다이어그램</a> — 배포 토폴로지와 코드 수준 호출 경로</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

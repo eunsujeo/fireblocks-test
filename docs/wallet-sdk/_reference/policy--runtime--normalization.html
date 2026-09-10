@@ -1,0 +1,217 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>정규화 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>정규화</h1><p class="ref-meta">승인한 것과 서명될 것이 같은가</p>
+<p>정규화는 요청을 대조할 수 있는 형태로 옮기는 단계입니다. 평가에 들어가기 전에 서명 대상의 고정
+부분을 산출해 요청 레코드에 새기고, 서명 직전의 콜백이 그것과 지금 서명되려는 것을 맞춰 봅니다.
+그 대조가 <a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a> 2단계의 판정 근거입니다. 정규화기 구현은 주소
+체계가 같은 네트워크 묶음인 체인 계열마다 갈리고, 계열과 무관한 계약이 그 위에 있습니다.</p>
+<h2 id="대조가-일어나는-지점"><a data-reference-title="정규화" href="policy--runtime--normalization.html#대조가-일어나는-지점">대조가 일어나는 지점</a></h2>
+<p>서명 게이트의 2단계는 “승인된 것과 지금 서명되려는 것이 같은가”를 판정합니다. 정규화가 그 판정의
+근거를 정합니다.</p>
+<p>정규화기는 체인 계열마다 구현이 갈립니다. 계열과 무관한 계약이 먼저 있고, 각 계열이 그 계약을
+구현합니다.</p>
+<p><strong>정규화 실패는 언제나 fail-closed입니다.</strong> 읽어내지 못한 산출물을 통과시키는 경로를 두지
+않습니다.</p>
+<h2 id="두-모드"><a data-reference-title="정규화" href="policy--runtime--normalization.html#두-모드">두 모드</a></h2>
+<p>산출물은 두 모드로 나뉩니다. 가르는 기준은 서명 시점 환경값을 담는가 하나입니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>모드</th>
+<th>언제 이 모드인가</th>
+<th>무엇으로 대조하나</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>예약형</td>
+<td>승인 시점에 서명 대상이 완결됩니다</td>
+<td>승인 시 저장한 다이제스트와 콜백 다이제스트를 맞춥니다</td>
+</tr>
+<tr>
+<td>재구성형</td>
+<td>순번·수수료 같은 서명 시점 값을 담습니다</td>
+<td>고정 필드와 보고된 환경값으로 서명 대상을 재구성합니다</td>
+</tr>
+</tbody>
+</table></div></div>
+<p>EVM에서는 트랜잭션이 재구성형이고 EIP-712 서명이 예약형입니다.</p>
+<h2 id="재구성-검증"><a data-reference-title="정규화" href="policy--runtime--normalization.html#재구성-검증">재구성 검증</a></h2>
+<p>재구성형에서 콜백이 보고한 환경값을 그대로 믿지 않습니다. 그 값으로 재구성한 서명 대상이 실제로
+서명되려는 것과 같아야만 통과합니다.</p>
+<p><strong>이 한 번의 일치가 “보고된 값이 실제 서명에 들어갔다”까지 증명합니다.</strong> 그래서 환경값을
+검증하는 단계를 따로 두지 않습니다.</p>
+<h2 id="스탬프의-두-시점"><a data-reference-title="정규화" href="policy--runtime--normalization.html#스탬프의-두-시점">스탬프의 두 시점</a></h2>
+<p>요청 레코드에 새기는 값은 한 번에 들어가지 않습니다. 서명 대상의 고정 부분은 평가 이전의 정규화
+단계가 새기고, 인가에 딸린 값은 승인 시점에 새깁니다.</p>
+<p>정규화 단계가 새기는 것이 넷입니다. 상태는 이때 <code>RECEIVED</code>에서 <code>NORMALIZING</code>을 거쳐
+<code>EVALUATING</code>으로 갑니다.</p>
+<ul>
+<li><strong>서명 대상의 고정 부분</strong>: 예약형은 완결된 다이제스트를, 재구성형은 고정 필드와 그 해시를 남깁니다</li>
+<li><strong>정규형 의도 전문</strong>: 결정 기록의 입력 문서와 바이트로 대조되는 사본입니다</li>
+<li><strong>정규화기 버전</strong>: 콜백이 어느 구현을 고를지 정하는 버전 식별자입니다</li>
+<li><strong>해석된 워크스페이스와 테넌트</strong>: 요청이 신고한 값이 아니라 출발 지갑 소유에서 해석한 값입니다</li>
+</ul>
+<p>승인 시점에 새기는 것은 셋입니다.</p>
+<ul>
+<li><strong>인가 TTL</strong>: 발급된 인가가 유효한 시간입니다. 만료 시각을 여기서 유도합니다</li>
+<li><strong>자원 상한</strong>: 수수료의 최댓값입니다. 콜백이 정책을 읽지 않고도 대조하게 합니다</li>
+<li><strong>서명 권한 바인딩</strong>: 출발 온체인 주소와 provider vault 식별자를 함께 담습니다</li>
+</ul>
+<p>셋은 함께 있거나 함께 없습니다. 셋 중 일부만 새겨진 상태는 승인 후 최대 TTL만큼 지난 뒤에야
+드러납니다.</p>
+<p><strong>번들 다이제스트는 요청 레코드에 없습니다.</strong> 평가에 실제로 쓴 번들 식별자는 결정 기록의 평가
+항목에만 남습니다.</p>
+<p>저장 형태는 값마다 다릅니다. 크기 상한이 없는 필드는 원값이 아니라 해시로 나르고, 콜백이 그
+해시를 먼저 맞춘 뒤 재구성으로 넘어갑니다. 어느 값이 어느 컬럼에 어떤 형태로 저장되는지는 정책 엔진
+내부의 영속 구조 문서가 다룹니다.</p>
+<h2 id="정규화기-버전과-보존"><a data-reference-title="정규화" href="policy--runtime--normalization.html#정규화기-버전과-보존">정규화기 버전과 보존</a></h2>
+<p>정규화기를 새로 배포해도 이미 발급된 인가는 흔들리지 않습니다. 콜백이 현행 버전이 아니라 요청에
+새겨진 버전으로 정규화기를 고르기 때문입니다.</p>
+<p>정규화기는 순수 함수 모듈이라 버전별 구현이 앱 안에 함께 들어 있습니다. 외부에서 코드를
+불러오지 않습니다.</p>
+<p><strong>보존 의무의 기간은 인가 TTL이 정합니다.</strong> 인가 TTL은 발급된 인가가 유효한 시간입니다(<a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명
+게이트</a>). 재실행이 필요한 구간은 승인부터 콜백까지뿐이라, 배포 규율의
+하한은 “직전 활성 버전 구현을 남긴다”입니다. 없는 버전을 만난 콜백은 거부하고 운영 알림을
+냅니다.</p>
+<p>규제 대응 재현은 이 보존과 무관합니다. 결정 기록은 결정을 주체·행위·대상·시각·결과와 함께 남기는
+추가 전용 해시 체인입니다. 그 입력과 번들 해시만으로, 완성된 입력 문서를 평가해 결정을 내는
+평가기(PDP)를 다시 돌립니다.</p>
+<h2 id="서명-주체-대조"><a data-reference-title="정규화" href="policy--runtime--normalization.html#서명-주체-대조">서명 주체 대조</a></h2>
+<p>서명 대상 바이트에 서명 주체가 담기지 않는 계열이 있습니다. EVM 트랜잭션에는 <code>from</code>이
+없습니다.</p>
+<p><strong>그래서 콜백이 보고한 출발 식별자를 승인 시점의 출발 지갑 주소와 따로 대조합니다.</strong> 이 단계가
+없으면 낮은 권한으로 받은 승인이 다른 서명키의 서명을 인가하게 됩니다.</p>
+<h2 id="자원-상한"><a data-reference-title="정규화" href="policy--runtime--normalization.html#자원-상한">자원 상한</a></h2>
+<p>수수료는 요청이 정의하는 값이 아니라 서명 시점에 붙는 값입니다. 대조 대상이 아니므로 자원
+상한이라는 별도 기준으로 검사합니다.</p>
+<p>상한은 승인 시점에 새기고 콜백이 그것과 비교합니다. 콜백은 정책을 읽지 않습니다.</p>
+<p><strong>상한이 새겨지지 않았으면 콜백은 거부합니다.</strong> 값이 없으면 멈춘다는 원칙이 여기에도 그대로
+적용됩니다. 아직 값을 선언하지 않은 체인은 그래서 자동으로 막힙니다.</p>
+<p>비교하는 피연산자는 콜백이 신고한 총액이 아닙니다. 재구성 대조를 통과한 서명 대상 전체의
+환경값에서 총액을 유도해 비교합니다. 신고값을 보면 정상적인 트랜잭션을 서명해 놓고 수수료만 낮게
+신고하는 방법으로 상한 검사를 피할 수 있습니다.</p>
+<p>EVM에서는 <code>gasLimit × maxFeePerGas</code>로 유도하고 척도는 wei입니다. 이 값은 실제로 낼 수수료가
+아니라 낼 수 있는 최댓값입니다. 자원 상한이 제한하는 것도 이 서명으로 나갈 수 있는 최대라서
+기준이 맞습니다.</p>
+<h2 id="실패의-최종-상태"><a data-reference-title="정규화" href="policy--runtime--normalization.html#실패의-최종-상태">실패의 최종 상태</a></h2>
+<p>전부 fail-closed이되 최종 상태가 다릅니다. 소비자와 운영이 다르게 반응해야 하기 때문입니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>무슨 일이 있었나</th>
+<th>결과</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>미등록 조합·미지 산출물 타입·불투명 blob·레지스트리 불일치</td>
+<td>거부(DENIED) — 정책적 거부입니다</td>
+</tr>
+<tr>
+<td>인식한 입력을 처리하다 난 내부 예외</td>
+<td>실패(FAILED) — 엔진 내부 오류 전용입니다</td>
+</tr>
+<tr>
+<td>콜백에서 대조 불일치·추출 불가·상한 초과</td>
+<td>콜백 거부(REJECT)</td>
+</tr>
+</tbody>
+</table></div></div>
+<p>사유 코드 전수의 기준 문서는 API 스펙입니다. <a data-reference-title="API 레퍼런스" href="reference.html">API 레퍼런스</a>에서 봅니다.</p>
+<h2 id="요청-필드-매핑"><a data-reference-title="정규화" href="policy--runtime--normalization.html#요청-필드-매핑">요청 필드 매핑</a></h2>
+<p>요청 필드를 canonical intent로 옮기는 매핑은 이름 규칙이 아닙니다. <strong>연산마다 명시적으로 선언하고
+정규화기가 그 선언을 소유합니다.</strong></p>
+<p>이름 규칙에 기대면 새로 생긴 필드가 검증 없이 들어옵니다. 실제로 이름만으로 옮겨지는 필드도 거의
+없습니다.</p>
+<p>매핑에는 검증이 함께 붙습니다. 목적지 필드가 어느 것이냐가 목적지 종류를 결정하고, 요청자가 종류를
+주장하지 않습니다. 미등재 토큰과 미등재 서명 타입은 그 단계에서 거부됩니다.</p>
+<p>요청 스키마는 정책에 의존하지 않습니다. 룰이 카탈로그 밖을 참조하면 컴파일이 실패하고, 요청
+필드를 늘리려면 스키마 버전을 올려야 합니다. 정책이 더 필요로 하는 사실은 요청이 아니라, 판단에
+필요한 사실을 평가 시점에 읽어 오는 수집 경로인 PIP(<a data-reference-title="PIP" href="policy--runtime--pip.html">자세히</a>)로 들어옵니다.</p>
+<h2 id="레지스트리-등록"><a data-reference-title="정규화" href="policy--runtime--normalization.html#레지스트리-등록">레지스트리 등록</a></h2>
+<p>컨트랙트 호출과 EIP-712 서명은 등록제입니다. 레지스트리는 구조와 타입만 정의합니다. 화이트리스트나
+한도 같은 제약은 <code>scope</code>와 조건을 갖고 <code>allow</code>·<code>deny</code>를 내는 단위인
+룰(<a data-reference-title="룰 구조" href="policy--rule--structure.html">자세히</a>)에서 정합니다.</p>
+<p>레지스트리는 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물인 정책 로직 번들에
+포함됩니다. 등록은 승인을 거치는 번들 변경입니다. 컴파일러가 번들 스냅샷을 기준으로 타입을 검사합니다.</p>
+<p><strong>하위 호출을 담아 전달하는 인자는 등록을 거부합니다.</strong> 바이트가 일치해도 무엇을 하는지 모르는
+호출은 “승인한 것이 곧 서명된 것”이라는 전제를 깹니다.</p>
+<h2 id="evm-구현"><a data-reference-title="정규화" href="policy--runtime--normalization.html#evm-구현">EVM 구현</a></h2>
+<p>EVM이 이 계약의 첫 구현입니다. 트랜잭션에서 고정하는 것은 <code>chainId</code>·<code>to</code>·<code>value</code>·<code>data</code>
+넷입니다. 나머지는 콜백이 보고하고 재구성으로 검증됩니다.</p>
+<p><code>to</code>와 <code>data</code>는 자산 등록 정보에서 도출합니다. 네이티브 자산이면 목적지로 바로 보내고, 토큰이면
+컨트랙트 주소로 표준 전송 호출을 인코딩합니다.</p>
+<p>트랜잭션 타입은 허용목록으로 좁힙니다. <code>0x00</code>·<code>0x01</code>·<code>0x02</code>만 처리하고 <strong>EIP-7702는
+거부합니다.</strong> 위임 목록이 고정 필드에 드러나지 않아 계정 위임 탈취 경로가 되기 때문입니다. replay
+보호가 없는 구형 legacy도 거부합니다.</p>
+<p>EIP-712는 domain에 <code>chainId</code>와 <code>verifyingContract</code>를 필수로 요구합니다. 둘 중 하나라도 없는
+타입은 등록 자체를 거부합니다. 고정할 수 없는 값이 있으면 다른 체인·다른 컨트랙트로 재사용이
+가능해지기 때문입니다.</p>
+<p>메시지는 범위가 아니라 정확값으로 고정합니다. 다이제스트를 다시 도출하려면 완전한 메시지가 있어야
+하기 때문입니다.</p>
+<h2 id="abi-인코딩"><a data-reference-title="정규화" href="policy--runtime--normalization.html#abi-인코딩">ABI 인코딩</a></h2>
+<p>ABI 인코딩은 정규형이 아닙니다. 같은 뜻이라도 잔여 상위 비트나 후행 바이트에 따라 다른 바이트가
+나옵니다.</p>
+<p><strong>재구성형이 이 문제를 해결합니다.</strong> 어떤 인코딩으로 만들었든 재구성 결과가 실제 서명 해시와
+같아야 통과하므로, 비정규 인코딩은 불일치로 거부됩니다.</p>
+<h2 id="프록시-컨트랙트"><a data-reference-title="정규화" href="policy--runtime--normalization.html#프록시-컨트랙트">프록시 컨트랙트</a></h2>
+<p>레지스트리 키가 프록시 컨트랙트를 가리키면 구현이 Wallet SDK 거버넌스 밖에서 교체됩니다. 바이트
+일치는 “서명된 것 = 승인된 것”만 보장하고 “승인한 것이 여전히 같은 일을 한다”는 보장하지
+않습니다.</p>
+<p>컨트랙트 호출은 v1에 사용처가 없어 범위만 확보해 둔 상태입니다. 구현 고정을 강제할지는 사용처가
+정해질 때 결정하고, <strong>그전까지 프록시 쪽 업그레이드 거버넌스는 신뢰 가정입니다.</strong></p>
+<h2 id="다른-체인-계열"><a data-reference-title="정규화" href="policy--runtime--normalization.html#다른-체인-계열">다른 체인 계열</a></h2>
+<p>뼈대는 그대로 재사용하고 계열 구현만 갈아끼웁니다. 두 모드, 승인 스탬프, 재구성 검증, 자원 상한,
+fail-closed, 레지스트리가 전부 계열과 무관합니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>체인별 계약 항목</th>
+<th>EVM</th>
+<th>예: Solana</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>주소 정규화</td>
+<td>20바이트 hex 소문자</td>
+<td>base58 32바이트 공개키</td>
+</tr>
+<tr>
+<td>금액 단위</td>
+<td>wei</td>
+<td>lamports</td>
+</tr>
+<tr>
+<td>서명 대상</td>
+<td>트랜잭션 전체의 해시</td>
+<td>직렬화된 message 바이트</td>
+</tr>
+<tr>
+<td>환경값</td>
+<td>nonce·gas·fee</td>
+<td>recent blockhash·fee payer·compute budget</td>
+</tr>
+</tbody>
+</table></div></div>
+<p>지금은 대응만 예약하고 구현하지 않습니다.</p>
+<h2 id="다음으로"><a data-reference-title="정규화" href="policy--runtime--normalization.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a> — 이 대조가 어느 단계에서 일어나는지</li>
+<li><a data-reference-title="저장과 이동" href="policy--runtime--storage.html">저장과 이동</a> — 스탬프한 값이 어느 저장소에 남는지</li>
+<li><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a> — 레지스트리가 정의한 것을 룰이 어떻게 제약하는지</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

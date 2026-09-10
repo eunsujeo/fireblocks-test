@@ -1,0 +1,48 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>서명 상한 대조 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>서명 상한 대조</h1><p class="ref-meta">승인 스탬프는 서명 직전에 일합니다</p>
+
+
+<p>이 페이지는 승인 스탬프가 서명 직전 콜백에서 쓰이는 과정을 따라갑니다. 승인 스탬프는 승인 시점에
+찍히는 소비 시점 유효값이고, 인가 TTL과 건당 자원 상한이 거기
+담깁니다(<a data-reference-title="정규화" href="policy--runtime--normalization.html">자세히</a>).</p>
+<p><strong>allow와 함께 발급된 승인 스탬프는 기록이 아니라 피연산자입니다.</strong> 서명 직전 콜백이 그 값으로
+마지막 대조를 합니다. 두 단계 구조 전체는 <a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a>에 있습니다.</p>
+<figure><div class="interactive-diagram"><iframe loading="lazy" src="../diagrams/usecase-callback-limit.html" title="서명 직전 상한 대조 — 승인 스탬프의 마지막 일"></iframe></div><figcaption><a href="../diagrams/usecase-callback-limit.html" rel="noopener" target="_blank">다이어그램 크게 보기</a></figcaption></figure>
+<h2 id="스탬프는-승인-시점에-좁혀집니다"><a data-reference-title="서명 상한 대조" href="policy--use-cases--callback-limit.html#스탬프는-승인-시점에-좁혀집니다">스탬프는 승인 시점에 좁혀집니다</a></h2>
+<p><strong>값 이동 승인의 자원 상한은 그 요청 체인의 항목 하나로 좁혀 새겨집니다.</strong> 승인 시점에 좁히는
+것이 상한 우회를 막는 지점입니다. 다른 체인을 보고한 콜백은 대조할 항목을 찾지 못합니다.</p>
+<p>체인 식별자가 없는 요청은 좁힐 기준이 없어 선언 전체가 새겨집니다. 어느 쪽이든 콜백은 보고된 체인
+키로 항목을 찾습니다.</p>
+<h2 id="판정-값은-서명될-트랜잭션-전체에서-나옵니다"><a data-reference-title="서명 상한 대조" href="policy--use-cases--callback-limit.html#판정-값은-서명될-트랜잭션-전체에서-나옵니다">판정 값은 서명될 트랜잭션 전체에서 나옵니다</a></h2>
+<p><strong>수수료 상한의 피연산자는 서명될 트랜잭션 전체에서 유도합니다.</strong> 그 옆에 따로 담겨 온 신고 총액을
+쓰면 상한을 우회할 수 있습니다. 정상적인 트랜잭션을 서명해 놓고 신고 값만 낮추면 됩니다.</p>
+<p>대조는 트랜잭션 재구성이 일치한 뒤에만 이뤄집니다. 재구성 일치가 곧 보고된 환경값이 실제로 서명에
+들어간다는 증명입니다. 재구성 검증 자체는 <a data-reference-title="정규화" href="policy--runtime--normalization.html">정규화</a>에 있습니다.</p>
+<h2 id="상한이-새겨지지-않은-것은-상한-없음이-아닙니다"><a data-reference-title="서명 상한 대조" href="policy--use-cases--callback-limit.html#상한이-새겨지지-않은-것은-상한-없음이-아닙니다">상한이 새겨지지 않은 것은 상한 없음이 아닙니다</a></h2>
+<p><strong>보고된 체인의 상한 항목을 찾지 못하면 결과는 거절입니다.</strong> 상한 부재를 “상한 없음”으로
+읽는 경로를 두지 않습니다. 부재는 통과 사유가 될 수 없습니다.</p>
+<h2 id="거절도-200으로-나갑니다"><a data-reference-title="서명 상한 대조" href="policy--use-cases--callback-limit.html#거절도-200으로-나갑니다">거절도 200으로 나갑니다</a></h2>
+<p><strong>판정은 HTTP 상태가 아니라 서명된 응답이 전달합니다.</strong> 서명 인프라에게 4xx와 5xx는 “응답을 못
+받았다”라서 재시도를 부르고, Wallet SDK가 의도한 거절이라는 사실이 사라집니다.</p>
+<p>통과하면 인가를 소비합니다. 인가는 승인된 판단 요청이 발급하는 한 번만 쓸 수 있는 서명 근거라,
+같은 승인으로 두 번 서명할 수 없습니다. 인가 유효 시간과 재확인 구조는
+<a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a>에 있습니다.</p>
+<h2 id="다음으로"><a data-reference-title="서명 상한 대조" href="policy--use-cases--callback-limit.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a> — 두 단계 구조와 인가 유효 시간</li>
+<li><a data-reference-title="출금 화이트리스트" href="policy--use-cases--whitelist-loop.html">출금 화이트리스트</a> — 이 스탬프를 발급한 흐름</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

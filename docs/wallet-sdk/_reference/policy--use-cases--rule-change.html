@@ -1,0 +1,58 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>룰 변경 게이트 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>룰 변경 게이트</h1><p class="ref-meta">정책을 바꾸는 요청도 정책 평가를 거칩니다</p>
+
+
+<p>이 페이지는 워크스페이스가 자기 룰을 바꾸는 요청이 어떤 게이트를 거치는지를 따라갑니다.
+maker-checker는 제안자와 승인자를 갈라 두는 정책 변경 거버넌스입니다(<a data-reference-title="정책" href="policy.html">자세히</a>).</p>
+<p><strong>정책 변경은 엔진 밖의 관리 작업이 아니라 엔진이 평가하는 연산입니다.</strong> 워크스페이스가 자기
+룰을 바꾸려면 그 요청부터 게이트를 거칩니다.</p>
+<p>이 페이지는 그 설계를 담습니다. 지금 룰 변경이 실제로 거치는 것은 번들 발행의 maker-checker이고
+그 대비는 <a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a>에 있습니다.</p>
+<figure><div class="interactive-diagram"><iframe loading="lazy" src="../diagrams/usecase-rule-change.html" title="룰 변경 게이트 — 저작에서 활성까지"></iframe></div><figcaption><a href="../diagrams/usecase-rule-change.html" rel="noopener" target="_blank">다이어그램 크게 보기</a></figcaption></figure>
+<h2 id="게이트를-만드는-것은-allow-룰-하나입니다"><a data-reference-title="룰 변경 게이트" href="policy--use-cases--rule-change.html#게이트를-만드는-것은-allow-룰-하나입니다">게이트를 만드는 것은 allow 룰 하나입니다</a></h2>
+<p>룰 변경 액션에 maker-checker를 적용하는 룰입니다. 저작 세트의 escalation 모듈에 이 형태로 있습니다.</p>
+<pre tabindex="0"><code>{
+  "id": "escalation/workspace-rule-change-gate",
+  "effect": "allow",
+  "scope": {
+    "all": [
+      { "field": "operation", "op": "eq", "value": "admin_action" },
+      { "field": "payload.action", "op": "eq", "value": "workspace_rule_change" }
+    ]
+  },
+  "obligations": [
+    { "type": "require_quorum", "params": { "n": { "slot": "escalation_quorum" } } }
+  ]
+}</code></pre>
+<p><strong>등재된 액션에는 그것을 명시로 제약하는 allow 룰이 최소 하나 있어야 합니다.</strong> 없으면 컴파일이
+실패합니다. 게이트 없는 액션이 조용히 허용되는 상태를 컴파일 단계가 막습니다.</p>
+<h2 id="모듈-조건을-달지-않는-것이-의도입니다"><a data-reference-title="룰 변경 게이트" href="policy--use-cases--rule-change.html#모듈-조건을-달지-않는-것이-의도입니다">모듈 조건을 달지 않는 것이 의도입니다</a></h2>
+<p><strong>어느 모듈을 바꾸든 강도는 같습니다.</strong> 모듈마다 강도를 가르면 목록에 없는 모듈이 하한 없는
+경우가 되고, 넓은 허가 룰 하나가 그 경우까지 허용해 버릴 수 있습니다.</p>
+<p>강도는 기준 설계가 정하고 저작이 더하지 않습니다. 이 경로의 강제는 maker-checker 하나입니다.
+2단계 인증은 <a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html">권한 상승 게이트</a>의 것입니다.</p>
+<h2 id="allow-뒤에도-발행을-거쳐야-바뀝니다"><a data-reference-title="룰 변경 게이트" href="policy--use-cases--rule-change.html#allow-뒤에도-발행을-거쳐야-바뀝니다">allow 뒤에도 발행을 거쳐야 바뀝니다</a></h2>
+<p><strong>승인이 끝나도 서빙 중인 정책은 아직 그대로입니다.</strong> 검증·컴파일·발행을 거쳐 활성 revision이
+전환된 뒤에야 다음 평가가 새 룰을 봅니다.</p>
+<p>저작에서 발행까지의 파이프라인은 <a data-reference-title="룰 저작과 발행" href="policy--workflow.html">저작과 발행</a>에 있습니다. 평가가
+읽는 활성 revision은 <a data-reference-title="저장과 이동" href="policy--runtime--storage.html">저장과 이동</a>에 있습니다.</p>
+<h2 id="다음으로"><a data-reference-title="룰 변경 게이트" href="policy--use-cases--rule-change.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">저작과 발행</a> — 초안·검증·발행 파이프라인</li>
+<li><a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a> — 정족수 집계와 재평가</li>
+<li><a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html">권한 상승 게이트</a> — 더 강한 하한이 적용되는 표면</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

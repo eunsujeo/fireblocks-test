@@ -1,0 +1,67 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>금지선 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>금지선</h1><p class="ref-meta">deny는 어떤 허가로도 뒤집히지 않습니다</p>
+
+
+<p>이 페이지는 허가 룰과 금지 룰이 함께 참일 때 결과가 어떻게 정해지는지를 따라갑니다. 룰은
+<code>scope</code>와 조건을 갖고 <code>allow</code>·<code>deny</code>를 내는 단위입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">자세히</a>).</p>
+<p><strong>허가 룰이 참이어도 금지 룰이 참이면 결과는 deny입니다.</strong> 예약 어드민 계정에 권한을 부여하려는
+요청이 이 결합을 정확히 보여줍니다.</p>
+<p>이 페이지는 그 설계를 담습니다. 어드민 액션을 판단 요청으로 접수하는 표면은 아직
+없습니다(<a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a>).</p>
+<figure><div class="interactive-diagram"><iframe loading="lazy" src="../diagrams/usecase-deny-override.html" title="금지 룰 — deny 는 허가를 뒤집는다"></iframe></div><figcaption><a href="../diagrams/usecase-deny-override.html" rel="noopener" target="_blank">다이어그램 크게 보기</a></figcaption></figure>
+<h2 id="금지-룰은-대상만-봅니다"><a data-reference-title="금지선" href="policy--use-cases--deny-override.html#금지-룰은-대상만-봅니다">금지 룰은 대상만 봅니다</a></h2>
+<p>예약 어드민 계정을 권한 부여 대상으로 삼는 것을 금지하는 룰의 형태 예시입니다.</p>
+<pre tabindex="0"><code>{
+  "id": "escalation/deny-reserved-admin-target",
+  "effect": "deny",
+  "scope": {
+    "all": [
+      { "field": "operation", "op": "eq", "value": "admin_action" },
+      { "field": "payload.action", "op": "eq", "value": "role_grant" }
+    ]
+  },
+  "when": {
+    "field": "payload.target_admin_id",
+    "op": "in",
+    "value": ["&lt;예약 계정 식별자 목록&gt;"]
+  }
+}</code></pre>
+<p><strong>deny 룰에는 obligation이 없습니다.</strong> obligation은 통과로 확정되기 전에 이행해야 하는 조건이라,
+거부하면서 이행을 요구하는 것은 뜻이 성립하지 않습니다. 그 계약은
+<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>에 있습니다.</p>
+<h2 id="deny-면제-메커니즘은-없습니다"><a data-reference-title="금지선" href="policy--use-cases--deny-override.html#deny-면제-메커니즘은-없습니다">deny 면제 메커니즘은 없습니다</a></h2>
+<p><strong>어느 모듈에서든 금지 룰이 참이면 결과는 deny입니다.</strong> 허가 룰이 몇 개 발동했는지는 결과를
+바꾸지 못합니다. 결합 규칙은 <a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a>에 있습니다.</p>
+<p>deny 판정은 수집 요구보다 앞입니다. 소스 없이도 이미 참인 금지 룰이 있으면 수집 없이 즉시
+종결하고, 거부가 확정된 요청에 수집 비용을 쓰지 않습니다.</p>
+<h2 id="금지-값이-리터럴인-것이-통제입니다"><a data-reference-title="금지선" href="policy--use-cases--deny-override.html#금지-값이-리터럴인-것이-통제입니다">금지 값이 리터럴인 것이 통제입니다</a></h2>
+<p>슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는
+값입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">자세히</a>).</p>
+<p><strong>금지 대상 목록을 슬롯으로 두면 피통제 조직이 목록을 비워 무력화할 수 있습니다.</strong> 금지 규칙을
+금지 대상이 직접 정하게 되는 셈입니다.</p>
+<p>리터럴로 두는 대가는 목록 변경이 룰 변경 거버넌스를 거치는 것입니다. 그 비용이 이 형태의
+요점이고, 금지 대상 목록을 바꾸는 일은 조용히 일어나면 안 됩니다.</p>
+<h2 id="금지-룰은-채워짐이-보장된-필드만-참조합니다"><a data-reference-title="금지선" href="policy--use-cases--deny-override.html#금지-룰은-채워짐이-보장된-필드만-참조합니다">금지 룰은 채워짐이 보장된 필드만 참조합니다</a></h2>
+<p><strong>값이 없는 필드의 비교는 거짓이 됩니다.</strong> 허가 룰에서는 통과가 막히는 안전한 방향이지만,
+금지 룰에서는 금지가 적용되지 않는 방향입니다.</p>
+<p>그래서 이 룰은 액션 계약이 필수로 요구하는 필드만 봅니다. 필드 계약은
+<a data-reference-title="룰 명세" href="policy--rule--reference.html">룰 명세</a>에 있습니다.</p>
+<h2 id="다음으로"><a data-reference-title="금지선" href="policy--use-cases--deny-override.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a> — deny 우선 결합과 결정값 네 가지</li>
+<li><a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html">권한 상승 게이트</a> — 같은 표면의 하한 obligation</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

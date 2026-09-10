@@ -1,0 +1,34 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>v0.4.0 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>v0.4.0</h1><h3 id="문서"><a data-reference-title="v0.4.0" href="changelog--v0-4-0.html#문서">문서</a></h3>
+<ul>
+<li><strong>사이트가 둘로 나갑니다.</strong> 이 주소는 그중 하나이고, 설계 기록은 다른 쪽에 실립니다.</li>
+<li><strong>자금 이동 탭의 제목이 전부 명사가 됐습니다.</strong> 「입금이 도착하는 길」은 <a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a>,
+「이동 일곱 가지」는 <a data-reference-title="이동 종류" href="fund-flows--movements.html">이동 종류</a>, 「동결과 해제」는 <a data-reference-title="자금 동결" href="fund-flows--release.html">자금 동결</a>,
+「통지」는 <a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html">웹훅</a>입니다. 주장은 각 페이지의 설명과 소제목이 맡습니다.</li>
+<li><strong>입금·집금·출금·Vault 이체가 「이동 종류」 바로 아래에 순서대로 놓였습니다.</strong> 제목에 영문을
+붙였습니다 — 입금 (Deposit) · 집금 (Sweep) · 출금 (Withdrawal) · Vault 이체 (Vault Transfer).
+주소는 그대로입니다.</li>
+<li><strong>일곱 이동 중 둘이 자기 자리를 얻었습니다.</strong> 워크스페이스 지갑 입금(<code>wwd-</code>)은
+<a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a>에, 계정 지갑 출금(<code>aww-</code>, 오입금 반환)은
+<a data-reference-title="출금 (Withdrawal)" href="fund-flows--withdrawal.html">출금</a>에 절이 생겼습니다. 이전에는 표의 한 행이 전부였습니다.</li>
+<li><strong>동결 서술이 한 곳으로 모였습니다.</strong> 탭 첫 페이지와 <a data-reference-title="자금 동결" href="fund-flows--release.html">자금 동결</a>이 같은 말을
+두 번 하던 것을 후자로 몰았습니다.</li>
+<li><strong>주소록이 화이트리스트라는 것을 적었습니다.</strong> 제목은 <a data-reference-title="주소록 (Address Book · Whitelist)" href="fund-flows--address-book.html">주소록 (Address Book · Whitelist)</a>이고,
+정책 문서가 화이트리스트라고 부르는 것이 같은 장부임을 본문과 <span title="현재 문서 묶음에 없는 참조입니다.">용어</span>에 밝혔습니다.</li>
+<li><strong>웹훅과 통지를 갈랐습니다.</strong> 채널이 웹훅이고 실리는 것이 통지입니다 — <span title="현재 문서 묶음에 없는 참조입니다.">용어</span>에
+두 항목이 따로 있습니다.</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

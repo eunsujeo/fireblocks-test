@@ -1,0 +1,69 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>권한 상승 게이트 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>권한 상승 게이트</h1><p class="ref-meta">하한 룰은 조건 없이 적용됩니다</p>
+
+
+<p>이 페이지는 권한을 올리는 요청이 pending으로 멈추는 지점을 따라갑니다. obligation은 통과로
+확정되기 전에 이행해야 하는 조건이고(<a data-reference-title="룰 구조" href="policy--rule--structure.html">자세히</a>), 이 요청에서는 2단계
+인증과, 승인에 필요한 최소 인원인 정족수의 승인이 그것입니다.</p>
+<p><strong>권한을 올리는 요청은 어떤 설정에서도 가장 강한 게이트를 받습니다.</strong> 그 하한을 만드는 것이
+조건 없는 룰 하나입니다.</p>
+<p>이 페이지는 그 설계를 담습니다. 어드민 액션을 판단 요청으로 접수하는 표면은 아직
+없습니다(<a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a>).</p>
+<figure><div class="interactive-diagram"><iframe loading="lazy" src="../diagrams/usecase-escalation-pending.html" title="권한 상승 게이트 — obligation 이 만드는 pending"></iframe></div><figcaption><a href="../diagrams/usecase-escalation-pending.html" rel="noopener" target="_blank">다이어그램 크게 보기</a></figcaption></figure>
+<h2 id="하한-룰에는-조건이-없습니다"><a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html#하한-룰에는-조건이-없습니다">하한 룰에는 조건이 없습니다</a></h2>
+<p>권한 부여에 하한을 거는 룰의 형태 예시입니다.</p>
+<pre tabindex="0"><code>{
+  "id": "escalation/role-grant-gate",
+  "effect": "allow",
+  "scope": {
+    "all": [
+      { "field": "operation", "op": "eq", "value": "admin_action" },
+      { "field": "payload.action", "op": "eq", "value": "role_grant" }
+    ]
+  },
+  "obligations": [
+    { "type": "require_2fa" },
+    { "type": "require_quorum", "params": { "n": { "slot": "escalation_quorum" } } }
+  ]
+}</code></pre>
+<p><strong><code>when</code>이 없는 것이 이 룰의 요점입니다.</strong> 조건을 달면 조건이 거짓인 경우에 하한이 사라지고,
+그 경우는 다른 룰이 허가하는 순간 하한 없이 통과합니다.</p>
+<p>액션 종류만으로 대상이 식별되므로 필드 값 조건이 필요하지도 않습니다. 적용 범위 두 개가
+발동을 전부 정합니다.</p>
+<h2 id="하한과-허가는-독립입니다"><a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html#하한과-허가는-독립입니다">하한과 허가는 독립입니다</a></h2>
+<p><strong>무엇을 줄 수 있는지는 허가 룰이 답하고, 얼마나 강한 게이트를 거치는지는 이 룰이 답합니다.</strong> 부여
+가능 목록이 어떻게 바뀌어도 이 obligation은 그대로 남습니다.</p>
+<p>본인 승인 불허는 생략으로 표현합니다. 허용 여부의 병합은 하나라도 불허면 불허라서, 생략이 곧
+가장 안전한 값입니다. 병합 규칙은 <a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a>에 있습니다.</p>
+<h2 id="정족수는-리터럴이-아니라-슬롯입니다"><a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html#정족수는-리터럴이-아니라-슬롯입니다">정족수는 리터럴이 아니라 슬롯입니다</a></h2>
+<p>슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다.</p>
+<p><strong>값을 고르는 것은 워크스페이스이지만 하한 아래로는 내려가지 못합니다.</strong> 조건 트리를
+평가하고 결정을 결합하는 정책 무관 고정 부분인 커널(<a data-reference-title="결정과 결합" href="policy--rule--decision.html">자세히</a>)이 평가 시점에
+하한을 다시 확인합니다. <code>escalation_quorum</code>의 기본값은 3이고 하한은 2입니다. 슬롯 계약은
+<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>에 있습니다.</p>
+<p>정족수를 리터럴로 고정하면 워크스페이스가 자기 규모에 맞게 올릴 수도 없습니다. 조정 가능성과
+하한 보증을 슬롯 하나가 함께 만듭니다.</p>
+<h2 id="pending-뒤의-흐름은-승인-게이트가-맡습니다"><a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html#pending-뒤의-흐름은-승인-게이트가-맡습니다">pending 뒤의 흐름은 승인 게이트가 맡습니다</a></h2>
+<p><strong>이 룰이 만드는 것은 pending까지입니다.</strong> 표 수집·정족수 집계·재평가·집행은
+<a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a>에 있고, 2단계 인증 채널은
+<a data-reference-title="obligation 수집" href="policy--sequences--obligations.html">obligation 수집</a>에 있습니다.</p>
+<h2 id="다음으로"><a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a> — pending 이후의 표 수집과 집행</li>
+<li><a data-reference-title="금지선" href="policy--use-cases--deny-override.html">금지선</a> — 같은 표면에서 deny 룰이 허가를 뒤집는 흐름</li>
+<li><a data-reference-title="룰 변경 게이트" href="policy--use-cases--rule-change.html">룰 변경 게이트</a> — 정책 변경 자체가 받는 게이트</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

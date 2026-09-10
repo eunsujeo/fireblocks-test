@@ -1,0 +1,88 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>지갑 계층 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>지갑 계층</h1><p class="ref-meta">Vault · Wallet과 발급 단위 둘</p>
+<p>지갑 계층은 자산을 어디에 담는지 정하는 기준입니다. Vault가 Wallet을 묶고 Wallet 하나가 토큰
+하나를 담습니다. 발급 단위는 Workspace 귀속과 Account 귀속 둘로 갈리고, 그 귀속이 데이터를
+가르는 기준을 정합니다.</p>
+<h2 id="vault와-wallet"><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html#vault와-wallet">Vault와 Wallet</a></h2>
+<p>Wallet은 토큰 하나를 담는 단위입니다. 온체인 주소가 여기에 연결되고, 어느 토큰을 담는지가 Wallet에
+기록됩니다.</p>
+<p>Vault는 그 Wallet을 묶는 그룹입니다. Vault는 키 체계마다 키를 하나만 갖습니다. 키 체계란 체인 계열이
+쓰는 서명 키의 종류이고, 지금 지원하는 것은 EVM 하나입니다.</p>
+<p>온체인 주소는 키에서 유도되므로 키 하나에서 주소도 하나입니다. 따라서 한 Vault 안의 EVM Wallet은
+몇 개가 있어도 전부 같은 주소를 씁니다. 예를 들어 한 Vault에 Ethereum의 USDC Wallet과 USDT Wallet을
+만들면 두 Wallet의 주소는 같습니다.</p>
+<p>이 때문에 서로 다른 EVM 주소를 한 Vault 아래에 둘 수는 없습니다. 주소가 다른 지갑이 필요하면 그것은
+다른 Vault입니다. 키 체계가 다른 체인이 추가되면 그 체계의 키와 주소가 같은 Vault 안에 따로 생깁니다.</p>
+<h2 id="발급-단위"><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html#발급-단위">발급 단위</a></h2>
+<p>발급 단위가 둘입니다. 아래 「API」는 <strong>파트너사가 부르는 Wallet API</strong>입니다. 계약 소유자와 인증
+방식이 하나로 정해지는 API 경로 묶음인 운영자 표면(<a data-reference-title="표면과 인증" href="start--authentication.html">자세히</a>)은
+워크스페이스 지갑도 식별자로 받습니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>발급 단위</th>
+<th>격리 기준</th>
+<th>Vault</th>
+<th>Wallet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Workspace</td>
+<td>workspace</td>
+<td><code>WorkspaceVault</code> — <strong>API가 지갑 식별자로 받는 단위</strong></td>
+<td><code>WorkspaceWallet</code> — 식별자로 받지 않습니다</td>
+</tr>
+<tr>
+<td>Account</td>
+<td>tenant</td>
+<td><code>AccountVault</code> — <strong>API 표면이 없습니다</strong></td>
+<td><code>AccountWallet</code> — <strong>식별자로 받습니다</strong></td>
+</tr>
+</tbody>
+</table></div></div>
+<p><code>AccountVault</code>는 직접 만들지 않습니다. 첫 <code>AccountWallet</code>을 만들 때 함께 생깁니다.</p>
+<p>워크스페이스 자산을 움직이는 API는 <code>WorkspaceVault</code>의 식별자(<code>wv-</code>)를 받습니다. 출금은 출발
+vault를, Vault 이체는 출발과 도착 vault를 지정합니다.</p>
+<p>계정 쪽은 다릅니다. 집금은 대상 입금(<code>awd-</code>)과 도착 vault를 지정하고, 계정 지갑은 계정 식별자와
+토큰으로 만듭니다.</p>
+<h2 id="vault-태그와-용도"><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html#vault-태그와-용도">vault 태그와 용도</a></h2>
+<p>용도는 Wallet SDK가 정의하지 않습니다. 집금용이냐 재무용이냐 같은 구분을 앱이 미리 정해 두지
+않습니다.</p>
+<p><strong>파트너사가 태그로 정의하고 앱은 그 태그를 해석하지 않습니다.</strong> 표시와 정책 판단에 쓰려고 두는
+값입니다.</p>
+<p>다만 정책이 태그를 읽는 경로는 아직 없습니다. 태그를 판단 입력으로 가져오는 수집 경로의
+신설이 정해졌습니다. 상세는 판단에 필요한 사실을 평가 시점에 읽어 오는 수집 경로인
+PIP(<a data-reference-title="PIP" href="policy--runtime--pip.html">자세히</a>)에 있습니다.</p>
+<p>그래서 vault 이름은 표시용 라벨이라 유일성이 없습니다. 같은 workspace에 같은 이름이 여럿 있을 수
+있습니다.</p>
+<h2 id="토큰-단위로-두는-이유"><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html#토큰-단위로-두는-이유">토큰 단위로 두는 이유</a></h2>
+<p>EVM만 보면 과한 정규화로 보입니다. 한 주소가 그 체인의 ERC-20을 전부 받기 때문입니다.</p>
+<p>그럼에도 토큰 단위로 두는 이유가 둘입니다.</p>
+<p><strong>EVM 밖으로 확장할 때 주소 단위가 토큰입니다.</strong> Solana는 토큰마다 주소가 다릅니다. 지갑이
+토큰 단위면 그 체인을 추가할 때 모델이 바뀌지 않습니다.</p>
+<p>차단을 토큰 상태로 두는 것도 같은 이유입니다. 지갑에는 상태가 없고 상태는 Vault와 Token에
+있습니다. 특정 토큰의 입출금을 막아야 하면 그 토큰을 비활성으로 두고, 토큰 단위 지갑이 그 차단을
+그대로 따릅니다.</p>
+<h2 id="미등록-토큰의-입금"><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html#미등록-토큰의-입금">미등록 토큰의 입금</a></h2>
+<p>주소를 소유한다는 것은 결국 키로 증명됩니다. Wallet SDK 지갑의 주소는 모두 그 지갑의 키에서
+유도되므로, <strong><code>Wallet</code> 행이 없는 토큰이 들어와도 그 자금은 그 키로 처리할 수 있는 것</strong>입니다.</p>
+<p>그래서 입금 경로가 그 행을 만듭니다. 여기서 생기는 것은 새 주소가 아니라 이미 건넨 vault
+주소를 적은 장부 한 줄입니다. 뒷단 플랫폼이 미활성 자산을 입금 시 자동 활성화하므로, 행의
+부재는 그 계정이 그 토큰을 한 번도 안 가졌다는 뜻일 뿐입니다.</p>
+<p>계정 상태와 무관하게 만듭니다. 막으면 그 자금이 Wallet SDK 기록에 존재하지 않게 되어, 오입금
+반환의 출발지도 보관 의무 대상 기록도 사라집니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

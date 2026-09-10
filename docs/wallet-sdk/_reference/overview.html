@@ -1,0 +1,137 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wallet SDK · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>Wallet SDK</h1><p class="ref-meta">규제 준수형 집금 지갑을 서비스에 붙이는 B2B 제품</p>
+<p>Wallet SDK는 B2B 고객이 자기 서비스에 가상자산 지갑을 붙이는 수단입니다. 지갑 주소를 직접
+발급하지 않고, 온체인 입금을 직접 관측하지 않고, 서명 인프라를 직접 다루지 않아도 됩니다.
+서명 인프라는 키를 보관하고 트랜잭션에 서명하는 뒷단 플랫폼의 서명 부분입니다.</p>
+<p>그 셋을 Wallet SDK가 맡습니다. 파트너사는 자기 원장과 사용자 경험에 집중합니다. 어디까지를
+Wallet SDK가 맡고 어디부터를 파트너사가 맡는지는 아래 「무엇을 맡고 무엇을 맡지 않나」에 있습니다.</p>
+<h2 id="집금-지갑을-대상으로-합니다"><a data-reference-title="Wallet SDK" href="overview.html#집금-지갑을-대상으로-합니다">집금 지갑을 대상으로 합니다</a></h2>
+<p>시중의 지갑 솔루션 대부분은 개별 지갑(segregated wallet)이나 내장형 지갑(embedded wallet)을
+대상으로 합니다. Wallet SDK는 그쪽이 아닙니다.</p>
+<p>파트너사가 최종 사용자의 자산을 한데 모아 관리하면서도 사용자별 귀속을 잃지 않는 구조를
+목표로 합니다.</p>
+<p>집금 지갑을 고른 것은 기술적 선호가 아니라 규제 대응 비용 때문입니다. 고객 자산 분리, 거래기록
+보존, 트래블룰 대응은 전부 “누구의 자금인가”를 시스템이 알고 있어야 가능합니다.</p>
+<p>트래블룰은 가상자산 이전 시 송·수신 정보를 사업자끼리 교환하는 규제 의무입니다(아래
+「함께 제공하는 모듈」).</p>
+<p>개별 지갑 모델은 그 답이 지갑 주소밖에 없습니다. 따라서 사용자 단위 의무를 이행하려면 바깥에
+별도 원장을 또 만들어야 합니다.</p>
+<p><strong>“집금 지갑”은 이 페이지의 말이고 시스템 안에는 그런 이름이 없습니다.</strong> 지갑의 용도를 시스템이
+정의하지 않기로 정했기 때문입니다. 제품에서 쓰는 말과 도메인에서 쓰는 말이 왜 갈리는지는
+<a data-reference-title="용어" href="start--terminology.html">용어</a>에 있습니다.</p>
+<h2 id="사용자-단위-체계가-wallet-sdk의-바탕입니다"><a data-reference-title="Wallet SDK" href="overview.html#사용자-단위-체계가-wallet-sdk의-바탕입니다">사용자 단위 체계가 Wallet SDK의 바탕입니다</a></h2>
+<p>기존 지갑 서비스는 <strong>지갑이 곧 사용자 체계</strong>입니다. 정책도 트랜잭션도 지갑 단위로 적용됩니다.</p>
+<p>그래서 집금 지갑 하나 안에서 여러 사용자를 다루려면 정책 관리·트래블룰 대응·집금 처리를 전부
+따로 만들어야 합니다. 그 개발에는 블록체인을 깊이 이해해야 합니다.</p>
+<p>Wallet SDK는 최종 사용자를 대리하는 계정을 시스템 안에 둡니다. 지갑은 그 계정에 딸립니다.</p>
+<p>그래서 정책도 주소록도 트래블룰도 사용자 단위로 적용되고, 파트너사는 사용자가 행동하는 모양 그대로
+API를 씁니다. 자세한 계층은 <a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a>에 있습니다.</p>
+<h2 id="네-가지를-제공합니다"><a data-reference-title="Wallet SDK" href="overview.html#네-가지를-제공합니다">네 가지를 제공합니다</a></h2>
+<p>Wallet SDK가 파트너사에 제공하는 것은 넷입니다.</p>
+<ul>
+<li><strong>규제 준수형 집금 지갑</strong>: 사용자별 입금 주소를 발급하고, 거기 쌓인 자금을 지정한 vault로만
+옮길 수 있게 막습니다. vault는 Wallet의 그룹입니다(<a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html">자세히</a>).
+고객 자산 분리와 거래기록 보존이 이 구조에서 나옵니다.</li>
+<li><strong>사용자 단위 지갑 생성·관리</strong>: 대량 발급을 전제로 설계했습니다. 주소를 재발급해도 사용자와의
+연결이 끊기지 않아, 보안 사고나 지갑 분실 상황에서 서비스가 계속 동작합니다.</li>
+<li><strong>블록체인 기능의 추상화</strong>: 뒷단 지갑 솔루션이 바뀌어도 파트너사가 쓰는 API는 그대로입니다.
+솔루션 종속을 없애는 것이 이 추상화의 목적입니다.</li>
+<li><strong>에코시스템 연결</strong>: 환전·크로스체인·해외송금·결제 네트워크를 같은 지갑 위에서 씁니다.
+모듈 목록은 아래 「함께 제공하는 모듈」에 있습니다.</li>
+</ul>
+<p>첫 항목의 요점은 사용자 자금이 임의의 지갑으로 잘못 나가는 경로가 애초에 없다는 것입니다.</p>
+<h2 id="무엇을-맡고-무엇을-맡지-않나"><a data-reference-title="Wallet SDK" href="overview.html#무엇을-맡고-무엇을-맡지-않나">무엇을 맡고 무엇을 맡지 않나</a></h2>
+<p>가상자산 지갑을 서비스에 붙이려면 셋을 직접 해야 합니다 — 주소 발급·관리, 온체인 입금 관측, 서명
+인프라입니다. 셋 다 만들면 오래 걸리고, 셋 다 틀리면 자금이 움직입니다. 그 셋을 Wallet SDK 가
+맡습니다.</p>
+<p>무엇을 대신해 주지 않는지도 같은 무게입니다. 아래 넷은 파트너사가 직접 구축합니다.</p>
+<ul>
+<li><strong>자체 원장</strong>: Wallet SDK 는 지갑으로 들어오고 나가는 이벤트만 관리합니다. 원장 자체는 파트너사가
+자기 DB 로 관리합니다. 사용자에게 얼마를 어떻게 표시할지, 내부 이체를 어떤 단위로 기록할지는
+서비스마다 다르기 때문입니다. Wallet SDK 가 주는 것은 입금·집금·출금이 언제 확정됐는지의 사실입니다.</li>
+<li><strong>AML·FDS</strong>: 어떤 행동이 이상한지는 그 서비스의 정상 행동을 알아야 판정할 수 있어 직접 구축합니다.
+호출 시점 가이드와 파트너사가 구현할 인터페이스는 Wallet SDK 가 제공하고, 정책 평가가 외부 판정을
+기다릴 수 있는 구조라 나중에 연결할 수 있습니다.</li>
+<li><strong>키 관리 서버</strong>: 개인키를 관리하는 서버는 Wallet SDK 의 관리 범위 밖입니다. 구축·운영 방법은
+지원하지만 서버 자체는 파트너사 측에 둡니다. 그래서 자산의 소유권은 파트너사에 있습니다.</li>
+<li><strong>지갑 인프라 계약</strong>: 뒷단 지갑 인프라는 파트너사가 자기 계정을 가져오는 방식으로 씁니다.
+Fireblocks·Privy·Octet 같은 플랫폼이 여기 해당하고, 지갑 기능이 내재화되더라도 키와 서명 인프라는
+뒷단 플랫폼이 계속 맡습니다.</li>
+</ul>
+<p>「수탁」이라는 말은 두 관계에서 다르게 쓰입니다. 파트너사와 최종 사용자 사이는 수탁입니다. 최종
+사용자는 자기 키를 갖지 않고 파트너사가 자산을 맡아 관리합니다.</p>
+<p>Wallet SDK 와 서명 인프라 사이는 비수탁입니다. 키 전체가 Wallet SDK 한 곳에 온전히 존재하지 않고,
+Wallet 서버 단독으로는 서명이 성립하지 않습니다.</p>
+<p>소유권이 파트너사에 있다는 말은 처분할 권리가 어디 있는지를 가리키고, 키를 혼자 쥔다는 말이
+아닙니다. 「단독으로 움직일 수 없다」는 파트너사에도 적용됩니다.</p>
+<h2 id="함께-제공하는-모듈"><a data-reference-title="Wallet SDK" href="overview.html#함께-제공하는-모듈">함께 제공하는 모듈</a></h2>
+<p>Wallet SDK 로 만든 지갑 위에서 모듈 다섯을 씁니다. 지갑의 소유권이 파트너사에 있어 자체 지갑이 있으면
+모듈만 따로 쓸 수도 있고, Wallet SDK 가 제공하지 않는 다른 생태계를 붙일 수도 있습니다.</p>
+<ul>
+<li><strong>컴플라이언스</strong>: KYT(입출금 트랜잭션 스크리닝과 위험도 점수), 트래블룰(상대 사업자 탐색·송수신자
+정보 교환·확인된 사업자 판정), 리포팅(규제 대응용 거래 데이터와 증적)입니다. 모듈은 판정을 내고
+차단은 정책이 합니다. 위험도 점수도 트래블룰 상태도 정책 평가의 입력이고, 무엇을 막을지는 룰이
+정하며 차단은 서명 이전에 일어납니다(<a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a>).</li>
+<li><strong>Paymaster</strong>: 체인 네이티브 수수료 통화 없이 가스비를 대납합니다. 규제상 암호화폐를 보유할 수 없는
+기관에는 선택이 아니라 전제입니다.</li>
+<li><strong>Gateway</strong>: 여러 체인에 흩어진 같은 통화를 하나의 잔고로 취급하고 필요한 체인에서 즉시 쓰게 하는
+유동성 관리입니다.</li>
+<li><strong>Payment Network</strong>: 최종 수취 금융기관을 몰라도 스테이블코인 기반 국경 간 송금과 off-ramp 를 쓰게
+합니다. 여러 제공자 중 최소 시간·최소 비용 경로를 제안합니다.</li>
+<li><strong>Cross-chain</strong>: 원화 기반 토큰을 과발행 없이 다른 지원 체인에서 쓰도록 경로 선택과 라우팅을
+추상화합니다. 발행사 주관으로 실시합니다.</li>
+</ul>
+<p>트래블룰에서는 개인정보 원문은 저장하지 않고 판정과 그 근거만 저장합니다. 송수신자 정보는 통과만
+시키고 원문의 저장소는 트래블룰 제공자 쪽입니다.</p>
+<p>특금법상 5년 보관 의무는 Wallet SDK 에 있고 그 대상은 판정 기록입니다. 상대 사업자에게 내는 값은
+boolean 하나입니다. 그 이상을 내면 상대가 이쪽 고객을 열거할 수 있습니다.</p>
+<p>기능별 단품 벤더를 직접 조합하면 벤더마다 계약·통합·운영이 따로 생기고 조합의 책임은 전부 파트너사가
+집니다. Wallet SDK 가 그 조합을 대신 맡습니다.</p>
+<h2 id="규제-대응이-짐인-사업자에게-맞습니다"><a data-reference-title="Wallet SDK" href="overview.html#규제-대응이-짐인-사업자에게-맞습니다">규제 대응이 짐인 사업자에게 맞습니다</a></h2>
+<p>규제 대응 부담이 큰 사업자 셋을 대상으로 합니다.</p>
+<ul>
+<li><strong>발행법인</strong>: 스테이블코인을 발행하는 법인이 발행 시스템의 집금 지갑을 이 솔루션 위에서
+만듭니다. Wallet SDK를 만드는 합작 법인 자신이 여기에 듭니다.</li>
+<li><strong>은행</strong>: 사용자 자산을 집금 지갑으로 관리하려는 은행입니다. 블록체인 기술 자체에 투자하고
+유지보수하는 것은 은행업의 본질이 아니라서, 외부 솔루션 수요가 큽니다.</li>
+<li><strong>서비스 사업자</strong>: 포인트·머니 같은 디지털 자산 체계가 이미 있는 곳입니다. 심리스한 전환과
+즉각적인 내부 이체가 필요하면 온체인 지갑보다 집금 지갑과 내부 원장이 맞습니다.</li>
+</ul>
+<p><strong>빅테크와 온체인 자체가 제품인 서비스에는 맞지 않습니다.</strong> 빅테크는 커스터마이징 요구가 크고
+내재화할 인력을 갖추기 쉽습니다. 다만 레퍼런스 솔루션이나 초기 구축 파트너, 턴키 납품 형태는
+가능합니다. DeFi 지갑처럼 온체인 상호작용이 본질인 서비스는 집금 지갑으로 가면 잃는 것이 더
+큽니다.</p>
+<h2 id="먼저-알아-둘-것은-셋입니다"><a data-reference-title="Wallet SDK" href="overview.html#먼저-알아-둘-것은-셋입니다">먼저 알아 둘 것은 셋입니다</a></h2>
+<ul>
+<li><strong>모든 입금은 동결로 도착합니다</strong>: 온체인 입금은 거부할 수 없기 때문입니다(<a data-reference-title="자금 동결" href="fund-flows--release.html">자세히</a>).</li>
+<li><strong>정책 위반은 서명 이전에 막습니다</strong>: 자금을 움직이는 요청이 서명 인프라로 가기 전에 정책 엔진이
+심사합니다(<a data-reference-title="정책" href="policy.html">자세히</a>).</li>
+<li><strong>스코프는 인증이 정하고 요청 본문에 들어가지 않습니다</strong>: <code>workspaceId</code>와 <code>tenantId</code>를 요청
+본문·경로·쿼리로 받지 않습니다(<a data-reference-title="표면과 인증" href="start--authentication.html">표면과 인증</a>).</li>
+</ul>
+<h2 id="어디부터-읽으면-되나요"><a data-reference-title="Wallet SDK" href="overview.html#어디부터-읽으면-되나요">어디부터 읽으면 되나요</a></h2>
+<p>탭 여섯이 파트너사가 붙이는 영역 넷과 진입점 둘입니다. 탭마다 먼저 볼 페이지를 하나씩 달아 두었습니다.</p>
+<ul>
+<li><strong><a data-reference-title="시작하기" href="start.html">시작하기</a></strong> — 붙이는 순서와 색인 둘. 먼저 <a data-reference-title="첫 요청" href="start--first-request.html">첫 요청</a>.</li>
+<li><strong><a data-reference-title="계정과 지갑" href="accounts-wallets.html">계정과 지갑</a></strong> — Workspace·Tenant·Account 와 Vault·Wallet·Token. 먼저 그 탭의 개요.</li>
+<li><strong><a data-reference-title="자금 이동" href="fund-flows.html">자금 이동</a></strong> — 입금이 동결로 도착하는 이유와 그것을 푸는 두 경로. 먼저 <a data-reference-title="이동 종류" href="fund-flows--movements.html">이동 종류</a>.</li>
+<li><strong><a data-reference-title="정책" href="policy.html">정책</a></strong> — 서명 앞에서 하는 심사. 먼저 <a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a>.</li>
+<li><strong><a data-reference-title="API 레퍼런스" href="reference.html">API 레퍼런스</a></strong> — 표면 다섯 개의 엔드포인트 전수. 먼저 <a data-reference-title="Wallet API" href="reference--wallet.html">Wallet API</a>.</li>
+<li><strong><span title="현재 문서 묶음에 없는 참조입니다.">변경 이력</span></strong> — 계약이 바뀐 것과 문서가 바뀐 것. 날짜 순입니다.</li>
+</ul>
+<p>모르는 말이 나오면 <a data-reference-title="용어" href="start--terminology.html">용어</a>를 봅니다. 낱말마다 한 줄 정의와 자세한 설명이 있는
+페이지를 함께 알려 줍니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

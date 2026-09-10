@@ -1,0 +1,109 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>판단 요청 조회 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>판단 요청 조회</h1><p>상태 조회. 이벤트 유실 시 재동기화용이자 서명 연산 소비자(owning service)의 실행 근거다 —
+이벤트는 깨우는 신호이고 실행 근거는 조회다(§4). 어드민 액션은 집행이 결정 소유자와
+같은 프로세스라 실행 전 재확인이 불요하다(D-65).</p>
+<p>Errors: (코드 값 정본은 PolicyRequestErrorCode — D-88)</p>
+<ul>
+<li>401 UNAUTHENTICATED: 인증 실패</li>
+<li>403 FORBIDDEN_ROLE: 서비스 크리덴셜의 역할이 이 표면을 부를 수 없다 (인증 필터가 낸다)</li>
+<li>404 NOT_FOUND: 그 policyRequestId가 없거나 caller의 것이 아니다 — <strong>둘을 합쳐 답한다.</strong>
+갈라 답하면 남의 요청 id에 403이 돌아가 그 id의 존재가 드러난다</li>
+</ul>
+<div><div class="ref-endpoint"><span>GET</span><code>/request/{policyRequestId}</code></div><div><div><section><h2>Authorization</h2><div class="schema"><div class="field"><div class="field-signature"><code>Authorization</code><span class="ref-meta">Bearer token · header</span><span class="ref-required">required</span></div></div></div></section><section><h2>Path parameters</h2><div class="schema"><div class="field"><div class="field-signature"><code>policyRequestId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div></div></section><section><h2>Responses</h2><div><div><div><span>200</span><span class="ref-meta">The request has succeeded.</span></div><div><div><div class="field"><div class="field-signature"><code>result</code><span class="ref-meta">PolicyRequestDetail</span><span class="ref-required">required</span></div><div class="ref-meta">조회 응답(§3). 이벤트에 싣지 않는 상세는 전부 여기서 읽는다</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>policyRequestId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>serviceRequestId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>status</code><span class="ref-meta">PolicyRequestStatus</span><span class="ref-required">required</span></div><div class="ref-meta">결정 상태 머신(design-draft §5.2)</div><div><span class="ref-meta">Allowed:</span><code>RECEIVED</code><code>NORMALIZING</code><code>EVALUATING</code><code>PENDING_DATA</code><code>PENDING_OBLIGATION</code><code>APPROVED</code><code>CONSUMED</code><code>DENIED</code><code>EXPIRED</code><code>FAILED</code></div></div><div class="field"><div class="field-signature"><code>signingAuthorizationId</code><span class="ref-meta">string</span></div><div class="ref-meta">APPROVED일 때. 서명 연산의 결정 토큰이다(design-draft §7.3)</div></div><div class="field"><div class="field-signature"><code>expiresAt</code><span class="ref-meta">string&lt;date-time&gt;</span></div></div><div class="field"><div class="field-signature"><code>reasonCode</code><span class="ref-meta">PolicyReasonCode</span></div><div class="ref-meta">결정 사유 코드 — 전수 확정(D-53). 이 enum이 정본이다(내부 인터페이스 §9).
+
+코드는 소비자·운영이 다르게 반응해야 하는 구조 지점마다 하나다. 세부 식별(발동 룰 id·
+PIP 소스명·슬롯명)은 코드가 아니라 reasons[]에 싣는다 — 룰마다 코드를 만들면 정책
+변경이 enum 변경이 되어 계약이 정책에 종속된다(D-52와 같은 결합 배제).</div><div><span class="ref-meta">Allowed:</span><code>VAULT_NOT_FOUND</code><code>WORKSPACE_MISMATCH</code><code>TOKEN_NOT_REGISTERED</code><code>PRE_EVALUATION_SOURCE_UNAVAILABLE</code><code>UNREGISTERED_TARGET</code><code>UNRECOGNIZED_ARTIFACT</code><code>NO_MATCHING_ALLOW</code><code>DENY_RULE_MATCHED</code><code>PARAM_BOUND_VIOLATION</code><code>EVALUATION_ROUND_CAP</code><code>RESOURCE_LIMIT_CHAIN_UNREGISTERED</code><code>DATA_SOURCE_UNAVAILABLE</code><code>INVALID_DATA_RESULT</code><code>QUORUM_UNREACHABLE</code><code>APPROVER_SET_EMPTY</code><code>TTL_EXPIRED</code><code>OBLIGATION_TIMEOUT</code><code>NORMALIZER_ERROR</code><code>ADAPTER_ERROR</code><code>WORKSPACE_BUNDLE_INVALID</code><code>LOGIC_BUNDLE_NOT_LOADED</code><code>ENGINE_ERROR</code><code>CALLBACK_PARAMETER_MISMATCH</code><code>CALLBACK_SIGNER_SCOPE_MISMATCH</code><code>CALLBACK_PAYLOAD_UNPARSABLE</code><code>CALLBACK_RESOURCE_LIMIT_EXCEEDED</code><code>CALLBACK_RESOURCE_LIMIT_UNSTAMPED</code><code>CALLBACK_NORMALIZER_UNAVAILABLE</code></div></div><div class="field"><div class="field-signature"><code>requestBodyHash</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">접수 시 스탬프된 수신 바디의 SHA-256(JCS) 해시(D-92 — PolicySubmitAccepted와 동일 값).
+승인 수신 시 owning service가 보관한 원문과 대조하고, 409 복구에서 기존 요청이
+자기 재시도인지 판별하는 데 쓴다.</div></div><div class="field"><div class="field-signature"><code>decision</code><span class="ref-meta">PolicyDecisionDetail</span><span class="ref-required">required</span></div><div class="ref-meta">결정 전문</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>decision</code><span class="ref-meta">PolicyDecisionValue</span><span class="ref-required">required</span></div><div class="ref-meta">커널 결정값 4종(design-draft §5.1)</div><div><span class="ref-meta">Allowed:</span><code>allow</code><code>deny</code><code>pending</code><code>need_more_data</code></div></div><div class="field"><div class="field-signature"><code>reasons</code><span class="ref-meta">string[]</span><span class="ref-required">required</span></div><div class="ref-meta">판단 사유</div></div><div class="field"><div class="field-signature"><code>unevaluatedRules</code><span class="ref-meta">PolicyUnevaluatedRule[]</span><span class="ref-required">required</span></div><div class="ref-meta">deny 단락(short-circuit)으로 평가되지 못한 룰(design-draft §5.3-3). 소스 장애로
+룰을 건너뛰는 경로는 없다 — 소스 장애는 요청 단위 fail-closed다(D-70)</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Array of <code>PolicyUnevaluatedRule</code></div><div><div class="field"><div class="field-signature"><code>rule</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>effect</code><span class="ref-meta">PolicyRuleEffect</span><span class="ref-required">required</span></div><div><span class="ref-meta">Allowed:</span><code>allow</code><code>deny</code></div></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>obligations</code><span class="ref-meta">PolicyObligationState[]</span><span class="ref-required">required</span></div><div class="ref-meta">pending일 때: 이행해야 할 obligation과 현재 충족 현황</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Array of <code>PolicyObligationState</code></div><div><div class="field"><div class="field-signature"><code>type</code><span class="ref-meta">PolicyObligationType</span><span class="ref-required">required</span></div><div class="ref-meta">obligation 3종(룰 스키마 명세 §4.4)</div><div><span class="ref-meta">Allowed:</span><code>require_2fa</code><code>require_quorum</code><code>attach_travel_rule_payload</code></div></div><div class="field"><div class="field-signature"><code>fulfilled</code><span class="ref-meta">boolean</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>quorumRequired</code><span class="ref-meta">integer&lt;int32&gt;</span></div><div class="ref-meta">require_quorum일 때 필요 표 수</div></div><div class="field"><div class="field-signature"><code>quorumApproved</code><span class="ref-meta">integer&lt;int32&gt;</span></div><div class="ref-meta">require_quorum일 때 현재 유효 승인 표 수</div></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>required</code><span class="ref-meta">string[]</span><span class="ref-required">required</span></div><div class="ref-meta">need_more_data일 때: 추가 소싱이 필요한 PIP 소스명 목록(design-draft §5.1)</div></div></div></div></details></div><div class="field"><div class="field-signature"><code>bundle</code><span class="ref-meta">PolicyBundleRef</span><span class="ref-required">required</span></div><div class="ref-meta">평가에 실제 사용된 번들. 배포한 버전이 아니라 OPA가 응답에 실은 revision이다(design-draft §10·D-38)</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>logicDigest</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">정책 로직 번들 다이제스트</div></div><div class="field"><div class="field-signature"><code>workspaceDigest</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">워크스페이스 번들(서명 연산 룰 선언 + 슬롯 값 — D-57) 다이제스트(D-39)</div></div><div class="field"><div class="field-signature"><code>normalizerVersion</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">정규화기 버전</div></div></div></div></details></div><div class="field"><div class="field-signature"><code>transitions</code><span class="ref-meta">PolicyTransition[]</span><span class="ref-required">required</span></div><div class="ref-meta">상태 전이 이력</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Array of <code>PolicyTransition</code></div><div><div class="field"><div class="field-signature"><code>status</code><span class="ref-meta">PolicyRequestStatus</span><span class="ref-required">required</span></div><div class="ref-meta">결정 상태 머신(design-draft §5.2)</div><div><span class="ref-meta">Allowed:</span><code>RECEIVED</code><code>NORMALIZING</code><code>EVALUATING</code><code>PENDING_DATA</code><code>PENDING_OBLIGATION</code><code>APPROVED</code><code>CONSUMED</code><code>DENIED</code><code>EXPIRED</code><code>FAILED</code></div></div><div class="field"><div class="field-signature"><code>occurredAt</code><span class="ref-meta">string&lt;date-time&gt;</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>reasonCode</code><span class="ref-meta">PolicyReasonCode</span></div><div class="ref-meta">결정 사유 코드 — 전수 확정(D-53). 이 enum이 정본이다(내부 인터페이스 §9).
+
+코드는 소비자·운영이 다르게 반응해야 하는 구조 지점마다 하나다. 세부 식별(발동 룰 id·
+PIP 소스명·슬롯명)은 코드가 아니라 reasons[]에 싣는다 — 룰마다 코드를 만들면 정책
+변경이 enum 변경이 되어 계약이 정책에 종속된다(D-52와 같은 결합 배제).</div><div><span class="ref-meta">Allowed:</span><code>VAULT_NOT_FOUND</code><code>WORKSPACE_MISMATCH</code><code>TOKEN_NOT_REGISTERED</code><code>PRE_EVALUATION_SOURCE_UNAVAILABLE</code><code>UNREGISTERED_TARGET</code><code>UNRECOGNIZED_ARTIFACT</code><code>NO_MATCHING_ALLOW</code><code>DENY_RULE_MATCHED</code><code>PARAM_BOUND_VIOLATION</code><code>EVALUATION_ROUND_CAP</code><code>RESOURCE_LIMIT_CHAIN_UNREGISTERED</code><code>DATA_SOURCE_UNAVAILABLE</code><code>INVALID_DATA_RESULT</code><code>QUORUM_UNREACHABLE</code><code>APPROVER_SET_EMPTY</code><code>TTL_EXPIRED</code><code>OBLIGATION_TIMEOUT</code><code>NORMALIZER_ERROR</code><code>ADAPTER_ERROR</code><code>WORKSPACE_BUNDLE_INVALID</code><code>LOGIC_BUNDLE_NOT_LOADED</code><code>ENGINE_ERROR</code><code>CALLBACK_PARAMETER_MISMATCH</code><code>CALLBACK_SIGNER_SCOPE_MISMATCH</code><code>CALLBACK_PAYLOAD_UNPARSABLE</code><code>CALLBACK_RESOURCE_LIMIT_EXCEEDED</code><code>CALLBACK_RESOURCE_LIMIT_UNSTAMPED</code><code>CALLBACK_NORMALIZER_UNAVAILABLE</code></div></div></div></div></div></details></div></div></div></details></div></div></div></div><div><div><span class="ref-meta">default</span><span class="ref-meta">An unexpected error response.</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">PolicyErrorCode</span><span class="ref-required">required</span></div><div class="ref-meta">policy 표면이 내는 `error.code`의 전량. 표면 enum의 합집합에 프레임워크 코드를 더한 것이고,
+이 union이 `PolicyApiErrorResponse`의 `code` 타입이다.
+
+**wallet 도메인 `ErrorCode`(루트 common.tsp)와 섞이지 않는 것이 계약이다** — 두 값 집합은
+겹치는 것이 `INTERNAL_ERROR` 하나뿐이라, 한 봉투로 묶으면 레퍼런스를 읽는 소비자가 policy
+응답에서 결코 나오지 않는 코드 마흔여덟 개를 분기 대상으로 받는다.
+
+새 표면 enum을 만들면 여기에 더한다. 더하지 않으면 그 코드는 응답 타입 어디에도 연결되지
+않아 생성 스키마에 나타나지 않는다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyRequestErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminAuthErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBootstrapErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminDirectoryErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyApprovalErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyDraftErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PipSourceKindErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBundlePublicationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceBundleErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceRegistrationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyFrameworkErrorCode</div><div class="ref-meta"><code>string</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">위반한 필드 경로 등. 없으면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div></div></section></div><div><div><div><h3>Request</h3><div><details open=""><summary>cURL</summary><div id="panel-tabs-request-panel-curl"><div><pre tabindex="0"><code>curl -X GET "/request/string" \
+  -H "Authorization: Bearer YOUR_TOKEN"</code></pre></div></div></details><details><summary>JavaScript</summary><div id="panel-tabs-request-panel-js"><div><pre tabindex="0"><code>const response = await fetch("/request/string", {
+  method: "GET",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN"
+  }
+});</code></pre></div></div></details><details><summary>Python</summary><div id="panel-tabs-request-panel-python"><div><pre tabindex="0"><code>import requests
+
+response = requests.get(
+    "/request/string",
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN"
+    },
+)</code></pre></div></div></details></div></div><div><h3>Response</h3><div><details open=""><summary>200</summary><div id="panel-tabs-response-panel-200"><div><pre tabindex="0"><code>{
+  "result": {
+    "policyRequestId": "string",
+    "serviceRequestId": "string",
+    "status": "RECEIVED",
+    "signingAuthorizationId": "string",
+    "expiresAt": "2019-08-24T14:15:22Z",
+    "reasonCode": "VAULT_NOT_FOUND",
+    "requestBodyHash": "string",
+    "decision": {
+      "decision": "allow",
+      "reasons": [
+        "string"
+      ],
+      "unevaluatedRules": [
+        {
+          "rule": "string",
+          "effect": "allow"
+        }
+      ],
+      "obligations": [
+        {
+          "type": "require_2fa",
+          "fulfilled": true,
+          "quorumRequired": 0,
+          "quorumApproved": 0
+        }
+      ],
+      "required": [
+        "string"
+      ]
+    },
+    "bundle": {
+      "logicDigest": "string",
+      "workspaceDigest": "string",
+      "normalizerVersion": "string"
+    },
+    "transitions": [
+      {
+        "status": "RECEIVED",
+        "occurredAt": "2019-08-24T14:15:22Z",
+        "reasonCode": "VAULT_NOT_FOUND"
+      }
+    ]
+  }
+}</code></pre></div></div></details><details><summary>default</summary><div id="panel-tabs-response-panel-default"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "string",
+    "details": {}
+  }
+}</code></pre></div></div></details></div></div></div></div></div></div></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

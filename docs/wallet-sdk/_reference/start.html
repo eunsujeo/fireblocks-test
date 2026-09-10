@@ -1,0 +1,35 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>시작하기 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>시작하기</h1><p class="ref-meta">첫 요청에서 자금 이동까지, 파트너사 개발자가 읽는 순서</p>
+<p>Wallet SDK 는 파트너 대상 API 로 붙입니다. 이 탭은 그 API 를 처음 부르는 사람이 어느 순서로
+무엇을 읽으면 되는지를 안내하고, 어느 영역에도 속하지 않는 색인 둘을 함께 둡니다. Wallet SDK 가
+무엇을 맡고 무엇을 맡지 않는지는 <a data-reference-title="Wallet SDK" href="overview.html">홈</a>에 있습니다.</p>
+<h2 id="붙이는-순서"><a data-reference-title="시작하기" href="start.html#붙이는-순서">붙이는 순서</a></h2>
+<p>이 탭의 페이지 둘을 위에서 아래 순서로 읽습니다.</p>
+<ul>
+<li><strong><a data-reference-title="첫 요청" href="start--first-request.html">첫 요청</a></strong>: 계정 하나를 만들고 그 계정의 입금 주소를 받기까지입니다. 여기까지
+오면 나머지는 자금이 움직이는 이야기입니다.</li>
+<li><strong><a data-reference-title="표면과 인증" href="start--authentication.html">표면과 인증</a></strong>: 어떤 API 를 누가 부르고, 격리 스코프가 인증에서 어떻게
+나오는지입니다. 요청이 스코프를 싣지 않는 이유가 여기 있습니다.</li>
+</ul>
+<p>그다음은 계정과 지갑 탭으로 넘어갑니다. 탭 여섯의 전체 안내는 <a data-reference-title="Wallet SDK" href="overview.html">홈</a>에 있습니다.</p>
+<h2 id="색인-둘"><a data-reference-title="시작하기" href="start.html#색인-둘">색인 둘</a></h2>
+<ul>
+<li><strong><a data-reference-title="용어" href="start--terminology.html">용어</a></strong> — 어느 말이 무엇을 가리키는지의 색인입니다. 낱말마다 한 줄 정의와
+자세한 설명이 있는 페이지를 함께 알려 줍니다.</li>
+<li><strong><a data-reference-title="규제 대응" href="start--compliance.html">규제 대응</a></strong> — 접속기록·개인정보·보존·암호키 통제가 어느 페이지에 있는지의
+색인입니다.</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

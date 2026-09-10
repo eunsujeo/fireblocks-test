@@ -1,0 +1,89 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>판단 요청 접수 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>판단 요청 접수</h1><p>접수. 같은 serviceRequestId 재제출은 활성·CONSUMED 불문 409로 거부하고, 에러 바디에
+기존 policyRequestId를 싣는다(D-78) — 202 유실 재시도는 그 id로 조회해 복구한다.
+판단 결과는 응답이 아니라 이벤트로 통지된다(§2·§4).</p>
+<p>인증: 인증된 owning service 신원이며 body의 신원 주장과 매칭 검증한다(§1).
+스킴은 <strong>정적 서비스 크리덴셜</strong>로 확정됐다(D-159 · PD-4 — D-103 대체) — BearerAuth 표기가
+그 스킴이고, <code>X-Caller-Service-Id</code> 선언은 크리덴셜 바인딩과 일치해야 한다(어긋나면 401).</p>
+<p>Errors: (코드 값 정본은 PolicyRequestErrorCode — D-88)</p>
+<ul>
+<li>400 INVALID_REQUEST: 요청 스키마 구조 위반 — 미등재 admin action(룰 스키마 명세 §1.5)과
+256 KiB 본문 상한 초과가 여기로 접힌다. 이 표면은 상한 초과를 413으로 내지 않는다</li>
+<li>400 UNKNOWN_OPERATION: 미지 연산</li>
+<li>400 UNSUPPORTED_SCHEMA_VERSION: 미지 스키마 버전</li>
+<li>401 UNAUTHENTICATED: 인증 실패</li>
+<li>403 FORBIDDEN: caller-연산 인가 실패. <strong>현재 <code>admin_action</code>이 전부 여기로 접힌다</strong></li>
+<li>403 FORBIDDEN_ROLE: 서비스 크리덴셜의 역할이 이 표면을 부를 수 없다 (인증 필터가 낸다)</li>
+<li>409 IDEMPOTENCY_CONFLICT: 같은 serviceRequestId 재제출 — details는 PolicyIdempotencyConflictDetails로 타입 고정(D-78)</li>
+<li>503 DRAINING: 이 인스턴스가 드레인 중이다. <code>Retry-After</code>가 없다</li>
+<li>503 INTAKE_SATURATED: 접수 버퍼가 포화다. <code>Retry-After</code>가 실린다</li>
+</ul>
+<div><div class="ref-endpoint"><span>POST</span><code>/request</code></div><div><div><section><h2>Authorization</h2><div class="schema"><div class="field"><div class="field-signature"><code>Authorization</code><span class="ref-meta">Bearer token · header</span><span class="ref-required">required</span></div></div></div></section><section><div><h2>Request body</h2><span class="ref-required">required</span><code class="ref-meta">application/json</code></div><div><div><div class="field"><div class="field-signature"><code>serviceRequestId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">owning service의 리소스 ID(withdrawalId·vaultTransferId·sweepId — D-49). 접수 중복
+거부 키(D-78)이자 실행 주체의 재생 방지 키다(§4·§12). 클라이언트 지정 referenceId류는
+부적격이다. 요청 body의 신원 주장은 신뢰하지 않고 인증된 caller와 매칭 검증한다(§1).</div></div><div class="field"><div class="field-signature"><code>schemaVersion</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">요청 스키마 버전. 미지 버전은 UNSUPPORTED_SCHEMA_VERSION</div></div><div class="field"><div class="field-signature"><code>operation</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">Discriminator property for PolicySubmitRequest.</div></div></div></div></section><section><h2>Responses</h2><div><div><div><span>202</span><span class="ref-meta">The request has been accepted for processing, but processing has not yet completed.</span></div><div><div><div class="field"><div class="field-signature"><code>policyRequestId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>status</code><span class="ref-meta">PolicyRequestStatus</span><span class="ref-required">required</span></div><div class="ref-meta">결정 상태 머신(design-draft §5.2)</div><div><span class="ref-meta">Allowed:</span><code>RECEIVED</code><code>NORMALIZING</code><code>EVALUATING</code><code>PENDING_DATA</code><code>PENDING_OBLIGATION</code><code>APPROVED</code><code>CONSUMED</code><code>DENIED</code><code>EXPIRED</code><code>FAILED</code></div></div><div class="field"><div class="field-signature"><code>requestBodyHash</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">접수 시 엔진이 계산한 수신 바디의 해시 — SHA-256(JCS(수신 바디 JSON))(D-92, 직렬화 정본 D-91).
+원시 바이트가 아니라 JCS 정규화 후 해시라 중간 재직렬화에 흔들리지 않는다.
+owning service는 보관한 원문에서 같은 계산을 재실행해 대조한다 — 전송 변조 탐지·상호 부인방지 앵커.</div></div></div></div></div><div><div><span>409</span><span class="ref-meta">409 IDEMPOTENCY_CONFLICT 전용 에러 응답(D-78) — 공통 envelope에서 details만 타입을
+좁힌 것이다(CONVENTIONS §4).</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div><span class="ref-meta">Allowed:</span><code>IDEMPOTENCY_CONFLICT</code></div></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">PolicyIdempotencyConflictDetails</span><span class="ref-required">required</span></div><div class="ref-meta">중복 접수 409의 details(D-78) — 소비자가 파싱하는 필드라 계약으로 고정한다</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>policyRequestId</code><span class="ref-meta">string</span><span class="ref-required">required</span></div><div class="ref-meta">같은 serviceRequestId로 접수된 기존 요청. 202 유실 재시도는 이 id로 조회해 복구한다</div></div></div></div></details></div></div></div></details></div></div></div></div><div><div><span class="ref-meta">default</span><span class="ref-meta">An unexpected error response.</span></div><div><div><div class="field"><div class="field-signature"><code>error</code><span class="ref-meta">object</span><span class="ref-required">required</span></div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="field"><div class="field-signature"><code>code</code><span class="ref-meta">PolicyErrorCode</span><span class="ref-required">required</span></div><div class="ref-meta">policy 표면이 내는 `error.code`의 전량. 표면 enum의 합집합에 프레임워크 코드를 더한 것이고,
+이 union이 `PolicyApiErrorResponse`의 `code` 타입이다.
+
+**wallet 도메인 `ErrorCode`(루트 common.tsp)와 섞이지 않는 것이 계약이다** — 두 값 집합은
+겹치는 것이 `INTERNAL_ERROR` 하나뿐이라, 한 봉투로 묶으면 레퍼런스를 읽는 소비자가 policy
+응답에서 결코 나오지 않는 코드 마흔여덟 개를 분기 대상으로 받는다.
+
+새 표면 enum을 만들면 여기에 더한다. 더하지 않으면 그 코드는 응답 타입 어디에도 연결되지
+않아 생성 스키마에 나타나지 않는다.</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>PolicyRequestErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminAuthErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBootstrapErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyAdminDirectoryErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyApprovalErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyDraftErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PipSourceKindErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyBundlePublicationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceBundleErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyWorkspaceRegistrationErrorCode</div><div class="ref-meta"><code>string</code></div></div><div><div>PolicyFrameworkErrorCode</div><div class="ref-meta"><code>string</code></div></div></div></div></details></div><div class="field"><div class="field-signature"><code>message</code><span class="ref-meta">string</span><span class="ref-required">required</span></div></div><div class="field"><div class="field-signature"><code>details</code><span class="ref-meta">object | any</span><span class="ref-required">required</span></div><div class="ref-meta">위반한 필드 경로 등. 없으면 null</div><details><summary><span>Show properties</span><span>Hide properties</span></summary><div><div><div class="ref-meta">Any of:</div><div><div>object</div><div class="ref-meta"><code>object</code></div></div><div><div>any</div><div class="ref-meta"><code>any</code></div></div></div></div></details></div></div></div></details></div></div></div></div></div></section></div><div><div><div><h3>Request</h3><div><details open=""><summary>cURL</summary><div id="panel-tabs-request-panel-curl"><div><pre tabindex="0"><code>curl -X POST "/request" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "serviceRequestId": "string",
+  "schemaVersion": "string",
+  "operation": "string"
+}'</code></pre></div></div></details><details><summary>JavaScript</summary><div id="panel-tabs-request-panel-js"><div><pre tabindex="0"><code>const response = await fetch("/request", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN",
+    "Content-Type": "application/json"
+  },
+  body: "{\n  \"serviceRequestId\": \"string\",\n  \"schemaVersion\": \"string\",\n  \"operation\": \"string\"\n}"
+});</code></pre></div></div></details><details><summary>Python</summary><div id="panel-tabs-request-panel-python"><div><pre tabindex="0"><code>import requests
+
+response = requests.post(
+    "/request",
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN",
+        "Content-Type": "application/json"
+    },
+    data="{\n  \"serviceRequestId\": \"string\",\n  \"schemaVersion\": \"string\",\n  \"operation\": \"string\"\n}",
+)</code></pre></div></div></details></div></div><div><h3>Response</h3><div><details open=""><summary>202</summary><div id="panel-tabs-response-panel-202"><div><pre tabindex="0"><code>{
+  "policyRequestId": "string",
+  "status": "RECEIVED",
+  "requestBodyHash": "string"
+}</code></pre></div></div></details><details><summary>409</summary><div id="panel-tabs-response-panel-409"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "IDEMPOTENCY_CONFLICT",
+    "message": "string",
+    "details": {
+      "policyRequestId": "string"
+    }
+  }
+}</code></pre></div></div></details><details><summary>default</summary><div id="panel-tabs-response-panel-default"><div><pre tabindex="0"><code>{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "string",
+    "details": {}
+  }
+}</code></pre></div></div></details></div></div></div></div></div></div></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

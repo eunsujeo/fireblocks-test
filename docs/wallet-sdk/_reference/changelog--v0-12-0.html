@@ -1,0 +1,25 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>v0.12.0 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>v0.12.0</h1><h3 id="문서"><a data-reference-title="v0.12.0" href="changelog--v0-12-0.html#문서">문서</a></h3>
+<ul>
+<li><strong>API 레퍼런스의 엔드포인트 페이지 주소가 단어 단위로 끊깁니다.</strong> 문서 사이트 엔진이 1.6으로 오르며
+<code>operationId</code>의 낙타 표기를 하이픈으로 자릅니다. <code>/reference/wallet/sweeps/sweeps-getbyreferenceid</code>가
+<code>/reference/wallet/sweeps/sweeps-get-by-reference-id</code>가 되는 식으로 79개 주소가 옮겨졌고, 옛 주소는
+모두 새 주소로 넘어갑니다. 저장해 둔 링크를 고치실 필요는 없습니다. → <a data-reference-title="API 레퍼런스" href="reference.html">API 레퍼런스</a></li>
+<li><strong>에이전트용 읽기 표면이 늘었습니다.</strong> 페이지 목록·본문·탐색 트리를 JSON으로 주는 <code>/api/docs/</code>와
+그 명세인 <code>/openapi.json</code>이 생겼습니다. <code>/openapi.json</code>은 Wallet API가 아니라 이 문서 사이트 자체의
+명세입니다. Wallet API 명세는 지금처럼 각 레퍼런스 페이지에서 받으십시오.</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

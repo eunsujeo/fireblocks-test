@@ -1,0 +1,95 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>룰 구조 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>룰 구조</h1><p class="ref-meta">룰은 네 조각입니다</p>
+<p>룰은 <code>scope</code>와 조건을 갖고 <code>allow</code>·<code>deny</code>를 내는 단위입니다. 정책 엔진이 요청을 심사할 때 쓰는
+최소 단위이고, 저작자가 JSON으로 적습니다. 이 페이지는 그 JSON이 어떤 조각으로 이루어지는지를
+씁니다.</p>
+<h2 id="룰의-네-조각"><a data-reference-title="룰 구조" href="policy--rule--structure.html#룰의-네-조각">룰의 네 조각</a></h2>
+<p>룰은 <code>effect</code>·<code>scope</code>·<code>when</code>·<code>obligations</code> 네 조각입니다. 아래는 저작 세트에 실제로 있는 외부 주소
+출금 허가 룰이고, 이 룰에는 obligation이 없습니다.</p>
+<pre tabindex="0"><code>{
+  "id": "withdrawal/allow-evm-external-address",
+  "description": "custody vault 에서 나가는 EVM 외부 주소 출금을 등재된 주소로만 허가한다",
+  "effect": "allow",
+  "scope": {
+    "all": [
+      { "field": "operation", "op": "eq", "value": "value_transfer" },
+      { "field": "chain.family", "op": "eq", "value": "evm" },
+      { "field": "destination.type", "op": "eq", "value": "external_address" },
+      { "field": "source_vault.kind", "op": "eq", "value": "custody" }
+    ]
+  },
+  "when": { "field": "address_ownership.status", "op": "eq", "value": "active" }
+}</code></pre>
+<p><strong><code>scope</code>가 이 룰이 발동하는 범위를 정하고 <code>when</code>이 그 안에서 판정합니다.</strong> scope에 걸리지 않는
+요청에 이 룰은 없는 것과 같습니다.</p>
+<p><code>operation</code>에 적는 값은 정규화된 연산 값입니다. 출금·vault 이체·집금 셋을 정규화기가
+<code>value_transfer</code> 하나로 합칩니다. 그래서 룰이 그 셋을 가르는 것은 <code>destination.type</code>과
+<code>source_vault.kind</code>입니다.</p>
+<p>요청 표면의 값인 <code>withdrawal</code>을 여기 적으면 어떤 요청에도 매치되지 않습니다. 거부는 나므로 아무것도
+깨지지 않고, 요청이 끝까지 통과하는지 재본 뒤에야 그 룰이 죽어 있었다는 것이 드러납니다.</p>
+<h2 id="effect의-두-값"><a data-reference-title="룰 구조" href="policy--rule--structure.html#effect의-두-값"><code>effect</code>의 두 값</a></h2>
+<p><code>effect</code>에 적을 수 있는 값은 <code>allow</code>와 <code>deny</code> 둘뿐입니다. <code>pending</code>이나 <code>need_more_data</code>를 룰이
+적을 수 없습니다. 그 둘은 조건 트리를 평가하고 결정을 결합하는
+<a data-reference-title="결정과 결합" href="policy--rule--decision.html">커널</a>이 산출하는 결정값이지 저작자가 고르는 값이 아닙니다.</p>
+<p><strong><code>deny</code> 룰에는 obligation을 달 수 없습니다.</strong> 거부하면서 이행을 요구하는 것은 뜻이 성립하지
+않습니다.</p>
+<h2 id="obligations의-세-종류"><a data-reference-title="룰 구조" href="policy--rule--structure.html#obligations의-세-종류"><code>obligations</code>의 세 종류</a></h2>
+<p>obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다. “통과시키되 이것을 이행하라”는
+요구이고, 종류는 셋입니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>타입</th>
+<th>무엇을 요구하나</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>require_2fa</code></td>
+<td>요청자의 2단계 인증</td>
+</tr>
+<tr>
+<td><code>require_quorum</code></td>
+<td>승인이 성립하는 데 필요한 최소 승인자 수인 정족수. 인원수·승인 가능 역할·본인 승인 허용 여부를 정합니다</td>
+</tr>
+<tr>
+<td><code>attach_travel_rule_payload</code></td>
+<td>트래블룰 정보 첨부</td>
+</tr>
+</tbody>
+</table></div></div>
+<p><code>require_quorum</code>의 본인 승인 허용은 생략하면 <strong>불허</strong>입니다. 요청자와 승인자가 같으면 정족수가
+통제가 아니라 형식이 되기 때문입니다.</p>
+<p>obligation은 배열로 답니다. 저작 세트의 역할 부여 허가 룰이 둘을 함께 다는 실제 사례입니다.</p>
+<pre tabindex="0"><code>"obligations": [
+  { "type": "require_2fa" },
+  { "type": "require_quorum", "params": { "n": { "slot": "approval_quorum" } } }
+]</code></pre>
+<h2 id="조건-노드-다섯"><a data-reference-title="룰 구조" href="policy--rule--structure.html#조건-노드-다섯">조건 노드 다섯</a></h2>
+<p>조건은 다섯 노드로 씁니다. 비교(<code>eq</code>·<code>ne</code>·<code>lt</code>·<code>lte</code>·<code>gt</code>·<code>gte</code>), 멤버십(<code>in</code>·<code>not_in</code>), 그리고
+<code>all</code>·<code>any</code>·<code>not</code>입니다. 자유롭게 중첩할 수 있고 깊이 상한은 컴파일러가 봅니다.</p>
+<p><strong>카탈로그에 없는 필드는 참조할 수 없습니다.</strong> 참조하면 컴파일이 실패합니다. 값이 채워지지 않은
+필드를 비교하면 불성립(거짓)으로 봅니다. allow 룰에 안전한 방향입니다.</p>
+<h2 id="리터럴과-슬롯"><a data-reference-title="룰 구조" href="policy--rule--structure.html#리터럴과-슬롯">리터럴과 슬롯</a></h2>
+<p>값은 리터럴이거나 슬롯입니다. 슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다.
+워크스페이스는 Wallet SDK를 도입한 회사 하나이고 최상위 격리
+컨테이너입니다(<a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a>). 플랫폼이 하한과 허용 값 목록을 정하고 파트너사가
+그 안에서 발행합니다.</p>
+<p><strong>커널이 평가 시점에 다시 보는 것은 하한과 타입입니다.</strong> 발행 시점 검증만 두면 그 검증을 우회한
+값이 평가에 들어올 수 있기 때문입니다. 검증의 기준점이 주장자와 다른 곳에 있어야 합니다.</p>
+<p>허용 값 목록은 발행 시점에만 대조합니다. 문자열 목록 슬롯의 값이 카탈로그의 목록 안인지를
+커널은 평가 시점에 다시 보지 않습니다. 그 검사는 발행 경로가 성립할 때만 유효합니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

@@ -1,0 +1,241 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>운영과 관측 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>운영과 관측</h1><p class="ref-meta">fail-closed는 조용합니다</p>
+<p>이 페이지는 정책 엔진을 운영하며 무엇을 보고 무엇을 알릴지를 담습니다. 조용한 실패 지점을 고정해
+두고, 지점마다 신호를 어디서 얻고 어떤 코드로 알릴지를 적습니다.</p>
+<h2 id="fail-closed의-침묵"><a data-reference-title="운영과 관측" href="policy--operations.html#fail-closed의-침묵">fail-closed의 침묵</a></h2>
+<p>정책 엔진은 판단 불가도, 데이터 부재도, 정규화 실패도 전부 거부로 떨어뜨립니다. <strong>그래서 정상
+요청이 거부되는 것과 공격이 거부되는 것이 시스템에서 똑같이 보입니다.</strong></p>
+<p>이중화한 경로도 같습니다. 한쪽이 죽어도 증상이 없습니다.</p>
+<p>이 두 성질이 관측을 선택이 아니라 요건으로 만듭니다. 여기 적은 항목은 코어 구현을 막지 않지만
+프로덕션 배포를 막습니다.</p>
+<h2 id="관측-대상의-도출"><a data-reference-title="운영과 관측" href="policy--operations.html#관측-대상의-도출">관측 대상의 도출</a></h2>
+<p>무엇을 볼지는 취향이 아닙니다. <strong>설계가 “fail-closed”·“이중화”·“기록만 남긴다”라고 적은 대목이
+그대로 알림 목록입니다.</strong></p>
+<p>조용한 실패 지점을 스무 곳 고정해 두었습니다. 지점마다 무엇이 조용히 일어나는지, 신호를 어디서
+얻는지, 어떤 코드로 알릴지, 근거가 무엇인지를 함께 답니다.</p>
+<p>목록을 순번으로 세지 않습니다. “앞의 여섯이 핵심”처럼 쓰면 행이 늘 때마다 그 수가 조용히
+어긋납니다.</p>
+<h2 id="판정-불가라는-세-번째-값"><a data-reference-title="운영과 관측" href="policy--operations.html#판정-불가라는-세-번째-값">판정 불가라는 세 번째 값</a></h2>
+<p>대조가 실행되지 못한 사이클과 “이상 0” 사이클은 모양이 같습니다. <strong>데이터소스 장애가 곧 무탐지가
+되는데, 그 상태가 초록으로 보입니다.</strong></p>
+<p>그래서 판정을 두 값이 아니라 세 값으로 둡니다. 정합, 훼손, 그리고 판정 불가입니다. 판정 불가도
+알림을 내고, 코드를 따로 씁니다.</p>
+<p>코드를 가르는 이유는 대응이 다르기 때문입니다. 훼손은 조사할 일이고 판정 불가는 탐지 장치를
+복구할 일입니다. 지금 네 곳입니다 — 승인 없는 발행의 주기 대조, 어드민 소속 대조, 결정
+기록 체인 검증, sidecar 자가 점검입니다.</p>
+<p>결정 기록은 결정을 주체·행위·대상·시각·결과와 함께 남기는 추가 전용 해시 체인입니다.</p>
+<p>각 지점에서 판정 불가가 나오는 사연도 적어 둡니다. 발행 대조에서는 승인자 스코프를 재검증하지
+못하는 경우가 그 하나입니다. 표를 던진 뒤 부여가 좁혀졌는데 표에 자격 스냅샷을 남기지 않아 좁힌
+시점을 알 수 없습니다.</p>
+<h2 id="감지기-자기-고장의-취급"><a data-reference-title="운영과 관측" href="policy--operations.html#감지기-자기-고장의-취급">감지기 자기 고장의 취급</a></h2>
+<p>번들 활성화 드리프트는 60초 주기로 대조하고 같은 기대값에서 불일치가 연속 3회면 알립니다.
+감지 지연은 120초입니다.</p>
+<p>구동기 자신이 실패하면 불일치로 세지 않고 연속 카운터를 유지한 채 판정 불가로 남깁니다. 지금
+무엇이 서빙되는지를 정하는 단일 기록인 활성 포인터를 못 읽거나 sidecar가 무응답인 때입니다.</p>
+<p>두 대안이 다 틀립니다. 카운터를 리셋하면 DB가 불안정한 동안 드리프트가 영영 임계를 못 채웁니다.
+<strong>일치로 처리하면 감지 장치가 자기 고장을 초록으로 보고합니다.</strong></p>
+<h2 id="매-주기-감사-줄"><a data-reference-title="운영과 관측" href="policy--operations.html#매-주기-감사-줄">매 주기 감사 줄</a></h2>
+<p>대조가 돌 때마다 감사 줄을 남깁니다. 불일치일 때만이 아니라 <strong>일치일 때도 남깁니다.</strong></p>
+<p>통제가 동작했다는 것 자체가 증거이기 때문입니다. 기록이 없으면 “이상이 없었다”와 “동작하지
+않았다”를 사후에 가를 수 없습니다.</p>
+<h2 id="저장소-직접-dml의-탐지"><a data-reference-title="운영과 관측" href="policy--operations.html#저장소-직접-dml의-탐지">저장소 직접 DML의 탐지</a></h2>
+<p>앱이 갱신하지 않는 상태가 둘 있습니다. 워크스페이스 구획의 저장 바이트와 어드민 계정의
+소속입니다. 둘 다 앱이 쓰지 않으므로 어긋남은 앱 결함이 아니라 논리 DB에 직접 건 DML의
+자국입니다.</p>
+<p><strong>요청 경로가 그것을 보지 못합니다.</strong> 구획 캐시가 선언 다이제스트를 키로 쓰므로, 다이제스트를
+그대로 둔 채 바이트만 바꾼 편집은 평가에서 드러나지 않습니다. 소속 위반도 부여 시점 검사를 거쳐 온
+뒤라 조회가 막지 않습니다.</p>
+<p>그래서 주기 대조가 유일한 신호입니다. 셋 다 자동 조치가 없습니다. 어느 쪽이 옳은지 대조가 정할 수
+없기 때문입니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>알림 코드</th>
+<th>무엇을 뜻하는가</th>
+<th>발생 지점</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WORKSPACE_BUNDLE_CONTENT_DRIFT</code></td>
+<td>워크스페이스 구획의 저장 바이트가 발행 시점에 기록된 <code>content_hash</code>와 어긋납니다</td>
+<td>워크스페이스 번들 주기 대조 — 등록된 워크스페이스를 커서로 돌며 틱마다 일부를 다시 해시하고, 같은 선언 다이제스트에 연속 3회 불일치</td>
+</tr>
+<tr>
+<td><code>ADMIN_HOME_SCOPE_MISMATCH</code></td>
+<td>어드민 계정의 소속과 그 계정의 부여 스코프가 어긋납니다. 건수만 내고 자동 수정이 없습니다</td>
+<td>발행 대조 사이클(1시간)에 얹힌 소속 대조</td>
+</tr>
+<tr>
+<td><code>ADMIN_HOME_SCOPE_UNDECIDABLE</code></td>
+<td>소속 대조가 판정하지 못했습니다 — 조회 무응답·collation 불일치입니다</td>
+<td>동</td>
+</tr>
+</tbody>
+</table></div></div>
+<p>소속을 옮길지 부여를 지울지는 대조가 정할 수 없습니다. 예방은 부여 시점 검사가 하므로 앱이
+만드는 위반은 0이고, 그 전제가 앱만이 어드민 논리 DB에 쓴다는 것입니다.</p>
+<h2 id="드리프트의-자동-조치"><a data-reference-title="운영과 관측" href="policy--operations.html#드리프트의-자동-조치">드리프트의 자동 조치</a></h2>
+<p>드리프트에 자동 조치를 두지 않습니다. 서빙을 차단하지도, 자동으로 재활성화하지도 않습니다.</p>
+<p><strong>자동 재활성화는 앱이 스스로 정책을 바꾸는 경로입니다.</strong> “발행이 곧 활성화”를 금지해 둔 것과
+정면으로 충돌합니다.</p>
+<p>평가 요청마다 대조하지도 않습니다. 폴링 시차는 정상이고, 매번 강제하면 발행할 때마다 최대 20초
+동안 전량이 막힙니다.</p>
+<h2 id="사이드카-자가-점검"><a data-reference-title="운영과 관측" href="policy--operations.html#사이드카-자가-점검">사이드카 자가 점검</a></h2>
+<p>sidecar 관리 표면이 열려 있으면 번들 경로 통제가 전부 우회되는데, 평상시 증상이 없습니다. 그래서
+데이터 쓰기 API에 무해 경로 쓰기를 실제로 시도해 거부되는지 봅니다. 수락되면 알립니다.</p>
+<p><strong>무해 경로는 번들이 소유한 경로 밖이어야 합니다.</strong> 번들 소유 경로는 인가와 무관하게 400이 나고,
+그것을 “거부됨”으로 읽으면 점검이 영원히 통과합니다.</p>
+<p>성공한 쓰기는 되돌립니다. 되돌리지 못하면 그 사실을 같은 알림에 함께 냅니다.</p>
+<p>결론에 닿지 못한 상태는 별도 코드입니다. 무응답·타임아웃·예상 밖 상태코드가 그것입니다. 거짓
+초록이 통제 부재보다 나쁩니다. 이 점검이 그 방어선의 유일한 장치이기 때문입니다.</p>
+<h2 id="알림-페이로드의-범위"><a data-reference-title="운영과 관측" href="policy--operations.html#알림-페이로드의-범위">알림 페이로드의 범위</a></h2>
+<p>알림에 개인정보·키·토큰·서명 대상 원문을 포함하지 않습니다. 해석된 값도 넣지 않습니다.</p>
+<p>workspace 대조가 어긋났을 때 알림에 담는 것은 요청 상관 키와 호출자가 스스로 보낸 식별 값까지입니다.
+해석해서 얻은 workspace와 tenant는 알림에도 거부 사유에도 없습니다. <strong>거부 응답이 열거 수단이
+되지 않게</strong> 하기 위해서입니다.</p>
+<p>발행 대조도 같습니다. 어긋난 항목 이름만 내고 해시 값은 내지 않습니다. 결정 기록 체인이 깨졌을
+때도 식별 값과 사유 코드까지만 냅니다. 엔트리 내용에 요청 전문이 있기 때문입니다.</p>
+<h2 id="알림의-두-경로"><a data-reference-title="운영과 관측" href="policy--operations.html#알림의-두-경로">알림의 두 경로</a></h2>
+<p>즉시 알림은 구조화 로그와 알림 포트로 동시에 나갑니다. 로그는 저장소 안에 남는 자국이고 알림은
+밖으로 나가는 신호라, 채널이 사라져도 자국은 남아야 합니다.</p>
+<p>기본 채널은 구조화 로그이고, <code>policy.alert.webhook-url</code>을 주면 그 URL로 JSON을 보냅니다.</p>
+<p><strong>발송 실패는 판정을 막지 않습니다.</strong> 로그로 폴백합니다. 알림이 판정에 물리면 알림 채널 장애가
+곧 서비스 장애입니다.</p>
+<p>같은 항목의 반복은 키별 최소 발송 간격으로 억제합니다. 다만 억제는 인스턴스 안에서만 성립합니다.
+중앙 저장소 기반 중복 제거는 실채널 연결과 함께 볼 미결입니다.</p>
+<p>Wallet 서버는 이 포트를 쓰지 않습니다. 별개 배포 단위이고 공유 모듈을 두지 않아, 그쪽은 감사
+스트림 분리까지만 하고 알림은 로그 수집기 쪽이 맡습니다.</p>
+<h2 id="폐기한-게이트-"><a data-reference-title="운영과 관측" href="policy--operations.html#폐기한-게이트-">폐기한 게이트 ①</a></h2>
+<p>서명 인프라의 트랜잭션 인가 정책이 지정 서명자를 강제하는지 Wallet SDK가 주기로 대조하던 항목이
+있었습니다. 그 항목을 걷었습니다. 조회 어댑터, 판정, 알림 두 종, mock, 설정값을 전부
+없앴습니다.</p>
+<p>번호는 다시 매기지 않고 ①을 비워 둡니다. 재번호가 문서·코드·알림 전반의 연쇄 수정이 되기
+때문입니다. 그 번호가 비어 있다는 사실 자체가 기록입니다.</p>
+<p>남는 것은 그대로 씁니다. <strong>강제가 풀려도 요청이 줄지 않고 거부가 늘지도 않습니다.</strong> 콘솔 경유
+우회가 열린 순간에 Wallet SDK 쪽 자국이 하나도 없습니다. TAP에 거는 건당·일일 총액 상한인 백스톱
+상한이 풀리는 것도 같은 모양입니다.</p>
+<p>강제의 생존 확인은 provider 콘솔 쪽 운영 절차로 나갑니다. 그 절차가 마련되기 전까지 이 항목은
+수용된 미탐지입니다.</p>
+<h2 id="콜백의-30초-예산"><a data-reference-title="운영과 관측" href="policy--operations.html#콜백의-30초-예산">콜백의 30초 예산</a></h2>
+<p>콜백 경로만 동기이고 예산은 30초입니다. 예산을 쓰는 구간은 순서대로 콜백 엔드포인트의 검증과
+서명 대상 추출, 요청 레코드 조회, <a data-reference-title="정규화" href="policy--runtime--normalization.html">정규화</a> 재구성과 전체 대조, 소비 갱신,
+응답 서명입니다.</p>
+<p>서명은 로컬이라 병목이 아닙니다. 구간별 배분은 실측 대상입니다.</p>
+<p><strong>이 경로에서 외부 시스템을 호출하지 않습니다.</strong> 예산이 30초인데 밖을 부르면 남의 지연이 곧
+Wallet SDK의 서명 실패가 됩니다.</p>
+<h2 id="무응답과-최소-배포-요건"><a data-reference-title="운영과 관측" href="policy--operations.html#무응답과-최소-배포-요건">무응답과 최소 배포 요건</a></h2>
+<p>30초 안에 답하지 못하면 서명 인프라는 재시도하지 않고 서명 요청을 실패 처리합니다.</p>
+<p><strong>응답 안의 재시도와 무응답은 다릅니다.</strong> 재시도로 답하면 창을 얻지만 무응답에는 그 창이
+없습니다. 그래서 콜백 엔드포인트의 재시작·배포·장기 정지가 곧 서명 유실입니다.</p>
+<p>최소 요건은 레플리카 둘 이상과 롤링 배포입니다. 소비가 조건부 단일행 갱신이라 레플리카를 늘려도
+1회용이 유지됩니다.</p>
+<p>어드민 인증의 TOTP 단회성은 인스턴스 하나에서 성립합니다. 레플리카를 늘리는 배포는 어드민 표면을
+<code>policy.admin.enabled</code>로 어드민 전용 배포에 두거나, 소비 기록을 공유 저장소로 옮깁니다.</p>
+<p>프로세스를 따로 떼는 것은 이 요건과 별개 문제이고, 근거는 sweep 실측 처리량입니다.</p>
+<h2 id="종료-시의-드레인"><a data-reference-title="운영과 관측" href="policy--operations.html#종료-시의-드레인">종료 시의 드레인</a></h2>
+<p>인스턴스가 종료에 들어가면 접수를 503으로 막고, 평가 대기 바디 버퍼가 비기를 기다립니다. 상한은
+60초입니다.</p>
+<p><strong>막는 것은 접수뿐입니다.</strong> 조회·콜백·PIP 제출·어드민 표면은 그대로 받습니다. 그것들까지 막으면
+이미 접수된 요청의 결과를 읽지 못하고, 인스턴스가 빠지는 동안이 그대로 장애입니다.</p>
+<p>인프로세스 버퍼가 이 장치의 근거입니다. wire 원문을 저장하지 않으므로 종료 순간 버퍼에 남은 요청은
+재기동 뒤 되찾을 수 없습니다.</p>
+<p>상한을 넘겨 남은 바디는 버리고 건수만 남깁니다. 남아 있는 요청을 정리하는 작업이 그 요청을
+실패로 종결하고, 회복 경로는 호출자의 재제출뿐입니다.</p>
+<p>대기하는 동안 오케스트레이터 스케줄러는 그대로 동작합니다. 버퍼를 비우는 주체가 그것이라, 함께
+세우면 드레인이 상한 시간을 다 쓰고도 아무것도 비우지 못합니다.</p>
+<p>접수 거부의 사유는 둘로 갈립니다. 드레인은 이 인스턴스가 곧 빠진다는 뜻이라 다시 오라는 힌트를
+주지 않고, 버퍼 포화는 잠시 뒤 같은 곳에 다시 오라는 뜻이라 <code>Retry-After</code>를 함께 보냅니다.</p>
+<h2 id="정규화기-버전의-하위-호환"><a data-reference-title="운영과 관측" href="policy--operations.html#정규화기-버전의-하위-호환">정규화기 버전의 하위 호환</a></h2>
+<p>재구성형 콜백은 요청에 기록된 버전으로 정규화기를 고릅니다. <strong>새 배포가 직전 활성 버전 구현을
+지우면 진행 중인 인가의 콜백이 재구성할 수단을 잃습니다.</strong></p>
+<p>없는 버전을 만난 콜백은 <code>CALLBACK_NORMALIZER_UNAVAILABLE</code>로 거부합니다. 방향은 fail-closed라
+안전합니다. 다만 창은 발급된 인가가 유효한 시간인 인가
+TTL(<a data-reference-title="서명 게이트" href="policy--signing-gate.html">자세히</a>)만큼 실재합니다.</p>
+<p>이 항목에는 전용 알림 코드가 없습니다. 남는 것은 구조화 로그의 <code>alert</code> 태그이고, 알림 포트로
+나가는 코드 상수가 아닙니다. 그래서 이 상태의 관측은 로그 검색에 달려 있습니다.</p>
+<h2 id="sweep-피크"><a data-reference-title="운영과 관측" href="policy--operations.html#sweep-피크">sweep 피크</a></h2>
+<p>sweep은 입금 지갑 수에 비례해 발생합니다. <strong>평가와 콜백과 기록 쓰기와 이벤트 발행이 모두 같은
+시점에 몰립니다.</strong></p>
+<p>이 경로의 용량 산정 기준이 평균이 아니라 sweep 피크인 이유입니다.</p>
+<h2 id="이벤트-발행과-릴레이"><a data-reference-title="운영과 관측" href="policy--operations.html#이벤트-발행과-릴레이">이벤트 발행과 릴레이</a></h2>
+<p>이벤트 발행 자체는 상태 전이와 한 트랜잭션이라 유실되지 않습니다. <strong>릴레이가 멈추면 조용히
+밀립니다.</strong> 그래서 적체와 릴레이 지연, 소비 지연을 봅니다.</p>
+<p>릴레이는 폴링으로 확정했습니다. 변경 데이터 캡처는 기각했습니다. 그 권한이 인스턴스 전체 바이너리
+로그를 읽어 논리 DB 계정 격리를 우회하기 때문입니다.</p>
+<p>소비자가 요청 식별자와 발행 순번으로 중복과 역순을 걸러 냅니다. 버스의 순서 보장에 기대지
+않습니다.</p>
+<h2 id="실패-이벤트-큐-부재와-적체"><a data-reference-title="운영과 관측" href="policy--operations.html#실패-이벤트-큐-부재와-적체">실패 이벤트 큐 부재와 적체</a></h2>
+<p>영구 실패한 이벤트를 따로 빼는 실패 이벤트 큐(dead-letter queue)가 없습니다. 릴레이는 이벤트를
+점유(claim)해 발행합니다.</p>
+<p>점유 시한이 지나면 같은 건이 다시 잡히고, 그 사이 뒤 이벤트가 배치 뒤로 밀립니다.</p>
+<p><strong>지금 두지 않은 이유는 격리가 보호할 실트래픽이 아직 없기 때문입니다.</strong> 대신 발행 시점에
+페이로드 크기 상한을 겁니다. 한 건이 영구히 실패하는 경로를 그것으로 막습니다.</p>
+<p>밀림은 두 구간으로 갈립니다. 실패 건수가 배치 크기보다 적으면 신규 이벤트가 그만큼 뒤로 밀리는 데
+그칩니다. 배치 크기에 이르면 다시 점유된 구건이 배치를 전부 채워 후속이 통째로 막힙니다.</p>
+<p>실패 건수에 상한을 두는 장치가 없어 그 한도 자체가 관측 대상입니다.</p>
+<p>재검토 계기는 셋입니다 — 같은 건이 다시 점유됐다는 경고가 30분 지속될 때, 이벤트 수신을 실행
+게이트로 삼는 소비자가 실제로 생길 때, 첫 기관 온보딩의 운영 준비 점검입니다.</p>
+<h2 id="보유-키-셋"><a data-reference-title="운영과 관측" href="policy--operations.html#보유-키-셋">보유 키 셋</a></h2>
+<p>번들 서명키 둘이 서명 개념과 함께 사라졌습니다. 남은 것은 셋이고 전부 설정 주입입니다.</p>
+<ul>
+<li><strong>콜백 응답 서명키</strong>: RS256 개인키 PEM입니다 — <code>policy.callback.response-signing-key-pem</code></li>
+<li><strong>어드민 세션 서명키</strong>: HMAC-SHA256 키의 base64입니다 — <code>policy.admin.session.signing-key-base64</code></li>
+<li><strong>2FA 암호화 키</strong>: AES-256 암호화 키의 base64입니다 — <code>policy.admin.second-factor.key-base64</code></li>
+</ul>
+<p>셋 다 환경에서만 오고 코드에 기본 키가 없습니다. 값이 비는 것은 정상 상태입니다. 그 표면을
+받지 않는 프로세스에는 해당 키를 주지 않고, 부재가 기동을 깨뜨리는 것은 콜백을 받는
+모드뿐입니다.</p>
+<p>셋을 담은 설정 객체는 모두 <code>toString</code>을 덮어 키 값을 출력하지 않습니다. 주입 여부와 라벨만
+남습니다. 설정 객체는 바인딩 실패 메시지·<code>/actuator</code> 계열·디버그 로그에 통째로 찍힐 경로가
+실재합니다.</p>
+<p><strong>콜백 응답 서명키는 요청마다 필요해 상주가 불가피합니다.</strong> 방어가 격리가 아니라 사후 대조에
+있습니다. 위조된 응답에는 대응하는 인가가 없습니다.</p>
+<p>구현 상태를 함께 적습니다. 키 매니저에서 인출하는 경로는 지금 코드에 없습니다. 셋 다 설정과
+환경변수로 들어오므로, 관측 대상은 인출 감사가 아니라 배포 시크릿의 주입 경로입니다. 키 매니저로
+옮기면 인출 단위 감사밖에 없어 예상 밖 인출을 즉시 알리는 항목이 그때 따라옵니다.</p>
+<h2 id="콜백-응답-키의-로테이션"><a data-reference-title="운영과 관측" href="policy--operations.html#콜백-응답-키의-로테이션">콜백 응답 키의 로테이션</a></h2>
+<p>콜백 응답 키는 상대가 신뢰하는 공개키를 Wallet SDK가 바꿀 수 없습니다. provider가 설치·설정 시점에
+한 번 등록받는 구조라, 겹침 기간에 공개키 두 개를 동시에 신뢰하는지가 확인 대상입니다.</p>
+<p>확인이 불가하면 교체 창의 인플라이트 서명이 재시도 없이 취소됩니다. <strong>키를 어디에 보관하든 이
+문제는 남습니다.</strong> 보관 위치의 문제가 아니라 등록 모델의 문제입니다.</p>
+<h2 id="결정의-재현"><a data-reference-title="운영과 관측" href="policy--operations.html#결정의-재현">결정의 재현</a></h2>
+<p>결정 기록의 입력 문서와 번들 해시로 같은 결정을 다시 만듭니다. 번들 바이트는 내용 해시로
+보관됩니다.</p>
+<p>용도가 둘입니다.</p>
+<ul>
+<li><strong>규제 대응</strong>: 특정 결정 하나를 재현하는 일입니다</li>
+<li><strong>회귀 검출</strong>: 과거 결정 표본을 새 번들로 다시 평가해 차이를 보는 일입니다</li>
+</ul>
+<p>회귀 쪽을 정례로 실행할지와 표본 크기는 미정입니다.</p>
+<p>룰 테스트와 골든 스위트는 저작·배포 파이프라인이 강제하므로 별도 운영 절차가 필요 없습니다.</p>
+<h2 id="실측에-달린-값"><a data-reference-title="운영과 관측" href="policy--operations.html#실측에-달린-값">실측에 달린 값</a></h2>
+<ul>
+<li><strong>콜백 30초 예산의 구간별 배분</strong>: 어디에 얼마를 줄지는 실측 뒤에 정합니다</li>
+<li><strong>sweep 피크 처리량</strong>: 평가·쓰기·발행 용량 산정의 입력입니다</li>
+<li><strong>알림 임계값 전반</strong>: 만료 스케줄러 지연, 이벤트 적체, 수집 실패율의 임계입니다</li>
+<li><strong>드리프트 대조 주기와 연속 임계</strong>: 지금 60초와 3회입니다. 임계가 3인 것은 sidecar 폴링 설정값의
+의미를 저장소 근거로 판정할 수 없어 여유를 한 칸 더 둔 것이고, 오탐 0은 증명되지
+않았습니다. 하한은 주기가 폴링 상한보다 커야 한다는 것이고 기동 시 강제됩니다</li>
+<li><strong>콜백 응답 키의 무중단 로테이션 가능 여부</strong>: provider에 문의할 사항입니다</li>
+</ul>
+<h2 id="다음으로"><a data-reference-title="운영과 관측" href="policy--operations.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a> — 30초 예산이 적용되는 경로</li>
+<li><a data-reference-title="구조" href="policy--architecture.html">구조</a> — 이 항목들이 적용되는 배포 단위와 역할</li>
+<li><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a> — 발행 대조가 지키는 검사</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

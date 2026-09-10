@@ -1,0 +1,56 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>v0.1.0 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>v0.1.0</h1><h3 id="계약-변경"><a data-reference-title="v0.1.0" href="changelog--v0-1-0.html#계약-변경">계약 변경</a></h3>
+<ul>
+<li><strong>API 레퍼런스 주소가 바뀝니다.</strong> OpenAPI 태그를 영문 전용으로 바꾸고 한글은 태그 설명으로
+옮겼습니다. 예전 주소를 북마크해 두셨다면 다시 잡아 주십시오 — 엔드포인트 경로와 요청·응답
+스키마는 그대로입니다.</li>
+<li><strong>낼 수 없는 에러 코드를 지웠습니다.</strong> 집금 생성(<code>POST /api/v1/sweeps</code>) 문서의
+<code>IDEMPOTENCY_KEY_TOO_LONG</code>을 걷었습니다. 서버가 그 코드를 내지 않으므로 그것으로 분기하는
+코드가 있다면 도달하지 않는 분기입니다.</li>
+<li><strong>정책의 자산 좌표가 토큰 식별자가 됐습니다.</strong> 판단 요청의 정규화 결과에서 <code>asset</code> 객체가
+<code>token</code>으로 바뀌었습니다. 요청 스키마는 그대로지만 <strong>룰에서 <code>asset.id</code>를 참조했다면
+<code>token.id</code>로 고쳐야 합니다.</strong> 대신 체인 무관 그룹 룰(“전 체인 USDC 하루 한도”)은 지금
+표현할 수 없어 체인마다 따로 걸어야 합니다.</li>
+<li><strong>회수한 주소를 다시 등재하면 식별자가 새로 붙습니다.</strong> 동작이 바뀐 것이 아니라 계약으로
+적혀 있지 않던 것인데, 옛 식별자를 보관하는 연동이 깨지므로 계약 변경으로 다룹니다.
+<strong>닫힌 항목의 식별자는 다시 쓰이지 않습니다.</strong> 출금 요청은 목적지 주소로 매칭하므로
+영향받지 않습니다. → <a data-reference-title="주소록 (Address Book · Whitelist)" href="fund-flows--address-book.html">주소록</a></li>
+<li><strong>vault 사이 이체의 잔액 부족은 요청 응답이 아니라 이체 상태로 드러납니다.</strong> 접수할 때 금액을
+예약하고 결과로 확정하거나 풉니다. 온체인 잔액은 요청 시점에 조회하지 않으므로 <strong>접수됐다고
+이체가 나간 것이 아닙니다</strong> — 상태를 끝까지 따라가셔야 합니다.
+→ <a data-reference-title="자금 동결" href="fund-flows--release.html">자금 동결</a></li>
+<li><strong>토큰 카탈로그 응답에서 <code>assetId</code>가 빠졌습니다.</strong> 내부 표면
+<code>GET /internal/v1/token-catalog</code>이고 파트너사 연동에는 영향이 없습니다. 체인 무관 자산 키를
+채울 기준이 없어 비어 있던 필드입니다.</li>
+</ul>
+<h3 id="문서"><a data-reference-title="v0.1.0" href="changelog--v0-1-0.html#문서">문서</a></h3>
+<ul>
+<li><strong>이 사이트가 서술 문서의 기준이 됐습니다.</strong> 어느 서술이 맞는지 갈릴 때는 여기가 우선합니다.
+<strong>API 계약의 기준 문서는 그대로 TypeSpec입니다</strong> — 엔드포인트·스키마·에러 코드는 이 승격의
+대상이 아니었습니다.</li>
+<li><strong><a data-reference-title="Wallet SDK" href="overview.html">제품</a>·설계 기록 두 섹션이 생겼습니다.</strong> 무엇을 대상으로 하는 제품이고 어디까지
+제공하는지, 그리고 무엇을 왜 그렇게 정했는지의 이력입니다. 설계 기록은 범위를 줄이지 않고
+벤더 실명·내부 컴포넌트 이름·폐기된 결정까지 그대로 싣습니다.</li>
+<li><strong><a data-reference-title="첫 요청" href="start--first-request.html">첫 요청</a>과 <span title="현재 문서 묶음에 없는 참조입니다.">규제 대응</span>이 생겼습니다.</strong> 계정을
+만들고 입금 주소를 받기까지를 순서대로 밟습니다. 종전에는 표면 목록만 있고 처음부터 끝까지
+이어 가는 길이 없었습니다.</li>
+<li><strong>원본 22편을 동결했습니다.</strong> <code>docs/wallet-system/</code> 아래 원본은 이력으로 남고 <strong>거기서 한
+수정은 이 사이트에 반영되지 않습니다.</strong> 어느 절이 어디로 갔는지는
+이동 기록에 파일 단위로 있습니다.</li>
+<li><strong>제품 이름을 Wallet SDK로 통일하고 본문 폰트를 SUIT로 바꿨습니다.</strong> 코드 블록의 서체는
+그대로입니다.</li>
+</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

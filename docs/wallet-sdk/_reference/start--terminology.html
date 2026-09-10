@@ -1,0 +1,921 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>용어 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>용어</h1><p class="ref-meta">어느 말이 무엇을 가리키고 그 정의가 어디 있는지</p>
+<p>이 페이지는 용어마다 한 줄 정의와 자세한 설명이 있는 페이지를 안내합니다. 다른 페이지가 용어를
+처음 쓸 때 붙이는 한 줄은 여기의 문구를 그대로 복사한 것입니다.</p>
+<p>색인의 범위는 파트너사가 이 사이트를 읽다가 만나는 용어입니다. 구현팀만 쓰는 항목도 표에는 두되,
+정의 위치를 「설계 기록(내부)」로만 적고 이 사이트에 페이지를 두지 않습니다.</p>
+<p>같은 말을 두 곳에서 정의하면 언젠가 갈립니다. 기준 문구를 여기 한 곳에 두고 다른 페이지가 그것을
+복사하는 것이 그것을 막는 방법입니다.</p>
+<h2 id="미승격-표시"><a data-reference-title="용어" href="start--terminology.html#미승격-표시">미승격 표시</a></h2>
+<p>정의 위치가 <code>미승격</code>인 용어는 그 정의가 아직 이 사이트에 없다는 뜻입니다. 페이지 자체가 없는 것도
+있고, 페이지는 있는데 그 용어를 아직 안 담은 것도 있습니다. 그때까지의 기준 문서는 저장소의 설계
+문서이고, 페이지가 생기는 대로 이 표를 채웁니다.</p>
+<h2 id="격리-컨테이너"><a data-reference-title="용어" href="start--terminology.html#격리-컨테이너">격리 컨테이너</a></h2>
+<p>격리 컨테이너는 세 계층입니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>용어</th>
+<th>무엇인지</th>
+<th>정의 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JV</td>
+<td>플랫폼을 운영하는 합작 법인입니다. Workspace 생성과 시드 정책의 권한 뿌리입니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>Workspace</td>
+<td>Wallet SDK를 도입한 회사 하나입니다. 최상위 격리 컨테이너입니다</td>
+<td><a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a></td>
+</tr>
+<tr>
+<td>Tenant</td>
+<td>Workspace 아래에서 Account를 묶는 계정 체계 하나입니다. 파트너 대상 API의 격리 키입니다</td>
+<td><a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a></td>
+</tr>
+<tr>
+<td>파트너사</td>
+<td>Wallet SDK를 도입한 회사, 곧 Workspace 하나입니다. 이 사이트에서 그 회사를 부르는 말은 이것 하나입니다</td>
+<td><a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a></td>
+</tr>
+<tr>
+<td>Account</td>
+<td>그 서비스의 최종 사용자 한 명을 wallet 안에서 대리하는 virtual 사용자입니다</td>
+<td><a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a></td>
+</tr>
+<tr>
+<td><code>accountId</code></td>
+<td>Wallet SDK가 발급해 Account를 지칭하는 값입니다. 스코프 키가 아닙니다</td>
+<td><a data-reference-title="표면과 인증" href="start--authentication.html">표면과 인증</a></td>
+</tr>
+<tr>
+<td><code>referenceId</code></td>
+<td>파트너사가 발급한 사용자 식별자입니다. 유일성은 Tenant 안에서만 성립합니다</td>
+<td><a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a></td>
+</tr>
+<tr>
+<td>스코프 키</td>
+<td>인증이 확정하는 격리 식별자입니다. 요청이 싣지 않습니다</td>
+<td><a data-reference-title="표면과 인증" href="start--authentication.html">표면과 인증</a></td>
+</tr>
+<tr>
+<td>스코프 축</td>
+<td>어떤 데이터가 어느 스코프 키로 격리되는지의 분류입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="표면과-인증"><a data-reference-title="용어" href="start--terminology.html#표면과-인증">표면과 인증</a></h2>
+<p>표면마다 인증이 확정하는 것이 다릅니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>용어</th>
+<th>무엇인지</th>
+<th>정의 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>표면</td>
+<td>계약 소유자와 인증 방식이 하나로 정해지는 API 경로 묶음입니다</td>
+<td><a data-reference-title="표면과 인증" href="start--authentication.html">표면과 인증</a></td>
+</tr>
+<tr>
+<td>API 키</td>
+<td>파트너사가 파트너 대상 API를 부를 때 제시하는 인증 수단입니다</td>
+<td><a data-reference-title="표면과 인증" href="start--authentication.html">표면과 인증</a></td>
+</tr>
+<tr>
+<td>어드민 세션</td>
+<td>로그인과 2단계 인증을 지나 받는 불투명 크리덴셜입니다</td>
+<td><a data-reference-title="표면과 인증" href="start--authentication.html">표면과 인증</a></td>
+</tr>
+<tr>
+<td>AdminUser</td>
+<td>운영자 표면을 부르는 사람 주체입니다. API 키와 달리 사람을 식별합니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>Policy Server</td>
+<td>승인·정책 평가와 어드민 역할을 소유하는 별도 시스템입니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>소속 스코프</td>
+<td>어드민 계정이 속한 스코프 하나입니다. <code>platform</code> 또는 <code>workspace:{id}</code>이고, 계정의 모든 부여는 소속과 같아야 합니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>문</td>
+<td>어드민 표면의 진입 경로 둘입니다. platform 문은 <code>/platform/**</code> 아래 표면이고 워크스페이스 문은 접두 없는 표면입니다. 세션의 소속과 어긋나면 거부합니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>릴레이</td>
+<td>WalletAdmin이 콘솔에서 받은 어드민 세션 자격을 저장하지 않고 그대로 Policy Server에 실어 보내는 것입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>introspection</td>
+<td>자격을 받은 쪽이 발급자에게 그 세션의 주체·소속·부여를 묻는 것입니다. 발급자가 답하지 않으면 그 표면은 닫힙니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>스텝업</td>
+<td>어드민 세션 위에 행위 단위로 본인을 다시 증명하는 절차입니다. 챌린지와 TOTP로 이뤄지고 권한은 전후로 같습니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="자산과-지갑"><a data-reference-title="용어" href="start--terminology.html#자산과-지갑">자산과 지갑</a></h2>
+<p>자산은 어느 네트워크의 어느 토큰인지로 구분하고 Vault와 Wallet에 담깁니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>용어</th>
+<th>무엇인지</th>
+<th>정의 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vault</td>
+<td>Wallet의 그룹입니다</td>
+<td><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html">지갑 계층</a></td>
+</tr>
+<tr>
+<td>Wallet</td>
+<td>토큰 하나를 담습니다. 온체인 주소가 여기 붙습니다</td>
+<td><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html">지갑 계층</a></td>
+</tr>
+<tr>
+<td>WorkspaceVault · WorkspaceWallet</td>
+<td>Workspace에 귀속된 vault와 토큰별 지갑입니다</td>
+<td><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html">지갑 계층</a></td>
+</tr>
+<tr>
+<td>AccountVault · AccountWallet</td>
+<td>Account에 귀속된 vault와 토큰별 수취 지갑입니다</td>
+<td><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html">지갑 계층</a></td>
+</tr>
+<tr>
+<td>vault 태그</td>
+<td>파트너사가 vault 용도를 정의하는 값입니다. 앱은 해석하지 않습니다</td>
+<td><a data-reference-title="지갑 계층" href="accounts-wallets--wallets.html">지갑 계층</a></td>
+</tr>
+<tr>
+<td>Network</td>
+<td>블록체인 네트워크입니다. 계열에 따라 주소 체계가 갈립니다</td>
+<td><a data-reference-title="카탈로그" href="accounts-wallets--catalog.html">카탈로그</a></td>
+</tr>
+<tr>
+<td>Token</td>
+<td>Network 위의 자산입니다. Wallet이 담는 단위입니다</td>
+<td><a data-reference-title="카탈로그" href="accounts-wallets--catalog.html">카탈로그</a></td>
+</tr>
+<tr>
+<td>회사 외부 지갑</td>
+<td>Workspace가 소유하나 이 시스템 밖에 있는 지갑입니다</td>
+<td><a data-reference-title="이동 종류" href="fund-flows--movements.html">이동 종류</a></td>
+</tr>
+<tr>
+<td>주소록</td>
+<td>주소에 등재 근거를 붙이는 장부입니다. 계정 주소록과 워크스페이스 주소록으로 갈립니다</td>
+<td><a data-reference-title="주소록 (Address Book · Whitelist)" href="fund-flows--address-book.html">주소록</a></td>
+</tr>
+<tr>
+<td>화이트리스트</td>
+<td>출금 통제에서 부르는 주소록의 다른 이름입니다. 등재 여부는 정책 입력이지 거절 사유가 아닙니다</td>
+<td><a data-reference-title="주소록 (Address Book · Whitelist)" href="fund-flows--address-book.html">주소록</a></td>
+</tr>
+<tr>
+<td>소유 증명</td>
+<td>개인 지갑을 주소록에 올리기 전에 최종 사용자가 그 키로 서명해 보이는 절차입니다</td>
+<td><a data-reference-title="주소록 (Address Book · Whitelist)" href="fund-flows--address-book.html">주소록</a></td>
+</tr>
+<tr>
+<td>소유 증명 챌린지</td>
+<td>등록 직전에 서버가 발급하는 일회용 서명 대상입니다</td>
+<td><a data-reference-title="주소록 (Address Book · Whitelist)" href="fund-flows--address-book.html">주소록</a></td>
+</tr>
+<tr>
+<td>Vault 소유 해석</td>
+<td>vault 식별자 하나로 소유 workspace와 tenant를 확정하는 조회입니다</td>
+<td><a data-reference-title="PIP" href="policy--runtime--pip.html">PIP</a></td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="자금-이동"><a data-reference-title="용어" href="start--terminology.html#자금-이동">자금 이동</a></h2>
+<p>자금 이동은 일곱 가지뿐입니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>용어</th>
+<th>무엇인지</th>
+<th>정의 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>동결</td>
+<td>입금을 확정 시 fail-closed로 잡아 두는 상태입니다</td>
+<td><a data-reference-title="자금 동결" href="fund-flows--release.html">자금 동결</a></td>
+</tr>
+<tr>
+<td>해제</td>
+<td>동결을 푸는 것입니다. 언제나 명시적 요청입니다</td>
+<td><a data-reference-title="자금 동결" href="fund-flows--release.html">자금 동결</a></td>
+</tr>
+<tr>
+<td>입금 갱신 통지 (<code>DEPOSIT_UPDATED</code>)</td>
+<td>확정 뒤에 트래블룰 매핑이나 KYT 결과가 붙을 때마다 그 순간까지의 정보를 전부 실어 보내는 통지입니다</td>
+<td><a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a></td>
+</tr>
+<tr>
+<td>사전 확인 · 사후 확인</td>
+<td>동결 해제 판단 재료를 온체인 확정 이전에 얻는 것(트래블룰·주소록)과 이후에 얻는 것(AML·FDS·KYT)으로 나눈 구분입니다</td>
+<td><a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a></td>
+</tr>
+<tr>
+<td>가용 잔액</td>
+<td>온체인 잔액에서 동결분과 진행 중 출금 예약분을 뺀 값입니다</td>
+<td><a data-reference-title="출금 (Withdrawal)" href="fund-flows--withdrawal.html">출금</a></td>
+</tr>
+<tr>
+<td>자금 귀속</td>
+<td>그 자금이 Account 것인지 Workspace 것인지입니다. 무엇이 격리되는지를 정합니다</td>
+<td><a data-reference-title="이동 종류" href="fund-flows--movements.html">이동 종류</a></td>
+</tr>
+<tr>
+<td>계정 지갑 입금 (<code>awd-</code>)</td>
+<td>VASP·개인 지갑에서 계정 지갑으로 들어온 자금입니다. 거부할 수 없고 확정되면 동결로 받습니다</td>
+<td><a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a></td>
+</tr>
+<tr>
+<td>워크스페이스 지갑 입금 (<code>wwd-</code>)</td>
+<td>회사 외부 지갑에서 워크스페이스 vault로 들어온 자금입니다. 거부할 수 없고 확정되면 동결로 받습니다. 해제는 운영자의 독립 요청입니다</td>
+<td><a data-reference-title="이동 종류" href="fund-flows--movements.html">이동 종류</a> · <a data-reference-title="자금 동결" href="fund-flows--release.html">자금 동결</a></td>
+</tr>
+<tr>
+<td>집금 (<code>swp-</code>)</td>
+<td>계정 지갑 자산을 워크스페이스 vault로 모으는 이동입니다</td>
+<td><a data-reference-title="집금 (Sweep)" href="fund-flows--sweep.html">집금</a></td>
+</tr>
+<tr>
+<td>Vault 이체 (<code>wvt-</code>)</td>
+<td>워크스페이스 vault 사이의 이동입니다</td>
+<td><a data-reference-title="Vault 이체 (Vault Transfer)" href="fund-flows--vault-transfer.html">Vault 이체</a></td>
+</tr>
+<tr>
+<td>계정 귀속 출금 (<code>wwac-</code>)</td>
+<td>워크스페이스 vault에서 나가는 최종 사용자 귀속 출금입니다</td>
+<td><a data-reference-title="출금 (Withdrawal)" href="fund-flows--withdrawal.html">출금</a></td>
+</tr>
+<tr>
+<td>자기 귀속 출금 (<code>wwsf-</code>)</td>
+<td>회사 외부 지갑으로 나가는 회사 자기 자금 출금입니다</td>
+<td><a data-reference-title="출금 (Withdrawal)" href="fund-flows--withdrawal.html">출금</a></td>
+</tr>
+<tr>
+<td>계정 지갑 출금 (<code>aww-</code>)</td>
+<td>계정 지갑에서 직접 나가는 이동입니다. 알려진 용도는 오입금 반환입니다</td>
+<td><a data-reference-title="출금 (Withdrawal)" href="fund-flows--withdrawal.html">출금</a></td>
+</tr>
+<tr>
+<td>통지</td>
+<td>온체인 이벤트를 파트너사에 보내는 아웃바운드 호출입니다. 웹훅에 실리는 내용물입니다</td>
+<td><a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html">웹훅</a></td>
+</tr>
+<tr>
+<td>웹훅</td>
+<td>통지를 나르는 채널입니다 — 파트너사가 등록한 URL로의 HTTP 호출입니다</td>
+<td><a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html">웹훅</a></td>
+</tr>
+<tr>
+<td>대사</td>
+<td>기록과 뒷단 플랫폼의 사실이 어긋난 것을 바로잡는 2차 방어입니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>트래블룰</td>
+<td>가상자산 이전 시 송·수신 정보를 사업자끼리 교환하는 규제 의무입니다</td>
+<td><a data-reference-title="Wallet SDK" href="overview.html#%ED%95%A8%EA%BB%98-%EC%A0%9C%EA%B3%B5%ED%95%98%EB%8A%94-%EB%AA%A8%EB%93%88">에코시스템</a></td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="정책-엔진의-역할"><a data-reference-title="용어" href="start--terminology.html#정책-엔진의-역할">정책 엔진의 역할</a></h2>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>용어</th>
+<th>무엇인지</th>
+<th>정의 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>정책 엔진</td>
+<td>자금을 움직이는 요청이 서명 인프라로 가기 전에 그 요청을 심사하는 별도 시스템입니다. 특정 컴포넌트가 아니라 아래 역할 전체를 가리킵니다</td>
+<td><a data-reference-title="구조" href="policy--architecture.html">구조</a></td>
+</tr>
+<tr>
+<td>Orchestrator</td>
+<td>판단 요청을 접수하고 입력 문서를 조립하고 PIP 수집과 obligation 루프를 조율하는 정책 엔진의 앞단입니다. 판정 자체는 하지 않습니다</td>
+<td><a data-reference-title="구조" href="policy--architecture.html">구조</a></td>
+</tr>
+<tr>
+<td>평가기(PDP)</td>
+<td>완성된 입력 문서를 평가해 결정을 내는 역할입니다. 밖을 부르지 않습니다</td>
+<td><a data-reference-title="구조" href="policy--architecture.html">구조</a></td>
+</tr>
+<tr>
+<td>PIP</td>
+<td>판단에 필요한 사실을 평가 시점에 읽어 오는 수집 경로입니다. Orchestrator 안의 어댑터 계층입니다</td>
+<td><a data-reference-title="PIP" href="policy--runtime--pip.html">PIP</a></td>
+</tr>
+<tr>
+<td>PAP</td>
+<td>룰을 저작·검증·발행하는 경로 전체를 부르는 이름입니다</td>
+<td><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">저작과 발행</a></td>
+</tr>
+<tr>
+<td>PEP</td>
+<td>서명 인프라 콜백을 받아 인가 대조를 Orchestrator에 넘기는 지점입니다</td>
+<td><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a></td>
+</tr>
+<tr>
+<td>Co-Signer</td>
+<td>서명 인프라 쪽에서 서명 직전에 정책 엔진 콜백으로 승인을 묻는 구성 요소입니다</td>
+<td><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a></td>
+</tr>
+<tr>
+<td>Wallet 서버</td>
+<td>파트너 대상 API를 받아 정책 엔진에 판단을 묻고 서명 인프라에 제출하는 Wallet SDK의 서버 컴포넌트입니다</td>
+<td><a data-reference-title="구조" href="policy--architecture.html">구조</a></td>
+</tr>
+<tr>
+<td>서명 인프라</td>
+<td>키를 보관하고 트랜잭션에 서명하는 뒷단 플랫폼의 서명 부분입니다. Wallet SDK 단독으로는 서명이 성립하지 않습니다</td>
+<td><a data-reference-title="시작하기" href="start.html">시작하기</a></td>
+</tr>
+<tr>
+<td>입력 문서</td>
+<td>Orchestrator가 요청·환경·PIP 결과를 모아 평가기에 넘기는 완성된 평가 입력입니다</td>
+<td><a data-reference-title="평가의 순간" href="policy--runtime--evaluation.html">평가의 순간</a></td>
+</tr>
+<tr>
+<td>결과 스냅샷</td>
+<td>PIP가 돌려준 값을 참조 id·수집 시각·출처와 함께 고정한 기록입니다. PII를 담지 않습니다</td>
+<td><a data-reference-title="PIP" href="policy--runtime--pip.html">PIP</a></td>
+</tr>
+<tr>
+<td>서명 연산</td>
+<td>정책 엔진이 심사하는 첫 영역입니다. <code>withdrawal</code>·<code>custody_transfer</code>·<code>sweep</code>·<code>contract_call</code>·<code>typed_signature</code> 다섯 연산의 허가 요청입니다</td>
+<td><a data-reference-title="룰 명세" href="policy--rule--reference.html">룰 명세</a></td>
+</tr>
+<tr>
+<td>어드민 액션</td>
+<td><code>operation</code>이 <code>admin_action</code>인 요청입니다. 개별 액션은 <code>payload.action</code>으로 가르고, 워크스페이스 스코프 액션은 액션 카탈로그의 <code>domain</code>이 <code>"2"</code>입니다</td>
+<td><a data-reference-title="룰 명세" href="policy--rule--reference.html">룰 명세</a></td>
+</tr>
+<tr>
+<td>정책 변경 액션</td>
+<td>플랫폼 스코프의 어드민 액션입니다. 로직 번들의 룰 모듈과 카탈로그를 바꾸는 액션이고, 액션 카탈로그의 <code>domain</code>이 <code>"3"</code>인 항목입니다</td>
+<td><a data-reference-title="룰 명세" href="policy--rule--reference.html">룰 명세</a></td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="시스템-밖의-배역"><a data-reference-title="용어" href="start--terminology.html#시스템-밖의-배역">시스템 밖의 배역</a></h2>
+<p>시퀀스 다이어그램에 등장하는 Wallet SDK 밖의 주체와 저장소입니다. 배역 리스트가 이 표를 복사합니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>용어</th>
+<th>무엇인지</th>
+<th>정의 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>최종 사용자</td>
+<td>파트너사 서비스를 쓰는 사람입니다. Wallet SDK 안에서는 Account가 대리합니다</td>
+<td><a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a></td>
+</tr>
+<tr>
+<td>상대 거래소(VASP)</td>
+<td>최종 사용자가 자산을 보내거나 받는 상대편 가상자산사업자입니다</td>
+<td><a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a></td>
+</tr>
+<tr>
+<td>뒷단 플랫폼</td>
+<td>키 보관·서명과 온체인 관측을 맡는 외부 지갑 인프라입니다. Wallet SDK가 그 위에 구축됩니다</td>
+<td><a data-reference-title="시작하기" href="start.html">시작하기</a></td>
+</tr>
+<tr>
+<td>온체인</td>
+<td>블록체인 네트워크 위에서 일어나는 전송과 상태입니다. 온체인 전송은 되돌릴 수 없습니다</td>
+<td><a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a></td>
+</tr>
+<tr>
+<td>지갑 원장</td>
+<td>Wallet SDK가 계정·지갑·이동 기록을 저장하는 자기 DB입니다. 파트너사 원장과는 다릅니다</td>
+<td><a data-reference-title="도메인 모델" href="accounts-wallets--domain-model.html">도메인 모델</a></td>
+</tr>
+<tr>
+<td>트래블룰 게이트웨이</td>
+<td>트래블룰 정보를 상대 거래소와 교환하는 중계 시스템입니다</td>
+<td><a data-reference-title="입금 (Deposit)" href="fund-flows--deposit.html">입금</a></td>
+</tr>
+<tr>
+<td>이벤트 스트림</td>
+<td>정책 엔진이 판단 완료·거부 결과를 내보내고 Wallet 서버가 구독하는 비동기 채널입니다</td>
+<td><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a></td>
+</tr>
+<tr>
+<td>인가 저장소</td>
+<td>발급된 단회성 인가를 보관하고 소비를 기록하는 저장소입니다</td>
+<td><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a></td>
+</tr>
+<tr>
+<td>승인 게이팅</td>
+<td>어드민 액션이 승인자의 확인을 거쳐야 실행되는 통제입니다</td>
+<td><a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a></td>
+</tr>
+<tr>
+<td>활성 revision</td>
+<td>활성 포인터가 가리키는 번들 개정판입니다. 지금 서빙되는 것입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>TSID</td>
+<td>시간순으로 정렬되는 64비트 식별자입니다. 접두사를 붙여 종류를 드러냅니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>드리프트</td>
+<td>설계와 구현이 어긋난 자리를 기록한 항목입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="판단의-단계"><a data-reference-title="용어" href="start--terminology.html#판단의-단계">판단의 단계</a></h2>
+<p>판단은 요청·평가·인가를 거칩니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>용어</th>
+<th>무엇인지</th>
+<th>정의 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>업무 요청</td>
+<td>소유 서비스가 자기 도메인에서 만든 요청입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>판단 요청</td>
+<td>한 업무 요청을 두고 엔진이 소유하는 판단 기록입니다</td>
+<td><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a></td>
+</tr>
+<tr>
+<td>결정</td>
+<td>커널이 내는 네 종류의 종결입니다 — <code>allow</code>·<code>deny</code>·<code>pending</code>·<code>need_more_data</code></td>
+<td><a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a></td>
+</tr>
+<tr>
+<td><code>effect</code></td>
+<td>룰이 적을 수 있는 두 값입니다 — <code>allow</code>·<code>deny</code></td>
+<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+</tr>
+<tr>
+<td>obligation</td>
+<td>통과로 확정되기 전에 이행해야 하는 조건입니다</td>
+<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+</tr>
+<tr>
+<td>정족수</td>
+<td>승인이 성립하는 데 필요한 최소 승인자 수입니다</td>
+<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+</tr>
+<tr>
+<td>평가 라운드</td>
+<td>한 판단 요청 안에서 평가가 몇 번째로 실행됐는지입니다</td>
+<td><a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a></td>
+</tr>
+<tr>
+<td>커널</td>
+<td>조건 트리를 평가하고 결정을 결합하는 정책 무관 고정 부분입니다</td>
+<td><a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a></td>
+</tr>
+<tr>
+<td>룰</td>
+<td><code>scope</code>와 조건을 갖고 <code>allow</code>·<code>deny</code>를 내는 단위입니다</td>
+<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+</tr>
+<tr>
+<td>값 이동</td>
+<td>출금·vault 이체·집금처럼 자산을 실제로 움직이는 연산 셋입니다</td>
+<td><a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a></td>
+</tr>
+<tr>
+<td>룰 모듈</td>
+<td>관심사 단위의 평가 경계입니다. 폴더가 아닙니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>슬롯</td>
+<td>카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다</td>
+<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+</tr>
+<tr>
+<td>조건 트리</td>
+<td><code>all</code>·<code>any</code>·<code>not</code>과 비교·멤버십 리프로 이루어진 룰의 조건식입니다</td>
+<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+</tr>
+<tr>
+<td>PIP 소스</td>
+<td>룰이 참조하는 외부 사실의 출처입니다</td>
+<td><a data-reference-title="PIP" href="policy--runtime--pip.html">PIP</a></td>
+</tr>
+<tr>
+<td>단회성 인가</td>
+<td>승인된 판단 요청이 발급하는 한 번만 쓸 수 있는 서명 근거입니다</td>
+<td><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a></td>
+</tr>
+<tr>
+<td><code>signingAuthorizationId</code></td>
+<td>그 인가를 가리키는 식별자입니다. 지갑이 뒷단 플랫폼 제출의 외부 참조 id로 싣습니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>인가 TTL</td>
+<td>발급된 인가가 유효한 시간입니다. 인가에 붙는 값이지 식별자에 붙는 값이 아닙니다</td>
+<td><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a></td>
+</tr>
+<tr>
+<td>승인 스탬프</td>
+<td>승인할 때 정해져 소비 시점에 적용되는 유효값입니다 — 인가 TTL과 건당 자원 상한</td>
+<td><a data-reference-title="정규화" href="policy--runtime--normalization.html">정규화</a></td>
+</tr>
+<tr>
+<td>canonical intent</td>
+<td>판단과 서명 대조의 기준이 되는 엔진 정규 표현입니다</td>
+<td><a data-reference-title="정규화" href="policy--runtime--normalization.html">정규화</a></td>
+</tr>
+<tr>
+<td>결정 전문</td>
+<td>조회가 돌려주는 판단의 내용입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>서명 권한 바인딩 값</td>
+<td>콜백 서명 주체가 인가된 주체인지 대조하는 값입니다. 출발 온체인 주소와 provider vault 식별자입니다</td>
+<td><a data-reference-title="정규화" href="policy--runtime--normalization.html">정규화</a></td>
+</tr>
+<tr>
+<td>TAP</td>
+<td>뒷단 플랫폼이 트랜잭션을 인가할 때 적용하는 정책입니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>백스톱 상한</td>
+<td>TAP에 설정하는 건당·일일 총액 상한입니다. 정책 엔진이 장애일 때도 따로 동작하는 방어선입니다</td>
+<td>미승격</td>
+</tr>
+</tbody>
+</table></div></div>
+<p><strong><code>signingAuthorizationId</code>와 인가 TTL은 붙어 다녀 헷갈립니다.</strong> 수명은 인가에 붙고 식별자는
+그것을 가리킬 뿐이라, 지갑 쪽에서 그 값은 외부 참조 id로만 쓰입니다.</p>
+<h2 id="정책-산출물"><a data-reference-title="용어" href="start--terminology.html#정책-산출물">정책 산출물</a></h2>
+<p>정책 산출물은 두 계열로 갈립니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>용어</th>
+<th>무엇인지</th>
+<th>정의 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>저작 세트</td>
+<td>룰 모듈과 카탈로그·레지스트리 파일이 놓이는 묶음입니다</td>
+<td><a data-reference-title="구조" href="policy--architecture.html">구조</a></td>
+</tr>
+<tr>
+<td>채점</td>
+<td>컴파일된 룰이 의도대로 판정하는지 테스트 벡터로 재는 검사입니다</td>
+<td><a data-reference-title="구조" href="policy--architecture.html">구조</a></td>
+</tr>
+<tr>
+<td>정책 로직 번들</td>
+<td>룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>워크스페이스 번들</td>
+<td>한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>maker-checker</td>
+<td>제안자와 승인자를 갈라 두는 정책 변경 거버넌스입니다</td>
+<td><a data-reference-title="정책" href="policy.html">정책 엔진</a></td>
+</tr>
+<tr>
+<td>시드 정책</td>
+<td>워크스페이스 등록이 심는 첫 번들입니다. 저작의 출발점이지 결과가 아닙니다</td>
+<td><a data-reference-title="온보딩" href="accounts-wallets--onboarding.html">개통</a></td>
+</tr>
+<tr>
+<td>활성 포인터</td>
+<td>지금 무엇이 서빙되는지를 정하는 단일 기록입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>결정 기록</td>
+<td>결정을 주체·행위·대상·시각·결과와 함께 남기는 추가 전용 해시 체인입니다</td>
+<td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>어드민 액션</td>
+<td>어드민 권한과 정책 자체를 바꾸는 연산들입니다</td>
+<td><a data-reference-title="룰 명세" href="policy--rule--reference.html">룰 명세</a></td>
+</tr>
+<tr>
+<td>escalation surface</td>
+<td>어드민 액션 중 권한을 올리는 성격의 것들입니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>발행 가능 어드민</td>
+<td>활성 신원·활성 2팩터 자격증명·발행 역할 셋을 갖춘 사람입니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>어드민 초대</td>
+<td>어드민이 자기 세션으로 다른 어드민 계정과 등록 토큰을 만드는 행위입니다</td>
+<td><a data-reference-title="온보딩" href="accounts-wallets--onboarding.html">개통</a></td>
+</tr>
+<tr>
+<td>발행 자격 부여</td>
+<td>워크스페이스 매니저가 자기가 갖지 않은 발행 역할을 주는 것입니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>부트스트랩 root</td>
+<td>빈 환경에서 어드민 계정을 만들기 위해서만 성립하는 일회성 자격입니다</td>
+<td>미승격</td>
+</tr>
+<tr>
+<td>2팩터 소유 증명</td>
+<td>서버가 낸 TOTP 시드를 그 시드로 만든 코드로 보이는 것입니다</td>
+<td><a data-reference-title="온보딩" href="accounts-wallets--onboarding.html">개통</a></td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="쓰지-않는-이름"><a data-reference-title="용어" href="start--terminology.html#쓰지-않는-이름">쓰지 않는 이름</a></h2>
+<p>같은 것을 두 이름으로 부르지 않습니다. 아래 왼쪽은 쓰지 않습니다. 이름이 바뀐 것도 있고 개념
+자체가 폐기된 것도 있습니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>쓰지 않는 표현</th>
+<th>대신</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Asset을 카탈로그 3층으로</td>
+<td>Token과 <code>symbol</code></td>
+<td><code>D19</code>·<code>D-219</code> — 별도 엔티티를 두지 않습니다</td>
+</tr>
+<tr>
+<td>Omnibus Wallet · Deposit Wallet</td>
+<td>WorkspaceVault · AccountVault</td>
+<td><code>D43</code> — 용도를 앱이 정의하지 않습니다. 다만 우리말 “집금 지갑”은 제품 쪽에서 씁니다 — 바로 아래 절</td>
+</tr>
+<tr>
+<td>CustodyVault · CustodyWallet · DepositVault · DepositWallet</td>
+<td>WorkspaceVault · WorkspaceWallet · AccountVault · AccountWallet</td>
+<td><code>D43</code>·<code>D48</code> — 자금 귀속을 이름에 드러냅니다</td>
+</tr>
+<tr>
+<td>Withdrawal 한 종류</td>
+<td>계정 귀속 출금 · 자기 귀속 출금 · 계정 지갑 출금</td>
+<td><code>D48</code>·<code>D49</code> — 귀속이 다르면 격리 기준이 갈립니다</td>
+</tr>
+<tr>
+<td><code>asset.id</code> · vault×asset 좌표</td>
+<td>토큰 식별자 · vault×token 좌표</td>
+<td><code>D-219</code> — 체인 무관 자산 키를 채울 기준 문서가 없습니다</td>
+</tr>
+<tr>
+<td>정책 번들 · 로직 번들 · 중앙 서명 번들</td>
+<td>정책 로직 번들</td>
+<td>용어 통일</td>
+</tr>
+<tr>
+<td>파라미터 번들 · 워크스페이스 파라미터 번들</td>
+<td>워크스페이스 번들</td>
+<td><code>D-57</code> — 룰 선언까지 담게 되어 이름이 내용을 못 따라갔습니다. “파라미터 슬롯”은 그대로 씁니다</td>
+</tr>
+<tr>
+<td>번들 서명자</td>
+<td>(없습니다)</td>
+<td><code>D-95</code> — 별도 배포 단위와 번들 서명 개념이 함께 사라졌습니다</td>
+</tr>
+<tr>
+<td>“Policy Engine”을 평가 컴포넌트 뜻으로</td>
+<td>평가기(PDP)</td>
+<td>시스템 전체 이름과 컴포넌트 이름을 갈라 씁니다</td>
+</tr>
+<tr>
+<td>룰 모듈을 Policy · PolicySet으로</td>
+<td>룰 모듈</td>
+<td>표기 통일</td>
+</tr>
+<tr>
+<td>Advice</td>
+<td>obligation</td>
+<td>도입하지 않습니다</td>
+</tr>
+<tr>
+<td>슬롯 cap · 고정 슬롯</td>
+<td>하한(floor)만</td>
+<td><code>D-64</code> — 상한은 커널 상수이고, 조정 불허 값은 룰에 직접 씁니다</td>
+</tr>
+<tr>
+<td>degraded 모드 · fail-open · PIP class 구분</td>
+<td>(없습니다)</td>
+<td><code>D-70</code> — 모든 소스 장애는 fail-closed입니다</td>
+</tr>
+<tr>
+<td><code>wallet_ownership</code></td>
+<td><code>vault_ownership</code></td>
+<td><code>D-49</code>·<code>D-50</code></td>
+</tr>
+<tr>
+<td>내부 목적지의 온체인 주소</td>
+<td>목적지 vault 식별자</td>
+<td><code>D-49</code>·<code>D-50</code> — 주소는 엔진이 해석합니다</td>
+</tr>
+<tr>
+<td><code>requestId</code> 단독</td>
+<td>업무 요청 식별자 · 판단 요청 식별자 · 서명 인가 식별자 중 명시</td>
+<td>셋은 수명이 다릅니다</td>
+</tr>
+<tr>
+<td><code>referenceId</code>류를 접수 중복 거부 키로</td>
+<td>업무 요청 식별자</td>
+<td><code>D-49</code>·<code>D-78</code></td>
+</tr>
+<tr>
+<td><code>seq</code> 단독</td>
+<td>발행 순번 · 평가 라운드 중 명시</td>
+<td><code>D-77</code> — 둘은 대응하지 않습니다</td>
+</tr>
+<tr>
+<td>비동기 PIP를 “webhook”이라 부르기</td>
+<td>아웃바운드 트리거 뒤 인증된 인바운드 제출</td>
+<td>이 문서군에서 통지는 아웃바운드 한 방향입니다</td>
+</tr>
+<tr>
+<td>맨 “요청”</td>
+<td>업무 요청 · 판단 요청 중 명시</td>
+<td>식별자가 다릅니다</td>
+</tr>
+<tr>
+<td>맨 “번들”</td>
+<td>정책 로직 번들 · 워크스페이스 번들 중 명시</td>
+<td>발행 경로·거버넌스·수명이 다릅니다</td>
+</tr>
+<tr>
+<td>“거부”로 <code>pending</code>·<code>need_more_data</code>를 가리키기</td>
+<td>거부는 <code>deny</code>만</td>
+<td>둘은 거부도 통과도 아닙니다</td>
+</tr>
+<tr>
+<td>“활성”을 버전 체인의 최신으로</td>
+<td>활성 포인터가 가리키는 것</td>
+<td>해석으로 만들면 되돌리기를 표현할 수 없습니다</td>
+</tr>
+<tr>
+<td>“해시” 단독</td>
+<td>payload 해시 · 수신 바디 해시 중 명시</td>
+<td>대상이 다릅니다</td>
+</tr>
+<tr>
+<td>정책 문맥의 계열 단독</td>
+<td>룰이 참조하는 경로 <code>chain.family</code> (카탈로그 응답에서는 <code>protocol</code>)</td>
+<td>정책 번들 revision 계열과 겹칩니다. 카탈로그 서술의 「계열」은 네트워크 주소 체계를 뜻합니다</td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="제품의-말과-도메인의-말"><a data-reference-title="용어" href="start--terminology.html#제품의-말과-도메인의-말">제품의 말과 도메인의 말</a></h2>
+<p>제품에서 쓰는 말을 도메인에서 그대로 쓰지 않습니다. 같은 대상을 <a data-reference-title="Wallet SDK" href="overview.html">홈</a>과 <a data-reference-title="계정과 지갑" href="accounts-wallets.html">계정과
+지갑</a>이 다른 말로 부릅니다. 앞은 Wallet SDK가 시장에서 무엇을 대상으로 하는지를
+말하고, 뒤는 시스템이 무엇을 강제하는지를 말하기 때문입니다.</p>
+<h3 id="집금-지갑"><a data-reference-title="용어" href="start--terminology.html#집금-지갑">집금 지갑</a></h3>
+<p>집금 지갑은 제품에서 쓰는 말입니다. <a data-reference-title="Wallet SDK" href="overview.html">홈</a>이 “규제 준수형 집금 지갑”을 포지셔닝 어휘로 씁니다.
+개별 지갑(segregated wallet)·내장형 지갑(embedded wallet)과 대비되는 시장 범주입니다. Wallet
+SDK가 어느 쪽을 대상으로 하는지가 그 대비에서 나옵니다.</p>
+<p>도메인에서는 쓰지 않습니다. 도메인 이름은 <code>WorkspaceVault</code>·<code>WorkspaceWallet</code>과
+<code>AccountVault</code>·<code>AccountWallet</code>이고, <code>Omnibus Wallet</code>·<code>Deposit Wallet</code>은 쓰지 않습니다.</p>
+<p>가르는 근거는 <code>D43</code>입니다. 지갑의 용도를 시스템이 정의하지 않기로 정했습니다. 고객이 태그로
+정하고 앱은 그 태그를 해석하지 않습니다. 용도를 이름에 박으면 그 결정이 그 자리에서 깨집니다.
+집금이 아닌 용도로 쓰는 vault를 <code>Omnibus Wallet</code>이라 부를 수 없기 때문입니다.</p>
+<p><strong>그래서 둘이 부딪히지 않습니다.</strong> 제품의 “집금 지갑”은 파트너사 대다수가 그렇게 쓴다는
+시장 사실입니다. 도메인이 그 말을 쓰지 않는 것은 시스템이 그 용도를 강제하지 않는다는 설계 사실입니다.</p>
+<h3 id="주소와-발급-단위"><a data-reference-title="용어" href="start--terminology.html#주소와-발급-단위">주소와 발급 단위</a></h3>
+<p>주소는 발급 단위가 아니라 속성입니다. 제품에서는 주소를 발급 단위로 말합니다. <a data-reference-title="Wallet SDK" href="overview.html">홈</a>이
+“사용자별 입금 주소를 발급한다”고 씁니다. 파트너사가 사는 것이 그 주소이기 때문입니다.</p>
+<p><strong>도메인에서 발급 단위는 <code>AccountWallet</code>이고 주소는 거기 붙는 값입니다.</strong> 주소가 바뀌어도 그
+행은 남고, 그래서 재발급이 사용자와의 연결을 끊지 않습니다. 주소를 발급 단위로 두면 이 성질을
+말할 자리가 없습니다.</p>
+<h2 id="설계-문서와의-어휘-대조"><a data-reference-title="용어" href="start--terminology.html#설계-문서와의-어휘-대조">설계 문서와의 어휘 대조</a></h2>
+<p>설계 문서와 이 사이트는 어휘가 갈립니다. 읽는 사람이 다르기 때문입니다. 저장소의 설계 문서는
+내부 컴포넌트 이름을 그대로 쓰고, 이 사이트는 대외 어휘로 바꿉니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>설계 문서</th>
+<th>이 사이트</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sweep</td>
+<td>집금</td>
+</tr>
+<tr>
+<td>제휴사</td>
+<td>파트너사</td>
+</tr>
+<tr>
+<td>custody provider</td>
+<td>뒷단 플랫폼</td>
+</tr>
+<tr>
+<td>Admin User</td>
+<td>운영자</td>
+</tr>
+<tr>
+<td>회사외부지갑</td>
+<td>회사 외부 지갑</td>
+</tr>
+<tr>
+<td>이동 type</td>
+<td>이동 종류</td>
+</tr>
+<tr>
+<td>WalletAccount</td>
+<td>Account</td>
+</tr>
+<tr>
+<td>WorkspaceVaultTransfer</td>
+<td>Vault 이체</td>
+</tr>
+<tr>
+<td>결정 로그</td>
+<td>결정 기록</td>
+</tr>
+</tbody>
+</table></div></div>
+<p><strong>흐름 자체는 바꾸지 않습니다.</strong> 이름만 갈아 끼우고 판정·순서·조건은 설계 문서 그대로 옮깁니다.</p>
+<h2 id="이름공간과-표기-규칙"><a data-reference-title="용어" href="start--terminology.html#이름공간과-표기-규칙">이름공간과 표기 규칙</a></h2>
+<p>이름공간은 둘이고 경계에서 이름이 바뀝니다. API 표면은 camelCase를 쓰고, 엔진 내부 정규 표현의
+경로는 snake_case를 씁니다. 두 이름공간의 매핑은 케이스 변환 규칙이 아니라 연산별 명시 선언이고,
+정규화기가 그것을 소유합니다(<code>D-52</code>).</p>
+<p>enum 값의 기준 문서는 TypeSpec입니다. 문서에는 값 목록을 복사하지 않고 원칙만 둡니다. 값 자체는
+<a data-reference-title="API 레퍼런스" href="reference.html">API 레퍼런스</a>에 있습니다.</p>
+<p>판단 입력의 최상위는 룰이 참조하는 값과 <code>_engine</code> 예약 키로 나뉩니다(<code>D-71</code>). <code>_engine</code>은
+커널 전용이라 룰이 참조할 수 없고, 카탈로그 필드와 PIP 소스명은 <code>_</code>로 시작할 수 없습니다.
+컴파일이 이것을 검사합니다.</p>
+<p>표시명과 안정 식별자를 구분합니다. 사람이 읽는 이름을 시스템의 신뢰 근거로 올리지 않고, 인증된
+caller 신원과 매핑되는 안정 식별자를 씁니다.</p>
+<p>식별자는 경계에서 불투명 문자열입니다(<code>D-105</code>). 접두사가 붙어 있어도 소비자는 그 포맷에
+의존하지 않습니다.</p>
+<p><strong>룰 식별자는 불변이고 은퇴한 것도 재사용하지 않습니다.</strong> 재사용하면 과거 결정 기록이 어느 룰을
+가리키는지 판정할 수 없게 됩니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>
