@@ -16,7 +16,8 @@
 - 개발 검증: [테스트 전략](testing.md), [현재 도구와 관리 규칙](tooling.md).
 - 벤더 동작 확인: [실측·PoC 목록](design/README.md#실측과-채택-근거).
 - 외부 서비스 경계: [컴플라이언스·Co-signer](design/README.md#외부-시스템-맥락).
-- 외부 Wallet SDK: [개발 가이드](wallet-sdk/index.html) · [공유용 ZIP](wallet-sdk.zip). 2026-09-10 공개 문서를 정리한 참고자료이며, 압축 해제 후 `index.html`을 열면 됩니다.
+- 외부 Wallet SDK: [개발 가이드](wallet-sdk/index.html) · [공유용 ZIP](wallet-sdk.zip). 2026-09-11 SDK v1.1.0 공개 문서를 정리한 참고자료이며, 압축 해제 후 `index.html`을 열면 됩니다.
+- 설계자 원장 v0.1.4: [업무·DB 가이드](ledger/index.html) · [DAWBC / Wallet SDK 흐름 비교](flow-comparison/index.html). `index.html`을 직접 열어 처리 순서·잔고 변화·원문을 확인합니다.
 - 화면 작업: [승인된 Admin 기준 화면](admin-reference/README.md).
 - AI 작업: [요청 가이드](ai/prompt-guide.md), [독립 리뷰 절차](ai/converge-review.md).
 - 진행 상황: [현재 계획·미해결 결정](../PLAN.md), [완료 Phase 이력](history/phase-0-14-plan.md),
