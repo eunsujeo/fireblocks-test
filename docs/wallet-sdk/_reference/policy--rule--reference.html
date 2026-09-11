@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>룰 명세 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>룰 명세</h1><p class="ref-meta">룰이 무엇을 가리킬 수 있고 무엇이 그것을 검사하는가</p>
-<p><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>가 룰이 무엇으로 이루어지는지를 씁니다. 이 페이지는 그 룰이
+<p><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>가 룰이 무엇으로 이루어지는지를 씁니다. 이 페이지는 그 룰이
 무엇을 가리킬 수 있는지와 누가 그것을 검사하는지를 씁니다. 가리킬 수 있는 경로는 카탈로그와
 레지스트리가 정하고, 검사는 메타스키마와 컴파일러가 나눠 맡습니다.</p>
 <h2 id="카탈로그"><a data-reference-title="룰 명세" href="policy--rule--reference.html#카탈로그">카탈로그</a></h2>
@@ -34,7 +34,7 @@
 <p><strong>요청의 빈 필드를 비교한 것은 거짓이지 미지가 아닙니다.</strong> 요청은 완전한 문서라 “아직 못 읽었다”는
 상태가 없기 때문입니다.</p>
 <p>발동 조건에는 미지가 없습니다. 거기서는 PIP를 가릴 수 없고, 카탈로그에 선언되고 워크스페이스가
-조정할 수 있는 값인 슬롯(<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>)은 평가에 들어갈 때 이미 채워져
+조정할 수 있는 값인 슬롯(<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>)은 평가에 들어갈 때 이미 채워져
 있습니다. 그래서 항상 참이나 거짓으로 떨어집니다.</p>
 <h2 id="어드민-액션의-두-겹"><a data-reference-title="룰 명세" href="policy--rule--reference.html#어드민-액션의-두-겹">어드민 액션의 두 겹</a></h2>
 <p>어드민 쪽은 연산이 <code>admin_action</code> 하나이고 개별 연산이 그 안의 <code>payload.action</code>입니다. 두 겹이라
@@ -47,7 +47,7 @@
 <p><strong>두 번째가 이 구조의 핵심입니다.</strong> 연산만 제약한 넓은 allow 룰은 새로 등재된 action까지 함께
 매치하므로, 커널의 기본 거부가 여기서는 성립하지 않습니다. 그 컴파일 검사가 유일한 대체 장치입니다.</p>
 <p>deny 룰과 obligation은 반대로 넓을수록 안전합니다. obligation은 통과로 확정되기 전에 이행해야
-하는 조건이고(<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>), 강한 쪽을 적용하는 병합이라 넓게 덮을수록
+하는 조건이고(<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>), 강한 쪽을 적용하는 병합이라 넓게 덮을수록
 강해집니다.</p>
 <h2 id="값-이동-allow-룰의-지갑-종류-지목"><a data-reference-title="룰 명세" href="policy--rule--reference.html#값-이동-allow-룰의-지갑-종류-지목">값 이동 allow 룰의 지갑 종류 지목</a></h2>
 <p>값을 옮기는 allow 룰은 출발 vault의 종류를 <code>eq</code>나 <code>in</code>으로 지목해야 합니다. Vault는 Wallet의
@@ -102,7 +102,7 @@
 <p>금액 슬롯은 요청 토큰으로 맵에서 값을 고릅니다. 자릿수를 요청 토큰 기준으로 맞춘 뒤 큰 수
 비교를 하고, 맵에 없는 토큰은 조건 불성립입니다. allow 룰에 안전한 방향입니다.</p>
 <p>표의 조건은 발행 시점의 것입니다. 커널이 평가 시점에 다시 보는 것은 하한과 타입까지이고, 그
-범위와 이유는 <a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>에 있습니다.</p>
+범위와 이유는 <a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>에 있습니다.</p>
 <p>커널은 조건 트리를 평가하고 결정을 결합하는 정책 무관 고정
 부분입니다(<a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a>). 여기서 더할 것은 그 재확인에 걸린 값의
 취급입니다. <strong>커널까지 온 하한 위반은 침해 신호로 다룹니다.</strong> 정상 경로라면 발행 시점 검증이 이미
@@ -184,7 +184,7 @@
 <p>커널 골든 스위트가 결합 의미를 일반적으로 검증한다면, 이쪽은 <strong>이 룰셋</strong>이 실제로 어떻게
 맞물리는지를 봅니다.</p>
 <p>최소 요건은 결합 의미 네 가지에 각 한 케이스입니다 — 모듈 간 AND 실패, 모듈 내 OR, deny 우선,
-obligation 병합. 누락도 실패도 컴파일 실패입니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+obligation 병합. 누락도 실패도 컴파일 실패입니다.</p></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

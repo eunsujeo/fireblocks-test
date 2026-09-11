@@ -1,0 +1,136 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>룰 쓰기 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>룰 쓰기</h1><p class="ref-meta">룰 하나가 무엇으로 이루어지고 무엇을 참조할 수 있는지</p>
+<p>룰은 <code>scope</code>와 조건을 갖고 <code>allow</code>·<code>deny</code>를 내는 단위입니다. 정책 엔진이 요청 하나를 심사할 때
+쓰는 최소 단위이고, 파트너사가 JSON으로 적습니다. 이 페이지는 그 JSON의 네 조각과, 룰이 참조할 수
+있는 필드를 설명합니다.</p>
+<h2 id="룰의-네-조각"><a data-reference-title="룰 쓰기" href="policy--rules.html#룰의-네-조각">룰의 네 조각</a></h2>
+<p>룰은 <code>effect</code>·<code>scope</code>·<code>when</code>·<code>obligations</code> 네 조각입니다. 아래는 워크스페이스 시드에 들어 있는
+외부 주소 출금 허가 룰입니다. 워크스페이스는 Wallet SDK를 도입한 회사 하나이고 최상위 격리
+컨테이너입니다(<a data-reference-title="계정 계층" href="accounts-wallets--accounts.html">계정 계층</a>).</p>
+<p>이 룰에는 통과로 확정되기 전에 이행해야 하는 조건인 obligation이 없습니다.</p>
+<pre tabindex="0"><code>{
+  "id": "withdrawal/allow-evm-external-address",
+  "effect": "allow",
+  "scope": {
+    "all": [
+      { "field": "operation", "op": "eq", "value": "value_transfer" },
+      { "field": "chain.family", "op": "eq", "value": "evm" },
+      { "field": "destination.type", "op": "eq", "value": "external_address" },
+      { "field": "source_vault.kind", "op": "eq", "value": "custody" }
+    ]
+  },
+  "when": { "field": "address_ownership.status", "op": "eq", "value": "active" }
+}</code></pre>
+<p><strong><code>scope</code>가 이 룰이 발동하는 범위를 정하고 <code>when</code>이 그 안에서 판정합니다.</strong> scope에 걸리지 않는
+요청에 이 룰은 없는 것과 같습니다.</p>
+<p><code>effect</code>에 적을 수 있는 값은 <code>allow</code>와 <code>deny</code> 둘뿐입니다. <code>pending</code>과 <code>need_more_data</code>는 조건
+트리를 평가하고 결정을 결합하는 <a data-reference-title="결정과 결합" href="policy--rule--decision.html">커널</a>이 내는 결정값이고, 파트너사가 고르는
+값이 아닙니다.</p>
+<p><code>operation</code>에 적는 값은 정규화된 연산 값입니다. 출금·vault 이체·집금 셋을
+<a data-reference-title="정규화" href="policy--runtime--normalization.html">정규화</a>가 <code>value_transfer</code> 하나로 합칩니다. 그래서 룰이 그 셋을
+가르는 것은 <code>destination.type</code>과 <code>source_vault.kind</code>입니다.</p>
+<p>요청 표면의 값인 <code>withdrawal</code>을 여기 적으면 어떤 요청에도 매치되지 않습니다. 거부는 나므로 아무것도
+깨지지 않고, 요청이 끝까지 통과하는지 재본 뒤에야 그 룰이 죽어 있었다는 것이 드러납니다.</p>
+<h2 id="조건-노드"><a data-reference-title="룰 쓰기" href="policy--rules.html#조건-노드">조건 노드</a></h2>
+<p><code>scope</code>와 <code>when</code>은 같은 문법을 씁니다. 둘 다 조건 트리이고, 조건 트리는 <code>all</code>·<code>any</code>·<code>not</code>과
+비교·멤버십 리프로 이루어진 룰의 조건식입니다.</p>
+<p>노드는 다섯입니다 — 비교(<code>eq</code>·<code>ne</code>·<code>lt</code>·<code>lte</code>·<code>gt</code>·<code>gte</code>), 멤버십(<code>in</code>·<code>not_in</code>), 그리고
+<code>all</code>·<code>any</code>·<code>not</code>입니다. 중첩할 수 있고 깊이 상한은 컴파일러가 봅니다.</p>
+<p><strong>카탈로그에 없는 필드는 참조할 수 없습니다.</strong> 참조하면 컴파일이 실패합니다. 값이 채워지지 않은
+필드를 비교하면 불성립(거짓)으로 봅니다. allow 룰에 안전한 방향입니다.</p>
+<h2 id="요청-필드와-수집-필드"><a data-reference-title="룰 쓰기" href="policy--rules.html#요청-필드와-수집-필드">요청 필드와 수집 필드</a></h2>
+<p>룰이 참조할 수 있는 경로는 두 갈래로 나뉩니다. 요청에서 나오는 필드와, 평가 중에 밖에서 읽어 오는
+필드입니다.</p>
+<p>요청 필드는 정규화가 요청에서 뽑은 값입니다. 요청이 접수되는 순간 값이 정해지므로 <code>scope</code>와 <code>when</code>
+어디서든 쓸 수 있습니다.</p>
+<div class="table-scroll" tabindex="0"><table><thead><tr><th>경로</th><th>값 종류</th><th>허용 값</th><th>쓸 수 있는 연산자</th></tr></thead><tbody><tr><td><code>operation</code></td><td><code>ENUM</code></td><td><code>value_transfer · contract_call · typed_signature · admin_action</code></td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>principal.type</code></td><td><code>ENUM</code></td><td><code>user · admin · service</code></td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>principal.id</code></td><td><code>IDENTIFIER</code></td><td>—</td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>chain.family</code></td><td><code>ENUM</code></td><td><code>evm</code></td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>chain.network_id</code></td><td><code>IDENTIFIER</code></td><td>—</td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>token.id</code></td><td><code>IDENTIFIER</code></td><td>—</td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>amount</code></td><td><code>AMOUNT</code></td><td>—</td><td><code>eq · ne · in · not_in · lt · lte · gt · gte</code><span>순서 비교는 금액 슬롯 참조에서만</span></td></tr><tr><td><code>source_vault.id</code></td><td><code>IDENTIFIER</code></td><td>—</td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>source_vault.kind</code></td><td><code>ENUM</code></td><td><code>deposit · custody</code></td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>destination.type</code></td><td><code>ENUM</code></td><td><code>internal_vault · external_address</code></td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>destination.vault_id</code></td><td><code>IDENTIFIER</code></td><td>—</td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>destination.vault_kind</code></td><td><code>ENUM</code></td><td><code>deposit · custody</code></td><td><code>eq · ne · in · not_in</code></td></tr><tr><td><code>destination.address</code></td><td><code>ADDRESS</code></td><td>—</td><td><code>eq · ne · in · not_in</code></td></tr></tbody></table></div>
+<p>수집 필드는 평가 도중 PIP 소스가 채우는 값입니다. PIP 소스는 룰이 참조하는 외부 사실의
+출처입니다(<a data-reference-title="PIP" href="policy--runtime--pip.html">자세히</a>). 수집 이전에 <code>scope</code>가 판정되기 때문에 수집 필드는
+<code>when</code>에서만 쓸 수 있습니다. 시드 출금 룰이 <code>address_ownership.status</code>를 <code>when</code>에 적는 것이 그
+예입니다.</p>
+<p>아래 목록은 그 워크스페이스에 등재된 PIP 소스에 따릅니다. 소스를 더하면 참조할 수 있는 경로도 함께
+늘어납니다.</p>
+<div class="table-scroll" tabindex="0"><table><thead><tr><th>소스</th><th>경로</th></tr></thead><tbody><tr><td><code>vault_ownership</code></td><td><code>vault_ownership.workspace_id</code></td></tr><tr><td><code>vault_ownership</code></td><td><code>vault_ownership.tenant_id</code></td></tr><tr><td><code>vault_ownership</code></td><td><code>vault_ownership.address</code></td></tr><tr><td><code>vault_ownership</code></td><td><code>vault_ownership.vault_kind</code></td></tr><tr><td><code>vault_ownership</code></td><td><code>vault_ownership.provider_vault_id</code></td></tr><tr><td><code>token_catalog</code></td><td><code>token_catalog.chain</code></td></tr><tr><td><code>token_catalog</code></td><td><code>token_catalog.contract</code></td></tr><tr><td><code>token_catalog</code></td><td><code>token_catalog.decimals</code></td></tr><tr><td><code>address_ownership</code></td><td><code>address_ownership.address</code></td></tr><tr><td><code>address_ownership</code></td><td><code>address_ownership.chain_family</code></td></tr><tr><td><code>address_ownership</code></td><td><code>address_ownership.chain_network_id</code></td></tr><tr><td><code>address_ownership</code></td><td><code>address_ownership.status</code></td></tr></tbody></table></div>
+<p>어드민 액션의 <code>payload.*</code> 필드는 플랫폼이 저작하는 표면이라 이 표에 없습니다. 그 계약은
+<a data-reference-title="룰 명세" href="policy--rule--reference.html">룰 명세</a>에 있습니다.</p>
+<h2 id="리터럴과-슬롯"><a data-reference-title="룰 쓰기" href="policy--rules.html#리터럴과-슬롯">리터럴과 슬롯</a></h2>
+<p>값은 리터럴이거나 슬롯입니다. 슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다.</p>
+<p>플랫폼이 하한(floor)이나 허용 값 목록을 정하고 파트너사가 그 안에서 값을 골라 발행합니다. 시드
+카탈로그에 있는 슬롯은 다섯입니다.</p>
+<ul>
+<li><strong><code>grantable_roles</code></strong>: 권한 부여 액션으로 줄 수 있는 role 목록입니다</li>
+<li><strong><code>approval_quorum</code></strong>: 권한 부여를 승인하는 데 필요한 최소 승인자 수입니다</li>
+<li><strong><code>escalation_quorum</code></strong>: 어드민 액션 중 권한을 올리는 성격의 것들인 escalation surface에서 요구하는
+최소 승인자 수의 하한이고, 기본값이 <code>approval_quorum</code>보다 높습니다</li>
+<li><strong><code>approved_intent_ttl_seconds</code></strong>: 승인된 요청이 서명까지 유효한 시간(초)입니다</li>
+<li><strong><code>resource_limit_per_tx</code></strong>: 건당 수수료 총액 상한이고, 체인별 값을 각각 선언합니다</li>
+</ul>
+<p><strong>금액 상한은 리터럴로 적을 수 없습니다.</strong> 금액 리터럴의 순서 비교는 컴파일 시점에 거부되므로,
+상한은 금액 슬롯을 참조해서만 씁니다.</p>
+<p>커널이 평가 시점에 다시 보는 것은 하한과 타입까지이고, 허용 값 목록은 발행 시점에만 대조합니다. 그
+차이가 왜 생기는지는 <a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a>에서 설명합니다.</p>
+<h2 id="obligation-세-종류"><a data-reference-title="룰 쓰기" href="policy--rules.html#obligation-세-종류">obligation 세 종류</a></h2>
+<p>obligation은 “통과시키되 이것을 이행하라”는 요구입니다. 종류는 셋이고, 룰이 그중 하나를 골라
+답니다.</p>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>타입</th>
+<th>무엇을 요구하나</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>require_2fa</code></td>
+<td>요청자의 2단계 인증</td>
+</tr>
+<tr>
+<td><code>require_quorum</code></td>
+<td>승인이 성립하는 데 필요한 최소 승인자 수인 정족수. 인원수·승인 가능 역할·본인 승인 허용 여부를 정합니다</td>
+</tr>
+<tr>
+<td><code>attach_travel_rule_payload</code></td>
+<td>트래블룰 정보 첨부</td>
+</tr>
+</tbody>
+</table></div></div>
+<p><code>require_quorum</code>의 본인 승인 허용은 생략하면 불허입니다. 요청자와 승인자가 같으면 정족수가 통제가
+아니라 형식이 되기 때문입니다.</p>
+<p><strong><code>deny</code> 룰에는 obligation을 달 수 없습니다.</strong> 거부하면서 이행을 요구하는 것은 뜻이 성립하지
+않습니다.</p>
+<p>obligation은 배열이라 둘 이상을 함께 답니다. 플랫폼이 발행하는 역할 부여 허가 룰이 그 사례입니다.</p>
+<pre tabindex="0"><code>"obligations": [
+  { "type": "require_2fa" },
+  { "type": "require_quorum", "params": { "n": { "slot": "approval_quorum" } } }
+]</code></pre>
+<h2 id="번들-두-종류"><a data-reference-title="룰 쓰기" href="policy--rules.html#번들-두-종류">번들 두 종류</a></h2>
+<p>저작 결과가 들어가는 번들은 둘입니다. 누가 발행하고 무엇을 담는지가 갈립니다.</p>
+<p>정책 로직 번들은 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물입니다. 플랫폼 거버넌스가
+관리하고, 배포 단위당 하나이며, 변경은 제안자와 승인자를 갈라 두는 maker-checker 승인을 거칩니다.</p>
+<p>워크스페이스 번들은 한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다. 값 이동은 출금·vault
+이체·집금처럼 자산을 실제로 움직이는 연산 셋입니다. 파트너사가 쓰는 룰과 슬롯 값이 여기 들어갑니다.</p>
+<p>하한만 두고 상한을 두지 않습니다. 인가 TTL의 상한은 슬롯 선언이 아니라 검사 둘이 강제합니다. 발행
+시점의 컴파일 검사와, 승인 스탬프를 찍는 절차입니다.</p>
+<p><strong>조정을 불허할 값은 슬롯이 아니라 룰에 직접 씁니다.</strong> 커널이 평가 시점에 허용 값 목록을 다시 보지
+않기 때문입니다.</p>
+<h2 id="다음으로"><a data-reference-title="룰 쓰기" href="policy--rules.html#다음으로">다음으로</a></h2>
+<ul>
+<li><a data-reference-title="예시 정책" href="policy--examples.html">예시 정책</a> — 시드에 들어 있는 룰 셋과, 통과하는 요청과 거절되는 요청</li>
+<li><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a> — draft에서 활성까지 사람이 거치는 절차</li>
+<li><a data-reference-title="룰 명세" href="policy--rule--reference.html">룰 명세</a> — 참조 가능 경로와 어드민 액션 표면의 전수 계약</li>
+<li><a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a> — 커널이 룰의 결정을 결합하는 규칙</li>
+</ul></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

@@ -15,6 +15,7 @@ ROOT=HERE.parents[1]/'docs/wallet-sdk'
 OUT=ROOT/'_reference';OUT.mkdir(exist_ok=True)
 pages=json.loads((ROOT/'api/docs/pages.json').read_text())['pages']
 manifest=json.loads((ROOT/'readable-manifest.json').read_text())
+captured=manifest['capturedDate']
 slug=lambda route: route.strip('/').replace('/','--') or 'overview'
 old_path=lambda route: ROOT/('original-overview.html' if route=='/' else route.strip('/')+'/index.html')
 by_path={old_path(p['route']).resolve():p for p in pages}
@@ -105,7 +106,7 @@ for p in pages:
  if p['route'].startswith('/reference/'):
   note=''
  else:note=''
- result=f'''<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(p['title'])} · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p>{content}{note}<p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>{page_script}</script></body></html>'''
+ result=f'''<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(p['title'])} · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p>{content}{note}<p class="ref-source-footer">{captured} 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>{page_script}</script></body></html>'''
  destination.write_text(result);converted.append({'route':p['route'],'path':str(destination.relative_to(ROOT)),'title':p['title']})
 
 for page in manifest['editorialPages']:
@@ -127,11 +128,11 @@ for x in records:
  if x['kind'].startswith(('원문','참고 문서')) and ref:
   p,dest,_=ref;x['path']=str(dest.relative_to(ROOT));x['kind']='참고 문서';x['reference']=True
 payload=json.dumps(records,ensure_ascii=False).replace('<','\\u003c');data.string=payload;search.write_text(str(doc))
-manifest['referencePages']=converted;manifest['uiRevision']='2026-09-10-reference-reader';(ROOT/'readable-manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2))
+manifest['referencePages']=converted;manifest['uiRevision']=captured+'-reference-reader';(ROOT/'readable-manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2))
 readme=ROOT/'README.txt';text=readme.read_text();line='참고 링크는 새로 구성한 참고 문서를 모달로 엽니다. 모달 안의 새 창으로 보기로 따로 열 수 있습니다.\n'
 if line not in text:text+='\n'+line
 readme.write_text(text)
-export=json.loads((ROOT/'export-manifest.json').read_text());export['referencePages']=len(converted);export['files']={}
+export=json.loads((ROOT/'export-manifest.json').read_text());export['capturedDate']=captured;export['sourceVersion']=manifest.get('sourceVersion');export.pop('pages',None);export['originalPages']=len(pages);export['referencePages']=len(converted);export['files']={}
 for f in sorted(ROOT.rglob('*')):
  if f.is_file() and f.name!='export-manifest.json':export['files'][str(f.relative_to(ROOT))]={'bytes':f.stat().st_size,'sha256':hashlib.sha256(f.read_bytes()).hexdigest()}
 (ROOT/'export-manifest.json').write_text(json.dumps(export,ensure_ascii=False,indent=2))

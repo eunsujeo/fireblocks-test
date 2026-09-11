@@ -490,17 +490,17 @@
 <tr>
 <td><code>effect</code></td>
 <td>룰이 적을 수 있는 두 값입니다 — <code>allow</code>·<code>deny</code></td>
-<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+<td><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a></td>
 </tr>
 <tr>
 <td>obligation</td>
 <td>통과로 확정되기 전에 이행해야 하는 조건입니다</td>
-<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+<td><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a></td>
 </tr>
 <tr>
 <td>정족수</td>
 <td>승인이 성립하는 데 필요한 최소 승인자 수입니다</td>
-<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+<td><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a></td>
 </tr>
 <tr>
 <td>평가 라운드</td>
@@ -515,7 +515,7 @@
 <tr>
 <td>룰</td>
 <td><code>scope</code>와 조건을 갖고 <code>allow</code>·<code>deny</code>를 내는 단위입니다</td>
-<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+<td><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a></td>
 </tr>
 <tr>
 <td>값 이동</td>
@@ -530,12 +530,12 @@
 <tr>
 <td>슬롯</td>
 <td>카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다</td>
-<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+<td><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a></td>
 </tr>
 <tr>
 <td>조건 트리</td>
 <td><code>all</code>·<code>any</code>·<code>not</code>과 비교·멤버십 리프로 이루어진 룰의 조건식입니다</td>
-<td><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a></td>
+<td><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a></td>
 </tr>
 <tr>
 <td>PIP 소스</td>
@@ -621,6 +621,31 @@
 <td>워크스페이스 번들</td>
 <td>한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다</td>
 <td>설계 기록(내부)</td>
+</tr>
+<tr>
+<td>draft</td>
+<td>콘솔에서 편집 중인 저작물의 머리입니다. 편집은 언제나 새 revision을 쌓습니다</td>
+<td><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a></td>
+</tr>
+<tr>
+<td>revision</td>
+<td>draft에 쌓이는 편집 한 판입니다. 지난 revision은 고쳐지지 않고 주소로 되찾을 수 있습니다</td>
+<td><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a></td>
+</tr>
+<tr>
+<td>기준선</td>
+<td>활성 번들에서 유도해 편집기가 처음 보여 주는 내용입니다</td>
+<td><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a></td>
+</tr>
+<tr>
+<td>내용 해시</td>
+<td>검증을 통과한 revision의 내용에서 계산한 해시입니다. 승인은 이 값에 묶입니다</td>
+<td><a data-reference-title="저장과 이동" href="policy--runtime--storage.html">저장과 이동</a></td>
+</tr>
+<tr>
+<td>정책 콘솔</td>
+<td>룰을 저작하고 승인하고 발행하는 사람의 화면입니다</td>
+<td><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a></td>
 </tr>
 <tr>
 <td>maker-checker</td>
@@ -903,7 +928,7 @@ caller 신원과 매핑되는 안정 식별자를 씁니다.</p>
 <p>식별자는 경계에서 불투명 문자열입니다(<code>D-105</code>). 접두사가 붙어 있어도 소비자는 그 포맷에
 의존하지 않습니다.</p>
 <p><strong>룰 식별자는 불변이고 은퇴한 것도 재사용하지 않습니다.</strong> 재사용하면 과거 결정 기록이 어느 룰을
-가리키는지 판정할 수 없게 됩니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+가리키는지 판정할 수 없게 됩니다.</p></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

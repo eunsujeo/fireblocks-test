@@ -1,6 +1,6 @@
 {
   "source": "https://static.pg166.io/wallet-isms-p/wallet-sdk-docs",
-  "capturedDate": "2026-09-10",
+  "capturedDate": "2026-09-11",
   "editorialPages": [
     {
       "path": "index.html",
@@ -43,9 +43,9 @@
       "title": "API 명세와 원문"
     }
   ],
-  "originalPages": 198,
+  "originalPages": 201,
   "originalHome": "original-overview.html",
-  "uiRevision": "2026-09-10-reference-reader",
+  "uiRevision": "2026-09-11-reference-reader",
   "audience": "설계·개발자: 흐름과 연동 방법 파악",
   "statusEvidence": "공개 문서; SDK 구현 또는 운영 환경 검증 아님",
   "referencePages": [
@@ -205,6 +205,11 @@
       "title": "v1.0.0"
     },
     {
+      "route": "/changelog/v1-1-0",
+      "path": "_reference/changelog--v1-1-0.html",
+      "title": "v1.1.0"
+    },
+    {
       "route": "/fund-flows",
       "path": "_reference/fund-flows.html",
       "title": "자금 이동"
@@ -265,6 +270,11 @@
       "title": "다이어그램"
     },
     {
+      "route": "/policy/examples",
+      "path": "_reference/policy--examples.html",
+      "title": "예시 정책"
+    },
+    {
       "route": "/policy/map",
       "path": "_reference/policy--map.html",
       "title": "전체 지도"
@@ -273,6 +283,11 @@
       "route": "/policy/operations",
       "path": "_reference/policy--operations.html",
       "title": "운영과 관측"
+    },
+    {
+      "route": "/policy/results",
+      "path": "_reference/policy--results.html",
+      "title": "결과 읽기"
     },
     {
       "route": "/policy/rule/decision",
@@ -285,9 +300,9 @@
       "title": "룰 명세"
     },
     {
-      "route": "/policy/rule/structure",
-      "path": "_reference/policy--rule--structure.html",
-      "title": "룰 구조"
+      "route": "/policy/rules",
+      "path": "_reference/policy--rules.html",
+      "title": "룰 쓰기"
     },
     {
       "route": "/policy/runtime/evaluation",
@@ -1039,5 +1054,6 @@
       "path": "_reference/start--terminology.html",
       "title": "용어"
     }
-  ]
+  ],
+  "sourceVersion": "1.1.0"
 }

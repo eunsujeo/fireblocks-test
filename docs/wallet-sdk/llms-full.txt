@@ -1,9 +1,214 @@
 # Wallet SDK
 
-> 수탁형 지갑을 서비스에 붙이는 B2B 제품의 공개 문서
+Current public documentation. Historical /v0 snapshots excluded.
 
-# Wallet SDK
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs
+- [Wallet SDK](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs)
+- [계정과 지갑](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets)
+- [계정 계층](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/accounts)
+- [카탈로그](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/catalog)
+- [도메인 모델](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/domain-model)
+- [온보딩](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/onboarding)
+- [지갑 계층](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/wallets)
+- [v0.1.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-1-0)
+- [v0.10.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-10-0)
+- [v0.10.1](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-10-1)
+- [v0.11.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-11-0)
+- [v0.12.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-12-0)
+- [v0.13.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-0)
+- [v0.13.1](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-1)
+- [v0.14.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-0)
+- [v0.14.1](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-1)
+- [v0.15.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-15-0)
+- [v0.16.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-16-0)
+- [v0.2.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-2-0)
+- [v0.3.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-3-0)
+- [v0.4.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-4-0)
+- [v0.4.1](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-4-1)
+- [v0.5.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-0)
+- [v0.5.1](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-1)
+- [v0.5.2](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-2)
+- [v0.6.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-6-0)
+- [v0.7.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-7-0)
+- [v0.8.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-0)
+- [v0.8.1](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-1)
+- [v0.9.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-9-0)
+- [v1.0.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v1-0-0)
+- [v1.1.0](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v1-1-0)
+- [자금 이동](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows)
+- [주소록 (Address Book · Whitelist)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/address-book)
+- [입금 (Deposit)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/deposit)
+- [이동 종류](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/movements)
+- [자금 동결](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/release)
+- [집금 (Sweep)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/sweep)
+- [Vault 이체 (Vault Transfer)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/vault-transfer)
+- [웹훅(Webhook)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/webhooks)
+- [출금 (Withdrawal)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/withdrawal)
+- [정책](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy)
+- [구조](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/architecture)
+- [다이어그램](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/diagrams)
+- [예시 정책](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/examples)
+- [전체 지도](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/map)
+- [운영과 관측](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/operations)
+- [결과 읽기](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/results)
+- [결정과 결합](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/rule/decision)
+- [룰 명세](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/rule/reference)
+- [룰 쓰기](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/rules)
+- [평가의 순간](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/runtime/evaluation)
+- [정규화](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/runtime/normalization)
+- [PIP](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/runtime/pip)
+- [저장과 이동](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/runtime/storage)
+- [승인 게이트](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/sequences/approval-gate)
+- [obligation 수집](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/sequences/obligations)
+- [비동기 수집](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/sequences/pending-data)
+- [서명 게이트](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/signing-gate)
+- [서명 상한 대조](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/callback-limit)
+- [금지선](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/deny-override)
+- [권한 상승 게이트](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/escalation-pending)
+- [룰 변경 게이트](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/rule-change)
+- [출금 화이트리스트](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/whitelist-loop)
+- [룰 저작과 발행](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/workflow)
+- [API 레퍼런스](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference)
+- [Wallet Admin API](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin)
+- [API Key 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-change-status)
+- [API Key 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-create)
+- [API Key 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-get)
+- [API Key 원문 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-get-api-key)
+- [API Key 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-list)
+- [단건 승인](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-approve)
+- [승인 진행 내역 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-get)
+- [승인 진행 내역 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-list)
+- [2FA 인증](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-auth2fa)
+- [유저 가입 (초대 수락)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-join)
+- [로그인](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-login)
+- [2FA OTP 등록](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-register2-fa)
+- [워크스페이스 부트스트랩 (1회, 무게이팅·멱등)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/initialize/initialize-initialize)
+- [네트워크 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/networks/networks-change-status)
+- [네트워크 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/networks/networks-get)
+- [네트워크 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/networks/networks-list)
+- [Policy 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-change-status)
+- [Policy 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-create)
+- [Policy 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-get)
+- [Policy 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-list)
+- [Role 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-change-status)
+- [Role 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-create)
+- [Role 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-get)
+- [Role 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-list)
+- [테넌트 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tenants/tenants-change-status)
+- [테넌트 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tenants/tenants-create)
+- [테넌트 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tenants/tenants-get)
+- [테넌트 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tenants/tenants-list)
+- [토큰 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-change-status)
+- [토큰 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-create)
+- [토큰 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-get)
+- [토큰 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-list)
+- [유저 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-change-status)
+- [유저 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-get)
+- [유저 초대](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-invite)
+- [유저 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-list)
+- [내 정보 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-me)
+- [유저 수정](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-update)
+- [Workspace Vault 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-change-status)
+- [Workspace Vault 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-create)
+- [Workspace Wallet 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-create-wallet)
+- [Workspace Vault 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-get)
+- [Workspace Wallet 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-get-wallet)
+- [Workspace Vault 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-list)
+- [Workspace Wallet 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-list-wallets)
+- [Wallet Policy Engine Internal API](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy)
+- [2FA 등록 확인](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-confirm)
+- [2FA 자가 등록](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-enroll)
+- [어드민 로그인](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-login)
+- [어드민 로그아웃](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-logout)
+- [세션 신원 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-session)
+- [2FA 검증](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-verify2-fa)
+- [어드민 초대](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admins/policy-admin-directory-create)
+- [어드민 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admins/policy-admin-directory-list)
+- [승인 대기 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/approvals/policy-approval-get-pending)
+- [승인 표 제출](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/approvals/policy-approval-vote-vote)
+- [초기 어드민 계정 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/bootstrap/policy-bootstrap-create-admin)
+- [활성 번들 조회 (서빙)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/bundle-serving/policy-bundle-serving-active)
+- [활성 번들 tarball 내려받기](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/bundle-serving/policy-bundle-serving-download)
+- [Co-Signer pre-signing 콜백](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/callback/policy-callback-handle)
+- [PIP 결과·이행 증거 제출](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/partner/policy-partner-submission-submit)
+- [PIP 소스 종류 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/pip-source-kinds/pip-source-kind-list)
+- [번들 활성화](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-activation-activate)
+- [활성 번들 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-activation-view)
+- [발행 승인 목록](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-list)
+- [발행 승인 레코드 개설](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-open)
+- [발행 승인 레코드 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-view-view)
+- [발행 승인 표 제출](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-vote-vote)
+- [번들 발행](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-publication-publish)
+- [편집기 base 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-baseline-view)
+- [draft 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-create)
+- [draft 폐기](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-discard-discard)
+- [draft 목록](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-list)
+- [revision 추가](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-append)
+- [revision 조회 (주소)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-by-address-view)
+- [revision 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-view)
+- [revision 검증 실행](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-validation-run)
+- [draft 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-view)
+- [판단 요청 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/request/policy-request-get-detail)
+- [판단 요청 접수](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/request/policy-request-submit)
+- [워크스페이스 번들 활성화](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-bundle/policy-workspace-bundle-activation-activate)
+- [활성 워크스페이스 번들 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-bundle/policy-workspace-bundle-active-view-view)
+- [워크스페이스 번들 발행](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-bundle/policy-workspace-bundle-publication-publish)
+- [워크스페이스 매니저 지명](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-assign)
+- [워크스페이스 매니저 등록 토큰 재발급](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-reissue-enrollment-token)
+- [워크스페이스 매니저 회수](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-revoke)
+- [스텝업 챌린지 발급](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-challenge)
+- [워크스페이스 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-list)
+- [워크스페이스 등록](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-register)
+- [워크스페이스 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-view)
+- [Travel Rule Gateway API](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule)
+- [주소 검증](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-address-check)
+- [PII 교환&검증 요청](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-create-check)
+- [PII 검증 결과 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-get-check)
+- [PII 검증에 대한 tx 업데이트](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-report-tx)
+- [자신의 VASP 정보 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/vasps-get-self)
+- [연동 VASP 리스트 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/vasps-list)
+- [verifyvasp enclave로부터 들어오는 Callback](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive)
+- [타 VASP에서 주소 검증 요청](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account)
+- [타 VASP에서 PII 교환&검증 요청](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-user)
+- [Wallet API](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet)
+- [계정 지갑 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/account-wallets/account-wallets-create)
+- [계정 지갑 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/account-wallets/account-wallets-get)
+- [계정 지갑 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/account-wallets/account-wallets-list)
+- [계정 상태 변경](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-change-status)
+- [계정 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-create)
+- [계정 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-get)
+- [계정 referenceId 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-get-by-reference-id)
+- [주소록 등록 (지갑 소유 증명 nonce 서명 포함)](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-create)
+- [주소록 등록용 지갑 소유 증명 nonce 발급](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-create-nonce)
+- [주소록 삭제](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-delete)
+- [주소록 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-get)
+- [주소록 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-list)
+- [입금 내역 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/deposits/deposits-get)
+- [입금 내역 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/deposits/deposits-list)
+- [네트워크 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/networks/networks-get)
+- [네트워크 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/networks/networks-list)
+- [스윕 요청 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/sweeps/sweeps-create)
+- [스윕 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/sweeps/sweeps-get)
+- [스윕 referenceId 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/sweeps/sweeps-get-by-reference-id)
+- [토큰 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/tokens/tokens-get)
+- [토큰 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/tokens/tokens-list)
+- [트래블룰 대상 VASP 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/travel-rules/travel-rules-list-vasps)
+- [출금 요청](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-create)
+- [출금 내역 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-get)
+- [출금 내역 목록 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-list)
+- [워크스페이스 Vault 이체 요청 생성](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-create)
+- [워크스페이스 Vault 이체 상세 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get)
+- [워크스페이스 Vault 이체 referenceId 조회](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get-by-reference-id)
+- [시작하기](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start)
+- [표면과 인증](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start/authentication)
+- [규제 대응](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start/compliance)
+- [첫 요청](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start/first-request)
+- [용어](https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start/terminology)
+
+
+---
+title: Wallet SDK
+description: 규제 준수형 집금 지갑을 서비스에 붙이는 B2B 제품
+---
 
 _읽는 사람: 도입 검토자. Wallet SDK가 무엇을 맡고 어떤 사업자에게 맞는지를 다룹니다._
 
@@ -157,10 +362,11 @@ boolean 하나입니다. 그 이상을 내면 상대가 이쪽 고객을 열거�
 모르는 말이 나오면 [용어](/start/terminology)를 봅니다. 낱말마다 한 줄 정의와 자세한 설명이 있는
 페이지를 함께 알려 줍니다.
 
----
 
-# 계정과 지갑
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets
+---
+title: 계정과 지갑
+description: 두 계층이 왜 따로 있고 각각 무슨 역할인지
+---
 
 _읽는 사람: 파트너사 개발자. 계정 계층과 지갑 계층이 왜 따로 있고 각각 무슨 역할인지를 다룹니다._
 
@@ -209,10 +415,11 @@ API가 어느 식별자를 받는지는 [지갑 계층](/accounts-wallets/wallet
 - [카탈로그](/accounts-wallets/catalog) — Network와 Token의 등록 주체와 가시성
 - [온보딩](/accounts-wallets/onboarding) — 이 상태를 처음 세우는 절차
 
----
 
-# 계정 계층
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/accounts
+---
+title: 계정 계층
+description: Workspace · Tenant · Account
+---
 
 _읽는 사람: 파트너사 개발자. 격리 컨테이너 세 계층과 Account 상태 계약을 다룹니다._
 
@@ -299,10 +506,11 @@ Workspace, Tenant, Account 세 계층입니다.
 Token과 갈리는 지점입니다. Token의 파트너 계약에는 상태 필드가 없어 노출이 곧 "쓸 수 있다"는
 신호이지만, Account는 상태를 계약에 포함해 그 판단을 파트너사에 넘깁니다.
 
----
 
-# 카탈로그
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/catalog
+---
+title: 카탈로그
+description: Network · Token — 무엇을 담을 수 있는지
+---
 
 _읽는 사람: 파트너사 개발자. 지갑이 담을 수 있는 자산을 무엇이 정하는지 다룹니다._
 
@@ -352,10 +560,11 @@ Wallet이 담는 단위입니다. Network 위의 자산 하나를 나타냅니�
 없어 노출된다는 사실 자체가 "쓸 수 있다"는 신호이고, Network가 비활성이면 그 `networkId`를
 파트너가 해석할 수 없기 때문입니다.
 
----
 
-# 도메인 모델
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/domain-model
+---
+title: 도메인 모델
+description: 엔티티가 서로를 어떻게 소유하는가
+---
 
 _읽는 사람: 파트너사 개발자. 엔티티의 소유 관계와 개수 대응, 자금 이동 레코드가 어디에 연결되는지를 다룹니다._
 
@@ -517,10 +726,11 @@ flowchart LR
 SDK는 지갑 단위로만 잔액을 관리합니다. 입금·집금·출금이 언제 확정됐는지만 기록합니다. 어느
 이동이 무엇을 뜻하는지는 [이동 종류](/fund-flows/movements)에 있습니다.
 
----
 
-# 온보딩
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/onboarding
+---
+title: 온보딩
+description: 워크스페이스 개설에서 첫 정책 활성화까지
+---
 
 _읽는 사람: 파트너사 개발자. 워크스페이스 개설에서 첫 정책 활성화까지의 순서를 다룹니다._
 
@@ -862,10 +1072,11 @@ sequenceDiagram
 - [토큰과 네트워크](/accounts-wallets/catalog) — 카탈로그가 무엇을 담나
 - [자금 이동 지도](/fund-flows/movements) — 여기서 만든 것 위에서 도는 이동들
 
----
 
-# 지갑 계층
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/accounts-wallets/wallets
+---
+title: 지갑 계층
+description: Vault · Wallet과 발급 단위 둘
+---
 
 _읽는 사람: 파트너사 개발자. 자산이 어디에 담기고 온체인 주소가 어디에 연결되는지를 다룹니다._
 
@@ -947,10 +1158,15 @@ EVM만 보면 과한 정규화로 보입니다. 한 주소가 그 체인의 ERC-
 계정 상태와 무관하게 만듭니다. 막으면 그 자금이 Wallet SDK 기록에 존재하지 않게 되어, 오입금
 반환의 출발지도 보관 의무 대상 기록도 사라집니다.
 
----
 
-# v0.1.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-1-0
+---
+title: v0.1.0
+date: "2026-08-26T09:00:00+09:00"
+type: changelog
+changelog:
+  category: 계약 변경 포함
+  version: "0.1.0"
+---
 
 ### 계약 변경
 
@@ -993,10 +1209,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-1-0
 - **제품 이름을 Wallet SDK로 통일하고 본문 폰트를 SUIT로 바꿨습니다.** 코드 블록의 서체는
   그대로입니다.
 
----
 
-# v0.10.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-10-0
+---
+title: v0.10.0
+date: "2026-09-01T12:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.10.0"
+---
 
 ### 문서
 
@@ -1004,10 +1225,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-10-0
   빌드 전용 · 런타임 조립)과 평가 입력 문서의 조립을 다이어그램 두 장과 표 하나로 요약했습니다.
   각 조각의 정의는 기존 소유 페이지가 그대로 들고, 지도는 첫 진입점입니다.
 
----
 
-# v0.10.1
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-10-1
+---
+title: v0.10.1
+date: "2026-09-02T12:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.10.1"
+---
 
 ### 문서
 
@@ -1022,10 +1248,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-10-1
   「정본」이라는 말은 「기준 문서」로 바꿨습니다. 결정 기록과 동결된 검토 보고는 날짜가 박힌 기록이라
   본문을 고치지 않았습니다.
 
----
 
-# v0.11.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-11-0
+---
+title: v0.11.0
+date: "2026-09-02T18:00:00+09:00"
+type: changelog
+changelog:
+  category: 계약 변경 포함
+  version: "0.11.0"
+---
 
 ### 계약 변경
 
@@ -1040,10 +1271,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-11-0
   서명 연산·어드민 액션·정책 변경 액션입니다. 세 용어를 [용어](/concepts/terminology)에 실었고, 결정 색인·
   로드맵·API 계약 주석에서 번호 표기를 없앴습니다. 날짜가 박힌 결정 이력과 동결 문서는 그대로입니다.
 
----
 
-# v0.12.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-12-0
+---
+title: v0.12.0
+date: "2026-09-07T18:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.12.0"
+---
 
 ### 문서
 
@@ -1055,10 +1291,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-12-0
   그 명세인 `/openapi.json`이 생겼습니다. `/openapi.json`은 Wallet API가 아니라 이 문서 사이트 자체의
   명세입니다. Wallet API 명세는 지금처럼 각 레퍼런스 페이지에서 받으십시오.
 
----
 
-# v0.13.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-0
+---
+title: v0.13.0
+date: "2026-09-08T10:06:58+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.13.0"
+---
 
 ### 문서
 
@@ -1066,20 +1307,30 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-0
   생겼고, `/openapi/<파일>` 주소로 직접 받을 수도 있습니다. 파일은 레퍼런스 페이지를 만든 것과 같은
   빌드에서 나온 OpenAPI 3.1 문서입니다. → [API 레퍼런스](/reference)
 
----
 
-# v0.13.1
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-13-1
+---
+title: v0.13.1
+date: "2026-09-08T10:26:32+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.13.1"
+---
 
 ### 문서
 
 - **OpenAPI 명세 파일이 브라우저에서 바로 열립니다.** `/openapi/<파일>` 주소를 직접 열면 파일로
   저장되던 것이 텍스트로 표시됩니다. 내려받기 버튼은 그대로 파일로 저장합니다. → [API 레퍼런스](/reference)
 
----
 
-# v0.14.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-0
+---
+title: v0.14.0
+date: "2026-09-08T13:18:54+09:00"
+type: changelog
+changelog:
+  category: 계약 변경 포함
+  version: "0.14.0"
+---
 
 ### 계약 변경
 
@@ -1103,20 +1354,30 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-0
   제한 시간 값은 파트너사와 함께 정합니다.
 - KYT 결과가 BLOCKED여도 Wallet SDK는 갱신 통지에 결과만 싣습니다. 차단 조치는 파트너사 몫입니다.
 
----
 
-# v0.14.1
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-14-1
+---
+title: v0.14.1
+date: "2026-09-08T13:32:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.14.1"
+---
 
 ### 문서
 
 - **동결이 어디의 상태인지 적었습니다.** 동결은 온체인이나 컨트랙트 위의 동결이 아니라 Wallet SDK
   오프체인 DB의 상태입니다. → [입금](/fund-flows/deposit) · [자금 동결](/fund-flows/release)
 
----
 
-# v0.15.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-15-0
+---
+title: v0.15.0
+date: "2026-09-08T14:48:11+09:00"
+type: changelog
+changelog:
+  category: 계약 변경 포함
+  version: "0.15.0"
+---
 
 ### 계약 변경
 
@@ -1125,10 +1386,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-15-0
   동작은 처음부터 API 키였으므로 부르시던 방식은 바뀌지 않습니다. 레퍼런스의 「Authorize」와
   생성되는 클라이언트 코드만 이제 실제 동작과 같아집니다. → [인증과 스코프](/start/authentication)
 
----
 
-# v0.16.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-16-0
+---
+title: v0.16.0
+date: "2026-09-09T10:38:14+09:00"
+type: changelog
+changelog:
+  category: 계약 변경 포함
+  version: "0.16.0"
+---
 
 ### 계약 변경
 
@@ -1160,10 +1426,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-16-0
   Policy API 33개 중 27개를 「계약만」으로 세던 것을 고쳤습니다. → 구현 대기
 - 용어집에 소속 스코프·문·릴레이·introspection·스텝업을 올렸습니다. → [용어](/concepts/terminology)
 
----
 
-# v0.2.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-2-0
+---
+title: v0.2.0
+date: "2026-08-26T18:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.2.0"
+---
 
 ### 문서
 
@@ -1182,10 +1453,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-2-0
 - **본문이 한 단계 커졌습니다.** 기준 16px → 17px. 단 폭이 같은 비율로 넓어져 **줄당 글자 수는
   그대로입니다.** 탭 아이콘도 지갑 모양으로 바꿨습니다.
 
----
 
-# v0.3.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-3-0
+---
+title: v0.3.0
+date: "2026-08-27T12:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.3.0"
+---
 
 ### 문서
 
@@ -1206,10 +1482,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-3-0
 - **`docs/site/AGENTS.md`가 생겼습니다.** 문서를 고칠 때의 규율이 README에 섞여 있던 것을 떼어
   기준으로 세웠습니다 — 한 주장은 한 페이지가 소유한다는 규칙이 여기서 시작합니다.
 
----
 
-# v0.4.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-4-0
+---
+title: v0.4.0
+date: "2026-08-27T14:45:11+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.4.0"
+---
 
 ### 문서
 
@@ -1230,20 +1511,30 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-4-0
 - **웹훅과 통지를 갈랐습니다.** 채널이 웹훅이고 실리는 것이 통지입니다 — [용어](/concepts/terminology)에
   두 항목이 따로 있습니다.
 
----
 
-# v0.4.1
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-4-1
+---
+title: v0.4.1
+date: "2026-08-27T14:58:34+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.4.1"
+---
 
 ### 문서
 
 - **v0.4.0 항목의 사이트 분리 문구를 줄였습니다.** 무엇이 어디에 실리는지의 기준은 문서 규율에서
   정하고, 변경 이력은 이 주소에서 무엇이 바뀌었는지만 말합니다.
 
----
 
-# v0.5.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-0
+---
+title: v0.5.0
+date: "2026-08-28T10:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.5.0"
+---
 
 ### 문서
 
@@ -1266,10 +1557,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-0
 - **"유입"을 "입금"으로 통일했습니다.** 출금과 짝이 되는 말이고 이동 종류의 이름과도 같아서, 사이트
   본문 80곳을 바꿨습니다. 용어 표의 항목도 입금으로 옮겼습니다.
 
----
 
-# v0.5.1
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-1
+---
+title: v0.5.1
+date: "2026-08-30T23:30:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.5.1"
+---
 
 ### 문서
 
@@ -1280,10 +1576,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-1
 - **protected 본은 private 자산도 뺍니다.** 페이지만 가리던 빌드가 이제 `public/` 아래 private 자산
   디렉토리까지 산출물에서 지우고, 검사가 그 부재를 확인합니다.
 
----
 
-# v0.5.2
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-2
+---
+title: v0.5.2
+date: "2026-08-31T12:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.5.2"
+---
 
 ### 문서
 
@@ -1291,10 +1592,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-5-2
   번들이 되기까지의 계층 한 장과, 저작 세트·채점 입력·골든 스위트의 파일 수준 구성 한 장입니다 —
   → [다이어그램](/policy/diagrams)
 
----
 
-# v0.6.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-6-0
+---
+title: v0.6.0
+date: "2026-08-31T15:27:08+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.6.0"
+---
 
 ### 문서
 
@@ -1306,10 +1612,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-6-0
   워크플로우·코드 호출 경로·소스 구성까지 상호작용 뷰어 열두 장입니다 —
   → [다이어그램](/policy/diagrams)
 
----
 
-# v0.7.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-7-0
+---
+title: v0.7.0
+date: "2026-08-31T17:17:18+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.7.0"
+---
 
 ### 문서
 
@@ -1320,10 +1631,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-7-0
   실었습니다.
 - 저작 세트·컴파일과 채점·다이어그램·정책 엔진 개요 페이지에 새 페이지로 가는 길을 이었습니다.
 
----
 
-# v0.8.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-0
+---
+title: v0.8.0
+date: "2026-08-31T21:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.8.0"
+---
 
 ### 문서
 
@@ -1336,20 +1652,30 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-0
 - [평가의 순간](/policy/runtime/evaluation)의 조건 3치 서술을 기준 문서에 맞춰 정정했습니다 —
   미지는 입력에 없는 PIP 소스를 가리켰을 때만 나오고, 요청의 빈 필드 비교는 거짓입니다.
 
----
 
-# v0.8.1
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-8-1
+---
+title: v0.8.1
+date: "2026-08-31T22:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.8.1"
+---
 
 ### 문서
 
 - 본문 기준 폰트를 한 단계 더 키웠습니다(17px → 18px). 단 폭이 같은 비율로 넓어져 줄당 글자
   수는 그대로입니다.
 
----
 
-# v0.9.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-9-0
+---
+title: v0.9.0
+date: "2026-08-31T23:00:00+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "0.9.0"
+---
 
 ### 문서
 
@@ -1361,10 +1687,15 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v0-9-0
   · [룰 변경 게이트](/policy/use-cases/rule-change)
   · [서명 상한 대조](/policy/use-cases/callback-limit)
 
----
 
-# v1.0.0
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/changelog/v1-0-0
+---
+title: v1.0.0
+date: "2026-09-10T13:18:01+09:00"
+type: changelog
+changelog:
+  category: 문서만
+  version: "1.0.0"
+---
 
 ### 문서
 
@@ -1448,10 +1779,59 @@ protected 본에서 읽을 수 있던 페이지입니다. 그중 앞의 넷은 �
 이전 발행분의 변경 이력 안에 옛 라우트로 가는 링크가 24건 있습니다. 발행된 기록은 소급해 고치지 않으므로
 그 링크는 404 로 남습니다. 필요한 페이지는 위 대응표로 찾습니다.
 
+
+---
+title: v1.1.0
+date: "2026-09-11T13:54:41+09:00"
+type: changelog
+changelog:
+  category: 계약 변경 포함
+  version: "1.1.0"
 ---
 
-# 자금 이동
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows
+### 계약 변경
+
+- **자금 이동 상태에 `SETTLING`(정산 중)이 생겼습니다.** 온체인 완료가 확인됐고 Wallet SDK 안의 잔액
+  반영이 남은 구간입니다. vault 이체 조회 응답의 `status`에 `ON_CHAIN`과 `COMPLETED` 사이에 나타납니다.
+  상태 값을 열거로 엄격히 파싱하면 이 값을 더해야 합니다. 스윕·출금의 상태 목록에도 같은 값이
+  있지만 그 두 이동은 이 값을 내지 않습니다. → [Vault 이체](/fund-flows/vault-transfer)
+- **vault 이체의 완료 통지는 양쪽 vault 잔액이 반영된 뒤에 나갑니다.** 전에는 온체인 확정을 관측한
+  시점에 나갔습니다. 통지가 도착하면 목적지 vault의 가용 잔액은 이미 올라 있습니다.
+
+이 둘은 2026-09-10에 구현 브랜치 쪽에 먼저 들어가 v1.0.0 문서에 실리지 못했습니다. 이 릴리즈가
+문서로 나가는 첫 자리입니다.
+
+### 문서
+
+- **정책 탭을 「정책 쓰기」와 「엔진 내부 동작」 두 절로 갈랐습니다.** 위 절은 파트너사가 순서대로
+  읽는 다섯 쪽입니다. [서명 게이트](/policy/signing-gate) · [룰 쓰기](/policy/rules) ·
+  [예시 정책](/policy/examples) · [룰 저작과 발행](/policy/workflow) · [결과 읽기](/policy/results)입니다.
+  아래 절은 엔진을 만드는 사람의 페이지이고 룰·평가 그룹이 그 안에 들어갔습니다. 주소는 아래 한 건
+  말고 바뀐 것이 없습니다.
+- **룰이 참조할 수 있는 필드 표를 실었습니다.** [룰 쓰기](/policy/rules)의 요청 필드 표와 수집 필드
+  표는 손으로 쓴 것이 아니라 정책 컴파일러의 필드 카탈로그와 PIP 소스 등재에서 빌드마다 생성합니다.
+  그래서 카탈로그가 바뀌면 표가 함께 바뀝니다.
+- **예시 정책과 결과 읽기 페이지가 생겼습니다.** [예시 정책](/policy/examples)은 워크스페이스 시드의
+  실물 룰 셋을 원문 그대로 싣고 통과하는 요청과 거절되는 요청을 대조합니다. 지금 표현할 수 없는
+  것도 이유와 함께 적었습니다. [결과 읽기](/policy/results)는 정책 결정이 Wallet API의 출금 상태와
+  세부 상태, 집금·vault 이체의 에러 코드, Admin API의 승인 상태에 어떻게 나타나는지를 씁니다.
+- **룰 저작과 발행은 사람이 거치는 절차만 담습니다.** 해시 대조와 활성 포인터 전환 같은 발행 기제는
+  [저장과 이동](/policy/runtime/storage)으로 옮겼습니다.
+- **용어에 draft · revision · 기준선 · 내용 해시 · 정책 콘솔을 등재했습니다.**
+
+### 옛 라우트 → 새 라우트
+
+| 옛 | 새 |
+|---|---|
+| `/policy/rule/structure` | [/policy/rules](/policy/rules) |
+
+옛 주소는 응답하지 않습니다. 옛 서술은 헤더의 버전 스위처에서 v0를 고르면 볼 수 있습니다.
+
+
+---
+title: 자금 이동
+description: 온보딩에서 주소록까지, 자금이 흐르는 경로
+---
 
 _읽는 사람: 파트너사 개발자. 자금이 들어오고 나가는 일곱 이동을 흐름마다 한 페이지씩 설명합니다._
 
@@ -1482,10 +1862,11 @@ _읽는 사람: 파트너사 개발자. 자금이 들어오고 나가는 일곱 
 - [웹훅](/fund-flows/webhooks) — 무엇이 언제 오나
 - [주소록](/fund-flows/address-book) — 출금 목적지 화이트리스트: 소유 증명과 회수, 그리고 정책 입력
 
----
 
-# 주소록 (Address Book · Whitelist)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/address-book
+---
+title: 주소록 (Address Book · Whitelist)
+description: 출금 목적지 화이트리스트 — 주소에 근거를 붙이고, 정책이 그 근거를 읽습니다
+---
 
 _읽는 사람: 파트너사 개발자. 주소록 등재와 회수, 그리고 그 근거가 정책에 들어가는 지점을 설명합니다._
 
@@ -1607,10 +1988,11 @@ SDK가 코드에 박지 않고, 워크스페이스 정책이 `address_ownership`
 주소록 근거가 출금 판정에서 어떻게 쓰이는지는 [출금](/fund-flows/withdrawal)에, 입금 발신처
 판정에서 어떻게 쓰이는지는 [입금](/fund-flows/deposit)에 있습니다.
 
----
 
-# 입금 (Deposit)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/deposit
+---
+title: 입금 (Deposit)
+description: 온체인 전송에서 확정 통지까지, 그리고 동결을 풀어도 되는지 판단하는 사전·사후 확인
+---
 
 _읽는 사람: 파트너사 개발자. 계정 지갑 입금이 거치는 구간과, 그 입금의 동결을 풀어도 되는지 판단하는 데 필요한 확인 재료가 통지에 담기는 순서를 설명합니다._
 
@@ -2048,10 +2430,11 @@ sequenceDiagram
 
 따라서 파트너사에서는 각 통지 시점마다 상태를 최신화하여 입금의 진행 상태를 판단할 수 있습니다.
 
----
 
-# 이동 종류
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/movements
+---
+title: 이동 종류
+description: 어디서 어디로 갈 수 있는가
+---
 
 _읽는 사람: 파트너사 개발자. 자금이 어디서 어디로 갈 수 있고 무엇이 허용되지 않는지를 설명합니다._
 
@@ -2149,10 +2532,11 @@ VASP 지갑은 트래블룰이 그 역할을 대신합니다. 트래블룰은 �
 주소록은 주소에 등재 근거를 붙이는 장부입니다. 등재 근거와 회수, 재등재가 식별자에 무엇을 하는지는
 [주소록](/fund-flows/address-book)에 있습니다.
 
----
 
-# 자금 동결
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/release
+---
+title: 자금 동결
+description: 자동 해제가 없는 이유와 두 해제 경로, 그 아래 깔린 동시성 방어
+---
 
 _읽는 사람: 파트너사 개발자. 동결과 해제, 그리고 그 아래 깔린 동시성 방어를 설명합니다._
 
@@ -2272,10 +2656,11 @@ _읽는 사람: 파트너사 개발자. 동결과 해제, 그리고 그 아래 �
 집금이 해제를 겸하는 구간의 상세는 [집금](/fund-flows/sweep)에 있습니다. 예약을 실제로 소비하는
 쪽은 [출금](/fund-flows/withdrawal)과 [Vault 이체](/fund-flows/vault-transfer)입니다.
 
----
 
-# 집금 (Sweep)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/sweep
+---
+title: 집금 (Sweep)
+description: 입금 건을 지목해 옮기고, 그 이동이 해제를 겸한다
+---
 
 _읽는 사람: 파트너사 개발자. 집금 요청이 접수에서 원장 반영까지 거치는 구간을 설명합니다._
 
@@ -2421,10 +2806,11 @@ sequenceDiagram
 
 집금이 겸하는 해제가 왜 자동으로 일어나지 않는지는 [자금 동결](/fund-flows/release)에 있습니다.
 
----
 
-# Vault 이체 (Vault Transfer)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/vault-transfer
+---
+title: Vault 이체 (Vault Transfer)
+description: 워크스페이스 vault 사이에서만 도는 이동
+---
 
 _읽는 사람: 파트너사 개발자. 워크스페이스 vault 사이 이동의 흐름과 실패 계약을 설명합니다._
 
@@ -2462,7 +2848,9 @@ sequenceDiagram
     PROV->>OC: 온체인 전송
     OC-->>PROV: 확정
     PROV-->>SYS: 완료 콜백
-    SYS->>SYS: 상태 갱신
+    SYS->>SYS: 정산 중으로 기록
+    SYS->>SYS: 목적지 vault 잔액 반영
+    SYS->>SYS: 출발 vault 잔액 반영 · 완료
     SYS->>PT: 완료 통지
 ```
 
@@ -2509,12 +2897,21 @@ Wallet SDK 원장 기준의 예약은 그것과 별개로 적용됩니다. vault
 온체인 충분성은 예약을 통과한 뒤에도 보증되지 않습니다. 예약의 기준 설명은
 [자금 동결](/fund-flows/release)에 있습니다.
 
-## 상태는 네 단계를 지나고 어디서든 실패합니다
+## 상태는 다섯 단계를 지나고 정산 중 전까지는 어디서든 실패합니다
 
-접수 → 심사 → 온체인 → 완료 순으로 갑니다. 어느 단계에서든 실패로 끝날 수 있습니다.
+접수 → 심사 → 온체인 → 정산 중 → 완료 순으로 갑니다. 정산 중은 온체인 완료가 확인됐고 두 vault의
+잔액 반영이 남은 구간입니다. 목적지 vault의 잔액이 먼저 오르고, 출발 vault의 잔액이 내려가면서
+완료가 됩니다. 완료 통지는 그 뒤에 나갑니다.
 
-세부 상태가 그 안을 가릅니다. 접수 단계에서만 비어 있고 그 뒤로는 항상 채워집니다. 값 목록은
-[Wallet API](/reference/wallet)에 있습니다.
+**정산 중에 이르면 실패로 끝나지 않습니다.** 온체인에서 이미 옮겨진 자산이라 되돌릴 실패가 없기
+때문입니다. 실패는 접수·심사·온체인 단계에서만 옵니다.
+
+정산 중에 머무는 시간은 보통 1초 안입니다. 내부 처리가 끊기면 대사가 몇 분 안에 이어 갑니다. 그
+사이 출발 vault의 가용 잔액은 이체 금액만큼 잡혀 있고, 목적지 vault의 가용 잔액은 반영이 끝난
+쪽부터 오릅니다.
+
+세부 상태가 그 안을 가릅니다. 접수 단계에서만 비어 있고 그 뒤로는 항상 채워집니다. 정산 중과
+완료에서는 `COMPLETED`입니다. 값 목록은 [Wallet API](/reference/wallet)에 있습니다.
 
 ## 실패 사유는 드러나는 시점으로 갈립니다
 
@@ -2564,10 +2961,11 @@ vault 이체는 완료와 실패만 통지합니다 — `VAULT_TRANSFER_FINALIZE
 
 셋으로 나뉜 출금은 [출금](/fund-flows/withdrawal)에 있습니다.
 
----
 
-# 웹훅(Webhook)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/webhooks
+---
+title: 웹훅(Webhook)
+description: 무엇이 언제 오고 무엇을 하면 되는가
+---
 
 _읽는 사람: 파트너사 개발자. 어떤 통지가 언제 오고 받는 쪽이 무엇을 하면 되는지를 설명합니다._
 
@@ -2672,10 +3070,11 @@ _읽는 사람: 파트너사 개발자. 어떤 통지가 언제 오고 받는 �
 재시도가 4xx와 5xx를 구분하지 않습니다. 지금은 둘 다 똑같이 재시도해서, 영구 실패로 판정해야 할
 응답도 재시도 대상이 됩니다. 진행 상황은 [변경 이력](/changelog)에서 추적합니다.
 
----
 
-# 출금 (Withdrawal)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/fund-flows/withdrawal
+---
+title: 출금 (Withdrawal)
+description: 워크스페이스 vault에서 외부로, 그리고 계정 지갑의 오입금 반환
+---
 
 _읽는 사람: 파트너사 개발자. 워크스페이스 vault에서 나가는 출금 셋과 그 확인 근거를 설명합니다._
 
@@ -2945,12 +3344,13 @@ sequenceDiagram
 
 출금이 예약하는 가용 잔액과 그 예약이 언제 풀리는지는 [자금 동결](/fund-flows/release)에 있습니다.
 
+
+---
+title: 정책
+description: 서명 앞의 검사 단계
 ---
 
-# 정책
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy
-
-_읽는 사람: 파트너사 개발자와 구현팀. 정책 엔진 문서군의 진입점이고, 어느 문서가 어느 질문에 답하는지를 모아 둡니다._
+_읽는 사람: 파트너사 개발자와 구현팀. 정책 엔진이 무엇을 막는지와 어느 순서로 읽을지를 담습니다._
 
 정책 엔진은 자금을 움직이는 요청이 서명 인프라로 가기 전에 그 요청을 심사하는 별도 시스템입니다.
 Wallet 서버가 요청을 받으면 정책 엔진에 판단을 묻고, 허가가 있어야만 서명을 요청합니다. 심사
@@ -2963,56 +3363,44 @@ Wallet 서버가 요청을 받으면 정책 엔진에 판단을 묻고, 허가�
 
 정책 엔진은 서명 인프라로 요청이 나가기 전의 마지막 검사 단계입니다.
 
+## 허가하는 룰이 없으면 거절입니다
+
+요청에 매치되는 `allow` 룰이 하나도 없으면 결정은 거절입니다. 그래서 새 체인·새 목적지 종류·새
+vault 종류가 등재돼도 그것을 허가하는 룰을 쓰기 전까지는 아무것도 나가지 않습니다.
+
+`deny` 룰이 하나라도 매치되면 다른 룰이 허가해도 결정은 거절이고, 그 뒤의 평가는 멈춥니다. 룰이 여럿일 때 결정이 모이는 규칙은
+[결정과 결합](/policy/rule/decision)에 있습니다.
+
+허가에는 조건이 붙을 수 있습니다. 2단계 인증이나 승인이 성립하는 데 필요한 최소 승인자 수인
+정족수를 요구하는 룰이 통과하면, 결정은 `allow`가 아니라 `pending`이고 그 조건이 채워진 뒤에 확정됩니다.
+
 ## 판단 주체를 갈라 두면 한쪽이 침해돼도 서명이 나가지 않습니다
 
 **Wallet SDK만 탈취당해도 서명이 나가지 않습니다.** 정책 엔진이 별도 판단 주체라, 침해된 쪽이
 자기 판단으로 서명을 얻어낼 수 없습니다.
 
-정책 엔진을 제외한 전부가 침해돼도 한 번에 다량이 나가지 않습니다. 1회 송금 한도 같은 룰이 그
-즉시 작동하기 때문입니다.
+정책 엔진을 제외한 전부가 침해돼도 한 번에 다량이 나가지 않습니다. 건당 자원 상한 같은 통제가
+승인마다 붙기 때문입니다.
 
-## 문서는 답하는 질문에 따라 나뉩니다
+## 다음으로
 
-먼저 여섯 장이 정책 엔진 전체를 덮습니다. 전체 그림부터 잡으려면 전체 지도가 첫 진입입니다.
+파트너사가 읽는 길은 「정책 쓰기」 절 다섯 쪽입니다. 순서대로 읽으면 정책을 쓰고 발행하고 결과를
+읽는 데 필요한 것이 다 나옵니다.
 
-- [전체 지도](/policy/map) — 저작 산출물이 가는 세 경로와 평가 입력의 조립을 두 장으로 요약합니다
-- [구조](/policy/architecture) — 각 역할이 어디에 배포되고 무엇을 맡는지
 - [서명 게이트](/policy/signing-gate) — 판단과 집행이 나뉘는 두 단계
-- [다이어그램](/policy/diagrams) — 배포 토폴로지부터 코드 호출 경로까지 상호작용 뷰어로
+- [룰 쓰기](/policy/rules) — 룰 하나가 무엇으로 이루어지고 무엇을 참조할 수 있나
+- [예시 정책](/policy/examples) — 워크스페이스 시드의 실물 룰 셋과 통과·거절 대조
 - [룰 저작과 발행](/policy/workflow) — draft 하나가 검증·승인을 거쳐 활성 번들이 되기까지
-- [운영과 관측](/policy/operations) — 무엇을 보고 무엇을 알리나
+- [결과 읽기](/policy/results) — 결정이 API 응답의 어느 자리에 나타나나
 
-그 아래로 그룹이 넷입니다.
+엔진을 만드는 사람은 그 아래 「엔진 내부 동작」 절로 갑니다. [전체 지도](/policy/map)가 첫
+진입이고, 구조·다이어그램·운영과 관측 뒤에 룰의 구현팀 층과 평가 런타임이 옵니다.
 
-- **룰**: 룰이라는 언어 자체를 씁니다. [룰 구조](/policy/rule/structure)·[룰 명세](/policy/rule/reference)·[결정과 결합](/policy/rule/decision) 셋입니다
-- **평가**: 요청 하나가 거치는 런타임을 씁니다. [정규화](/policy/runtime/normalization)·[PIP](/policy/runtime/pip)·[평가의 순간](/policy/runtime/evaluation)·[저장과 이동](/policy/runtime/storage) 넷입니다
-- **승인과 수집 흐름**: 사람의 승인과 파트너의 답을 기다리는 흐름입니다. [승인 게이트](/policy/sequences/approval-gate)·[비동기 수집](/policy/sequences/pending-data)·[obligation 수집](/policy/sequences/obligations) 셋입니다
-- **유즈케이스**: 룰과 승인 스탬프의 형태가 어떤 런타임 흐름을 발동하는지를 [사례 다섯](/policy/use-cases/whitelist-loop)으로 봅니다
-
-저작에서 발행까지의 파이프라인은 [구조](/policy/architecture)와
-[룰 저작과 발행](/policy/workflow)이 한 문단으로 서술합니다.
-
-## 저작은 번들 두 종류로 나뉩니다
-
-정책 로직 번들은 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물입니다. 플랫폼 거버넌스가
-소유하고, 배포 단위당 하나이며, 변경은 제안자와 승인자를 갈라 두는 maker-checker 승인을 거칩니다.
-
-워크스페이스 번들은 한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다. 값 이동은 출금·vault
-이체·집금처럼 자산을 실제로 움직이는 연산 셋입니다.
-
-플랫폼이 파라미터의 하한(floor)을 정하고 파트너사는 그 안에서 값을 고릅니다.
-
-하한만 두고 상한을 두지 않습니다. 인가 TTL의 상한은 슬롯 선언이 아니라 검사 둘이 강제합니다.
-발행 시점의 컴파일 검사와, 승인 스탬프를 찍는 절차입니다.
-
-조건 트리를 평가하고 결정을 결합하는 [커널](/policy/rule/decision)은 평가 시점에 그 상한을 읽지
-않습니다. 그래서 조정을 불허할 값은 슬롯이 아니라 룰에 직접 씁니다. 슬롯은 카탈로그에 선언되고
-워크스페이스가 조정할 수 있는 값입니다([룰 구조](/policy/rule/structure)).
 
 ---
-
-# 구조
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/architecture
+title: 구조
+description: 무엇이 어디에 배포되고 각자 무엇을 지는가
+---
 
 _읽는 사람: 구현팀. 정책 엔진이 어떤 역할로 나뉘고 그 역할들이 어디에 배포되는지를 다룹니다._
 
@@ -3036,7 +3424,7 @@ _읽는 사람: 구현팀. 정책 엔진이 어떤 역할로 나뉘고 그 역�
 경로 전체를 부르는 이름입니다.
 
 표에 나오는 obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다([룰
-구조](/policy/rule/structure)).
+구조](/policy/rules)).
 
 ## 평가기의 순수성
 
@@ -3224,10 +3612,11 @@ v1은 한 서비스에 얹되 엔드포인트·키·경로를 격리합니다. *
 - [결정과 결합](/policy/rule/decision) — 커널이 고정한 결합 규칙
 - [PIP](/policy/runtime/pip) — 세상의 상태를 언제 읽나
 
----
 
-# 다이어그램
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/diagrams
+---
+title: 다이어그램
+description: 정책 엔진의 배포 토폴로지·서명 게이트·상태 머신·발행 워크플로우와, rego·JSON 소스 구성, 코드 레벨 호출 경로를 상호작용 뷰어로 봅니다
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -3378,10 +3767,191 @@ JWT 검증 → 대조 세 단계 → 조건부 단일행 CAS(`consumeSigningAuth
 
 <Diagram name="code-flow-bundle-pip" title="번들·PIP 클래스 배선도" />
 
+
+---
+title: 예시 정책
+description: 워크스페이스 시드에 들어 있는 룰 셋과 그 룰이 가르는 요청
 ---
 
-# 전체 지도
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/map
+_읽는 사람: 파트너사 개발자. 실제로 동작하는 룰 셋을 그대로 보고, 어떤 요청이 통과하고 어떤 요청이 막히는지 대조합니다._
+
+이 페이지의 룰 셋은 예시로 지어낸 것이 아닙니다. Wallet SDK를 도입한 회사 하나인
+워크스페이스([계정 계층](/accounts-wallets/accounts))가 등록되면 이 셋이 그 워크스페이스의 첫
+번들이 됩니다. 그래서 아래 JSON은 파트너사가 처음 열어 보게 되는 룰과 같습니다.
+
+세 룰은 각각 출금·집금·vault 이체를 허가합니다. 셋 다 `effect`가 `allow`이고, 어느 룰의 적용
+범위에도 매치되지 않는 요청은 기본 거절(default deny)로 끝납니다. 조각의 뜻과 참조할 수 있는
+필드는 [룰 쓰기](/policy/rules)에 있습니다.
+
+## 출금은 등재된 외부 주소로만 나갑니다
+
+```json
+{
+  "id": "withdrawal/allow-evm-external-address",
+  "effect": "allow",
+  "scope": {
+    "all": [
+      { "field": "operation", "op": "eq", "value": "value_transfer" },
+      { "field": "chain.family", "op": "eq", "value": "evm" },
+      { "field": "destination.type", "op": "eq", "value": "external_address" },
+      { "field": "source_vault.kind", "op": "eq", "value": "custody" }
+    ]
+  },
+  "when": { "field": "address_ownership.status", "op": "eq", "value": "active" }
+}
+```
+
+적용 범위의 네 조건이 이 룰에 걸리는 요청을 가릅니다.
+
+- `operation` = `value_transfer` : 출금·vault 이체·집금처럼 자산을 실제로 움직이는 연산 셋인 값 이동만 매치합니다([결정과 결합](/policy/rule/decision))
+- `chain.family` = `evm` : EVM 계열 네트워크의 요청만 매치합니다
+- `destination.type` = `external_address` : 목적지가 외부 주소인 요청만 매치합니다. 내부 vault로 가는 집금과 vault 이체는 여기 걸리지 않습니다
+- `source_vault.kind` = `custody` : 출발이 custody vault인 요청만 매치합니다. deposit vault에서 나가는 이동은 여기 걸리지 않습니다
+
+조건은 하나입니다. `address_ownership.status`가 `active`인지를 봅니다. 이 값은 요청이 담아 오지
+않고, 룰이 참조하는 외부 사실의 출처인 PIP 소스([자세히](/policy/runtime/pip))가 평가 도중
+채웁니다.
+
+통과하는 요청입니다. 등재 상태가 `active`인 외부 주소로 나가는 EVM 출금입니다.
+
+- `operation` : `value_transfer`
+- `chain.family` : `evm`
+- `destination.type` : `external_address`
+- `source_vault.kind` : `custody`
+- `address_ownership.status` : `active`
+
+막히는 요청입니다. 나머지는 같고 목적지 주소가 주소록에 없습니다.
+
+- `destination.type` : `external_address`
+- `source_vault.kind` : `custody`
+- `address_ownership.status` : `unregistered`
+
+**이 거절은 기본 거절이 아닙니다.** 적용 범위는 매치됐고 조건이 불성립한 것이라, 결정 사유가 이
+모듈과 이 룰을 지목합니다. 회수된 주소도 상태가 `revoked`로 바뀌어 같은 경로로 막힙니다.
+
+통과 방향의 끝에는 승인할 때 정해져 소비 시점에 적용되는 유효값인 승인 스탬프 둘이 함께
+찍힙니다([자세히](/policy/runtime/normalization)). 인가 유효 시간과 건당 자원 상한이고, 두 값은
+이 룰이 아니라 슬롯 `approved_intent_ttl_seconds`·`resource_limit_per_tx`에서 옵니다.
+
+## 집금은 deposit 지갑에서 custody 지갑으로만 모입니다
+
+```json
+{
+  "id": "sweep/allow-evm-deposit-to-custody",
+  "effect": "allow",
+  "scope": {
+    "all": [
+      { "field": "operation", "op": "eq", "value": "value_transfer" },
+      { "field": "principal.type", "op": "eq", "value": "service" },
+      { "field": "chain.family", "op": "eq", "value": "evm" },
+      { "field": "destination.type", "op": "eq", "value": "internal_vault" },
+      { "field": "source_vault.kind", "op": "eq", "value": "deposit" },
+      { "field": "destination.vault_kind", "op": "eq", "value": "custody" }
+    ]
+  }
+}
+```
+
+집금은 계정 지갑 자산을 워크스페이스 vault로 모으는 이동입니다([자세히](/fund-flows/sweep)).
+적용 범위의 여섯 조건이 그 이동 하나만 남깁니다.
+
+- `operation` = `value_transfer` : 값 이동만 매치합니다
+- `principal.type` = `service` : 파트너사 서비스가 낸 요청만 매치합니다. 최종 사용자가 직접 내는 경로가 생겨도 이 룰이 그것을 함께 허가하지 않습니다
+- `chain.family` = `evm` : EVM 계열 네트워크의 요청만 매치합니다
+- `destination.type` = `internal_vault` : 목적지가 내부 vault인 요청만 매치합니다. 외부 주소로 나가는 집금은 여기 걸리지 않습니다
+- `source_vault.kind` = `deposit` : 출발이 deposit vault인 요청만 매치합니다. custody vault에서 출발하는 이동과 갈립니다
+- `destination.vault_kind` = `custody` : 목적지가 custody vault인 요청만 매치합니다. 다른 deposit vault로 흐르는 이동은 여기 걸리지 않습니다
+
+조건 절이 없습니다. 적용 범위가 매치되면 그대로 허가이고, 수집 없이 평가 한 번으로 끝납니다.
+대량으로 자주 일어나는 연산이라 PIP 참조를 두지 않은 것입니다.
+
+통과하는 요청입니다.
+
+- `operation` : `value_transfer`
+- `principal.type` : `service`
+- `chain.family` : `evm`
+- `destination.type` : `internal_vault`
+- `source_vault.kind` : `deposit`
+- `destination.vault_kind` : `custody`
+
+**막히는 요청은 목적지가 외부 주소인 집금입니다.** 출금 룰은 출발이 custody vault라야 매치되고
+이 룰은 목적지가 내부 vault라야 매치되므로, 이 요청은 어느 allow에도 걸리지 않고 기본 거절로
+끝납니다.
+
+- `destination.type` : `external_address`
+- `source_vault.kind` : `deposit`
+
+이 룰이 내는 통과 결정에도 커널이 승인 스탬프 둘을 같은 슬롯 둘에서 읽어 찍습니다.
+
+## 내부 이체는 custody 지갑 사이에서만 일어납니다
+
+```json
+{
+  "id": "custody-transfer/allow-evm-internal-custody",
+  "effect": "allow",
+  "scope": {
+    "all": [
+      { "field": "operation", "op": "eq", "value": "value_transfer" },
+      { "field": "chain.family", "op": "eq", "value": "evm" },
+      { "field": "destination.type", "op": "eq", "value": "internal_vault" },
+      { "field": "source_vault.kind", "op": "eq", "value": "custody" },
+      { "field": "destination.vault_kind", "op": "eq", "value": "custody" }
+    ]
+  }
+}
+```
+
+vault 이체는 워크스페이스 vault 사이의 이동입니다([자세히](/fund-flows/vault-transfer)). 적용
+범위의 다섯 조건이 그 이동을 가릅니다.
+
+- `operation` = `value_transfer` : 값 이동만 매치합니다
+- `chain.family` = `evm` : EVM 계열 네트워크의 요청만 매치합니다
+- `destination.type` = `internal_vault` : 목적지가 내부 vault인 요청만 매치합니다
+- `source_vault.kind` = `custody` : 출발이 custody vault인 요청만 매치합니다. deposit vault에서 출발하는 집금과 갈립니다
+- `destination.vault_kind` = `custody` : 목적지가 custody vault인 요청만 매치합니다
+
+**목적지가 deposit vault인 이동은 여기 없습니다.** 자금 흐름에 custody에서 deposit으로
+되돌리는 방향이 없기 때문입니다.
+
+통과하는 요청입니다.
+
+- `operation` : `value_transfer`
+- `chain.family` : `evm`
+- `destination.type` : `internal_vault`
+- `source_vault.kind` : `custody`
+- `destination.vault_kind` : `custody`
+
+막히는 요청입니다. 나머지는 같고 목적지 vault가 deposit입니다. 어느 allow에도 걸리지 않아 기본
+거절로 끝납니다.
+
+- `source_vault.kind` : `custody`
+- `destination.vault_kind` : `deposit`
+
+여기서도 통과 결정에 승인 스탬프 둘이 같은 슬롯 둘에서 와서 찍힙니다.
+
+## 예시에 없는 것 셋에는 각각 이유가 있습니다
+
+세 룰이 다루지 않는 것이 셋입니다. 하나는 쓸 수 있으나 실물이 없고, 둘은 지금 쓸 수 없습니다.
+
+- **deny 룰**: 룰 스키마는 `effect`에 `deny`를 허용하고, deny 룰에는 통과로 확정되기 전에 이행해야 하는 조건인 obligation을 달 수 없습니다. deny 룰은 지금도 쓸 수 있습니다. 시드에 실물이 없어 이 페이지에 싣지 않는 것뿐입니다. 계약은 [룰 명세](/policy/rule/reference)에, deny가 허가를 덮는 사례는 [금지선](/policy/use-cases/deny-override)에 있습니다
+- **자산별 금액 상한 조건**: 금액 리터럴의 순서 비교는 컴파일 검사가 거부합니다. 그래서 상한은 금액 슬롯을 참조해서만 씁니다. 값 이동 금액 슬롯은 자산마다 엔트리를 요구하는데, 그 자산 키는 `token_catalog` 수집이 동작한 뒤에 정해집니다
+- **서명 연산의 정족수**: 정족수는 승인이 성립하는 데 필요한 최소 승인자 수입니다. 지금 서명 연산에는 obligation 루프가 없어 정족수를 요구할 곳이 없고, 세 룰의 통과 방향 끝이 그대로 `allow`인 것도 같은 이유입니다
+
+여러 룰의 결정이 하나로 합쳐지는 규칙은 [결정과 결합](/policy/rule/decision)에 있습니다. 조건
+하나가 수집 루프를 발동하는 흐름은 [출금 화이트리스트](/policy/use-cases/whitelist-loop)가
+처음부터 끝까지 따라갑니다.
+
+## 다음으로
+
+- [룰 저작과 발행](/policy/workflow) — 이 룰을 고쳐 발행할 때 거치는 절차
+- [결과 읽기](/policy/results) — 거절과 보류가 파트너 대상 API 응답에 나타나는 곳
+- [룰 쓰기](/policy/rules) — 조각의 뜻과 참조할 수 있는 필드 전체
+
+
+---
+title: 전체 지도
+description: 저작 산출물이 가는 세 경로와 평가 입력의 조립, 두 장으로 요약한 정책 엔진
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -3464,7 +4034,7 @@ _읽는 사람: 파트너사 개발자와 구현팀. 조각들이 어디로 가�
 
 | 산출물 | 가는 곳 | 역할 한 줄 | 기준 페이지 |
 |---|---|---|---|
-| 룰 모듈 | 번들 | 관심사 하나의 룰 목록 | 설계 기록(내부) · [룰 구조](/policy/rule/structure) |
+| 룰 모듈 | 번들 | 관심사 하나의 룰 목록 | 설계 기록(내부) · [룰 쓰기](/policy/rules) |
 | 슬롯 카탈로그 | 번들 | 워크스페이스가 조정할 값의 선언과 하한 | 설계 기록(내부) |
 | 액션 카탈로그 | 번들 | 액션별 payload 경로와 타입 | 설계 기록(내부) |
 | 레지스트리 둘 | 번들 | PIP 소스·서명 어댑터 — 바깥 표면의 선언 | 설계 기록(내부) |
@@ -3502,10 +4072,11 @@ _읽는 사람: 파트너사 개발자와 구현팀. 조각들이 어디로 가�
 파일 위치를 하나씩 열거한 목록은 정책 엔진 내부 문서에 있습니다. 여기서 알 것은 그 파일이
 각각 위의 세 경로 중 하나로 간다는 점입니다.
 
----
 
-# 운영과 관측
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/operations
+---
+title: 운영과 관측
+description: fail-closed는 조용합니다
+---
 
 _읽는 사람: 구현팀. 프로덕션 배포 전에 세워야 하는 관측과 운영 요건을 다룹니다._
 
@@ -3812,10 +4383,124 @@ sweep은 입금 지갑 수에 비례해 발생합니다. **평가와 콜백과 �
 - [구조](/policy/architecture) — 이 항목들이 적용되는 배포 단위와 역할
 - [룰 저작과 발행](/policy/workflow) — 발행 대조가 지키는 검사
 
+
+---
+title: 결과 읽기
+description: 정책 판단의 결과가 API 응답의 어느 자리에 나타나는지
 ---
 
-# 결정과 결합
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/rule/decision
+_읽는 사람: 파트너사 개발자. 정책이 요청을 거절하거나 붙잡았을 때 그 사실이 어느 응답 필드에 나타나는지를 다룹니다._
+
+정책 엔진은 요청마다 결정 하나를 냅니다. 결정은 커널이 내는 네 종류의 종결이고, 커널은 조건
+트리를 평가하고 결정을 결합하는 정책 무관 고정 부분입니다([자세히](/policy/rule/decision)).
+이 페이지는 그 결정이 Wallet API·Admin API·Policy API의 응답에서 각각 어느 자리에 실리는지를
+씁니다.
+
+## 결정은 네 값 중 하나입니다
+
+| 값 | 파트너사가 읽는 뜻 |
+|---|---|
+| `allow` | 통과입니다. 서명 인가가 발급되고 집행으로 넘어갑니다 |
+| `deny` | 거부입니다. 서명은 일어나지 않습니다 |
+| `pending` | obligation 이행을 기다립니다. 승인 정족수가 대표적인 예입니다 |
+| `need_more_data` | 판단에 필요한 사실을 아직 못 읽었습니다. 수집이 끝나면 다시 평가합니다 |
+
+룰이 적는 것은 `allow`와 `deny` 둘뿐이고 나머지 둘은 커널이 산출합니다. 여러 룰과 여러 모듈의
+답을 하나로 모으는 규칙은 [결정과 결합](/policy/rule/decision)에 있습니다.
+
+아래 세 절은 이 네 값이 실제 응답의 어느 필드로 번역되는지를 표면별로 씁니다. 표면마다 번역
+방식이 다릅니다.
+
+## 출금은 상태와 세부 상태에 실립니다
+
+Wallet 서버와 실 정책 서버의 연결은 아직 없습니다. 지금은 요청을 처리하는 그 자리에서 동기로
+자동 승인되고, 아래 대응은 계약과 코드에 자리만 잡혀 있습니다.
+
+출금 조회 응답은 `status`와 `subStatus`를 함께 냅니다. 정책이 거절하면 `status`는 `FAILED`가
+되고 `subStatus`는 `SCREENING_REJECTED`가 됩니다. 이 조합이 출금에서 정책 거절을 읽는 자리입니다.
+
+**출금에는 정책 거절 전용 에러 코드가 없습니다.** 요청 자체도 에러 응답으로 끝나지만, 그 자리에
+쓰이는 코드가 계약의 `ErrorCode` 목록에 아직 없습니다. 그래서 출금의 정책 거절은 에러 코드가
+아니라 상태로 분기합니다.
+
+같은 `FAILED` 안에서 세부 상태가 원인을 가릅니다. `REQUEST_REJECTED`는 정책이 아니라 뒷단
+플랫폼이 제출을 거절했을 때입니다. `TR_DENIED`는 계약에 있으나 아직 어느 코드도 이 값을 쓰지
+않습니다.
+
+## 집금과 vault 이체는 에러 코드로 거절을 알립니다
+
+이 둘은 거절이 에러 응답에 실립니다. 집금은 `SWEEP_POLICY_DENIED`, 워크스페이스 vault 이체는
+`WORKSPACE_VAULT_TRANSFER_POLICY_DENIED`입니다.
+
+남는 기록은 서로 다릅니다. 집금은 인가를 받기 전에 행을 만들지 않아 거절되면 조회할 기록이
+없습니다. vault 이체는 접수 행을 먼저 만들기 때문에 `status`가 `FAILED`, `subStatus`가
+`SCREENING_REJECTED`로 마감됩니다.
+
+**두 코드 모두 지금은 응답에 나오지 않습니다.** 정책 인가가 자동 승인이라 거절 분기에 도달하지
+않습니다. 연동을 만들 때는 코드를 받는 쪽 처리를 미리 넣어 둡니다.
+
+## 승인이 필요한 요청은 멈추고 승인을 기다립니다
+
+승인 게이팅은 어드민 액션이 승인자의 확인을 거쳐야 실행되는
+통제입니다([자세히](/policy/sequences/approval-gate)). 승인 절차가 붙는 Admin API 요청은 즉시
+실행되지 않고 공통 응답 하나로 돌아옵니다.
+
+그 응답은 `status`·`approvalId`·`requesterAdminId`·`quorum`·`result` 다섯을 냅니다. `status`는
+`PENDING_APPROVAL`·`APPROVED`·`DENIED` 중 하나이고, `result`는 `APPROVED`가 아니면 `null`입니다.
+`requesterAdminId`는 그 요청을 만든 어드민 유저 식별자입니다. `quorum`은 정족수 현황이고, 정족수는
+승인이 성립하는 데 필요한 최소 승인자 수입니다. `quorum.threshold`가 필요한 표 수,
+`quorum.approved`가 지금까지 모인 표 수입니다.
+
+`PENDING_APPROVAL`로 돌아온 요청은 Approvals API에서 이어 갑니다. 엔드포인트는 셋입니다.
+
+- `GET /admin/api/v1/approvals` — 승인 진행 내역 목록
+- `GET /admin/api/v1/approvals/{approvalId}` — 승인 진행 내역 상세
+- `POST /admin/api/v1/approvals/{approvalId}` — 단건 승인
+
+**Approvals API는 지금 고정 응답을 냅니다.** 세 엔드포인트가 요청 내용과 무관하게 같은 값을
+돌려줍니다. 승인 게이팅을 실제로 거치는 어드민 엔드포인트는 `APPROVED`와 `DENIED` 둘만 내고
+`quorum`은 `null`입니다. 정족수가 모여 승인이 성립하는 흐름은
+[승인 게이트](/policy/sequences/approval-gate)에 있고, 콘솔에서 승인 요청이 만들어지는 자리는
+[룰 저작과 발행](/policy/workflow)이 씁니다.
+
+## 판단 요청을 직접 조회하면 결정 전문이 보입니다
+
+판단 요청은 한 업무 요청을 두고 엔진이 소유하는 판단 기록입니다. Policy API의
+`GET /request/{policyRequestId}`가 그 기록 전문을 냅니다. 부르는 주체는 Wallet 서버입니다.
+Wallet 서버는 파트너 대상 API를 받아 정책 엔진에 판단을 묻고 서명 인프라에 제출하는 Wallet SDK의
+서버 컴포넌트입니다([자세히](/policy/architecture)).
+
+응답의 `status`는 판단 요청이 지금 어느 단계인지입니다. 값은
+`RECEIVED`·`NORMALIZING`·`EVALUATING`·`PENDING_DATA`·`PENDING_OBLIGATION`·`APPROVED`·`CONSUMED`·`DENIED`·`EXPIRED`·`FAILED`입니다.
+`CONSUMED`는 발급된 인가가 실제로 쓰였다는 뜻이고, `APPROVED`에서 멈춰 있으면 아직 집행되지
+않은 것입니다.
+
+**결정 전문은 `decision` 안에 있습니다.** 다섯 필드를 함께 읽습니다.
+
+- **`decision.decision`**: 위 표의 결정값 넷 중 하나입니다
+- **`decision.reasons`**: 판단 사유입니다. 발동한 룰과 소스 이름이 여기 실립니다
+- **`decision.unevaluatedRules`**: deny가 나와 평가가 중단되는 바람에 판정하지 않은 룰입니다. 룰
+  이름과 `effect`가 함께 옵니다([자세히](/policy/rule/decision))
+- **`decision.obligations`**: `pending`일 때 이행해야 할 obligation과 충족 현황입니다.
+  obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다([자세히](/policy/rules)). 정족수
+  obligation이면 `quorumRequired`와 `quorumApproved`가 함께 옵니다
+- **`decision.required`**: `need_more_data`일 때 더 읽어야 할 PIP 소스 이름입니다. PIP 소스는
+  룰이 참조하는 외부 사실의 출처입니다([자세히](/policy/runtime/pip))
+
+엔드포인트 전수와 필드 계약은 [Policy API](/reference/policy)에 있습니다.
+
+## 다음으로
+
+- [룰 저작과 발행](/policy/workflow) — draft에서 활성까지 사람이 거치는 절차
+- [승인 게이트](/policy/sequences/approval-gate) — 정족수가 모여 승인이 성립하는 흐름
+- [Wallet API](/reference/wallet) — 출금·집금·vault 이체 엔드포인트 전수
+- [Admin API](/reference/admin) — 승인 게이팅과 Approvals 엔드포인트 전수
+
+
+---
+title: 결정과 결합
+description: 여러 룰이 다른 답을 낼 때
+---
 
 _읽는 사람: 구현팀. 여러 룰과 여러 모듈의 답이 하나의 결정으로 모이는 규칙을 다룹니다._
 
@@ -3833,7 +4518,7 @@ _읽는 사람: 구현팀. 여러 룰과 여러 모듈의 답이 하나의 결�
 | `need_more_data` | 판단에 필요한 사실을 아직 못 읽었습니다 |
 
 룰이 적는 것은 `allow`와 `deny` 둘뿐이고, 나머지 둘은 커널이 산출합니다. 표의 obligation은
-통과로 확정되기 전에 이행해야 하는 조건입니다([룰 구조](/policy/rule/structure)).
+통과로 확정되기 전에 이행해야 하는 조건입니다([룰 쓰기](/policy/rules)).
 
 ## 결합 규칙
 
@@ -3904,14 +4589,15 @@ TTL까지 유효하고, 상한은 3600초(60분)이고 기본값은 1200초(20�
 정책을 새로 배포해도 이미 발급된 인가를 무효화하지 않습니다. 그 노출 창을 왜 받아들이는지는
 [서명 게이트](/policy/signing-gate)에 있습니다.
 
+
+---
+title: 룰 명세
+description: 룰이 무엇을 가리킬 수 있고 무엇이 그것을 검사하는가
 ---
 
-# 룰 명세
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/rule/reference
+_읽는 사람: 구현팀. 룰이 가리킬 수 있는 표면과 그것을 검사하는 절차를 담고, 룰 자체의 조각은 [룰 쓰기](/policy/rules)에 있습니다._
 
-_읽는 사람: 구현팀. 룰이 가리킬 수 있는 표면과 그것을 검사하는 절차를 담고, 룰 자체의 조각은 [룰 구조](/policy/rule/structure)에 있습니다._
-
-[룰 구조](/policy/rule/structure)가 룰이 무엇으로 이루어지는지를 씁니다. 이 페이지는 그 룰이
+[룰 쓰기](/policy/rules)가 룰이 무엇으로 이루어지는지를 씁니다. 이 페이지는 그 룰이
 무엇을 가리킬 수 있는지와 누가 그것을 검사하는지를 씁니다. 가리킬 수 있는 경로는 카탈로그와
 레지스트리가 정하고, 검사는 메타스키마와 컴파일러가 나눠 맡습니다.
 
@@ -3962,7 +4648,7 @@ _읽는 사람: 구현팀. 룰이 가리킬 수 있는 표면과 그것을 검�
 상태가 없기 때문입니다.
 
 발동 조건에는 미지가 없습니다. 거기서는 PIP를 가릴 수 없고, 카탈로그에 선언되고 워크스페이스가
-조정할 수 있는 값인 슬롯([룰 구조](/policy/rule/structure))은 평가에 들어갈 때 이미 채워져
+조정할 수 있는 값인 슬롯([룰 쓰기](/policy/rules))은 평가에 들어갈 때 이미 채워져
 있습니다. 그래서 항상 참이나 거짓으로 떨어집니다.
 
 ## 어드민 액션의 두 겹
@@ -3978,7 +4664,7 @@ _읽는 사람: 구현팀. 룰이 가리킬 수 있는 표면과 그것을 검�
 매치하므로, 커널의 기본 거부가 여기서는 성립하지 않습니다. 그 컴파일 검사가 유일한 대체 장치입니다.
 
 deny 룰과 obligation은 반대로 넓을수록 안전합니다. obligation은 통과로 확정되기 전에 이행해야
-하는 조건이고([룰 구조](/policy/rule/structure)), 강한 쪽을 적용하는 병합이라 넓게 덮을수록
+하는 조건이고([룰 쓰기](/policy/rules)), 강한 쪽을 적용하는 병합이라 넓게 덮을수록
 강해집니다.
 
 ## 값 이동 allow 룰의 지갑 종류 지목
@@ -4024,7 +4710,7 @@ vault 종류는 그 반대입니다. 엔티티 타입이 다르고 소유자가 
 비교를 하고, 맵에 없는 토큰은 조건 불성립입니다. allow 룰에 안전한 방향입니다.
 
 표의 조건은 발행 시점의 것입니다. 커널이 평가 시점에 다시 보는 것은 하한과 타입까지이고, 그
-범위와 이유는 [룰 구조](/policy/rule/structure)에 있습니다.
+범위와 이유는 [룰 쓰기](/policy/rules)에 있습니다.
 
 커널은 조건 트리를 평가하고 결정을 결합하는 정책 무관 고정
 부분입니다([결정과 결합](/policy/rule/decision)). 여기서 더할 것은 그 재확인에 걸린 값의
@@ -4125,26 +4811,29 @@ vault 종류는 그 반대입니다. 엔티티 타입이 다르고 소유자가 
 최소 요건은 결합 의미 네 가지에 각 한 케이스입니다 — 모듈 간 AND 실패, 모듈 내 OR, deny 우선,
 obligation 병합. 누락도 실패도 컴파일 실패입니다.
 
+
+---
+title: 룰 쓰기
+description: 룰 하나가 무엇으로 이루어지고 무엇을 참조할 수 있는지
 ---
 
-# 룰 구조
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/rule/structure
+_읽는 사람: 파트너사 개발자. 룰 하나의 JSON이 어떤 조각으로 이루어지고 그 조각이 무엇을 가리킬 수 있는지를 설명합니다._
 
-_읽는 사람: 구현팀. 룰 하나가 무엇으로 이루어지는지를 담고, 룰이 무엇을 가리킬 수 있는지는 [룰 명세](/policy/rule/reference)에 있습니다._
-
-룰은 `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다. 정책 엔진이 요청을 심사할 때 쓰는
-최소 단위이고, 저작자가 JSON으로 적습니다. 이 페이지는 그 JSON이 어떤 조각으로 이루어지는지를
-씁니다.
+룰은 `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다. 정책 엔진이 요청 하나를 심사할 때
+쓰는 최소 단위이고, 파트너사가 JSON으로 적습니다. 이 페이지는 그 JSON의 네 조각과, 룰이 참조할 수
+있는 필드를 설명합니다.
 
 ## 룰의 네 조각
 
-룰은 `effect`·`scope`·`when`·`obligations` 네 조각입니다. 아래는 저작 세트에 실제로 있는 외부 주소
-출금 허가 룰이고, 이 룰에는 obligation이 없습니다.
+룰은 `effect`·`scope`·`when`·`obligations` 네 조각입니다. 아래는 워크스페이스 시드에 들어 있는
+외부 주소 출금 허가 룰입니다. 워크스페이스는 Wallet SDK를 도입한 회사 하나이고 최상위 격리
+컨테이너입니다([계정 계층](/accounts-wallets/accounts)).
+
+이 룰에는 통과로 확정되기 전에 이행해야 하는 조건인 obligation이 없습니다.
 
 ```json
 {
   "id": "withdrawal/allow-evm-external-address",
-  "description": "custody vault 에서 나가는 EVM 외부 주소 출금을 등재된 주소로만 허가한다",
   "effect": "allow",
   "scope": {
     "all": [
@@ -4161,26 +4850,75 @@ _읽는 사람: 구현팀. 룰 하나가 무엇으로 이루어지는지를 담�
 **`scope`가 이 룰이 발동하는 범위를 정하고 `when`이 그 안에서 판정합니다.** scope에 걸리지 않는
 요청에 이 룰은 없는 것과 같습니다.
 
-`operation`에 적는 값은 정규화된 연산 값입니다. 출금·vault 이체·집금 셋을 정규화기가
-`value_transfer` 하나로 합칩니다. 그래서 룰이 그 셋을 가르는 것은 `destination.type`과
-`source_vault.kind`입니다.
+`effect`에 적을 수 있는 값은 `allow`와 `deny` 둘뿐입니다. `pending`과 `need_more_data`는 조건
+트리를 평가하고 결정을 결합하는 [커널](/policy/rule/decision)이 내는 결정값이고, 파트너사가 고르는
+값이 아닙니다.
+
+`operation`에 적는 값은 정규화된 연산 값입니다. 출금·vault 이체·집금 셋을
+[정규화](/policy/runtime/normalization)가 `value_transfer` 하나로 합칩니다. 그래서 룰이 그 셋을
+가르는 것은 `destination.type`과 `source_vault.kind`입니다.
 
 요청 표면의 값인 `withdrawal`을 여기 적으면 어떤 요청에도 매치되지 않습니다. 거부는 나므로 아무것도
 깨지지 않고, 요청이 끝까지 통과하는지 재본 뒤에야 그 룰이 죽어 있었다는 것이 드러납니다.
 
-## `effect`의 두 값
+## 조건 노드
 
-`effect`에 적을 수 있는 값은 `allow`와 `deny` 둘뿐입니다. `pending`이나 `need_more_data`를 룰이
-적을 수 없습니다. 그 둘은 조건 트리를 평가하고 결정을 결합하는
-[커널](/policy/rule/decision)이 산출하는 결정값이지 저작자가 고르는 값이 아닙니다.
+`scope`와 `when`은 같은 문법을 씁니다. 둘 다 조건 트리이고, 조건 트리는 `all`·`any`·`not`과
+비교·멤버십 리프로 이루어진 룰의 조건식입니다.
 
-**`deny` 룰에는 obligation을 달 수 없습니다.** 거부하면서 이행을 요구하는 것은 뜻이 성립하지
-않습니다.
+노드는 다섯입니다 — 비교(`eq`·`ne`·`lt`·`lte`·`gt`·`gte`), 멤버십(`in`·`not_in`), 그리고
+`all`·`any`·`not`입니다. 중첩할 수 있고 깊이 상한은 컴파일러가 봅니다.
 
-## `obligations`의 세 종류
+**카탈로그에 없는 필드는 참조할 수 없습니다.** 참조하면 컴파일이 실패합니다. 값이 채워지지 않은
+필드를 비교하면 불성립(거짓)으로 봅니다. allow 룰에 안전한 방향입니다.
 
-obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다. "통과시키되 이것을 이행하라"는
-요구이고, 종류는 셋입니다.
+## 요청 필드와 수집 필드
+
+룰이 참조할 수 있는 경로는 두 갈래로 나뉩니다. 요청에서 나오는 필드와, 평가 중에 밖에서 읽어 오는
+필드입니다.
+
+요청 필드는 정규화가 요청에서 뽑은 값입니다. 요청이 접수되는 순간 값이 정해지므로 `scope`와 `when`
+어디서든 쓸 수 있습니다.
+
+<FieldCatalog only="request" />
+
+수집 필드는 평가 도중 PIP 소스가 채우는 값입니다. PIP 소스는 룰이 참조하는 외부 사실의
+출처입니다([자세히](/policy/runtime/pip)). 수집 이전에 `scope`가 판정되기 때문에 수집 필드는
+`when`에서만 쓸 수 있습니다. 시드 출금 룰이 `address_ownership.status`를 `when`에 적는 것이 그
+예입니다.
+
+아래 목록은 그 워크스페이스에 등재된 PIP 소스에 따릅니다. 소스를 더하면 참조할 수 있는 경로도 함께
+늘어납니다.
+
+<FieldCatalog only="pip" />
+
+어드민 액션의 `payload.*` 필드는 플랫폼이 저작하는 표면이라 이 표에 없습니다. 그 계약은
+[룰 명세](/policy/rule/reference)에 있습니다.
+
+## 리터럴과 슬롯
+
+값은 리터럴이거나 슬롯입니다. 슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다.
+
+플랫폼이 하한(floor)이나 허용 값 목록을 정하고 파트너사가 그 안에서 값을 골라 발행합니다. 시드
+카탈로그에 있는 슬롯은 다섯입니다.
+
+- **`grantable_roles`**: 권한 부여 액션으로 줄 수 있는 role 목록입니다
+- **`approval_quorum`**: 권한 부여를 승인하는 데 필요한 최소 승인자 수입니다
+- **`escalation_quorum`**: 어드민 액션 중 권한을 올리는 성격의 것들인 escalation surface에서 요구하는
+  최소 승인자 수의 하한이고, 기본값이 `approval_quorum`보다 높습니다
+- **`approved_intent_ttl_seconds`**: 승인된 요청이 서명까지 유효한 시간(초)입니다
+- **`resource_limit_per_tx`**: 건당 수수료 총액 상한이고, 체인별 값을 각각 선언합니다
+
+**금액 상한은 리터럴로 적을 수 없습니다.** 금액 리터럴의 순서 비교는 컴파일 시점에 거부되므로,
+상한은 금액 슬롯을 참조해서만 씁니다.
+
+커널이 평가 시점에 다시 보는 것은 하한과 타입까지이고, 허용 값 목록은 발행 시점에만 대조합니다. 그
+차이가 왜 생기는지는 [결정과 결합](/policy/rule/decision)에서 설명합니다.
+
+## obligation 세 종류
+
+obligation은 "통과시키되 이것을 이행하라"는 요구입니다. 종류는 셋이고, 룰이 그중 하나를 골라
+답니다.
 
 | 타입 | 무엇을 요구하나 |
 |---|---|
@@ -4188,10 +4926,13 @@ obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다.
 | `require_quorum` | 승인이 성립하는 데 필요한 최소 승인자 수인 정족수. 인원수·승인 가능 역할·본인 승인 허용 여부를 정합니다 |
 | `attach_travel_rule_payload` | 트래블룰 정보 첨부 |
 
-`require_quorum`의 본인 승인 허용은 생략하면 **불허**입니다. 요청자와 승인자가 같으면 정족수가
-통제가 아니라 형식이 되기 때문입니다.
+`require_quorum`의 본인 승인 허용은 생략하면 불허입니다. 요청자와 승인자가 같으면 정족수가 통제가
+아니라 형식이 되기 때문입니다.
 
-obligation은 배열로 답니다. 저작 세트의 역할 부여 허가 룰이 둘을 함께 다는 실제 사례입니다.
+**`deny` 룰에는 obligation을 달 수 없습니다.** 거부하면서 이행을 요구하는 것은 뜻이 성립하지
+않습니다.
+
+obligation은 배열이라 둘 이상을 함께 답니다. 플랫폼이 발행하는 역할 부여 허가 룰이 그 사례입니다.
 
 ```json
 "obligations": [
@@ -4200,31 +4941,34 @@ obligation은 배열로 답니다. 저작 세트의 역할 부여 허가 룰이 
 ]
 ```
 
-## 조건 노드 다섯
+## 번들 두 종류
 
-조건은 다섯 노드로 씁니다. 비교(`eq`·`ne`·`lt`·`lte`·`gt`·`gte`), 멤버십(`in`·`not_in`), 그리고
-`all`·`any`·`not`입니다. 자유롭게 중첩할 수 있고 깊이 상한은 컴파일러가 봅니다.
+저작 결과가 들어가는 번들은 둘입니다. 누가 발행하고 무엇을 담는지가 갈립니다.
 
-**카탈로그에 없는 필드는 참조할 수 없습니다.** 참조하면 컴파일이 실패합니다. 값이 채워지지 않은
-필드를 비교하면 불성립(거짓)으로 봅니다. allow 룰에 안전한 방향입니다.
+정책 로직 번들은 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물입니다. 플랫폼 거버넌스가
+관리하고, 배포 단위당 하나이며, 변경은 제안자와 승인자를 갈라 두는 maker-checker 승인을 거칩니다.
 
-## 리터럴과 슬롯
+워크스페이스 번들은 한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다. 값 이동은 출금·vault
+이체·집금처럼 자산을 실제로 움직이는 연산 셋입니다. 파트너사가 쓰는 룰과 슬롯 값이 여기 들어갑니다.
 
-값은 리터럴이거나 슬롯입니다. 슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다.
-워크스페이스는 Wallet SDK를 도입한 회사 하나이고 최상위 격리
-컨테이너입니다([계정 계층](/accounts-wallets/accounts)). 플랫폼이 하한과 허용 값 목록을 정하고 파트너사가
-그 안에서 발행합니다.
+하한만 두고 상한을 두지 않습니다. 인가 TTL의 상한은 슬롯 선언이 아니라 검사 둘이 강제합니다. 발행
+시점의 컴파일 검사와, 승인 스탬프를 찍는 절차입니다.
 
-**커널이 평가 시점에 다시 보는 것은 하한과 타입입니다.** 발행 시점 검증만 두면 그 검증을 우회한
-값이 평가에 들어올 수 있기 때문입니다. 검증의 기준점이 주장자와 다른 곳에 있어야 합니다.
+**조정을 불허할 값은 슬롯이 아니라 룰에 직접 씁니다.** 커널이 평가 시점에 허용 값 목록을 다시 보지
+않기 때문입니다.
 
-허용 값 목록은 발행 시점에만 대조합니다. 문자열 목록 슬롯의 값이 카탈로그의 목록 안인지를
-커널은 평가 시점에 다시 보지 않습니다. 그 검사는 발행 경로가 성립할 때만 유효합니다.
+## 다음으로
+
+- [예시 정책](/policy/examples) — 시드에 들어 있는 룰 셋과, 통과하는 요청과 거절되는 요청
+- [룰 저작과 발행](/policy/workflow) — draft에서 활성까지 사람이 거치는 절차
+- [룰 명세](/policy/rule/reference) — 참조 가능 경로와 어드민 액션 표면의 전수 계약
+- [결정과 결합](/policy/rule/decision) — 커널이 룰의 결정을 결합하는 규칙
+
 
 ---
-
-# 평가의 순간
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/runtime/evaluation
+title: 평가의 순간
+description: 입력 문서가 조립되고 커널이 슬롯을 풀어 결정을 내리기까지
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -4329,7 +5073,7 @@ _읽는 사람: 구현팀. 입력 문서가 조립되고 커널이 결정을 내
   확정한 값이 들어가는 구획입니다. 요청이 이 구획을 채울 수 없습니다.
 
 여기서 obligation은 통과로 확정되기 전에 이행해야 하는
-조건입니다([룰 구조](/policy/rule/structure)).
+조건입니다([룰 쓰기](/policy/rules)).
 
 값 이동 세 연산은 canonical에서 `value_transfer` 하나로 모입니다. 그래서 `operation`은 파트너
 대상 API의 연산 이름과 1:1이 아닙니다. 최상위 키로 나열되는 PIP 스냅샷은 평가 루프에서 수집하는
@@ -4345,7 +5089,7 @@ _읽는 사람: 구현팀. 입력 문서가 조립되고 커널이 결정을 내
 
 ## 두 층의 룰 병합
 
-룰은 `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다([룰 구조](/policy/rule/structure)).
+룰은 `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다([룰 쓰기](/policy/rules)).
 커널은 조건 트리를 평가하고 결정을 결합하는 정책 무관 고정
 부분입니다([결정과 결합](/policy/rule/decision)).
 
@@ -4373,7 +5117,7 @@ _읽는 사람: 구현팀. 입력 문서가 조립되고 커널이 결정을 내
 
 ## 슬롯 해석 우선순위 세 단계
 
-슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다([룰 구조](/policy/rule/structure)).
+슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다([룰 쓰기](/policy/rules)).
 `{"slot": "이름"}` 참조를 만나면 커널이 그 시점에 값을 찾습니다. 우선순위는 세 단계입니다.
 
 1. 입력의 워크스페이스 번들에 있는 테넌트별 값
@@ -4382,7 +5126,7 @@ _읽는 사람: 구현팀. 입력 문서가 조립되고 커널이 결정을 내
 
 **조건의 비교값과 obligation의 파라미터가 같은 해석을 거칩니다.** 그래서 승인에 필요한 최소
 인원인 정족수도, 허용 목록도 워크스페이스가 조정한 값이 같은 규칙으로 적용됩니다. 하한을 평가 시점에 한 번 더
-확인하는 이유는 [룰 구조](/policy/rule/structure)에 있습니다.
+확인하는 이유는 [룰 쓰기](/policy/rules)에 있습니다.
 
 ## 결정값 산출
 
@@ -4401,10 +5145,11 @@ _읽는 사람: 구현팀. 입력 문서가 조립되고 커널이 결정을 내
 이 흐름의 각 조각이 어디에 저장되고 무엇이 네트워크를 오가는지는
 [저장과 이동](/policy/runtime/storage)에 있습니다.
 
----
 
-# 정규화
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/runtime/normalization
+---
+title: 정규화
+description: 승인한 것과 서명될 것이 같은가
+---
 
 _읽는 사람: 구현팀. 승인된 서명 대상과 실제로 서명될 것을 무엇으로 대조하는지 다룹니다._
 
@@ -4546,7 +5291,7 @@ EVM에서는 `gasLimit × maxFeePerGas`로 유도하고 척도는 wei입니다. 
 
 컨트랙트 호출과 EIP-712 서명은 등록제입니다. 레지스트리는 구조와 타입만 정의합니다. 화이트리스트나
 한도 같은 제약은 `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위인
-룰([자세히](/policy/rule/structure))에서 정합니다.
+룰([자세히](/policy/rules))에서 정합니다.
 
 레지스트리는 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물인 정책 로직 번들에
 포함됩니다. 등록은 승인을 거치는 번들 변경입니다. 컴파일러가 번들 스냅샷을 기준으로 타입을 검사합니다.
@@ -4608,12 +5353,13 @@ fail-closed, 레지스트리가 전부 계열과 무관합니다.
 
 - [서명 게이트](/policy/signing-gate) — 이 대조가 어느 단계에서 일어나는지
 - [저장과 이동](/policy/runtime/storage) — 스탬프한 값이 어느 저장소에 남는지
-- [룰 구조](/policy/rule/structure) — 레지스트리가 정의한 것을 룰이 어떻게 제약하는지
+- [룰 쓰기](/policy/rules) — 레지스트리가 정의한 것을 룰이 어떻게 제약하는지
+
 
 ---
-
-# PIP
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/runtime/pip
+title: PIP
+description: 세상의 상태를 언제 어떻게 읽는가
+---
 
 _읽는 사람: 구현팀. 소스를 선언하고 결과를 인증·검증해 입력에 싣는 계약을 다룹니다._
 
@@ -4882,7 +5628,7 @@ vault에는 고객이 용도 태그를 붙이고 앱은 그 뜻을 해석하지 
 ## obligation 이행 증거
 
 obligation은 통과로 확정되기 전에 이행해야 하는
-조건입니다([룰 구조](/policy/rule/structure)). 사용자에게 2단계 인증을 요구하는 obligation의 이행
+조건입니다([룰 쓰기](/policy/rules)). 사용자에게 2단계 인증을 요구하는 obligation의 이행
 증거도 이 인바운드 계약을 그대로 씁니다. 표면과 인증, 상관 식별자와 도착 규칙이 한 세트이기
 때문입니다.
 
@@ -4900,10 +5646,11 @@ obligation은 통과로 확정되기 전에 이행해야 하는
 - [결정과 결합](/policy/rule/decision) — 수집 요구가 어떻게 결정값으로 나오는지
 - [저장과 이동](/policy/runtime/storage) — 수집 레코드와 결정 기록이 어느 저장소에 남는지
 
----
 
-# 저장과 이동
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/runtime/storage
+---
+title: 저장과 이동
+description: 각 산출물이 어디에 저장되고 무엇이 네트워크를 오가는가
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -5004,6 +5751,29 @@ _읽는 사람: 구현팀. 각 산출물이 어느 저장소에 저장되는지�
   경로입니다([자세히](/policy/runtime/pip)). 그 조회는 요청마다의 HTTP 호출이고, 결과를 저장해
   두지 않습니다. 재사용 규율도 그 페이지에 있습니다.
 
+## 발행과 활성화의 대조
+
+저작 revision은 추가 전용 체인입니다. 편집이 앞 행을 고치지 않고 새 행을 쓰므로, 폐기된 draft의
+체인도 그대로 남고 지난 내용을 revision 번호로 다시 읽습니다.
+
+검증 결과는 그 revision에 1:1로 남습니다. 통과 여부, 위반 목록, 실행된 케이스 수, 그리고 통과
+시점의 내용 해시입니다.
+
+승인은 draft가 아니라 그 내용 해시에 묶입니다. 승인 뒤에 revision을 더 쌓으면 새 revision의 해시가
+달라, 모아 둔 표가 새 내용으로 넘어가지 않습니다.
+
+**발행은 승인된 revision을 다시 컴파일해 내용 해시를 새로 계산하고 승인이 묶인 해시와
+대조합니다.** 같아야 번들이 만들어지고, 승인과 발행 사이에 내용이 바뀌는 경로가 여기서 막힙니다.
+
+발행 시점에 채점을 되풀이하지 않습니다. 채점은 검증 시점에 끝났고, 해시가 같다는 것은 채점받은
+바이트와 발행되는 바이트가 같다는 뜻이기 때문입니다.
+
+활성 포인터 전환은 경합에 안전한 조건부 갱신입니다. 지금 값이 전환 요청이 전제한 revision일 때만
+바뀌므로, 두 전환이 겹쳐도 하나만 성립합니다.
+
+전환 이력은 추가 전용으로 남습니다. 그래서 되돌림이 재발행이 아니라 포인터 재전환이고, 이전
+revision의 바이트는 룰 저장소에 그대로 있습니다.
+
 ## 두 평가기
 
 평가기는 완성된 입력 문서를 평가해 결정을 내는 역할입니다([구조](/policy/architecture)). 서빙
@@ -5031,10 +5801,11 @@ draft 채점은 채점 전용 평가기가 맡습니다. 검증 요청마다 커
 - [저작과 발행](/policy/workflow) — 이 과정의 처음으로
 - [다이어그램](/policy/diagrams) — 배포 토폴로지와 코드 수준 호출 경로
 
----
 
-# 승인 게이트
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/sequences/approval-gate
+---
+title: 승인 게이트
+description: 어드민 액션과 정책 변경이 거치는 maker-checker
+---
 
 _읽는 사람: 구현팀. 어드민 조작과 정책 변경이 승인을 받아 집행되는 경로를 다룹니다._
 
@@ -5227,7 +5998,7 @@ sequenceDiagram
 **정책 변경 자체가 엔진의 피통제 연산입니다.** 룰·카탈로그·소스 선언·하한을 바꾸는 일이 전부
 판단 요청으로 접수돼 같은 obligation을 받습니다. 판단 요청은 한 업무 요청을 두고 엔진이 소유하는
 판단 기록이고([자세히](/policy/signing-gate)), obligation은 통과로 확정되기 전에 이행해야 하는
-조건입니다([자세히](/policy/rule/structure)).
+조건입니다([자세히](/policy/rules)).
 
 지금은 그 접수 경로가 없어 룰 변경이 번들 발행의 maker-checker로 갑니다. 두 경로는 정족수
 집계와 자격 재검증에 같은 도메인 함수를 쓰고, 갈리는 것은 그 판정을 커널이 하는지입니다.
@@ -5242,14 +6013,15 @@ sequenceDiagram
 - [결정과 결합](/policy/rule/decision) — 재평가 라운드와 obligation 병합
 - [구조](/policy/architecture) — 두 집행 형태의 비교
 
----
 
-# obligation 수집
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/sequences/obligations
+---
+title: obligation 수집
+description: 통과 조건으로 붙은 이행을 어디서 모으나
+---
 
 _읽는 사람: 구현팀. 통과 조건으로 붙은 이행을 어느 채널에서 모으는지를 다룹니다._
 
-obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다([자세히](/policy/rule/structure)). 이
+obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다([자세히](/policy/rules)). 이
 페이지는 그 이행을 어느 채널에서 모으고, 모으는 동안 요청이 어디에 머무는지를 씁니다.
 
 obligation은 **"통과시키되 이것을 이행하라"**는 요구입니다. 이행이 끝날 때까지 요청은
@@ -5408,13 +6180,14 @@ obligation마다 데드라인이 따로 있습니다. 대기 진입 시각에 �
 
 - [승인 게이트](/policy/sequences/approval-gate) — 정족수와 어드민 2단계 인증의 전체 흐름
 - [비동기 수집](/policy/sequences/pending-data) — 파트너를 기다리는 다른 경우
-- [룰 구조](/policy/rule/structure) — obligation을 룰에 어떻게 다나
+- [룰 쓰기](/policy/rules) — obligation을 룰에 어떻게 다나
 - [결정과 결합](/policy/rule/decision) — obligation 병합 규칙
 
----
 
-# 비동기 수집
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/sequences/pending-data
+---
+title: 비동기 수집
+description: 파트너의 답을 기다리는 동안 요청은 어디에 있나
+---
 
 _읽는 사람: 구현팀. 즉시 답이 오지 않는 소스를 기다리는 동안 요청이 머무는 구간을 다룹니다._
 
@@ -5532,10 +6305,11 @@ sequenceDiagram
 - [obligation 수집](/policy/sequences/obligations) — 사람을 기다리는 쪽의 대기
 - [결정과 결합](/policy/rule/decision) — 평가 라운드 상한
 
----
 
-# 서명 게이트
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/signing-gate
+---
+title: 서명 게이트
+description: 판단과 집행이 두 단계로 나뉩니다
+---
 
 _읽는 사람: 파트너사 개발자와 구현팀. 자금을 움직이는 요청이 판단과 집행 두 단계를 어떻게 거치는지를 다룹니다._
 
@@ -5686,10 +6460,11 @@ sequenceDiagram
 이 노출 창은 TTL 상한으로 묶인 의도된 트레이드오프입니다. 배포마다 진행 중인 정상 출금을
 실패시키지 않기 위해서입니다.
 
----
 
-# 서명 상한 대조
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/callback-limit
+---
+title: 서명 상한 대조
+description: 승인 스탬프는 서명 직전에 일합니다
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -5793,10 +6568,11 @@ _읽는 사람: 구현팀. 값 이동 승인이 서명 직전에 마지막으로
 - [서명 게이트](/policy/signing-gate) — 두 단계 구조와 인가 유효 시간
 - [출금 화이트리스트](/policy/use-cases/whitelist-loop) — 이 스탬프를 발급한 흐름
 
----
 
-# 금지선
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/deny-override
+---
+title: 금지선
+description: deny는 어떤 허가로도 뒤집히지 않습니다
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -5857,7 +6633,7 @@ export function Diagram({ name, title }) {
 _읽는 사람: 구현팀. 금지 룰이 허가를 뒤집는 결합을 다룹니다._
 
 이 페이지는 허가 룰과 금지 룰이 함께 참일 때 결과가 어떻게 정해지는지를 따라갑니다. 룰은
-`scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다([자세히](/policy/rule/structure)).
+`scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다([자세히](/policy/rules)).
 
 **허가 룰이 참이어도 금지 룰이 참이면 결과는 deny입니다.** 예약 어드민 계정에 권한을 부여하려는
 요청이 이 결합을 정확히 보여줍니다.
@@ -5891,7 +6667,7 @@ _읽는 사람: 구현팀. 금지 룰이 허가를 뒤집는 결합을 다룹니
 
 **deny 룰에는 obligation이 없습니다.** obligation은 통과로 확정되기 전에 이행해야 하는 조건이라,
 거부하면서 이행을 요구하는 것은 뜻이 성립하지 않습니다. 그 계약은
-[룰 구조](/policy/rule/structure)에 있습니다.
+[룰 쓰기](/policy/rules)에 있습니다.
 
 ## deny 면제 메커니즘은 없습니다
 
@@ -5904,7 +6680,7 @@ deny 판정은 수집 요구보다 앞입니다. 소스 없이도 이미 참인 
 ## 금지 값이 리터럴인 것이 통제입니다
 
 슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는
-값입니다([자세히](/policy/rule/structure)).
+값입니다([자세히](/policy/rules)).
 
 **금지 대상 목록을 슬롯으로 두면 피통제 조직이 목록을 비워 무력화할 수 있습니다.** 금지 규칙을
 금지 대상이 직접 정하게 되는 셈입니다.
@@ -5925,10 +6701,11 @@ deny 판정은 수집 요구보다 앞입니다. 소스 없이도 이미 참인 
 - [결정과 결합](/policy/rule/decision) — deny 우선 결합과 결정값 네 가지
 - [권한 상승 게이트](/policy/use-cases/escalation-pending) — 같은 표면의 하한 obligation
 
----
 
-# 권한 상승 게이트
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/escalation-pending
+---
+title: 권한 상승 게이트
+description: 하한 룰은 조건 없이 적용됩니다
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -5989,7 +6766,7 @@ export function Diagram({ name, title }) {
 _읽는 사람: 구현팀. 권한 상승 요청이 받는 하한 게이트를 다룹니다._
 
 이 페이지는 권한을 올리는 요청이 pending으로 멈추는 지점을 따라갑니다. obligation은 통과로
-확정되기 전에 이행해야 하는 조건이고([자세히](/policy/rule/structure)), 이 요청에서는 2단계
+확정되기 전에 이행해야 하는 조건이고([자세히](/policy/rules)), 이 요청에서는 2단계
 인증과, 승인에 필요한 최소 인원인 정족수의 승인이 그것입니다.
 
 **권한을 올리는 요청은 어떤 설정에서도 가장 강한 게이트를 받습니다.** 그 하한을 만드는 것이
@@ -6042,7 +6819,7 @@ _읽는 사람: 구현팀. 권한 상승 요청이 받는 하한 게이트를 �
 **값을 고르는 것은 워크스페이스이지만 하한 아래로는 내려가지 못합니다.** 조건 트리를
 평가하고 결정을 결합하는 정책 무관 고정 부분인 커널([자세히](/policy/rule/decision))이 평가 시점에
 하한을 다시 확인합니다. `escalation_quorum`의 기본값은 3이고 하한은 2입니다. 슬롯 계약은
-[룰 구조](/policy/rule/structure)에 있습니다.
+[룰 쓰기](/policy/rules)에 있습니다.
 
 정족수를 리터럴로 고정하면 워크스페이스가 자기 규모에 맞게 올릴 수도 없습니다. 조정 가능성과
 하한 보증을 슬롯 하나가 함께 만듭니다.
@@ -6059,10 +6836,11 @@ _읽는 사람: 구현팀. 권한 상승 요청이 받는 하한 게이트를 �
 - [금지선](/policy/use-cases/deny-override) — 같은 표면에서 deny 룰이 허가를 뒤집는 흐름
 - [룰 변경 게이트](/policy/use-cases/rule-change) — 정책 변경 자체가 받는 게이트
 
----
 
-# 룰 변경 게이트
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/rule-change
+---
+title: 룰 변경 게이트
+description: 정책을 바꾸는 요청도 정책 평가를 거칩니다
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -6178,10 +6956,11 @@ maker-checker는 제안자와 승인자를 갈라 두는 정책 변경 거버넌
 - [승인 게이트](/policy/sequences/approval-gate) — 정족수 집계와 재평가
 - [권한 상승 게이트](/policy/use-cases/escalation-pending) — 더 강한 하한이 적용되는 표면
 
----
 
-# 출금 화이트리스트
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/use-cases/whitelist-loop
+---
+title: 출금 화이트리스트
+description: 조건 하나가 수집 루프 전체를 발동합니다
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -6253,7 +7032,7 @@ _읽는 사람: 구현팀. 수집 루프가 끼는 평가 한 건을 처음부�
 ## 룰 형태가 흐름을 정합니다
 
 외부 주소 출금을 허가하는 룰의 형태 예시입니다. 필드와 조각의 뜻은
-[룰 구조](/policy/rule/structure)에 있습니다.
+[룰 쓰기](/policy/rules)에 있습니다.
 
 ```json
 {
@@ -6311,10 +7090,11 @@ default deny입니다. 결합 규칙은 [결정과 결합](/policy/rule/decision
 - [PIP](/policy/runtime/pip) — 소스 선언과 수집 계약
 - [서명 상한 대조](/policy/use-cases/callback-limit) — 이 흐름이 발급한 스탬프의 마지막 일
 
----
 
-# 룰 저작과 발행
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/policy/workflow
+---
+title: 룰 저작과 발행
+description: draft 하나가 편집·검증·승인을 거쳐 활성 번들이 되기까지
+---
 
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -6372,62 +7152,69 @@ export function Diagram({ name, title }) {
   );
 }
 
-_읽는 사람: 구현팀. draft 하나가 활성 번들이 될 때까지 사람이 거치는 길을 다룹니다._
+_읽는 사람: 파트너사 개발자. draft 하나가 활성 번들이 될 때까지 사람이 하는 일을 다룹니다._
 
-저작과 발행은 draft를 열고, 검증을 받고, 승인을 모아 발행과 활성화까지 가는 과정입니다. 이
-페이지는 그 과정에서 사람이 거치는 길을 씁니다.
+룰 저작은 콘솔에서 draft를 열고, 검증을 받고, 승인을 모아 발행과 활성화까지 가는 절차입니다. 이
+페이지는 그 절차를 순서대로 설명합니다.
 
-룰은 저작 세트에서 시작해 번들이 되어 서빙됩니다. 저작 세트는 룰 모듈과 카탈로그·레지스트리
-파일이 놓이는 묶음입니다.
+출발점은 저작 세트입니다. 저작 세트는 룰 모듈과 카탈로그·레지스트리 파일이 놓이는
+묶음입니다([자세히](/policy/architecture)).
 
-컴파일이 그것을 평가기가 읽는 선언 데이터로 바꾸고, 채점이 컴파일된 룰을 테스트 벡터로 돌려
-기대 결과와 맞는지 확인합니다.
+저작 세트를 컴파일하면 평가기가 읽는 선언 데이터가 됩니다. 채점은 컴파일된 룰이 의도대로
+판정하는지 테스트 벡터로 재는 검사입니다.
 
-둘을 통과한 내용이 정책 로직 번들로 묶여 발행되고, 활성 포인터가 그중 한 revision을 지목하면
-그것이 서빙됩니다. 번들 바이트와 발행 이력은 관계형 저장소에 남습니다.
+컴파일과 채점을 통과한 내용이 정책 로직 번들로 묶여 발행됩니다. 정책 로직 번들은 룰과 선언
+데이터를 커널과 함께 담아 발행한 배포 산출물입니다.
+
+발행만으로는 아직 서빙되지 않습니다. 활성 포인터가 그중 한 revision을 가리켜야 그것이 서빙됩니다.
 
 <Diagram name="rule-draft-lifecycle" title="룰 draft의 일생 — 저작에서 활성까지" />
 
 ## 저작은 기준선에서 시작합니다
 
-콘솔의 편집기는 빈 화면이 아니라 **활성 번들에서 유도한 기준선**으로 시작합니다. 지금 서빙되는
-내용을 받아 고치는 구조라, 저작이 현재 상태와 동떨어지지 않습니다.
+콘솔의 편집기는 빈 화면이 아니라 활성 번들에서 유도한 기준선으로 시작합니다. 지금 서빙되는 내용을
+받아 고치는 구조라, 저작이 현재 상태와 동떨어지지 않습니다.
 
-활성 번들이 없을 때 무엇을 받는지는 두 경우로 갈립니다. 워크스페이스 저작은 앱에 미리 넣어 둔
-시드 저작 세트를 받습니다. 그 시드도 없으면 기준선이 비고, 플랫폼 저작은 활성 번들이 없으면 그대로
-빕니다.
+활성 번들이 없을 때 무엇을 받는지는 두 경우로 갈립니다. 워크스페이스 저작은 앱에 미리 넣어 둔 시드
+저작 세트를 받습니다.
 
-빈 기준선은 오류가 아니라 첫 저작의 정상 출발점입니다.
+그 시드도 없으면 기준선이 빕니다. 플랫폼 저작은 활성 번들이 없으면 그대로 빕니다.
 
-## 편집은 지우지 않고 누적합니다
+**빈 기준선은 오류가 아니라 첫 저작의 정상 출발점입니다.**
 
-draft 하나는 편집의 머리(head)이고, **편집은 언제나 새 revision을 추가하는 일입니다.** 지난
-revision은 고쳐지지 않고 그대로 남아, 언제든 주소로 되찾을 수 있습니다.
+## 편집은 revision을 쌓습니다
 
-폐기도 삭제가 아니라 상태 전이입니다. 폐기된 draft의 revision 체인은 기록으로 남습니다.
+draft 하나가 편집의 머리(head)입니다. **편집은 언제나 새 revision을 추가하는 일입니다.**
+
+지난 revision은 고쳐지지 않고 그대로 남습니다. 그래서 편집 이력을 되짚을 때 그때의 내용을 revision
+번호로 다시 읽습니다.
+
+폐기도 삭제가 아니라 상태 전이입니다. 저작 원문이 어떻게 저장되는지는
+[저장과 이동](/policy/runtime/storage)에서 설명합니다.
 
 조회 범위는 요청이 아니라 인증에서 옵니다. [인증과 스코프](/start/authentication)의 규율
 그대로입니다.
 
 ## 검증은 revision 하나에 묶입니다
 
-검증 요청은 draft가 아니라 **특정 revision을 지목합니다.** 컴파일 검사 전부와 케이스 채점이 한
+검증 요청은 draft가 아니라 특정 revision을 지목합니다. 컴파일 검사 전부와 케이스 채점이 한
 요청에서 함께 실행됩니다.
 
-결과는 그 revision에 1:1로 남습니다. 통과 여부, 위반 목록, 실행된 케이스 수, 그리고 통과 시의
-내용 해시입니다.
+결과는 그 revision에 남습니다. 통과 여부, 위반 목록, 실행된 케이스 수를 봅니다.
 
-그래서 "검증 통과"라는 말에는 항상 대상이 있습니다. revision을 더 쌓으면 새 revision은 다시
-검증받아야 합니다.
+그래서 "검증 통과"라는 말에는 항상 대상이 있습니다. **revision을 더 쌓으면 새 revision은 다시
+검증받아야 합니다.**
 
-콘솔 검증과 발행 빌드는 같은 컴파일러를 거칩니다. 그래서 검증 화면에서 통과한 내용이 발행
-시점에 다른 판정을 받지 않습니다.
+콘솔 검증과 발행 빌드는 같은 컴파일러를 거칩니다. 그래서 검증 화면에서 통과한 내용이 발행 시점에
+다른 판정을 받지 않습니다.
 
 ### 경고는 판정을 바꾸지 않습니다
 
 결과에는 위반 말고 경고가 함께 들어갑니다. **경고는 통과 여부를 뒤집지 않습니다.** 발행 검사에서
-막힐 것을 검증 화면이 미리 보여 주기 때문입니다. 그래서 오타 하나가 정족수 승인 한 벌을 헛되게
-하지 않습니다. 정족수는 승인이 성립하는 데 필요한 최소 승인자 수입니다.
+막힐 것을 검증 화면이 미리 보여 주기 때문입니다.
+
+그래서 오타 하나가 승인 한 벌을 헛되게 하지 않습니다. 정족수는 승인이 성립하는 데 필요한 최소
+승인자 수입니다.
 
 경고 종류는 셋입니다.
 
@@ -6438,45 +7225,50 @@ revision은 고쳐지지 않고 그대로 남아, 언제든 주소로 되찾을 
 
 ## 승인은 통과한 revision만 받습니다
 
-승인을 여는 것(maker)과 표를 던지는 것(checker)이 갈립니다. maker-checker는 제안자와 승인자를
+승인을 여는 사람(maker)과 표를 던지는 사람(checker)이 갈립니다. maker-checker는 제안자와 승인자를
 갈라 두는 정책 변경 거버넌스입니다([자세히](/policy)).
 
-**승인은 언제나 검증 통과 revision의 내용 해시에 붙습니다.** 통과하지 않은 revision은 승인의
-대상이 될 수 없고, 승인이 붙은 뒤 내용이 바뀌면 그 해시가 달라집니다.
+**승인은 검증을 통과한 revision의 내용 해시에 묶입니다.** 통과하지 않은 revision은 승인의 대상이
+되지 않습니다.
+
+승인을 모은 뒤 내용을 고치면 그 승인은 새 내용에 적용되지 않습니다. 왜 그렇게 되는지는
+[저장과 이동](/policy/runtime/storage)에서 설명합니다.
 
 표 접수와 자격 재검증, 재평가로 이어지는 maker-checker 흐름은
-[승인 게이트](/policy/sequences/approval-gate)에 있습니다. 이 페이지가 더하는 것은 승인이 내용
-해시에 묶인다는 사실 하나입니다.
+[승인 게이트](/policy/sequences/approval-gate)에 있습니다.
 
-## 발행은 다시 컴파일해 대조합니다
+## 발행은 승인된 내용만 번들로 만듭니다
 
-발행은 승인된 revision의 콘텐츠를 다시 컴파일해 내용 해시를 새로 계산하고, 승인이 묶인 해시와
-대조합니다. 같아야 번들이 만들어집니다. 승인과 발행 사이에 내용이 바뀌는 길이 이 대조에서
-막힙니다.
+발행은 승인된 revision을 정책 로직 번들로 만드는 액션입니다. **발행된 것이 승인된 것과 같은
+바이트임을 서버가 대조합니다.**
 
-발행 시점에 채점을 되풀이하지는 않습니다. 채점은 검증 시점에 끝났고, 해시가 같다는 것은 채점받은
-바이트와 발행되는 바이트가 같다는 뜻이기 때문입니다.
+대조가 어긋나면 번들이 만들어지지 않습니다. 그 대조가 어떻게 이루어지는지는
+[저장과 이동](/policy/runtime/storage)에서 설명합니다.
 
-**발행에는 컴파일 밖의 검사가 하나 더 있습니다.** 슬롯 값 구획이 테넌트를 지목하면, 그 테넌트가
-그 워크스페이스에 실재하는지 지갑 쪽에 물어봅니다. 판정에 외부 조회가 필요해 순수 컴파일 검사에
-둘 수 없고, 그래서 발행 서비스 안에 있습니다.
+발행에는 컴파일 밖의 검사가 하나 더 있습니다. 슬롯 값 구획이 테넌트를 지목하면, 그 테넌트가 그
+워크스페이스에 실재하는지 지갑 쪽에 물어봅니다.
 
 거절 사유는 셋으로 갈립니다. 없다는 사실 확인, 물어보지 못한 상태, 그리고 배선 결함입니다. 물을
 테넌트 키가 없으면 조회 자체를 하지 않습니다.
 
 ## 활성화는 별도 액션입니다
 
-발행은 번들 revision을 만드는 일입니다. 서빙되는 것은 지금 무엇이 서빙되는지를 정하는 단일
-기록인 활성 포인터가 가리키는 revision입니다. 발행이 곧 활성화가 되지 않게 두 단계를 갈라
-두었습니다.
+발행은 번들 revision을 만드는 일이고, 무엇이 서빙되는지는 활성 포인터가 정합니다. 활성 포인터는
+지금 무엇이 서빙되는지를 정하는 단일 기록입니다.
 
-포인터 전환은 경합에 안전한 조건부 갱신이고, 전환 이력은 추가 전용으로 남습니다. **되돌림도
-재발행이 아니라 포인터 재전환입니다.** 이전 revision은 저장소에 그대로 있습니다.
+발행이 곧 활성화가 되지 않게 두 단계를 갈라 두었습니다. **되돌림은 재발행이 아니라 활성 포인터
+재전환입니다.**
+
+이전 revision은 저장소에 그대로 있습니다. 포인터 전환과 전환 이력의 저장 방식은
+[저장과 이동](/policy/runtime/storage)에서 설명합니다.
 
 ## 콘솔은 두 배포로 갈립니다
 
-이 과정을 사람이 거치는 화면이 정책 콘솔입니다. 파트너사 워크스페이스가 쓰는 콘솔과, 플랫폼
-통제 구역이 쓰는 콘솔로 갈립니다.
+지금 프론트엔드는 라우터 하나에 전 화면이 든 단일 앱이고, 두 배포로 가르는 것은 계약과 이 문서가
+정한 목표 상태입니다.
+
+이 절차를 사람이 거치는 화면이 정책 콘솔입니다. 파트너사 워크스페이스가 쓰는 콘솔과, 플랫폼 통제
+구역이 쓰는 콘솔로 갈립니다.
 
 두 배포가 부를 수 있는 표면이 다르므로 화면 구성도 다릅니다. 표면은 계약 소유자와 인증 방식이
 하나로 정해지는 API 경로 묶음입니다([자세히](/start/authentication)).
@@ -6500,14 +7292,16 @@ revision은 고쳐지지 않고 그대로 남아, 언제든 주소로 되찾을 
 
 ## 다음으로
 
+- [결과 읽기](/policy/results) — 거절과 보류가 파트너사 API 응답에 어떻게 나타나나
 - [승인 게이트](/policy/sequences/approval-gate) — 표 접수와 자격 재검증이 거치는 흐름
-- [룰 구조](/policy/rule/structure) — 여기서 저작하는 룰이 무엇으로 이루어지나
-- [구조](/policy/architecture) — 발행된 번들이 어디에 배포되고 어떻게 서빙되나
+- [저장과 이동](/policy/runtime/storage) — 발행과 활성화의 대조가 어떻게 이루어지나
+- [룰 쓰기](/policy/rules) — 여기서 저작하는 룰이 무엇으로 이루어지나
+
 
 ---
-
-# API 레퍼런스
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference
+title: API 레퍼런스
+description: 표면 다섯 개의 엔드포인트 전수
+---
 
 _읽는 사람: 파트너사 개발자. 엔드포인트 전수를 표면별로 나눠 다룹니다._
 
@@ -6600,11 +7394,14 @@ workspace와 tenant를 확정하는 조회입니다([자세히](/policy/runtime/
 **여기 실린 것이 다 동작하지는 않습니다.** 어느 오퍼레이션이 아직 모형 응답이고 어느 것이
 계약뿐인지는 설계 기록의 「구현 대기」가 빌드마다 코드에서 다시 셉니다.
 
+
 ---
-
-# Wallet Admin API
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin
-
+seo:
+  description: Wallet Admin API API reference.
+sidebar:
+  label: Overview
+title: Wallet Admin API
+---
 <ApiOverview source="reference-admin" />
 
 ## Approvals
@@ -6673,326 +7470,833 @@ workspace에 귀속된 vault. 용도는 태그로 고객이 정의한다.
 
 <ApiTagOperations source="reference-admin" tag="initialize" />
 
+
 ---
-
-# API Key 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-change-status
-
+search:
+  tags:
+    - API Keys
+    - POST
+seo:
+  description: >-
+    API Key 상태 변경 Reference for the POST
+    /admin/api/v1/tenants/{tenantId}/api-keys/{apiKeyId}/status endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: API Key 상태 변경
+  badge: POST
+title: API Key 상태 변경
+type: openapi-operation
+---
 <Operation source="reference-admin" id="api-keys-change-status" />
 
+
 ---
-
-# API Key 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-create
-
+search:
+  tags:
+    - API Keys
+    - POST
+seo:
+  description: >-
+    API Key 생성 Reference for the POST /admin/api/v1/tenants/{tenantId}/api-keys
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: API Key 생성
+  badge: POST
+title: API Key 생성
+type: openapi-operation
+---
 <Operation source="reference-admin" id="api-keys-create" />
 
+
 ---
-
-# API Key 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-get
-
+search:
+  tags:
+    - API Keys
+    - GET
+seo:
+  description: >-
+    API Key 상세 조회 Reference for the GET
+    /admin/api/v1/tenants/{tenantId}/api-keys/{apiKeyId} endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: API Key 상세 조회
+  badge: GET
+title: API Key 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="api-keys-get" />
 
+
 ---
-
-# API Key 원문 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-get-api-key
-
+search:
+  tags:
+    - API Keys
+    - GET
+seo:
+  description: >-
+    API Key 원문 조회 Reference for the GET
+    /admin/api/v1/tenants/{tenantId}/api-keys/{apiKeyId}/key endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: API Key 원문 조회
+  badge: GET
+title: API Key 원문 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="api-keys-get-api-key" />
 
+
 ---
-
-# API Key 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/api-keys/api-keys-list
-
+search:
+  tags:
+    - API Keys
+    - GET
+seo:
+  description: >-
+    API Key 목록 조회 Reference for the GET
+    /admin/api/v1/tenants/{tenantId}/api-keys endpoint in the Wallet Admin API
+    API.
+sidebar:
+  label: API Key 목록 조회
+  badge: GET
+title: API Key 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="api-keys-list" />
 
+
 ---
-
-# 단건 승인
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-approve
-
+search:
+  tags:
+    - Approvals
+    - POST
+seo:
+  description: >-
+    단건 승인 Reference for the POST /admin/api/v1/approvals/{approvalId} endpoint
+    in the Wallet Admin API API.
+sidebar:
+  label: 단건 승인
+  badge: POST
+title: 단건 승인
+type: openapi-operation
+---
 <Operation source="reference-admin" id="approvals-approve" />
 
+
 ---
-
-# 승인 진행 내역 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-get
-
+search:
+  tags:
+    - Approvals
+    - GET
+seo:
+  description: >-
+    승인 진행 내역 상세 조회 Reference for the GET /admin/api/v1/approvals/{approvalId}
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: 승인 진행 내역 상세 조회
+  badge: GET
+title: 승인 진행 내역 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="approvals-get" />
 
+
 ---
-
-# 승인 진행 내역 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/approvals/approvals-list
-
+search:
+  tags:
+    - Approvals
+    - GET
+seo:
+  description: >-
+    승인 진행 내역 목록 조회 Reference for the GET /admin/api/v1/approvals endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: 승인 진행 내역 목록 조회
+  badge: GET
+title: 승인 진행 내역 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="approvals-list" />
 
+
 ---
-
-# 2FA 인증
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-auth2fa
-
+search:
+  tags:
+    - Auth
+    - POST
+seo:
+  description: >-
+    2FA 인증 Reference for the POST /admin/api/v1/auth/2fa endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 2FA 인증
+  badge: POST
+title: 2FA 인증
+type: openapi-operation
+---
 <Operation source="reference-admin" id="auth-auth2fa" />
 
+
 ---
-
-# 유저 가입 (초대 수락)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-join
-
+search:
+  tags:
+    - Auth
+    - POST
+seo:
+  description: >-
+    유저 가입 (초대 수락) Reference for the POST /admin/api/v1/auth/join endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: 유저 가입 (초대 수락)
+  badge: POST
+title: 유저 가입 (초대 수락)
+type: openapi-operation
+---
 <Operation source="reference-admin" id="auth-join" />
 
+
 ---
-
-# 로그인
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-login
-
+search:
+  tags:
+    - Auth
+    - POST
+seo:
+  description: >-
+    로그인 Reference for the POST /admin/api/v1/auth/login endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 로그인
+  badge: POST
+title: 로그인
+type: openapi-operation
+---
 <Operation source="reference-admin" id="auth-login" />
 
+
 ---
-
-# 2FA OTP 등록
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/auth/auth-register2-fa
-
+search:
+  tags:
+    - Auth
+    - POST
+seo:
+  description: >-
+    2FA OTP 등록 Reference for the POST /admin/api/v1/auth/2fa/register endpoint
+    in the Wallet Admin API API.
+sidebar:
+  label: 2FA OTP 등록
+  badge: POST
+title: 2FA OTP 등록
+type: openapi-operation
+---
 <Operation source="reference-admin" id="auth-register2-fa" />
 
+
 ---
-
-# 워크스페이스 부트스트랩 (1회, 무게이팅·멱등)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/initialize/initialize-initialize
-
+search:
+  tags:
+    - Initialize
+    - POST
+seo:
+  description: >-
+    워크스페이스 부트스트랩 (1회, 무게이팅·멱등) Reference for the POST /initialize endpoint in
+    the Wallet Admin API API.
+sidebar:
+  label: 워크스페이스 부트스트랩 (1회, 무게이팅·멱등)
+  badge: POST
+title: 워크스페이스 부트스트랩 (1회, 무게이팅·멱등)
+type: openapi-operation
+---
 <Operation source="reference-admin" id="initialize-initialize" />
 
+
 ---
-
-# 네트워크 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/networks/networks-change-status
-
+search:
+  tags:
+    - Networks
+    - POST
+seo:
+  description: >-
+    네트워크 상태 변경 Reference for the POST /admin/api/v1/networks/{networkId}/status
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: 네트워크 상태 변경
+  badge: POST
+title: 네트워크 상태 변경
+type: openapi-operation
+---
 <Operation source="reference-admin" id="networks-change-status" />
 
+
 ---
-
-# 네트워크 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/networks/networks-get
-
+search:
+  tags:
+    - Networks
+    - GET
+seo:
+  description: >-
+    네트워크 상세 조회 Reference for the GET /admin/api/v1/networks/{networkId} endpoint
+    in the Wallet Admin API API.
+sidebar:
+  label: 네트워크 상세 조회
+  badge: GET
+title: 네트워크 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="networks-get" />
 
+
 ---
-
-# 네트워크 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/networks/networks-list
-
+search:
+  tags:
+    - Networks
+    - GET
+seo:
+  description: >-
+    네트워크 목록 조회 Reference for the GET /admin/api/v1/networks endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: 네트워크 목록 조회
+  badge: GET
+title: 네트워크 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="networks-list" />
 
+
 ---
-
-# Policy 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-change-status
-
+search:
+  tags:
+    - Policies
+    - POST
+seo:
+  description: >-
+    Policy 상태 변경 Reference for the POST /admin/api/v1/policies/{policyId}/status
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: Policy 상태 변경
+  badge: POST
+title: Policy 상태 변경
+type: openapi-operation
+---
 <Operation source="reference-admin" id="policies-change-status" />
 
+
 ---
-
-# Policy 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-create
-
+search:
+  tags:
+    - Policies
+    - POST
+seo:
+  description: >-
+    Policy 생성 Reference for the POST /admin/api/v1/policies endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: Policy 생성
+  badge: POST
+title: Policy 생성
+type: openapi-operation
+---
 <Operation source="reference-admin" id="policies-create" />
 
+
 ---
-
-# Policy 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-get
-
+search:
+  tags:
+    - Policies
+    - GET
+seo:
+  description: >-
+    Policy 상세 조회 Reference for the GET /admin/api/v1/policies/{policyId}
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: Policy 상세 조회
+  badge: GET
+title: Policy 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="policies-get" />
 
+
 ---
-
-# Policy 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/policies/policies-list
-
+search:
+  tags:
+    - Policies
+    - GET
+seo:
+  description: >-
+    Policy 목록 조회 Reference for the GET /admin/api/v1/policies endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: Policy 목록 조회
+  badge: GET
+title: Policy 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="policies-list" />
 
+
 ---
-
-# Role 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-change-status
-
+search:
+  tags:
+    - Roles
+    - POST
+seo:
+  description: >-
+    Role 상태 변경 Reference for the POST /admin/api/v1/roles/{roleId}/status
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: Role 상태 변경
+  badge: POST
+title: Role 상태 변경
+type: openapi-operation
+---
 <Operation source="reference-admin" id="roles-change-status" />
 
+
 ---
-
-# Role 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-create
-
+search:
+  tags:
+    - Roles
+    - POST
+seo:
+  description: >-
+    Role 생성 Reference for the POST /admin/api/v1/roles endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: Role 생성
+  badge: POST
+title: Role 생성
+type: openapi-operation
+---
 <Operation source="reference-admin" id="roles-create" />
 
+
 ---
-
-# Role 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-get
-
+search:
+  tags:
+    - Roles
+    - GET
+seo:
+  description: >-
+    Role 상세 조회 Reference for the GET /admin/api/v1/roles/{roleId} endpoint in
+    the Wallet Admin API API.
+sidebar:
+  label: Role 상세 조회
+  badge: GET
+title: Role 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="roles-get" />
 
+
 ---
-
-# Role 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/roles/roles-list
-
+search:
+  tags:
+    - Roles
+    - GET
+seo:
+  description: >-
+    Role 목록 조회 Reference for the GET /admin/api/v1/roles endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: Role 목록 조회
+  badge: GET
+title: Role 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="roles-list" />
 
+
 ---
-
-# 테넌트 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tenants/tenants-change-status
-
+search:
+  tags:
+    - Tenants
+    - POST
+seo:
+  description: >-
+    테넌트 상태 변경 Reference for the POST /admin/api/v1/tenants/{tenantId}/status
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: 테넌트 상태 변경
+  badge: POST
+title: 테넌트 상태 변경
+type: openapi-operation
+---
 <Operation source="reference-admin" id="tenants-change-status" />
 
+
 ---
-
-# 테넌트 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tenants/tenants-create
-
+search:
+  tags:
+    - Tenants
+    - POST
+seo:
+  description: >-
+    테넌트 생성 Reference for the POST /admin/api/v1/tenants endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 테넌트 생성
+  badge: POST
+title: 테넌트 생성
+type: openapi-operation
+---
 <Operation source="reference-admin" id="tenants-create" />
 
+
 ---
-
-# 테넌트 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tenants/tenants-get
-
+search:
+  tags:
+    - Tenants
+    - GET
+seo:
+  description: >-
+    테넌트 상세 조회 Reference for the GET /admin/api/v1/tenants/{tenantId} endpoint in
+    the Wallet Admin API API.
+sidebar:
+  label: 테넌트 상세 조회
+  badge: GET
+title: 테넌트 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="tenants-get" />
 
+
 ---
-
-# 테넌트 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tenants/tenants-list
-
+search:
+  tags:
+    - Tenants
+    - GET
+seo:
+  description: >-
+    테넌트 목록 조회 Reference for the GET /admin/api/v1/tenants endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 테넌트 목록 조회
+  badge: GET
+title: 테넌트 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="tenants-list" />
 
+
 ---
-
-# 토큰 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-change-status
-
+search:
+  tags:
+    - Tokens
+    - POST
+seo:
+  description: >-
+    토큰 상태 변경 Reference for the POST /admin/api/v1/tokens/{tokenId}/status
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: 토큰 상태 변경
+  badge: POST
+title: 토큰 상태 변경
+type: openapi-operation
+---
 <Operation source="reference-admin" id="tokens-change-status" />
 
+
 ---
-
-# 토큰 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-create
-
+search:
+  tags:
+    - Tokens
+    - POST
+seo:
+  description: >-
+    토큰 생성 Reference for the POST /admin/api/v1/tokens endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 토큰 생성
+  badge: POST
+title: 토큰 생성
+type: openapi-operation
+---
 <Operation source="reference-admin" id="tokens-create" />
 
+
 ---
-
-# 토큰 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-get
-
+search:
+  tags:
+    - Tokens
+    - GET
+seo:
+  description: >-
+    토큰 상세 조회 Reference for the GET /admin/api/v1/tokens/{tokenId} endpoint in
+    the Wallet Admin API API.
+sidebar:
+  label: 토큰 상세 조회
+  badge: GET
+title: 토큰 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="tokens-get" />
 
+
 ---
-
-# 토큰 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/tokens/tokens-list
-
+search:
+  tags:
+    - Tokens
+    - GET
+seo:
+  description: >-
+    토큰 목록 조회 Reference for the GET /admin/api/v1/tokens endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 토큰 목록 조회
+  badge: GET
+title: 토큰 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="tokens-list" />
 
+
 ---
-
-# 유저 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-change-status
-
+search:
+  tags:
+    - Users
+    - POST
+seo:
+  description: >-
+    유저 상태 변경 Reference for the POST /admin/api/v1/users/{userId}/status endpoint
+    in the Wallet Admin API API.
+sidebar:
+  label: 유저 상태 변경
+  badge: POST
+title: 유저 상태 변경
+type: openapi-operation
+---
 <Operation source="reference-admin" id="users-change-status" />
 
+
 ---
-
-# 유저 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-get
-
+search:
+  tags:
+    - Users
+    - GET
+seo:
+  description: >-
+    유저 상세 조회 Reference for the GET /admin/api/v1/users/{userId} endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: 유저 상세 조회
+  badge: GET
+title: 유저 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="users-get" />
 
+
 ---
-
-# 유저 초대
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-invite
-
+search:
+  tags:
+    - Users
+    - POST
+seo:
+  description: >-
+    유저 초대 Reference for the POST /admin/api/v1/users endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 유저 초대
+  badge: POST
+title: 유저 초대
+type: openapi-operation
+---
 <Operation source="reference-admin" id="users-invite" />
 
+
 ---
-
-# 유저 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-list
-
+search:
+  tags:
+    - Users
+    - GET
+seo:
+  description: >-
+    유저 목록 조회 Reference for the GET /admin/api/v1/users endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 유저 목록 조회
+  badge: GET
+title: 유저 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="users-list" />
 
+
 ---
-
-# 내 정보 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-me
-
+search:
+  tags:
+    - Users
+    - GET
+seo:
+  description: >-
+    내 정보 조회 Reference for the GET /admin/api/v1/users/me endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: 내 정보 조회
+  badge: GET
+title: 내 정보 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="users-me" />
 
+
 ---
-
-# 유저 수정
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/users/users-update
-
+search:
+  tags:
+    - Users
+    - POST
+seo:
+  description: >-
+    유저 수정 Reference for the POST /admin/api/v1/users/{userId} endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: 유저 수정
+  badge: POST
+title: 유저 수정
+type: openapi-operation
+---
 <Operation source="reference-admin" id="users-update" />
 
+
 ---
-
-# Workspace Vault 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-change-status
-
+search:
+  tags:
+    - Workspace Vaults
+    - POST
+seo:
+  description: >-
+    Workspace Vault 상태 변경 Reference for the POST
+    /admin/api/v1/workspace-vaults/{workspaceVaultId}/status endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: Workspace Vault 상태 변경
+  badge: POST
+title: Workspace Vault 상태 변경
+type: openapi-operation
+---
 <Operation source="reference-admin" id="workspace-vaults-change-status" />
 
+
 ---
-
-# Workspace Vault 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-create
-
+search:
+  tags:
+    - Workspace Vaults
+    - POST
+seo:
+  description: >-
+    Workspace Vault 생성 Reference for the POST /admin/api/v1/workspace-vaults
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: Workspace Vault 생성
+  badge: POST
+title: Workspace Vault 생성
+type: openapi-operation
+---
 <Operation source="reference-admin" id="workspace-vaults-create" />
 
+
 ---
-
-# Workspace Wallet 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-create-wallet
-
+search:
+  tags:
+    - Workspace Vaults
+    - POST
+seo:
+  description: >-
+    Workspace Wallet 생성 Reference for the POST
+    /admin/api/v1/workspace-vaults/{workspaceVaultId}/wallets endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: Workspace Wallet 생성
+  badge: POST
+title: Workspace Wallet 생성
+type: openapi-operation
+---
 <Operation source="reference-admin" id="workspace-vaults-create-wallet" />
 
+
 ---
-
-# Workspace Vault 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-get
-
+search:
+  tags:
+    - Workspace Vaults
+    - GET
+seo:
+  description: >-
+    Workspace Vault 상세 조회 Reference for the GET
+    /admin/api/v1/workspace-vaults/{workspaceVaultId} endpoint in the Wallet
+    Admin API API.
+sidebar:
+  label: Workspace Vault 상세 조회
+  badge: GET
+title: Workspace Vault 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="workspace-vaults-get" />
 
+
 ---
-
-# Workspace Wallet 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-get-wallet
-
+search:
+  tags:
+    - Workspace Vaults
+    - GET
+seo:
+  description: >-
+    Workspace Wallet… Reference for the GET
+    /admin/api/v1/workspace-vaults/{workspaceVaultId}/wallets/{workspaceWalletId}
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: Workspace Wallet 상세 조회
+  badge: GET
+title: Workspace Wallet 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="workspace-vaults-get-wallet" />
 
+
 ---
-
-# Workspace Vault 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-list
-
+search:
+  tags:
+    - Workspace Vaults
+    - GET
+seo:
+  description: >-
+    Workspace Vault 목록 조회 Reference for the GET /admin/api/v1/workspace-vaults
+    endpoint in the Wallet Admin API API.
+sidebar:
+  label: Workspace Vault 목록 조회
+  badge: GET
+title: Workspace Vault 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="workspace-vaults-list" />
 
+
 ---
-
-# Workspace Wallet 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/admin/workspace-vaults/workspace-vaults-list-wallets
-
+search:
+  tags:
+    - Workspace Vaults
+    - GET
+seo:
+  description: >-
+    Workspace Wallet 목록 조회 Reference for the GET
+    /admin/api/v1/workspace-vaults/{workspaceVaultId}/wallets endpoint in the
+    Wallet Admin API API.
+sidebar:
+  label: Workspace Wallet 목록 조회
+  badge: GET
+title: Workspace Wallet 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-admin" id="workspace-vaults-list-wallets" />
 
+
 ---
-
-# Wallet Policy Engine Internal API
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy
-
+seo:
+  description: Wallet Policy Engine Internal API API reference.
+sidebar:
+  label: Overview
+title: Wallet Policy Engine Internal API
+---
 <ApiOverview source="reference-policy" />
 
 ## Admins
@@ -7073,11 +8377,23 @@ PIP 소스 종류 카탈로그.
 
 <ApiTagOperations source="reference-policy" tag="workspace-bundle" />
 
+
 ---
-
-# 2FA 등록 확인
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-confirm
-
+search:
+  tags:
+    - Admin Auth
+    - POST
+seo:
+  description: >-
+    등록 2단계. 1단계가 내준 시드로 만든 코드를 대조하고,… Reference for the POST
+    /auth/enrollments/confirm endpoint in the Wallet Policy Engine Internal API
+    API.
+sidebar:
+  label: 2FA 등록 확인
+  badge: POST
+title: 2FA 등록 확인
+type: openapi-operation
+---
 등록 2단계. 1단계가 내준 시드로 만든 코드를 대조하고, 맞으면 2FA를 활성으로 넘기며
 그때 토큰을 소진한다. **세션을 요구하지 않는다** — 아직 자격이 없는 사람이 부른다.
 
@@ -7094,11 +8410,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-admin-auth-confirm" />
 
+
 ---
-
-# 2FA 자가 등록
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-enroll
-
+search:
+  tags:
+    - Admin Auth
+    - POST
+seo:
+  description: >-
+    등록 1단계. 1회용 등록 토큰으로 비밀번호를 세우고 2FA 시드를… Reference for the POST
+    /auth/enrollments endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 2FA 자가 등록
+  badge: POST
+title: 2FA 자가 등록
+type: openapi-operation
+---
 등록 1단계. 1회용 등록 토큰으로 비밀번호를 세우고 2FA 시드를 **한 번** 돌려준다.
 이 호출은 토큰을 소진하지 않고, 2FA는 아직 활성이 아니다 — 활성은 `confirm`이 한다.
 
@@ -7113,11 +8440,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-admin-auth-enroll" />
 
+
 ---
-
-# 어드민 로그인
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-login
-
+search:
+  tags:
+    - Admin Auth
+    - POST
+seo:
+  description: >-
+    로그인. 성공하면 2FA 챌린지를 반환한다. Reference for the POST /auth/login endpoint in the
+    Wallet Policy Engine Internal API API.
+sidebar:
+  label: 어드민 로그인
+  badge: POST
+title: 어드민 로그인
+type: openapi-operation
+---
 로그인. 성공하면 2FA 챌린지를 반환한다.
 
 실패 응답은 균일하다 — 자격 불일치·계정 부재·잠금을 구분하지 않아 계정 존재를 노출하지 않는다.
@@ -7128,11 +8466,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-admin-auth-login" />
 
+
 ---
-
-# 어드민 로그아웃
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-logout
-
+search:
+  tags:
+    - Admin Auth
+    - POST
+seo:
+  description: >-
+    로그아웃. 이 브라우저의 세션 쿠키를 지운다. Reference for the POST /auth/logout endpoint in
+    the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 어드민 로그아웃
+  badge: POST
+title: 어드민 로그아웃
+type: openapi-operation
+---
 로그아웃. 이 브라우저의 세션 쿠키를 지운다.
 
 **자격을 요구하지 않는다** — 쿠키를 지우는 일은 무해하고 멱등이라 만료된 세션을 든 화면도
@@ -7143,11 +8492,22 @@ Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/a
 
 <Operation source="reference-policy" id="policy-admin-auth-logout" />
 
+
 ---
-
-# 세션 신원 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-session
-
+search:
+  tags:
+    - Admin Auth
+    - GET
+seo:
+  description: >-
+    세션이 증명하는 신원 조회. 자격은 Bearer 헤더 또는 세션… Reference for the GET /auth/session
+    endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 세션 신원 조회
+  badge: GET
+title: 세션 신원 조회
+type: openapi-operation
+---
 세션이 증명하는 신원 조회. 자격은 Bearer 헤더 또는 세션 쿠키다(`PolicyAdminSessionAuth`).
 만료·변조 토큰은 401이고 봉투는 위 둘과 같다. 콘솔은 기동 시 이것으로 쿠키 세션을 되살린다.
 
@@ -7159,11 +8519,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-admin-auth-session" />
 
+
 ---
-
-# 2FA 검증
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admin-auth/policy-admin-auth-verify2-fa
-
+search:
+  tags:
+    - Admin Auth
+    - POST
+seo:
+  description: >-
+    성공하면 세션 크리덴셜을 본문과 Set-Cookie로 함께… Reference for the POST /auth/2fa endpoint
+    in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 2FA 검증
+  badge: POST
+title: 2FA 검증
+type: openapi-operation
+---
 성공하면 세션 크리덴셜을 본문과 `Set-Cookie`로 함께 낸다(`PolicyAdminSessionResponse`).
 실패 응답은 로그인과 같은 봉투다(§8 균일 오류).
 
@@ -7173,11 +8544,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-admin-auth-verify2-fa" />
 
+
 ---
-
-# 어드민 초대
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admins/policy-admin-directory-create
-
+search:
+  tags:
+    - Admins
+    - POST
+seo:
+  description: >-
+    계정과 역할 부여를 만들고 1회용 등록 토큰을 낸다. Reference for the POST /admins endpoint in the
+    Wallet Policy Engine Internal API API.
+sidebar:
+  label: 어드민 초대
+  badge: POST
+title: 어드민 초대
+type: openapi-operation
+---
 계정과 역할 부여를 만들고 1회용 등록 토큰을 낸다.
 
 인가는 `policy_admin_manager` 부여이고, 새 부여의 스코프는 **그 부여의 스코프**다.
@@ -7199,11 +8581,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-admin-directory-create" />
 
+
 ---
-
-# 어드민 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/admins/policy-admin-directory-list
-
+search:
+  tags:
+    - Admins
+    - GET
+seo:
+  description: >-
+    요청자의 초대 권한 부여 스코프에 있는 어드민 목록. Reference for the GET /admins endpoint in the
+    Wallet Policy Engine Internal API API.
+sidebar:
+  label: 어드민 목록 조회
+  badge: GET
+title: 어드민 목록 조회
+type: openapi-operation
+---
 요청자의 초대 권한 부여 스코프에 있는 어드민 목록.
 
 **스코프 파라미터가 없는 것이 계약이다** — 세션의 부여가 그것을 정한다. 초대와 달리
@@ -7216,11 +8609,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-admin-directory-list" />
 
+
 ---
-
-# 승인 대기 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/approvals/policy-approval-get-pending
-
+search:
+  tags:
+    - Approvals
+    - GET
+seo:
+  description: >-
+    승인 가능 role 기준 대기 목록. Reference for the GET /approvals endpoint in the Wallet
+    Policy Engine Internal API API.
+sidebar:
+  label: 승인 대기 목록 조회
+  badge: GET
+title: 승인 대기 목록 조회
+type: openapi-operation
+---
 승인 가능 role 기준 대기 목록.
 
 **양쪽 문에서 열린다** — `/approvals`와 `/platform/approvals`가 같은 오퍼레이션이고
@@ -7236,11 +8640,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-approval-get-pending" />
 
+
 ---
-
-# 승인 표 제출
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/approvals/policy-approval-vote-vote
-
+search:
+  tags:
+    - Approvals
+    - POST
+seo:
+  description: >-
+    표 제출. 건별 2FA 스텝업 필수. Reference for the POST
+    /request/{policyRequestId}/approvals endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: 승인 표 제출
+  badge: POST
+title: 승인 표 제출
+type: openapi-operation
+---
 표 제출. 건별 2FA 스텝업 필수.
 
 인증: 어드민 세션(§8) 위에 건별 2FA 스텝업이다 — BearerAuth 표기는 세션 크리덴셜의
@@ -7262,11 +8678,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-approval-vote-vote" />
 
+
 ---
-
-# 초기 어드민 계정 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/bootstrap/policy-bootstrap-create-admin
-
+search:
+  tags:
+    - Bootstrap
+    - POST
+seo:
+  description: >-
+    어드민 계정과 역할을 만들고 1회용 등록 토큰을 낸다. Reference for the POST
+    /platform/bootstrap/admins endpoint in the Wallet Policy Engine Internal API
+    API.
+sidebar:
+  label: 초기 어드민 계정 생성
+  badge: POST
+title: 초기 어드민 계정 생성
+type: openapi-operation
+---
 어드민 계정과 역할을 만들고 1회용 등록 토큰을 낸다.
 
 아직 등록을 마치지 않은 계정에 다시 호출하면 새 토큰이 나고 이전 토큰은 통하지
@@ -7283,11 +8711,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bootstrap-create-admin" />
 
+
 ---
-
-# 활성 번들 조회 (서빙)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/bundle-serving/policy-bundle-serving-active
-
+search:
+  tags:
+    - Bundle Serving
+    - GET
+seo:
+  description: >-
+    활성 revision 조회. PDP 에 무엇이 활성인지 보는 운영… Reference for the GET
+    /bundles/{bundleName}/active endpoint in the Wallet Policy Engine Internal
+    API API.
+sidebar:
+  label: 활성 번들 조회 (서빙)
+  badge: GET
+title: 활성 번들 조회 (서빙)
+type: openapi-operation
+---
 활성 revision 조회. PDP 에 무엇이 활성인지 보는 운영 관측 지점이다.
 
 레플리카들이 서로 다른 값을 주장하는 것이 결함이고, 사이드카 폴링 시차로 OPA 가 이보다
@@ -7300,11 +8740,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-serving-active" />
 
+
 ---
-
-# 활성 번들 tarball 내려받기
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/bundle-serving/policy-bundle-serving-download
-
+search:
+  tags:
+    - Bundle Serving
+    - GET
+seo:
+  description: >-
+    OPA 가 폴링하는 경로. 사이드카 설정의… Reference for the GET /bundles/{bundleName}.tar.gz
+    endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 활성 번들 tarball 내려받기
+  badge: GET
+title: 활성 번들 tarball 내려받기
+type: openapi-operation
+---
 OPA 가 폴링하는 경로. 사이드카 설정의 `bundles.<name>.resource` 와 짝이다.
 
 **ETag 가 내용 해시다.** 같은 내용이 같은 값을 갖고 다른 내용이 같은 값을 가질 수 없어
@@ -7321,11 +8772,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-serving-download" />
 
+
 ---
-
-# Co-Signer pre-signing 콜백
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/callback/policy-callback-handle
-
+search:
+  tags:
+    - Callback
+    - POST
+seo:
+  description: >-
+    PEP가 종단한다 — JWT 양방향 검증·서명 대상… Reference for the POST
+    /callback/fireblocks-cosigner endpoint in the Wallet Policy Engine Internal
+    API API.
+sidebar:
+  label: Co-Signer pre-signing 콜백
+  badge: POST
+title: Co-Signer pre-signing 콜백
+type: openapi-operation
+---
 PEP가 종단한다 — JWT 양방향 검증·서명 대상 추출·**산출물에서 signingAuthorizationId
 추출**(owning service가 제출 시 externalTxId로 지정 — D-66. 조회 힌트이고 방어는 전체
 canonical 대조 + CAS)·응답 서명. 승인 저장소 대조와 원자적 단회성 소비는
@@ -7338,11 +8801,23 @@ Orchestrator가 소유한다.
 
 <Operation source="reference-policy" id="policy-callback-handle" />
 
+
 ---
-
-# PIP 결과·이행 증거 제출
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/partner/policy-partner-submission-submit
-
+search:
+  tags:
+    - Partner
+    - POST
+seo:
+  description: >-
+    PIP 결과와 obligation 이행 증거를 같은… Reference for the POST
+    /pip/{policyDataRequestId}/result endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: PIP 결과·이행 증거 제출
+  badge: POST
+title: PIP 결과·이행 증거 제출
+type: openapi-operation
+---
 PIP 결과와 obligation 이행 증거를 같은 표면·인증·도착 규칙으로 제출한다.
 
 인증은 전송 계층이 아니라 본문이다 — JWS 서명키 → 등록 partnerId(파트너 PIP 계약 §4).
@@ -7373,11 +8848,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-partner-submission-submit" />
 
+
 ---
-
-# PIP 소스 종류 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/pip-source-kinds/pip-source-kind-list
-
+search:
+  tags:
+    - PIP Source Kinds
+    - GET
+seo:
+  description: >-
+    소스 종류 카탈로그 조회. read-only다 — 이 표면에 쓰기… Reference for the GET
+    /pip-source-kinds endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: PIP 소스 종류 목록 조회
+  badge: GET
+title: PIP 소스 종류 목록 조회
+type: openapi-operation
+---
 소스 종류 카탈로그 조회. **read-only다** — 이 표면에 쓰기 오퍼레이션이 없는 것이
 "종류는 코드, 인스턴스는 번들"의 표면 쪽 표현이다.
 
@@ -7387,11 +8873,23 @@ Errors:
 
 <Operation source="reference-policy" id="pip-source-kind-list" />
 
+
 ---
-
-# 번들 활성화
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-activation-activate
-
+search:
+  tags:
+    - Policy Bundle
+    - POST
+seo:
+  description: >-
+    활성 포인터 전이. 발행된 번들만 대상이 된다. Reference for the POST
+    /platform/policy-bundles/activations endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: 번들 활성화
+  badge: POST
+title: 번들 활성화
+type: openapi-operation
+---
 활성 포인터 전이. 발행된 번들만 대상이 된다.
 
 Errors:
@@ -7402,11 +8900,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-activation-activate" />
 
+
 ---
-
-# 활성 번들 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-activation-view
-
+search:
+  tags:
+    - Policy Bundle
+    - GET
+seo:
+  description: >-
+    지금 활성인 번들. 승인 화면의… Reference for the GET
+    /platform/policy-bundles/activations/{bundleName} endpoint in the Wallet
+    Policy Engine Internal API API.
+sidebar:
+  label: 활성 번들 조회
+  badge: GET
+title: 활성 번들 조회
+type: openapi-operation
+---
 지금 활성인 번들. 승인 화면의 diff 기준선이다 — 서빙 표면(/bundles/&#123;name&#125;/active)이
 같은 사실을 주지만 그쪽 자격은 서비스 크리덴셜이라 어드민 세션으로는 닿지 않는다.
 
@@ -7420,11 +8930,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-activation-view" />
 
+
 ---
-
-# 발행 승인 목록
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-list
-
+search:
+  tags:
+    - Policy Bundle
+    - GET
+seo:
+  description: >-
+    checker가 대상을 찾는 자리. 집계·챌린지는 상세가 준다. Reference for the GET
+    /policy-bundles/approvals endpoint in the Wallet Policy Engine Internal API
+    API.
+sidebar:
+  label: 발행 승인 목록
+  badge: GET
+title: 발행 승인 목록
+type: openapi-operation
+---
 checker가 대상을 찾는 자리. 집계·챌린지는 상세가 준다.
 
 Errors:
@@ -7433,11 +8955,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-approval-list" />
 
+
 ---
-
-# 발행 승인 레코드 개설
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-open
-
+search:
+  tags:
+    - Policy Bundle
+    - POST
+seo:
+  description: >-
+    발행 승인 레코드 개설(maker). Reference for the POST /policy-bundles/approvals
+    endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 발행 승인 레코드 개설
+  badge: POST
+title: 발행 승인 레코드 개설
+type: openapi-operation
+---
 발행 승인 레코드 개설(maker).
 
 인증: 어드민 세션. 인가: 발행 권한 role의 platform 부여.
@@ -7454,11 +8987,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-approval-open" />
 
+
 ---
-
-# 발행 승인 레코드 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-view-view
-
+search:
+  tags:
+    - Policy Bundle
+    - GET
+seo:
+  description: >-
+    승인 레코드 상세. 집계와… Reference for the GET
+    /policy-bundles/approvals/{publicationApprovalId} endpoint in the Wallet
+    Policy Engine Internal API API.
+sidebar:
+  label: 발행 승인 레코드 상세 조회
+  badge: GET
+title: 발행 승인 레코드 상세 조회
+type: openapi-operation
+---
 승인 레코드 상세. **집계와 챌린지가 여기서만 나온다** — 목록은 레코드마다 왕복이 생기지
 않게 그 둘을 싣지 않으므로, checker가 표를 던지기 전에 보는 값이 이 표면이다.
 
@@ -7471,11 +9016,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-approval-view-view" />
 
+
 ---
-
-# 발행 승인 표 제출
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-approval-vote-vote
-
+search:
+  tags:
+    - Policy Bundle
+    - POST
+seo:
+  description: >-
+    발행 승인 표 제출(checker… Reference for the POST
+    /policy-bundles/approvals/{publicationApprovalId}/votes endpoint in the
+    Wallet Policy Engine Internal API API.
+sidebar:
+  label: 발행 승인 표 제출
+  badge: POST
+title: 발행 승인 표 제출
+type: openapi-operation
+---
 발행 승인 표 제출(checker). 건별 2FA 스텝업 필수이고 maker 본인은 던질 수 없다.
 
 Errors:
@@ -7488,11 +9045,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-approval-vote-vote" />
 
+
 ---
-
-# 번들 발행
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-bundle/policy-bundle-publication-publish
-
+search:
+  tags:
+    - Policy Bundle
+    - POST
+seo:
+  description: >-
+    번들 발행(스테이징 + 검증). 활성화하지 않는다. Reference for the POST
+    /policy-bundles/publications endpoint in the Wallet Policy Engine Internal
+    API API.
+sidebar:
+  label: 번들 발행
+  badge: POST
+title: 번들 발행
+type: openapi-operation
+---
 번들 발행(스테이징 + 검증). **활성화하지 않는다.**
 
 승인 레코드 실재·정족수 충족·대상 바이트 결속을 전부 발행 이전에 확인한다.
@@ -7512,11 +9081,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-bundle-publication-publish" />
 
+
 ---
-
-# 편집기 base 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-baseline-view
-
+search:
+  tags:
+    - Policy Draft
+    - GET
+seo:
+  description: >-
+    편집기 base 조회. 활성 번들이 없거나 git… Reference for the GET
+    /policy-drafts/baseline/{bundleName} endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: 편집기 base 조회
+  badge: GET
+title: 편집기 base 조회
+type: openapi-operation
+---
 편집기 base 조회. **활성 번들이 없거나 git 채널 번들이어도 200이다** — 그 사실은
 `hasBaseline`·`absentReason`이 말하고 편집기는 빈 스캐폴드로 이어 간다.
 
@@ -7536,11 +9117,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-baseline-view" />
 
+
 ---
-
-# draft 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-create
-
+search:
+  tags:
+    - Policy Draft
+    - POST
+seo:
+  description: >-
+    draft와 첫 칸을 함께 만든다. Reference for the POST /policy-drafts endpoint in the
+    Wallet Policy Engine Internal API API.
+sidebar:
+  label: draft 생성
+  badge: POST
+title: draft 생성
+type: openapi-operation
+---
 draft와 첫 칸을 함께 만든다.
 
 Errors:
@@ -7552,11 +9144,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-create" />
 
+
 ---
-
-# draft 폐기
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-discard-discard
-
+search:
+  tags:
+    - Policy Draft
+    - POST
+seo:
+  description: >-
+    head를 폐기로 전이한다. revision 기록은… Reference for the POST
+    /policy-drafts/{draftId}/discard endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: draft 폐기
+  badge: POST
+title: draft 폐기
+type: openapi-operation
+---
 head를 폐기로 전이한다. revision 기록은 불변으로 남는다.
 
 **폐기는 그 draft의 열린 발행 승인을 무효화한다.** 승인 행을 고쳐서가 아니라(승인
@@ -7571,11 +9175,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-discard-discard" />
 
+
 ---
-
-# draft 목록
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-list
-
+search:
+  tags:
+    - Policy Draft
+    - GET
+seo:
+  description: >-
+    콘솔 목록. 폐기된 것도 준다 — 목록이 활성/폐기를 구분해 보여야… Reference for the GET /policy-drafts
+    endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: draft 목록
+  badge: GET
+title: draft 목록
+type: openapi-operation
+---
 콘솔 목록. **폐기된 것도 준다** — 목록이 활성/폐기를 구분해 보여야 한다.
 목록의 술어는 세션이 확정한 스코프다.
 
@@ -7585,11 +9200,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-list" />
 
+
 ---
-
-# revision 추가
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-append
-
+search:
+  tags:
+    - Policy Draft
+    - POST
+seo:
+  description: >-
+    새 칸을 붙이고 head를 그리로 옮긴다. 새… Reference for the POST
+    /policy-drafts/{draftId}/revisions endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: revision 추가
+  badge: POST
+title: revision 추가
+type: openapi-operation
+---
 새 칸을 붙이고 head를 그리로 옮긴다. **새 칸에는 검증 기록이 없다** — 편집이 검증을
 무효화하는 것이 아니라, 결과가 애초에 칸마다 붙기 때문이다.
 
@@ -7606,11 +9233,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-revision-append" />
 
+
 ---
-
-# revision 조회 (주소)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-by-address-view
-
+search:
+  tags:
+    - Policy Draft
+    - GET
+seo:
+  description: >-
+    주소만으로 읽는 칸. draft를 지나지 않는… Reference for the GET
+    /policy-drafts/revisions/{revisionId} endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: revision 조회 (주소)
+  badge: GET
+title: revision 조회 (주소)
+type: openapi-operation
+---
 주소만으로 읽는 칸. **draft를 지나지 않는 것이 의도다** — 발행 승인이 든 것은 revision
 주소뿐이라(어느 draft의 칸인지는 담지 않는다), 승인 화면이 diff 기준선을 찾으려면 그
 주소에서 콘텐츠로 갈 수 있어야 한다.
@@ -7628,11 +9267,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-revision-by-address-view" />
 
+
 ---
-
-# revision 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-revision-view
-
+search:
+  tags:
+    - Policy Draft
+    - GET
+seo:
+  description: >-
+    칸 하나. 여기서만 content가 실린다. Reference for the GET
+    /policy-drafts/{draftId}/revisions/{revisionId} endpoint in the Wallet
+    Policy Engine Internal API API.
+sidebar:
+  label: revision 조회
+  badge: GET
+title: revision 조회
+type: openapi-operation
+---
 칸 하나. 여기서만 content가 실린다.
 
 Errors:
@@ -7643,11 +9294,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-revision-view" />
 
+
 ---
-
-# revision 검증 실행
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-validation-run
-
+search:
+  tags:
+    - Policy Draft
+    - POST
+seo:
+  description: >-
+    컴파일 검사 전종 +… Reference for the POST
+    /policy-drafts/{draftId}/revisions/{revisionId}/validation endpoint in the
+    Wallet Policy Engine Internal API API.
+sidebar:
+  label: revision 검증 실행
+  badge: POST
+title: revision 검증 실행
+type: openapi-operation
+---
 컴파일 검사 전종 + 벡터 채점을 **동기로** 돌린다. 결과는 이 revision에 결속되고,
 이미 있으면 다시 돌리지 않는다 — revision이 불변이라 답이 같다.
 
@@ -7664,11 +9327,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-validation-run" />
 
+
 ---
-
-# draft 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/policy-draft/policy-draft-view
-
+search:
+  tags:
+    - Policy Draft
+    - GET
+seo:
+  description: >-
+    head와 체인. 각 칸의 검증 결과가 함께 온다. Reference for the GET /policy-drafts/{draftId}
+    endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: draft 조회
+  badge: GET
+title: draft 조회
+type: openapi-operation
+---
 head와 체인. 각 칸의 검증 결과가 함께 온다.
 
 Errors:
@@ -7678,11 +9352,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-draft-view" />
 
+
 ---
-
-# 판단 요청 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/request/policy-request-get-detail
-
+search:
+  tags:
+    - Request
+    - GET
+seo:
+  description: >-
+    상태 조회. 이벤트 유실 시 재동기화용이자 서명 연산… Reference for the GET
+    /request/{policyRequestId} endpoint in the Wallet Policy Engine Internal API
+    API.
+sidebar:
+  label: 판단 요청 조회
+  badge: GET
+title: 판단 요청 조회
+type: openapi-operation
+---
 상태 조회. 이벤트 유실 시 재동기화용이자 서명 연산 소비자(owning service)의 실행 근거다 —
 이벤트는 깨우는 신호이고 실행 근거는 조회다(§4). 어드민 액션은 집행이 결정 소유자와
 같은 프로세스라 실행 전 재확인이 불요하다(D-65).
@@ -7695,11 +9381,22 @@ Errors: (코드 값 정본은 PolicyRequestErrorCode — D-88)
 
 <Operation source="reference-policy" id="policy-request-get-detail" />
 
+
 ---
-
-# 판단 요청 접수
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/request/policy-request-submit
-
+search:
+  tags:
+    - Request
+    - POST
+seo:
+  description: >-
+    접수. 같은 serviceRequestId 재제출은 활성·CONSUMED 불문 409로 거부하고,… Reference for the
+    POST /request endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 판단 요청 접수
+  badge: POST
+title: 판단 요청 접수
+type: openapi-operation
+---
 접수. 같은 serviceRequestId 재제출은 활성·CONSUMED 불문 409로 거부하고, 에러 바디에
 기존 policyRequestId를 싣는다(D-78) — 202 유실 재시도는 그 id로 조회해 복구한다.
 판단 결과는 응답이 아니라 이벤트로 통지된다(§2·§4).
@@ -7722,11 +9419,23 @@ Errors: (코드 값 정본은 PolicyRequestErrorCode — D-88)
 
 <Operation source="reference-policy" id="policy-request-submit" />
 
+
 ---
-
-# 워크스페이스 번들 활성화
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-bundle/policy-workspace-bundle-activation-activate
-
+search:
+  tags:
+    - Workspace Bundle
+    - POST
+seo:
+  description: >-
+    활성 포인터 전이. 발행된 번들만 대상이 되고,… Reference for the POST
+    /workspace-bundles/activations endpoint in the Wallet Policy Engine Internal
+    API API.
+sidebar:
+  label: 워크스페이스 번들 활성화
+  badge: POST
+title: 워크스페이스 번들 활성화
+type: openapi-operation
+---
 활성 포인터 전이. 발행된 번들만 대상이 되고, 되돌리기는 옛 번호를 지목한다.
 
 인증: 어드민 세션. 인가: 발행 권한 role 의 `workspace:{workspaceId}` 부여이고, **그
@@ -7745,11 +9454,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-bundle-activation-activate" />
 
+
 ---
-
-# 활성 워크스페이스 번들 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-bundle/policy-workspace-bundle-active-view-view
-
+search:
+  tags:
+    - Workspace Bundle
+    - GET
+seo:
+  description: >-
+    요청자 워크스페이스의 지금 활성 번들. 승인 화면의… Reference for the GET
+    /workspace-bundles/activation endpoint in the Wallet Policy Engine Internal
+    API API.
+sidebar:
+  label: 활성 워크스페이스 번들 조회
+  badge: GET
+title: 활성 워크스페이스 번들 조회
+type: openapi-operation
+---
 요청자 워크스페이스의 지금 활성 번들. 승인 화면의 diff 기준선이다.
 
 **경로 변수도 쿼리도 없는 것이 계약이다** — 대상 워크스페이스는 세션의 발행 부여가
@@ -7768,11 +9489,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-bundle-active-view-view" />
 
+
 ---
-
-# 워크스페이스 번들 발행
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-bundle/policy-workspace-bundle-publication-publish
-
+search:
+  tags:
+    - Workspace Bundle
+    - POST
+seo:
+  description: >-
+    워크스페이스 번들 발행(스테이징 + 검증).… Reference for the POST
+    /workspace-bundles/publications endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: 워크스페이스 번들 발행
+  badge: POST
+title: 워크스페이스 번들 발행
+type: openapi-operation
+---
 워크스페이스 번들 발행(스테이징 + 검증). **활성화하지 않는다** — 응답의
 `bundleVersion`·`digest` 를 들고 활성화를 따로 부른다.
 
@@ -7800,11 +9533,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-bundle-publication-publish" />
 
+
 ---
-
-# 워크스페이스 매니저 지명
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-assign
-
+search:
+  tags:
+    - Workspace Registration
+    - POST
+seo:
+  description: >-
+    매니저를 하나 더 지명하고 그 사람의… Reference for the POST
+    /platform/workspaces/{workspaceId}/managers endpoint in the Wallet Policy
+    Engine Internal API API.
+sidebar:
+  label: 워크스페이스 매니저 지명
+  badge: POST
+title: 워크스페이스 매니저 지명
+type: openapi-operation
+---
 매니저를 하나 더 지명하고 그 사람의 1회용 등록 토큰을 낸다.
 
 등록 행 조회가 이 오퍼레이션의 유일한 관문이다 — 회수·재발급은 부여 조회에서 막히지만
@@ -7821,11 +9566,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-managers-assign" />
 
+
 ---
-
-# 워크스페이스 매니저 등록 토큰 재발급
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-reissue-enrollment-token
-
+search:
+  tags:
+    - Workspace Registration
+    - POST
+seo:
+  description: >-
+    매니… Reference for the POST
+    /platform/workspaces/{workspaceId}/managers/{adminUserId}/enrollment-tokens
+    endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 워크스페이스 매니저 등록 토큰 재발급
+  badge: POST
+title: 워크스페이스 매니저 등록 토큰 재발급
+type: openapi-operation
+---
 매니저의 등록 토큰을 다시 낸다. 이전 토큰은 통하지 않는다 — 만료된 토큰 하나가 그 계정을
 굳히지 않게 하는 자리다.
 
@@ -7842,11 +9599,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-managers-reissue-enrollment-token" />
 
+
 ---
-
-# 워크스페이스 매니저 회수
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-managers-revoke
-
+search:
+  tags:
+    - Workspace Registration
+    - POST
+seo:
+  description: >-
+    매니저 부여를… Reference for the POST
+    /platform/workspaces/{workspaceId}/managers/{adminUserId}/revoke endpoint in
+    the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 워크스페이스 매니저 회수
+  badge: POST
+title: 워크스페이스 매니저 회수
+type: openapi-operation
+---
 매니저 부여를 회수한다. 경로가 POST 인 것은 어드민 콘솔 CORS 가 GET·POST 만 허용하기
 때문이고, 본문이 필요한 이유는 스텝업이다.
 
@@ -7859,11 +9628,23 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-managers-revoke" />
 
+
 ---
-
-# 스텝업 챌린지 발급
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-challenge
-
+search:
+  tags:
+    - Workspace Registration
+    - POST
+seo:
+  description: >-
+    스텝업 챌린지 발급. 아무것도 저장하지 않는다 —… Reference for the POST
+    /platform/workspaces/challenges endpoint in the Wallet Policy Engine
+    Internal API API.
+sidebar:
+  label: 스텝업 챌린지 발급
+  badge: POST
+title: 스텝업 챌린지 발급
+type: openapi-operation
+---
 스텝업 챌린지 발급. **아무것도 저장하지 않는다** — 본문을 정규화해 챌린지만 답한다.
 
 Errors:
@@ -7873,11 +9654,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-registration-challenge" />
 
+
 ---
-
-# 워크스페이스 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-list
-
+search:
+  tags:
+    - Workspace Registration
+    - GET
+seo:
+  description: >-
+    등록된 워크스페이스 목록. 쓰기가 아니라 스텝업 없이 부여만… Reference for the GET
+    /platform/workspaces endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 워크스페이스 목록 조회
+  badge: GET
+title: 워크스페이스 목록 조회
+type: openapi-operation
+---
 등록된 워크스페이스 목록. **쓰기가 아니라 스텝업 없이 부여만 본다.**
 
 Errors:
@@ -7886,11 +9678,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-registration-list" />
 
+
 ---
-
-# 워크스페이스 등록
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-register
-
+search:
+  tags:
+    - Workspace Registration
+    - POST
+seo:
+  description: >-
+    워크스페이스를 세우고 첫 매니저를 지명한다. Reference for the POST /platform/workspaces
+    endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 워크스페이스 등록
+  badge: POST
+title: 워크스페이스 등록
+type: openapi-operation
+---
 워크스페이스를 세우고 첫 매니저를 지명한다.
 
 인증: 어드민 세션 + 건별 2FA 스텝업. 인가: 초대 권한 role 의 platform 부여.
@@ -7911,11 +9714,22 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-registration-register" />
 
+
 ---
-
-# 워크스페이스 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/policy/workspace-registration/policy-workspace-registration-view
-
+search:
+  tags:
+    - Workspace Registration
+    - GET
+seo:
+  description: >-
+    등록 상세와 매니저 목록. Reference for the GET /platform/workspaces/{workspaceId}
+    endpoint in the Wallet Policy Engine Internal API API.
+sidebar:
+  label: 워크스페이스 상세 조회
+  badge: GET
+title: 워크스페이스 상세 조회
+type: openapi-operation
+---
 등록 상세와 매니저 목록.
 
 Errors:
@@ -7925,11 +9739,16 @@ Errors:
 
 <Operation source="reference-policy" id="policy-workspace-registration-view" />
 
+
 ---
-
-# Travel Rule Gateway API
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule
-
+seo:
+  description: >-
+    travel-rule-gateway HTTP API. Gateway가 연동하고 있는 VV의 Enclave는 별도 MYSQL을 운영해야하며
+    이 DB에서는 통신한 데이터 전문을 기록하고 있다. 해당 전문은…
+sidebar:
+  label: Overview
+title: Travel Rule Gateway API
+---
 travel-rule-gateway HTTP API.
 Gateway가 연동하고 있는 VV의 Enclave는 별도 MYSQL을 운영해야하며 이 DB에서는 통신한 데이터 전문을 기록하고 있다.
 해당 전문은 모두 암호화되고 있으며 암호화의 키는 사용측에서 발행하고 관리한다. (API 구현을 통해 암호화키 전달)
@@ -7950,90 +9769,195 @@ VerifyVASP 인바운드 수신.
 
 <ApiTagOperations source="reference-travel-rule" tag="verifyvasp-inbound" />
 
+
 ---
-
-# 주소 검증
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-address-check
-
+search:
+  tags:
+    - Service API
+    - POST
+seo:
+  description: >-
+    수취 주소(계좌) 검증. 이름 비교 없음. Reference for the POST
+    /api/v1/travel-rule/address-checks endpoint in the Travel Rule Gateway API
+    API.
+sidebar:
+  label: 주소 검증
+  badge: POST
+title: 주소 검증
+type: openapi-operation
+---
 수취 주소(계좌) 검증. 이름 비교 없음.
 
 <Operation source="reference-travel-rule" id="travel-rule-address-check" />
 
+
 ---
-
-# PII 교환&검증 요청
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-create-check
-
+search:
+  tags:
+    - Service API
+    - POST
+seo:
+  description: >-
+    travel-rule 검증 생성(user). enclave 로 요청하고… Reference for the POST
+    /api/v1/travel-rule/checks endpoint in the Travel Rule Gateway API API.
+sidebar:
+  label: PII 교환&검증 요청
+  badge: POST
+title: PII 교환&검증 요청
+type: openapi-operation
+---
 travel-rule 검증 생성(user). enclave 로 요청하고 verificationUuid 를 반환.
 
 <Operation source="reference-travel-rule" id="travel-rule-create-check" />
 
+
 ---
-
-# PII 검증 결과 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-get-check
-
+search:
+  tags:
+    - Service API
+    - GET
+seo:
+  description: >-
+    검증 결과 조회(uuid 기준). Reference for the GET /api/v1/travel-rule/checks/{trId}
+    endpoint in the Travel Rule Gateway API API.
+sidebar:
+  label: PII 검증 결과 조회
+  badge: GET
+title: PII 검증 결과 조회
+type: openapi-operation
+---
 검증 결과 조회(uuid 기준).
 
 <Operation source="reference-travel-rule" id="travel-rule-get-check" />
 
+
 ---
-
-# PII 검증에 대한 tx 업데이트
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/travel-rule-report-tx
-
+search:
+  tags:
+    - Service API
+    - POST
+seo:
+  description: >-
+    검증에 대한 tx 보고. 성공 여부(boolean) 반환. Reference for the POST
+    /api/v1/travel-rule/checks/tx endpoint in the Travel Rule Gateway API API.
+sidebar:
+  label: PII 검증에 대한 tx 업데이트
+  badge: POST
+title: PII 검증에 대한 tx 업데이트
+type: openapi-operation
+---
 검증에 대한 tx 보고. 성공 여부(boolean) 반환.
 
 <Operation source="reference-travel-rule" id="travel-rule-report-tx" />
 
+
 ---
-
-# 자신의 VASP 정보 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/vasps-get-self
-
+search:
+  tags:
+    - Service API
+    - GET
+seo:
+  description: >-
+    자기 VASP 식별자. Reference for the GET /api/v1/travel-rule/vasps/self endpoint
+    in the Travel Rule Gateway API API.
+sidebar:
+  label: 자신의 VASP 정보 조회
+  badge: GET
+title: 자신의 VASP 정보 조회
+type: openapi-operation
+---
 자기 VASP 식별자.
 
 <Operation source="reference-travel-rule" id="vasps-get-self" />
 
+
 ---
-
-# 연동 VASP 리스트 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/service-api/vasps-list
-
+search:
+  tags:
+    - Service API
+    - GET
+seo:
+  description: >-
+    VASP 목록. protocol 로 필터 가능. Reference for the GET /api/v1/travel-rule/vasps
+    endpoint in the Travel Rule Gateway API API.
+sidebar:
+  label: 연동 VASP 리스트 조회
+  badge: GET
+title: 연동 VASP 리스트 조회
+type: openapi-operation
+---
 VASP 목록. protocol 로 필터 가능.
 
 <Operation source="reference-travel-rule" id="vasps-list" />
 
+
 ---
-
-# verifyvasp enclave로부터 들어오는 Callback
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive
-
+search:
+  tags:
+    - VerifyVASP Inbound
+    - POST
+seo:
+  description: >-
+    verifyvasp enclave로부터 들어오는 Callback Reference for the POST
+    /api/v1/verifyvasp/callback endpoint in the Travel Rule Gateway API API.
+sidebar:
+  label: verifyvasp enclave로부터 들어오는 Callback
+  badge: POST
+title: verifyvasp enclave로부터 들어오는 Callback
+type: openapi-operation
+---
 <Operation source="reference-travel-rule" id="verify-vasp-callback-receive" />
 
+
 ---
-
-# 타 VASP에서 주소 검증 요청
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account
-
+search:
+  tags:
+    - VerifyVASP Inbound
+    - POST
+seo:
+  description: >-
+    수취 계좌 검증(inbound). 결과는 로그만 남기고… Reference for the POST
+    /api/v1/verifyvasp/verifications/account endpoint in the Travel Rule Gateway
+    API API.
+sidebar:
+  label: 타 VASP에서 주소 검증 요청
+  badge: POST
+title: 타 VASP에서 주소 검증 요청
+type: openapi-operation
+---
 수취 계좌 검증(inbound). 결과는 로그만 남기고 저장하지 않는다.
 
 <Operation source="reference-travel-rule" id="verify-vasp-inbound-verifications-account" />
 
+
 ---
-
-# 타 VASP에서 PII 교환&검증 요청
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-user
-
+search:
+  tags:
+    - VerifyVASP Inbound
+    - POST
+seo:
+  description: >-
+    수취인 검증(inbound). 이름 완전 일치 대조. Reference for the POST
+    /api/v1/verifyvasp/verifications endpoint in the Travel Rule Gateway API
+    API.
+sidebar:
+  label: 타 VASP에서 PII 교환&검증 요청
+  badge: POST
+title: 타 VASP에서 PII 교환&검증 요청
+type: openapi-operation
+---
 수취인 검증(inbound). 이름 완전 일치 대조.
 
 <Operation source="reference-travel-rule" id="verify-vasp-inbound-verifications-user" />
 
+
 ---
-
-# Wallet API
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet
-
+seo:
+  description: Wallet API API reference.
+sidebar:
+  label: Overview
+title: Wallet API
+---
 <ApiOverview source="reference-wallet" />
 
 ## Accounts
@@ -8096,32 +10020,77 @@ workspace vault 사이의 자산 이동. 동결되지 않은 자산만 움직인
 
 <ApiTagOperations source="reference-wallet" tag="workspace-vault-transfers" />
 
+
 ---
-
-# 계정 지갑 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/account-wallets/account-wallets-create
-
+search:
+  tags:
+    - Account Wallets
+    - POST
+seo:
+  description: >-
+    계정 지갑 생성 Reference for the POST /api/v1/accounts/{accountId}/account-wallets
+    endpoint in the Wallet API API.
+sidebar:
+  label: 계정 지갑 생성
+  badge: POST
+title: 계정 지갑 생성
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="account-wallets-create" />
 
+
 ---
-
-# 계정 지갑 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/account-wallets/account-wallets-get
-
+search:
+  tags:
+    - Account Wallets
+    - GET
+seo:
+  description: >-
+    계정 지갑 상세 조회 Reference for the GET
+    /api/v1/accounts/{accountId}/account-wallets/{accountWalletId} endpoint in
+    the Wallet API API.
+sidebar:
+  label: 계정 지갑 상세 조회
+  badge: GET
+title: 계정 지갑 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="account-wallets-get" />
 
+
 ---
-
-# 계정 지갑 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/account-wallets/account-wallets-list
-
+search:
+  tags:
+    - Account Wallets
+    - GET
+seo:
+  description: >-
+    계정 지갑 목록 조회 Reference for the GET
+    /api/v1/accounts/{accountId}/account-wallets endpoint in the Wallet API API.
+sidebar:
+  label: 계정 지갑 목록 조회
+  badge: GET
+title: 계정 지갑 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="account-wallets-list" />
 
+
 ---
-
-# 계정 상태 변경
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-change-status
-
+search:
+  tags:
+    - Accounts
+    - POST
+seo:
+  description: >-
+    계정을 활성/비활성으로 전환한다. 요청 안에서 종결되며 승인을 거치지… Reference for the POST
+    /api/v1/accounts/{accountId}/status endpoint in the Wallet API API.
+sidebar:
+  label: 계정 상태 변경
+  badge: POST
+title: 계정 상태 변경
+type: openapi-operation
+---
 계정을 활성/비활성으로 전환한다. 요청 안에서 종결되며 승인을 거치지 않는다.
 
 이미 그 상태면 아무것도 바꾸지 않고 성공으로 종결한다.
@@ -8138,11 +10107,22 @@ Errors:
 
 <Operation source="reference-wallet" id="accounts-change-status" />
 
+
 ---
-
-# 계정 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-create
-
+search:
+  tags:
+    - Accounts
+    - POST
+seo:
+  description: >-
+    referenceId에 매핑되는 계정을 생성한다. 요청 안에서 종결되며 승인을 거치지 않는다. Reference for the POST
+    /api/v1/accounts endpoint in the Wallet API API.
+sidebar:
+  label: 계정 생성
+  badge: POST
+title: 계정 생성
+type: openapi-operation
+---
 referenceId에 매핑되는 계정을 생성한다. 요청 안에서 종결되며 승인을 거치지 않는다.
 
 referenceId는 같은 고객사(tenant) 안에서 유일하다. 이미 쓰인 값으로 생성하면 거부되며,
@@ -8154,11 +10134,22 @@ Errors:
 
 <Operation source="reference-wallet" id="accounts-create" />
 
+
 ---
-
-# 계정 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-get
-
+search:
+  tags:
+    - Accounts
+    - GET
+seo:
+  description: >-
+    accountId로 계정을 상세 조회한다. 상태로 걸러내지 않으므로 비활성 계정도… Reference for the GET
+    /api/v1/accounts/{accountId} endpoint in the Wallet API API.
+sidebar:
+  label: 계정 상세 조회
+  badge: GET
+title: 계정 상세 조회
+type: openapi-operation
+---
 accountId로 계정을 상세 조회한다.
 상태로 걸러내지 않으므로 비활성 계정도 status와 함께 반환한다.
 
@@ -8167,11 +10158,22 @@ Errors:
 
 <Operation source="reference-wallet" id="accounts-get" />
 
+
 ---
-
-# 계정 referenceId 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/accounts/accounts-get-by-reference-id
-
+search:
+  tags:
+    - Accounts
+    - GET
+seo:
+  description: >-
+    referenceId로 계정을 상세 조회한다. referenceId 쿼리 파라미터가 있을 때만 이 핸들러로… Reference for
+    the GET /api/v1/accounts endpoint in the Wallet API API.
+sidebar:
+  label: 계정 referenceId 조회
+  badge: GET
+title: 계정 referenceId 조회
+type: openapi-operation
+---
 referenceId로 계정을 상세 조회한다.
 referenceId 쿼리 파라미터가 있을 때만 이 핸들러로 라우팅된다.
 referenceId는 같은 고객사(tenant) 안에서 유일하므로 단건을 반환한다.
@@ -8182,11 +10184,22 @@ Errors:
 
 <Operation source="reference-wallet" id="accounts-get-by-reference-id" />
 
+
 ---
-
-# 주소록 등록 (지갑 소유 증명 nonce 서명 포함)
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-create
-
+search:
+  tags:
+    - Address Books
+    - POST
+seo:
+  description: >-
+    발급받은 nonce의 message에 대한 지갑 서명을 검증해 등재한다.… Reference for the POST
+    /api/v1/accounts/{accountId}/address-books endpoint in the Wallet API API.
+sidebar:
+  label: 주소록 등록 (지갑 소유 증명 nonce 서명 포함)
+  badge: POST
+title: 주소록 등록 (지갑 소유 증명 nonce 서명 포함)
+type: openapi-operation
+---
 발급받은 nonce의 `message`에 대한 지갑 서명을 검증해 등재한다. 등록 자체가 소유 증명
 게이트라 별도 승인 절차가 없다.
 
@@ -8196,72 +10209,175 @@ Errors:
 
 <Operation source="reference-wallet" id="address-books-create" />
 
+
 ---
-
-# 주소록 등록용 지갑 소유 증명 nonce 발급
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-create-nonce
-
+search:
+  tags:
+    - Address Books
+    - POST
+seo:
+  description: >-
+    주소록 등록용 지갑 소유 증명 nonce 발급 Reference for the POST
+    /api/v1/accounts/{accountId}/address-books/nonce endpoint in the Wallet API
+    API.
+sidebar:
+  label: 주소록 등록용 지갑 소유 증명 nonce 발급
+  badge: POST
+title: 주소록 등록용 지갑 소유 증명 nonce 발급
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="address-books-create-nonce" />
 
+
 ---
-
-# 주소록 삭제
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-delete
-
+search:
+  tags:
+    - Address Books
+    - DELETE
+seo:
+  description: >-
+    등재를 회수한다. 행이 지워지는 것이 아니라… Reference for the DELETE
+    /api/v1/accounts/{accountId}/address-books/{addressBookId} endpoint in the
+    Wallet API API.
+sidebar:
+  label: 주소록 삭제
+  badge: DELETE
+title: 주소록 삭제
+type: openapi-operation
+---
 등재를 회수한다. 행이 지워지는 것이 아니라 상태가 REVOKED가 되고 즉시 정책 판정에 반영된다
 
 <Operation source="reference-wallet" id="address-books-delete" />
 
+
 ---
-
-# 주소록 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-get
-
+search:
+  tags:
+    - Address Books
+    - GET
+seo:
+  description: >-
+    주소록 상세 조회 Reference for the GET
+    /api/v1/accounts/{accountId}/address-books/{addressBookId} endpoint in the
+    Wallet API API.
+sidebar:
+  label: 주소록 상세 조회
+  badge: GET
+title: 주소록 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="address-books-get" />
 
+
 ---
-
-# 주소록 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/address-books/address-books-list
-
+search:
+  tags:
+    - Address Books
+    - GET
+seo:
+  description: >-
+    주소록 목록 조회 Reference for the GET /api/v1/accounts/{accountId}/address-books
+    endpoint in the Wallet API API.
+sidebar:
+  label: 주소록 목록 조회
+  badge: GET
+title: 주소록 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="address-books-list" />
 
+
 ---
-
-# 입금 내역 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/deposits/deposits-get
-
+search:
+  tags:
+    - Deposits
+    - GET
+seo:
+  description: >-
+    입금 내역 상세 조회 Reference for the GET
+    /api/v1/accounts/{accountId}/deposits/{depositId} endpoint in the Wallet API
+    API.
+sidebar:
+  label: 입금 내역 상세 조회
+  badge: GET
+title: 입금 내역 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="deposits-get" />
 
+
 ---
-
-# 입금 내역 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/deposits/deposits-list
-
+search:
+  tags:
+    - Deposits
+    - GET
+seo:
+  description: >-
+    cursor로 이어 읽는 동안 status·from·to를 바꾸지 않는다. 커서는… Reference for the GET
+    /api/v1/accounts/{accountId}/deposits endpoint in the Wallet API API.
+sidebar:
+  label: 입금 내역 목록 조회
+  badge: GET
+title: 입금 내역 목록 조회
+type: openapi-operation
+---
 `cursor`로 이어 읽는 동안 `status`·`from`·`to`를 바꾸지 않는다. 커서는 정렬 키만 담으므로 조건을 바꾸면
 새 조건에 맞으면서 커서보다 앞에 정렬되는 건이 그 순회에서 빠진다. 조건을 바꾸려면 `cursor` 없이 처음부터 조회한다.
 
 <Operation source="reference-wallet" id="deposits-list" />
 
+
 ---
-
-# 네트워크 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/networks/networks-get
-
+search:
+  tags:
+    - Networks
+    - GET
+seo:
+  description: >-
+    네트워크 상세 조회 Reference for the GET /api/v1/networks/{networkId} endpoint in
+    the Wallet API API.
+sidebar:
+  label: 네트워크 상세 조회
+  badge: GET
+title: 네트워크 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="networks-get" />
 
+
 ---
-
-# 네트워크 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/networks/networks-list
-
+search:
+  tags:
+    - Networks
+    - GET
+seo:
+  description: >-
+    네트워크 목록 조회 Reference for the GET /api/v1/networks endpoint in the Wallet API
+    API.
+sidebar:
+  label: 네트워크 목록 조회
+  badge: GET
+title: 네트워크 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="networks-list" />
 
+
 ---
-
-# 스윕 요청 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/sweeps/sweeps-create
-
+search:
+  tags:
+    - Sweeps
+    - POST
+seo:
+  description: >-
+    스윕 대상 입금에서 출발 좌표(vault·토큰·금액)를 유도해 집금 vault로의 이동을 요청한다.… Reference for the
+    POST /api/v1/sweeps endpoint in the Wallet API API.
+sidebar:
+  label: 스윕 요청 생성
+  badge: POST
+title: 스윕 요청 생성
+type: openapi-operation
+---
 스윕 대상 입금에서 출발 좌표(vault·토큰·금액)를 유도해 집금 vault로의 이동을 요청한다.
 요청은 depositId와 목적지만 지정한다.
 
@@ -8272,11 +10388,22 @@ Errors:
 
 <Operation source="reference-wallet" id="sweeps-create" />
 
+
 ---
-
-# 스윕 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/sweeps/sweeps-get
-
+search:
+  tags:
+    - Sweeps
+    - GET
+seo:
+  description: >-
+    sweepId로 스윕을 상세 조회한다. Reference for the GET /api/v1/sweeps/{sweepId}
+    endpoint in the Wallet API API.
+sidebar:
+  label: 스윕 상세 조회
+  badge: GET
+title: 스윕 상세 조회
+type: openapi-operation
+---
 sweepId로 스윕을 상세 조회한다.
 
 Errors:
@@ -8284,64 +10411,153 @@ Errors:
 
 <Operation source="reference-wallet" id="sweeps-get" />
 
+
 ---
-
-# 스윕 referenceId 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/sweeps/sweeps-get-by-reference-id
-
+search:
+  tags:
+    - Sweeps
+    - GET
+seo:
+  description: >-
+    referenceId로 스윕을 상세 조회한다 — 생성 응답을 받지 못했을 때(타임아웃 등) 스윕 id 없이… Reference for
+    the GET /api/v1/sweeps endpoint in the Wallet API API.
+sidebar:
+  label: 스윕 referenceId 조회
+  badge: GET
+title: 스윕 referenceId 조회
+type: openapi-operation
+---
 referenceId로 스윕을 상세 조회한다 — 생성 응답을 받지 못했을 때(타임아웃 등) 스윕 id 없이
 상태를 확인하는 복구 경로다. referenceId는 tenant 안에서 유일하다.
 referenceId 쿼리 파라미터가 있을 때만 이 핸들러로 라우팅된다.
 
 <Operation source="reference-wallet" id="sweeps-get-by-reference-id" />
 
+
 ---
-
-# 토큰 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/tokens/tokens-get
-
+search:
+  tags:
+    - Tokens
+    - GET
+seo:
+  description: >-
+    토큰 상세 조회 Reference for the GET /api/v1/tokens/{tokenId} endpoint in the
+    Wallet API API.
+sidebar:
+  label: 토큰 상세 조회
+  badge: GET
+title: 토큰 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="tokens-get" />
 
+
 ---
-
-# 토큰 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/tokens/tokens-list
-
+search:
+  tags:
+    - Tokens
+    - GET
+seo:
+  description: >-
+    토큰 목록 조회 Reference for the GET /api/v1/tokens endpoint in the Wallet API
+    API.
+sidebar:
+  label: 토큰 목록 조회
+  badge: GET
+title: 토큰 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="tokens-list" />
 
+
 ---
-
-# 트래블룰 대상 VASP 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/travel-rules/travel-rules-list-vasps
-
+search:
+  tags:
+    - Travel Rules
+    - GET
+seo:
+  description: >-
+    트래블룰 대상 VASP 목록 조회 Reference for the GET /api/v1/travel-rules/vasps endpoint
+    in the Wallet API API.
+sidebar:
+  label: 트래블룰 대상 VASP 목록 조회
+  badge: GET
+title: 트래블룰 대상 VASP 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="travel-rules-list-vasps" />
 
+
 ---
-
-# 출금 요청
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-create
-
+search:
+  tags:
+    - Withdrawals
+    - POST
+seo:
+  description: >-
+    출금 요청 Reference for the POST /api/v1/accounts/{accountId}/withdrawals
+    endpoint in the Wallet API API.
+sidebar:
+  label: 출금 요청
+  badge: POST
+title: 출금 요청
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="withdrawals-create" />
 
+
 ---
-
-# 출금 내역 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-get
-
+search:
+  tags:
+    - Withdrawals
+    - GET
+seo:
+  description: >-
+    출금 내역 상세 조회 Reference for the GET
+    /api/v1/accounts/{accountId}/withdrawals/{withdrawalId} endpoint in the
+    Wallet API API.
+sidebar:
+  label: 출금 내역 상세 조회
+  badge: GET
+title: 출금 내역 상세 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="withdrawals-get" />
 
+
 ---
-
-# 출금 내역 목록 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/withdrawals/withdrawals-list
-
+search:
+  tags:
+    - Withdrawals
+    - GET
+seo:
+  description: >-
+    출금 내역 목록 조회 Reference for the GET /api/v1/accounts/{accountId}/withdrawals
+    endpoint in the Wallet API API.
+sidebar:
+  label: 출금 내역 목록 조회
+  badge: GET
+title: 출금 내역 목록 조회
+type: openapi-operation
+---
 <Operation source="reference-wallet" id="withdrawals-list" />
 
+
 ---
-
-# 워크스페이스 Vault 이체 요청 생성
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-create
-
+search:
+  tags:
+    - Workspace Vault Transfers
+    - POST
+seo:
+  description: >-
+    WorkspaceWallet 간 자산 이동을 요청한다. 출발 vault의 가용… Reference for the POST
+    /api/v1/workspace-vault-transfers endpoint in the Wallet API API.
+sidebar:
+  label: 워크스페이스 Vault 이체 요청 생성
+  badge: POST
+title: 워크스페이스 Vault 이체 요청 생성
+type: openapi-operation
+---
 WorkspaceWallet 간 자산 이동을 요청한다.
 출발 vault의 가용 잔액(settled − in-flight)을 서명 이전에 검증해, 부족하면 400으로 즉시 거절한다.
 커스터디 실행 결과로 부족이 확인되면 FAILED (INSUFFICIENT_FUNDS) subStatus로 마킹된다.
@@ -8359,11 +10575,23 @@ Errors:
 
 <Operation source="reference-wallet" id="workspace-vault-transfers-create" />
 
+
 ---
-
-# 워크스페이스 Vault 이체 상세 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get
-
+search:
+  tags:
+    - Workspace Vault Transfers
+    - GET
+seo:
+  description: >-
+    workspaceVaultTransferId로 이체를 상세… Reference for the GET
+    /api/v1/workspace-vault-transfers/{workspaceVaultTransferId} endpoint in the
+    Wallet API API.
+sidebar:
+  label: 워크스페이스 Vault 이체 상세 조회
+  badge: GET
+title: 워크스페이스 Vault 이체 상세 조회
+type: openapi-operation
+---
 workspaceVaultTransferId로 이체를 상세 조회한다.
 
 Errors:
@@ -8371,20 +10599,32 @@ Errors:
 
 <Operation source="reference-wallet" id="workspace-vault-transfers-get" />
 
+
 ---
-
-# 워크스페이스 Vault 이체 referenceId 조회
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get-by-reference-id
-
+search:
+  tags:
+    - Workspace Vault Transfers
+    - GET
+seo:
+  description: >-
+    referenceId로 이체를 상세 조회한다. referenceId 쿼리 파라미터가 있을… Reference for the GET
+    /api/v1/workspace-vault-transfers endpoint in the Wallet API API.
+sidebar:
+  label: 워크스페이스 Vault 이체 referenceId 조회
+  badge: GET
+title: 워크스페이스 Vault 이체 referenceId 조회
+type: openapi-operation
+---
 referenceId로 이체를 상세 조회한다.
 referenceId 쿼리 파라미터가 있을 때만 이 핸들러로 라우팅된다.
 
 <Operation source="reference-wallet" id="workspace-vault-transfers-get-by-reference-id" />
 
----
 
-# 시작하기
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start
+---
+title: 시작하기
+description: 첫 요청에서 자금 이동까지, 파트너사 개발자가 읽는 순서
+---
 
 _읽는 사람: 파트너사 개발자. Wallet SDK 를 붙이는 순서와 그 순서마다 볼 페이지를 다룹니다._
 
@@ -8410,10 +10650,11 @@ Wallet SDK 는 파트너 대상 API 로 붙입니다. 이 탭은 그 API 를 처
 - **[규제 대응](/start/compliance)** — 접속기록·개인정보·보존·암호키 통제가 어느 페이지에 있는지의
   색인입니다.
 
----
 
-# 표면과 인증
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start/authentication
+---
+title: 표면과 인증
+description: 어떤 API를 누가 부르고, 무엇이 인증에서 나오는가
+---
 
 _읽는 사람: 파트너사 개발자. 표면 다섯과 각 표면에서 인증이 확정하는 것을 다룹니다._
 
@@ -8506,10 +10747,11 @@ GET /api/v1/accounts/{accountId}/deposits
 것은 `Idempotency-Key`가 아직 재시도 중복을 막지 못한다는 사실 하나이고, 그 서술은
 [첫 요청](/start/first-request)에 있습니다.
 
----
 
-# 규제 대응
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start/compliance
+---
+title: 규제 대응
+description: 접속기록·개인정보·보존·암호키가 어느 페이지에 있는가
+---
 
 _읽는 사람: 파트너사 개발자. 통제 항목별로 어느 페이지에 서술이 있는지를 모으고, 없는 항목도 적어 둡니다._
 
@@ -8616,7 +10858,7 @@ PIP([자세히](/policy/runtime/pip))에 있습니다.
 - **같은 형태의 값이라도 스코프 키와 리소스 식별자는 다릅니다**: 무엇이 스코프 키인지는 그 표면의
   인증이 무엇을 확정하느냐가 정합니다. 표면별 판정은 내부 기록이 적습니다.
 - **권한을 올리는 변경에는 정족수가 필요합니다**: 정족수는 승인이 성립하는 데 필요한 최소 승인자
-  수입니다([자세히](/policy/rule/structure)). 요청자와 승인자가 같을 수 없다는 조건에는 끄는 노브가
+  수입니다([자세히](/policy/rules)). 요청자와 승인자가 같을 수 없다는 조건에는 끄는 노브가
   없고, 흐름은 [승인 게이트](/policy/sequences/approval-gate)에 있습니다.
 
 ## 알려진 결함이 적힌 곳
@@ -8646,10 +10888,11 @@ PIP([자세히](/policy/runtime/pip))에 있습니다.
 - **자금 이동 기록의 재현**: 정책 결정의 재현은 서술이 있으나, 지갑 쪽 기록을 어떻게 재현하는지가
   없습니다
 
----
 
-# 첫 요청
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start/first-request
+---
+title: 첫 요청
+description: 계정을 만들고 입금 주소를 받기까지
+---
 
 _읽는 사람: 파트너사 개발자. Wallet API를 처음 부르는 데 필요한 순서만 다룹니다._
 
@@ -8812,10 +11055,11 @@ GET /api/v1/accounts/{accountId}/deposits
 - [웹훅](/fund-flows/webhooks) — 무엇이 언제 오나
 - [Wallet API](/reference/wallet) — 위 오퍼레이션의 계약 기준 문서
 
----
 
-# 용어
-Source: https://static.pg166.io/wallet-isms-p/wallet-sdk-docs/start/terminology
+---
+title: 용어
+description: 어느 말이 무엇을 가리키고 그 정의가 어디 있는지
+---
 
 _읽는 사람: 파트너사 개발자. 이 사이트에서 쓰는 도메인 용어의 색인입니다._
 
@@ -8958,16 +11202,16 @@ _읽는 사람: 파트너사 개발자. 이 사이트에서 쓰는 도메인 용
 | 업무 요청 | 소유 서비스가 자기 도메인에서 만든 요청입니다 | 설계 기록(내부) |
 | 판단 요청 | 한 업무 요청을 두고 엔진이 소유하는 판단 기록입니다 | [서명 게이트](/policy/signing-gate) |
 | 결정 | 커널이 내는 네 종류의 종결입니다 — `allow`·`deny`·`pending`·`need_more_data` | [결정과 결합](/policy/rule/decision) |
-| `effect` | 룰이 적을 수 있는 두 값입니다 — `allow`·`deny` | [룰 구조](/policy/rule/structure) |
-| obligation | 통과로 확정되기 전에 이행해야 하는 조건입니다 | [룰 구조](/policy/rule/structure) |
-| 정족수 | 승인이 성립하는 데 필요한 최소 승인자 수입니다 | [룰 구조](/policy/rule/structure) |
+| `effect` | 룰이 적을 수 있는 두 값입니다 — `allow`·`deny` | [룰 쓰기](/policy/rules) |
+| obligation | 통과로 확정되기 전에 이행해야 하는 조건입니다 | [룰 쓰기](/policy/rules) |
+| 정족수 | 승인이 성립하는 데 필요한 최소 승인자 수입니다 | [룰 쓰기](/policy/rules) |
 | 평가 라운드 | 한 판단 요청 안에서 평가가 몇 번째로 실행됐는지입니다 | [결정과 결합](/policy/rule/decision) |
 | 커널 | 조건 트리를 평가하고 결정을 결합하는 정책 무관 고정 부분입니다 | [결정과 결합](/policy/rule/decision) |
-| 룰 | `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다 | [룰 구조](/policy/rule/structure) |
+| 룰 | `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다 | [룰 쓰기](/policy/rules) |
 | 값 이동 | 출금·vault 이체·집금처럼 자산을 실제로 움직이는 연산 셋입니다 | [결정과 결합](/policy/rule/decision) |
 | 룰 모듈 | 관심사 단위의 평가 경계입니다. 폴더가 아닙니다 | 설계 기록(내부) |
-| 슬롯 | 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다 | [룰 구조](/policy/rule/structure) |
-| 조건 트리 | `all`·`any`·`not`과 비교·멤버십 리프로 이루어진 룰의 조건식입니다 | [룰 구조](/policy/rule/structure) |
+| 슬롯 | 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다 | [룰 쓰기](/policy/rules) |
+| 조건 트리 | `all`·`any`·`not`과 비교·멤버십 리프로 이루어진 룰의 조건식입니다 | [룰 쓰기](/policy/rules) |
 | PIP 소스 | 룰이 참조하는 외부 사실의 출처입니다 | [PIP](/policy/runtime/pip) |
 | 단회성 인가 | 승인된 판단 요청이 발급하는 한 번만 쓸 수 있는 서명 근거입니다 | [서명 게이트](/policy/signing-gate) |
 | `signingAuthorizationId` | 그 인가를 가리키는 식별자입니다. 지갑이 뒷단 플랫폼 제출의 외부 참조 id로 싣습니다 | 설계 기록(내부) |
@@ -8992,6 +11236,11 @@ _읽는 사람: 파트너사 개발자. 이 사이트에서 쓰는 도메인 용
 | 채점 | 컴파일된 룰이 의도대로 판정하는지 테스트 벡터로 재는 검사입니다 | [구조](/policy/architecture) |
 | 정책 로직 번들 | 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물입니다 | 설계 기록(내부) |
 | 워크스페이스 번들 | 한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다 | 설계 기록(내부) |
+| draft | 콘솔에서 편집 중인 저작물의 머리입니다. 편집은 언제나 새 revision을 쌓습니다 | [룰 저작과 발행](/policy/workflow) |
+| revision | draft에 쌓이는 편집 한 판입니다. 지난 revision은 고쳐지지 않고 주소로 되찾을 수 있습니다 | [룰 저작과 발행](/policy/workflow) |
+| 기준선 | 활성 번들에서 유도해 편집기가 처음 보여 주는 내용입니다 | [룰 저작과 발행](/policy/workflow) |
+| 내용 해시 | 검증을 통과한 revision의 내용에서 계산한 해시입니다. 승인은 이 값에 묶입니다 | [저장과 이동](/policy/runtime/storage) |
+| 정책 콘솔 | 룰을 저작하고 승인하고 발행하는 사람의 화면입니다 | [룰 저작과 발행](/policy/workflow) |
 | maker-checker | 제안자와 승인자를 갈라 두는 정책 변경 거버넌스입니다 | [정책 엔진](/policy) |
 | 시드 정책 | 워크스페이스 등록이 심는 첫 번들입니다. 저작의 출발점이지 결과가 아닙니다 | [개통](/accounts-wallets/onboarding) |
 | 활성 포인터 | 지금 무엇이 서빙되는지를 정하는 단일 기록입니다 | 설계 기록(내부) |

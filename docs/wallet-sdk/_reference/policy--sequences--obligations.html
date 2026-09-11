@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>obligation 수집 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>obligation 수집</h1><p class="ref-meta">통과 조건으로 붙은 이행을 어디서 모으나</p>
-<p>obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">자세히</a>). 이
+<p>obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다(<a data-reference-title="룰 쓰기" href="policy--rules.html">자세히</a>). 이
 페이지는 그 이행을 어느 채널에서 모으고, 모으는 동안 요청이 어디에 머무는지를 씁니다.</p>
 <p>obligation은 **“통과시키되 이것을 이행하라”**는 요구입니다. 이행이 끝날 때까지 요청은
 <code>PENDING_OBLIGATION</code>에 머뭅니다.</p>
@@ -129,9 +129,9 @@ obligation이 없습니다.</p>
 <ul>
 <li><a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a> — 정족수와 어드민 2단계 인증의 전체 흐름</li>
 <li><a data-reference-title="비동기 수집" href="policy--sequences--pending-data.html">비동기 수집</a> — 파트너를 기다리는 다른 경우</li>
-<li><a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a> — obligation을 룰에 어떻게 다나</li>
+<li><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a> — obligation을 룰에 어떻게 다나</li>
 <li><a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a> — obligation 병합 규칙</li>
-</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+</ul></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

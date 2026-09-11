@@ -1,0 +1,60 @@
+<!doctype html><html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>v1.1.0 · Wallet SDK</title><link rel="stylesheet" href="../_offline/fonts.css"><link rel="stylesheet" href="../_guide/style.css"><link rel="stylesheet" href="../_guide/references.css"><script>if(new URLSearchParams(location.search).get('view')==='modal'&&parent!==window)document.documentElement.classList.add('embed');</script></head><body class="reference-page"><header><a class="brand" href="../index.html">Wallet SDK</a><a class="reference-home" href="../_guide/originals.html">참고 문서 목록</a></header><main><p class="reference-caption">참고 문서</p><article dir="ltr"><h1>v1.1.0</h1><h3 id="계약-변경"><a data-reference-title="v1.1.0" href="changelog--v1-1-0.html#계약-변경">계약 변경</a></h3>
+<ul>
+<li><strong>자금 이동 상태에 <code>SETTLING</code>(정산 중)이 생겼습니다.</strong> 온체인 완료가 확인됐고 Wallet SDK 안의 잔액
+반영이 남은 구간입니다. vault 이체 조회 응답의 <code>status</code>에 <code>ON_CHAIN</code>과 <code>COMPLETED</code> 사이에 나타납니다.
+상태 값을 열거로 엄격히 파싱하면 이 값을 더해야 합니다. 스윕·출금의 상태 목록에도 같은 값이
+있지만 그 두 이동은 이 값을 내지 않습니다. → <a data-reference-title="Vault 이체 (Vault Transfer)" href="fund-flows--vault-transfer.html">Vault 이체</a></li>
+<li><strong>vault 이체의 완료 통지는 양쪽 vault 잔액이 반영된 뒤에 나갑니다.</strong> 전에는 온체인 확정을 관측한
+시점에 나갔습니다. 통지가 도착하면 목적지 vault의 가용 잔액은 이미 올라 있습니다.</li>
+</ul>
+<p>이 둘은 2026-09-10에 구현 브랜치 쪽에 먼저 들어가 v1.0.0 문서에 실리지 못했습니다. 이 릴리즈가
+문서로 나가는 첫 자리입니다.</p>
+<h3 id="문서"><a data-reference-title="v1.1.0" href="changelog--v1-1-0.html#문서">문서</a></h3>
+<ul>
+<li><strong>정책 탭을 「정책 쓰기」와 「엔진 내부 동작」 두 절로 갈랐습니다.</strong> 위 절은 파트너사가 순서대로
+읽는 다섯 쪽입니다. <a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a> · <a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a> ·
+<a data-reference-title="예시 정책" href="policy--examples.html">예시 정책</a> · <a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a> · <a data-reference-title="결과 읽기" href="policy--results.html">결과 읽기</a>입니다.
+아래 절은 엔진을 만드는 사람의 페이지이고 룰·평가 그룹이 그 안에 들어갔습니다. 주소는 아래 한 건
+말고 바뀐 것이 없습니다.</li>
+<li><strong>룰이 참조할 수 있는 필드 표를 실었습니다.</strong> <a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>의 요청 필드 표와 수집 필드
+표는 손으로 쓴 것이 아니라 정책 컴파일러의 필드 카탈로그와 PIP 소스 등재에서 빌드마다 생성합니다.
+그래서 카탈로그가 바뀌면 표가 함께 바뀝니다.</li>
+<li><strong>예시 정책과 결과 읽기 페이지가 생겼습니다.</strong> <a data-reference-title="예시 정책" href="policy--examples.html">예시 정책</a>은 워크스페이스 시드의
+실물 룰 셋을 원문 그대로 싣고 통과하는 요청과 거절되는 요청을 대조합니다. 지금 표현할 수 없는
+것도 이유와 함께 적었습니다. <a data-reference-title="결과 읽기" href="policy--results.html">결과 읽기</a>는 정책 결정이 Wallet API의 출금 상태와
+세부 상태, 집금·vault 이체의 에러 코드, Admin API의 승인 상태에 어떻게 나타나는지를 씁니다.</li>
+<li><strong>룰 저작과 발행은 사람이 거치는 절차만 담습니다.</strong> 해시 대조와 활성 포인터 전환 같은 발행 기제는
+<a data-reference-title="저장과 이동" href="policy--runtime--storage.html">저장과 이동</a>으로 옮겼습니다.</li>
+<li><strong>용어에 draft · revision · 기준선 · 내용 해시 · 정책 콘솔을 등재했습니다.</strong></li>
+</ul>
+<h3 id="옛-라우트--새-라우트"><a data-reference-title="v1.1.0" href="changelog--v1-1-0.html#옛-라우트--새-라우트">옛 라우트 → 새 라우트</a></h3>
+<div tabindex="0"><div class="table-scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>옛</th>
+<th>새</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/policy/rule/structure</code></td>
+<td><a data-reference-title="룰 쓰기" href="policy--rules.html">/policy/rules</a></td>
+</tr>
+</tbody>
+</table></div></div>
+<p>옛 주소는 응답하지 않습니다. 옛 서술은 헤더의 버전 스위처에서 v0를 고르면 볼 수 있습니다.</p></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+  const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
+  if(embedded)document.documentElement.classList.add('embed');
+  const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-reference-title]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    const u=new URL(a.href);if(u.pathname===location.pathname&&u.hash){e.preventDefault();location.hash=u.hash;return;}
+    if(embedded){e.preventDefault();send({action:'navigate',url:u.href,title:a.dataset.referenceTitle,scroll:scrollY})}
+  });
+  addEventListener('keydown',e=>{if(embedded&&e.key==='Escape'){e.preventDefault();send({action:'close'})}});
+  addEventListener('message',e=>{if(embedded&&e.source===parent&&e.data?.kind==='wallet-reference-parent-v1'&&e.data.action==='scroll')scrollTo({top:Number(e.data.top)||0,behavior:'instant'})});
+  function fit(){for(const box of document.querySelectorAll('.interactive-diagram')){const scale=box.clientWidth/1440;box.style.height=(900*scale)+'px';box.querySelector('iframe').style.transform='scale('+scale+')'}}
+  new ResizeObserver(fit).observe(document.body);fit();
+  if(embedded){const ready=()=>document.fonts.ready.then(()=>send({action:'ready',url:location.href,title:document.querySelector('h1').textContent}));if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true})}
+})();
+</script></body></html>

@@ -30,7 +30,7 @@
 </tbody>
 </table></div></div>
 <p>룰이 적는 것은 <code>allow</code>와 <code>deny</code> 둘뿐이고, 나머지 둘은 커널이 산출합니다. 표의 obligation은
-통과로 확정되기 전에 이행해야 하는 조건입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>).</p>
+통과로 확정되기 전에 이행해야 하는 조건입니다(<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>).</p>
 <h2 id="결합-규칙"><a data-reference-title="결정과 결합" href="policy--rule--decision.html#결합-규칙">결합 규칙</a></h2>
 <p>결합 규칙은 커널이 고정하고 정책이 바꿀 수 없습니다.</p>
 <p><strong>우선순위는 <code>deny</code> &gt; <code>need_more_data</code> &gt; <code>pending</code> &gt; <code>allow</code>입니다.</strong> 하나라도 deny면
@@ -74,7 +74,7 @@ TTL까지 유효하고, 상한은 3600초(60분)이고 기본값은 1200초(20�
 <p><strong>기본값이 곧 하한이라 워크스페이스가 더 짧게 줄일 수 없습니다.</strong> 1200초는 서명 어댑터의 재시도
 총 시간과 도착 지연 예산, 여유를 더한 값입니다. 그보다 짧으면 정상 콜백이 TTL 뒤에 도착합니다.</p>
 <p>정책을 새로 배포해도 이미 발급된 인가를 무효화하지 않습니다. 그 노출 창을 왜 받아들이는지는
-<a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a>에 있습니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+<a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a>에 있습니다.</p></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

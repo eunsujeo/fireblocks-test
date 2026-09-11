@@ -202,111 +202,141 @@
           "route": "/policy"
         },
         {
-          "description": "저작 산출물이 가는 세 경로와 평가 입력의 조립, 두 장으로 요약한 정책 엔진",
-          "kind": "page",
-          "label": "전체 지도",
-          "pageId": "filesystem:policy/map.mdx",
-          "route": "/policy/map"
-        },
-        {
-          "description": "무엇이 어디에 배포되고 각자 무엇을 지는가",
-          "kind": "page",
-          "label": "구조",
-          "pageId": "filesystem:policy/architecture.mdx",
-          "route": "/policy/architecture"
-        },
-        {
-          "description": "판단과 집행이 두 단계로 나뉩니다",
-          "kind": "page",
-          "label": "서명 게이트",
-          "pageId": "filesystem:policy/signing-gate.mdx",
-          "route": "/policy/signing-gate"
-        },
-        {
-          "description": "정책 엔진의 배포 토폴로지·서명 게이트·상태 머신·발행 워크플로우와, rego·JSON 소스 구성, 코드 레벨 호출 경로를 상호작용 뷰어로 봅니다",
-          "kind": "page",
-          "label": "다이어그램",
-          "pageId": "filesystem:policy/diagrams.mdx",
-          "route": "/policy/diagrams"
-        },
-        {
-          "description": "draft 하나가 편집·검증·승인을 거쳐 활성 번들이 되기까지",
-          "kind": "page",
-          "label": "룰 저작과 발행",
-          "pageId": "filesystem:policy/workflow.mdx",
-          "route": "/policy/workflow"
-        },
-        {
-          "description": "fail-closed는 조용합니다",
-          "kind": "page",
-          "label": "운영과 관측",
-          "pageId": "filesystem:policy/operations.mdx",
-          "route": "/policy/operations"
-        },
-        {
           "children": [
             {
-              "description": "룰은 네 조각입니다",
+              "description": "판단과 집행이 두 단계로 나뉩니다",
               "kind": "page",
-              "label": "룰 구조",
-              "pageId": "filesystem:policy/rule/structure.mdx",
-              "route": "/policy/rule/structure"
+              "label": "서명 게이트",
+              "pageId": "filesystem:policy/(writing)/signing-gate.mdx",
+              "route": "/policy/signing-gate"
             },
             {
-              "description": "룰이 무엇을 가리킬 수 있고 무엇이 그것을 검사하는가",
+              "description": "룰 하나가 무엇으로 이루어지고 무엇을 참조할 수 있는지",
               "kind": "page",
-              "label": "룰 명세",
-              "pageId": "filesystem:policy/rule/reference.mdx",
-              "route": "/policy/rule/reference"
+              "label": "룰 쓰기",
+              "pageId": "filesystem:policy/(writing)/rules.mdx",
+              "route": "/policy/rules"
             },
             {
-              "description": "여러 룰이 다른 답을 낼 때",
+              "description": "워크스페이스 시드에 들어 있는 룰 셋과 그 룰이 가르는 요청",
               "kind": "page",
-              "label": "결정과 결합",
-              "pageId": "filesystem:policy/rule/decision.mdx",
-              "route": "/policy/rule/decision"
+              "label": "예시 정책",
+              "pageId": "filesystem:policy/(writing)/examples.mdx",
+              "route": "/policy/examples"
+            },
+            {
+              "description": "draft 하나가 편집·검증·승인을 거쳐 활성 번들이 되기까지",
+              "kind": "page",
+              "label": "룰 저작과 발행",
+              "pageId": "filesystem:policy/(writing)/workflow.mdx",
+              "route": "/policy/workflow"
+            },
+            {
+              "description": "정책 판단의 결과가 API 응답의 어느 자리에 나타나는지",
+              "kind": "page",
+              "label": "결과 읽기",
+              "pageId": "filesystem:policy/(writing)/results.mdx",
+              "route": "/policy/results"
             }
           ],
           "display": "flat",
           "kind": "group",
-          "label": "룰",
-          "path": "/policy/rule"
+          "label": "정책 쓰기",
+          "path": "/policy"
         },
         {
           "children": [
             {
-              "description": "승인한 것과 서명될 것이 같은가",
+              "description": "저작 산출물이 가는 세 경로와 평가 입력의 조립, 두 장으로 요약한 정책 엔진",
               "kind": "page",
-              "label": "정규화",
-              "pageId": "filesystem:policy/runtime/normalization.mdx",
-              "route": "/policy/runtime/normalization"
+              "label": "전체 지도",
+              "pageId": "filesystem:policy/(engine)/map.mdx",
+              "route": "/policy/map"
             },
             {
-              "description": "세상의 상태를 언제 어떻게 읽는가",
+              "description": "무엇이 어디에 배포되고 각자 무엇을 지는가",
               "kind": "page",
-              "label": "PIP",
-              "pageId": "filesystem:policy/runtime/pip.mdx",
-              "route": "/policy/runtime/pip"
+              "label": "구조",
+              "pageId": "filesystem:policy/(engine)/architecture.mdx",
+              "route": "/policy/architecture"
             },
             {
-              "description": "입력 문서가 조립되고 커널이 슬롯을 풀어 결정을 내리기까지",
+              "description": "정책 엔진의 배포 토폴로지·서명 게이트·상태 머신·발행 워크플로우와, rego·JSON 소스 구성, 코드 레벨 호출 경로를 상호작용 뷰어로 봅니다",
               "kind": "page",
-              "label": "평가의 순간",
-              "pageId": "filesystem:policy/runtime/evaluation.mdx",
-              "route": "/policy/runtime/evaluation"
+              "label": "다이어그램",
+              "pageId": "filesystem:policy/(engine)/diagrams.mdx",
+              "route": "/policy/diagrams"
             },
             {
-              "description": "각 산출물이 어디에 저장되고 무엇이 네트워크를 오가는가",
+              "description": "fail-closed는 조용합니다",
               "kind": "page",
-              "label": "저장과 이동",
-              "pageId": "filesystem:policy/runtime/storage.mdx",
-              "route": "/policy/runtime/storage"
+              "label": "운영과 관측",
+              "pageId": "filesystem:policy/(engine)/operations.mdx",
+              "route": "/policy/operations"
+            },
+            {
+              "children": [
+                {
+                  "description": "룰이 무엇을 가리킬 수 있고 무엇이 그것을 검사하는가",
+                  "kind": "page",
+                  "label": "룰 명세",
+                  "pageId": "filesystem:policy/(engine)/rule/reference.mdx",
+                  "route": "/policy/rule/reference"
+                },
+                {
+                  "description": "여러 룰이 다른 답을 낼 때",
+                  "kind": "page",
+                  "label": "결정과 결합",
+                  "pageId": "filesystem:policy/(engine)/rule/decision.mdx",
+                  "route": "/policy/rule/decision"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "룰",
+              "path": "/policy/rule"
+            },
+            {
+              "children": [
+                {
+                  "description": "승인한 것과 서명될 것이 같은가",
+                  "kind": "page",
+                  "label": "정규화",
+                  "pageId": "filesystem:policy/(engine)/runtime/normalization.mdx",
+                  "route": "/policy/runtime/normalization"
+                },
+                {
+                  "description": "세상의 상태를 언제 어떻게 읽는가",
+                  "kind": "page",
+                  "label": "PIP",
+                  "pageId": "filesystem:policy/(engine)/runtime/pip.mdx",
+                  "route": "/policy/runtime/pip"
+                },
+                {
+                  "description": "입력 문서가 조립되고 커널이 슬롯을 풀어 결정을 내리기까지",
+                  "kind": "page",
+                  "label": "평가의 순간",
+                  "pageId": "filesystem:policy/(engine)/runtime/evaluation.mdx",
+                  "route": "/policy/runtime/evaluation"
+                },
+                {
+                  "description": "각 산출물이 어디에 저장되고 무엇이 네트워크를 오가는가",
+                  "kind": "page",
+                  "label": "저장과 이동",
+                  "pageId": "filesystem:policy/(engine)/runtime/storage.mdx",
+                  "route": "/policy/runtime/storage"
+                }
+              ],
+              "display": "flat",
+              "kind": "group",
+              "label": "평가",
+              "path": "/policy/runtime"
             }
           ],
           "display": "flat",
           "kind": "group",
-          "label": "평가",
-          "path": "/policy/runtime"
+          "label": "엔진 내부 동작",
+          "path": "/policy"
         },
         {
           "children": [
@@ -1635,6 +1665,12 @@
     },
     {
       "children": [
+        {
+          "kind": "page",
+          "label": "v1.1.0",
+          "pageId": "filesystem:changelog/v1-1-0.mdx",
+          "route": "/changelog/v1-1-0"
+        },
         {
           "kind": "page",
           "label": "v1.0.0",

@@ -144,16 +144,16 @@ _읽는 사람: 파트너사 개발자. 이 사이트에서 쓰는 도메인 용
 | 업무 요청 | 소유 서비스가 자기 도메인에서 만든 요청입니다 | 설계 기록(내부) |
 | 판단 요청 | 한 업무 요청을 두고 엔진이 소유하는 판단 기록입니다 | [서명 게이트](/policy/signing-gate) |
 | 결정 | 커널이 내는 네 종류의 종결입니다 — `allow`·`deny`·`pending`·`need_more_data` | [결정과 결합](/policy/rule/decision) |
-| `effect` | 룰이 적을 수 있는 두 값입니다 — `allow`·`deny` | [룰 구조](/policy/rule/structure) |
-| obligation | 통과로 확정되기 전에 이행해야 하는 조건입니다 | [룰 구조](/policy/rule/structure) |
-| 정족수 | 승인이 성립하는 데 필요한 최소 승인자 수입니다 | [룰 구조](/policy/rule/structure) |
+| `effect` | 룰이 적을 수 있는 두 값입니다 — `allow`·`deny` | [룰 쓰기](/policy/rules) |
+| obligation | 통과로 확정되기 전에 이행해야 하는 조건입니다 | [룰 쓰기](/policy/rules) |
+| 정족수 | 승인이 성립하는 데 필요한 최소 승인자 수입니다 | [룰 쓰기](/policy/rules) |
 | 평가 라운드 | 한 판단 요청 안에서 평가가 몇 번째로 실행됐는지입니다 | [결정과 결합](/policy/rule/decision) |
 | 커널 | 조건 트리를 평가하고 결정을 결합하는 정책 무관 고정 부분입니다 | [결정과 결합](/policy/rule/decision) |
-| 룰 | `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다 | [룰 구조](/policy/rule/structure) |
+| 룰 | `scope`와 조건을 갖고 `allow`·`deny`를 내는 단위입니다 | [룰 쓰기](/policy/rules) |
 | 값 이동 | 출금·vault 이체·집금처럼 자산을 실제로 움직이는 연산 셋입니다 | [결정과 결합](/policy/rule/decision) |
 | 룰 모듈 | 관심사 단위의 평가 경계입니다. 폴더가 아닙니다 | 설계 기록(내부) |
-| 슬롯 | 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다 | [룰 구조](/policy/rule/structure) |
-| 조건 트리 | `all`·`any`·`not`과 비교·멤버십 리프로 이루어진 룰의 조건식입니다 | [룰 구조](/policy/rule/structure) |
+| 슬롯 | 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다 | [룰 쓰기](/policy/rules) |
+| 조건 트리 | `all`·`any`·`not`과 비교·멤버십 리프로 이루어진 룰의 조건식입니다 | [룰 쓰기](/policy/rules) |
 | PIP 소스 | 룰이 참조하는 외부 사실의 출처입니다 | [PIP](/policy/runtime/pip) |
 | 단회성 인가 | 승인된 판단 요청이 발급하는 한 번만 쓸 수 있는 서명 근거입니다 | [서명 게이트](/policy/signing-gate) |
 | `signingAuthorizationId` | 그 인가를 가리키는 식별자입니다. 지갑이 뒷단 플랫폼 제출의 외부 참조 id로 싣습니다 | 설계 기록(내부) |
@@ -178,6 +178,11 @@ _읽는 사람: 파트너사 개발자. 이 사이트에서 쓰는 도메인 용
 | 채점 | 컴파일된 룰이 의도대로 판정하는지 테스트 벡터로 재는 검사입니다 | [구조](/policy/architecture) |
 | 정책 로직 번들 | 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물입니다 | 설계 기록(내부) |
 | 워크스페이스 번들 | 한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다 | 설계 기록(내부) |
+| draft | 콘솔에서 편집 중인 저작물의 머리입니다. 편집은 언제나 새 revision을 쌓습니다 | [룰 저작과 발행](/policy/workflow) |
+| revision | draft에 쌓이는 편집 한 판입니다. 지난 revision은 고쳐지지 않고 주소로 되찾을 수 있습니다 | [룰 저작과 발행](/policy/workflow) |
+| 기준선 | 활성 번들에서 유도해 편집기가 처음 보여 주는 내용입니다 | [룰 저작과 발행](/policy/workflow) |
+| 내용 해시 | 검증을 통과한 revision의 내용에서 계산한 해시입니다. 승인은 이 값에 묶입니다 | [저장과 이동](/policy/runtime/storage) |
+| 정책 콘솔 | 룰을 저작하고 승인하고 발행하는 사람의 화면입니다 | [룰 저작과 발행](/policy/workflow) |
 | maker-checker | 제안자와 승인자를 갈라 두는 정책 변경 거버넌스입니다 | [정책 엔진](/policy) |
 | 시드 정책 | 워크스페이스 등록이 심는 첫 번들입니다. 저작의 출발점이지 결과가 아닙니다 | [개통](/accounts-wallets/onboarding) |
 | 활성 포인터 | 지금 무엇이 서빙되는지를 정하는 단일 기록입니다 | 설계 기록(내부) |

@@ -227,7 +227,7 @@ workspace로</strong> 스코프합니다. 신고값으로 조회하면 그것이
 보는데, 소스 하나가 두 vault를 답하는지 선언을 둘로 가르는지가 정해지지 않았습니다.</p>
 <h2 id="obligation-이행-증거"><a data-reference-title="PIP" href="policy--runtime--pip.html#obligation-이행-증거">obligation 이행 증거</a></h2>
 <p>obligation은 통과로 확정되기 전에 이행해야 하는
-조건입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>). 사용자에게 2단계 인증을 요구하는 obligation의 이행
+조건입니다(<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>). 사용자에게 2단계 인증을 요구하는 obligation의 이행
 증거도 이 인바운드 계약을 그대로 씁니다. 표면과 인증, 상관 식별자와 도착 규칙이 한 세트이기
 때문입니다.</p>
 <p>엔진이 1회용 식별자를 만들어 통지에 담고, 파트너가 검증 결과를 서명해 되돌려 보냅니다. 증거에 담기는
@@ -240,7 +240,7 @@ workspace로</strong> 스코프합니다. 신고값으로 조회하면 그것이
 <li><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a> — 수집이 어느 단계에서 일어나는지</li>
 <li><a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a> — 수집 요구가 어떻게 결정값으로 나오는지</li>
 <li><a data-reference-title="저장과 이동" href="policy--runtime--storage.html">저장과 이동</a> — 수집 레코드와 결정 기록이 어느 저장소에 남는지</li>
-</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+</ul></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

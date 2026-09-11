@@ -1,0 +1,856 @@
+{
+  "capturedDate": "2026-09-11",
+  "sourceVersion": "1.1.0",
+  "currentPages": 201,
+  "changedPages": [
+    "/changelog/v1-1-0",
+    "/fund-flows/vault-transfer",
+    "/policy",
+    "/policy/architecture",
+    "/policy/examples",
+    "/policy/map",
+    "/policy/results",
+    "/policy/rule/decision",
+    "/policy/rule/reference",
+    "/policy/rules",
+    "/policy/runtime/evaluation",
+    "/policy/runtime/normalization",
+    "/policy/runtime/pip",
+    "/policy/runtime/storage",
+    "/policy/sequences/approval-gate",
+    "/policy/sequences/obligations",
+    "/policy/use-cases/deny-override",
+    "/policy/use-cases/escalation-pending",
+    "/policy/use-cases/whitelist-loop",
+    "/policy/workflow",
+    "/start/compliance",
+    "/start/terminology"
+  ],
+  "addedRoutes": [
+    "/changelog/v1-1-0",
+    "/policy/examples",
+    "/policy/results",
+    "/policy/rules"
+  ],
+  "removedRoutes": [
+    "/policy/rule/structure"
+  ],
+  "changedDiagrams": [
+    "/fund-flows/vault-transfer"
+  ],
+  "sources": {
+    "/": {
+      "markdownSha256": "17513b8306121807eb9a8886a26cb8fbf68cca6c1134c23ce4b57c3c890af7ea",
+      "htmlSha256": "71fa8223c0e1454939c4934832f62e21f464560ac2459ce6b887f3ae7ba1f391"
+    },
+    "/accounts-wallets": {
+      "markdownSha256": "f15dbc2c96a04d61d9341c82372e0a6aa644e18752393f0d16dca272d4b54d63",
+      "htmlSha256": "b21226faf8257271581a3b619a3b25b0a2dd61fb105858d138a9244f76a57623"
+    },
+    "/accounts-wallets/accounts": {
+      "markdownSha256": "42f61396eb4f5888fbbfa5ca764b1ffe8534e805263d129e59fd89ccc2c4cd5f",
+      "htmlSha256": "a79f242750a114ffdf06c725bd243432d666d6f6e5f266aaaeecc20c6a7cf107"
+    },
+    "/accounts-wallets/catalog": {
+      "markdownSha256": "578ff4bd32827be12c1873bf262ef190eb4d1d16ee03b5d9d867b425c8b691fb",
+      "htmlSha256": "e401c9f9a22dcd5f91b22a4a6dc32cd51dfd7771e49b04645d2eb664a3966c82"
+    },
+    "/accounts-wallets/domain-model": {
+      "markdownSha256": "91bdab4443265c309e729df03d315496e7da06210c2abce92be3f6b6476c1702",
+      "htmlSha256": "f5c14b9a4fcbb5ae0d141da4895d70ae94e9d97e7ee880cc7eba0dced3cc110c"
+    },
+    "/accounts-wallets/onboarding": {
+      "markdownSha256": "750a06ea6f359a53c6d4d891b829609585f9ae50df9aea4bb9cc72220a1cfffe",
+      "htmlSha256": "c4cb00902819e79901d03af7793dc568b067df4dff6d38cd3141f95b8ed6ebf8"
+    },
+    "/accounts-wallets/wallets": {
+      "markdownSha256": "e8edde36f022d682c9e3589228d21b3a6dc171511b2b5c3dab80a678bb5bdab4",
+      "htmlSha256": "da67f939187d3096d0a76306b998fada9e4c597dc70f335952a591476d85589e"
+    },
+    "/changelog/v0-1-0": {
+      "markdownSha256": "0037f871dab502417b4c2b0736f8ade233f145ec9a0b06eaaeb4298f0c11c0f6",
+      "htmlSha256": "af769d5e615ad37e5b4c2fdd430260668acc6dbc5549ff291808787c6309c57a"
+    },
+    "/changelog/v0-10-0": {
+      "markdownSha256": "6d4a659059df3b5f17a1104f583ea1e9959f40fb33b27ad2d2b21264b25adb95",
+      "htmlSha256": "d8c5db761342e13f9f9aca7d45a00ea2c54705246019fcf16d75d981b812ef4d"
+    },
+    "/changelog/v0-10-1": {
+      "markdownSha256": "8947263955973ca75980861f753af4b6df8414a74d96fe0a58d73d729d13d9f1",
+      "htmlSha256": "d9a2ab96b1911e794ead333195e9c3ea8bfbc95f32492849e1956452e9dc90ea"
+    },
+    "/changelog/v0-11-0": {
+      "markdownSha256": "1b03c59e7412b293fe82562a21350d2a645ca9de35b9eba2053bb4279fd9c0d4",
+      "htmlSha256": "2bf9a1a1a8efe41cddfc672917fecec1b0a8b043cdb4b13cab5157ca2900e5f0"
+    },
+    "/changelog/v0-12-0": {
+      "markdownSha256": "382bf38511aec4546486f5a5407552ab8d7cb4829edff1b094b23b14d565f3f1",
+      "htmlSha256": "563191c5044b11b5e1bfd33b46039cf0208674d2c228d68c0af23ad5fe38c827"
+    },
+    "/changelog/v0-13-0": {
+      "markdownSha256": "e53e08dd50e7b1c79065edf8f58b3e2c4e43f7296ca295555377621586250dd5",
+      "htmlSha256": "a0de99ebf73166f75ac5aced15e41578cb1b27c9f226bc229b69eadcf2d5679d"
+    },
+    "/changelog/v0-13-1": {
+      "markdownSha256": "c88ea579d2945995a136f20440fc2a5a73a362c6b15d93e52f19d5bec077af71",
+      "htmlSha256": "72e1bca6c86e3efff12442434862a16c71d4db593c698901aa1af6465e6fb5aa"
+    },
+    "/changelog/v0-14-0": {
+      "markdownSha256": "7c3a87c0084bac4ba5f7fcf0322e20730d46ef931d4b191bd6f6b3ddb6641a80",
+      "htmlSha256": "439eeb8d73969bcd77950fce0300ebf5fee59a539a47b8ceb21359d8167a63f0"
+    },
+    "/changelog/v0-14-1": {
+      "markdownSha256": "c33f1ca7cb19bec41c0620e4870427368b8564927b06cd8588dbc731cc4cb065",
+      "htmlSha256": "6582ee4e96866be49c8cf1189ea10615e61bdc9e179613fe854fc218c671710d"
+    },
+    "/changelog/v0-15-0": {
+      "markdownSha256": "592286ed5c3175e72ad303eda2c9384394941322e42dd3cf920852b134fa9b7b",
+      "htmlSha256": "12f705250d2c30f51aa2da58e49431e0a8dafa52ea57975ee06231e28e672e4b"
+    },
+    "/changelog/v0-16-0": {
+      "markdownSha256": "2d4e7af5dcb60c7490c2322a8f22534e1792b7119b2da356f0603650a8f27f5d",
+      "htmlSha256": "7fe9dafb3c717f6d3a4169c76b907b22e5d90dcb9663bc130e953fda97225892"
+    },
+    "/changelog/v0-2-0": {
+      "markdownSha256": "85d24cc8f98afb6648c4f96bbdf2af555ebb27dcae4e3f311dfb297bdfa86c6b",
+      "htmlSha256": "76847f747fc3712f8fd6dbe59688f533d3db367f3615d9d7bc0353ddc74e69b8"
+    },
+    "/changelog/v0-3-0": {
+      "markdownSha256": "cfca62bbbc7551c4019fa4f739fb8e42c72dfaa9c1ce7c7de135bb69ba0459c5",
+      "htmlSha256": "25515894569816e134e2b4db2d7e5c6f110d138f1d76fccbab4a1896dcf846b5"
+    },
+    "/changelog/v0-4-0": {
+      "markdownSha256": "65c75f28cf07e3b12468896c2ece6e8dd22e06ad8937d73a3eff246a136f4815",
+      "htmlSha256": "c558a1ddb2d69e4949652c1695c33ff24fc217cd18ec574a7fdaccd9b3933374"
+    },
+    "/changelog/v0-4-1": {
+      "markdownSha256": "d04c4f870785d92ebbda4133187071feb967113aac33b7ebff8cf5806d31fdb6",
+      "htmlSha256": "6843923f4a8e223a608523c7667d479a8487bc24942f0d05915001cb71972079"
+    },
+    "/changelog/v0-5-0": {
+      "markdownSha256": "b58e80abff2619a6c8ac42b4f2d71865d97c72a46f15738221c0a76203f33bd4",
+      "htmlSha256": "08c7096b315b5f19f0ea253252b3406c89875c8ae02b02424d3e57603630a708"
+    },
+    "/changelog/v0-5-1": {
+      "markdownSha256": "df932da1c34b7c3ef09287a321a89dffea6f5a6476acc4796c00eecff4b2c185",
+      "htmlSha256": "3be5269d6fac0b5a4cdd4e0fb328efdbb4c369bbdd0c71a56a520117628c223b"
+    },
+    "/changelog/v0-5-2": {
+      "markdownSha256": "f7ccfc7057564d64be81b48998e3e606ab71c8f03d268fb84e66d242bd8472ae",
+      "htmlSha256": "41198ba8e195004edd771cc0816fbc08df8071df592686decb704457bc32e376"
+    },
+    "/changelog/v0-6-0": {
+      "markdownSha256": "69e81e9da37d9f4abdd65b1f9e3e921013c532a59c7b4010289c8e54a0b2a5fb",
+      "htmlSha256": "ac7f4750dc3a80b8d12d60519fda86441dbbad4af4307c705977adf70394d119"
+    },
+    "/changelog/v0-7-0": {
+      "markdownSha256": "0afeabbbad7b6c8c4ed937ba60e744f444ee59601acfae2a69f3cbd584223404",
+      "htmlSha256": "ef08fd56528e3297c6e3cda2c023f9e70f172e57c4b291dc6dc1b91f4a050d61"
+    },
+    "/changelog/v0-8-0": {
+      "markdownSha256": "fc834c62c0bbb299749da843f213ec04590f1d347ae9fcfd96238a50aa2458c0",
+      "htmlSha256": "bb9ad9b38ea5fba646cd47279bc5689b99a334800c1f9bd59ceabb5de1e9345a"
+    },
+    "/changelog/v0-8-1": {
+      "markdownSha256": "a88a4c8ee70fecf600d3d4ae0f2740f4e11869bf72046ae1b66514902671265e",
+      "htmlSha256": "bfb24af71965390a2c6f7896d83d10f6e15192ab1816c5927018f4710427a811"
+    },
+    "/changelog/v0-9-0": {
+      "markdownSha256": "4688b3efbfee81d613602ab902e0322fc9a9fcdaa0c223a41427d23caaf68ddd",
+      "htmlSha256": "846e08a640e2ca807f1d877945216708e707934fa17659c4b5a4dae080488512"
+    },
+    "/changelog/v1-0-0": {
+      "markdownSha256": "c6d20d8201a559d2beb8a756a348a2bc24f6d1e9d7bdc90c61f4846ae52d1214",
+      "htmlSha256": "37629ca6353908616c789071cf0a1f20b65a82706d60d3bdc230162671b7fa84"
+    },
+    "/changelog/v1-1-0": {
+      "markdownSha256": "523fb5cbb909d6241d5e5f935396ba4cd70ce522453f4f290f85c2459f306613",
+      "htmlSha256": "6117ee4e888a51d80d63f53afba922c7bcdeb0e9fd767812d96b359dee9a4fb5"
+    },
+    "/fund-flows": {
+      "markdownSha256": "1af352adccaf418e98cb607282820bf834c27e0f00650ae42707da44d3509f23",
+      "htmlSha256": "eba4266cb781cce06ff787a0baf6729714b07604d6b62fba1a7889715215fe35"
+    },
+    "/fund-flows/address-book": {
+      "markdownSha256": "65899efc0c7dfc2b36756a0d7973f9a687e64eabf4ab63a865227978e200be5f",
+      "htmlSha256": "206876d1a027c55f43d8f489b8939894ba9d6628252a6943379625df39e9fc76"
+    },
+    "/fund-flows/deposit": {
+      "markdownSha256": "1f48a0f601143e80593f4337a7e26a5f0c79c1d33fd55ccff22711b95419408c",
+      "htmlSha256": "254b63d6acd580f7cb2cc405a495b87249e6483e984fe6fe2a162ccd8808de21"
+    },
+    "/fund-flows/movements": {
+      "markdownSha256": "768e7923c2360982228b169b7f7a7aeaa121802c04fad4c16b5ef5e9776bac63",
+      "htmlSha256": "e952e6cfce6d63c104be14aaa99d87d8fef560c9554be61156bf46514a2a308e"
+    },
+    "/fund-flows/release": {
+      "markdownSha256": "f743b64dfd32fe1e72b02c14a6b3c30782b1d5d0ca23c5892d5577de23b4d7b1",
+      "htmlSha256": "2d821450aa785009dcd070ec84b7be0687c90d9ffad351581da78581d05f018d"
+    },
+    "/fund-flows/sweep": {
+      "markdownSha256": "f7c6d2768be54f9cdb78d27b398b3a1dc3435b882ed797528c376cef6731c92b",
+      "htmlSha256": "5466854d9f84a40bc2fff9778981576f50cbbff1aa21528306ea97b144f709d0"
+    },
+    "/fund-flows/vault-transfer": {
+      "markdownSha256": "9c4c3116f0cdba1d71d0f5c3f5d1266e34ce48da1c5c67cb49fa53653392d995",
+      "htmlSha256": "63e21048736ceabdb1b07112863ea856d7be5db335f191ee3aeaa3597580a127"
+    },
+    "/fund-flows/webhooks": {
+      "markdownSha256": "f9ff343d447c37425de11f9cdd7fb21c8f0f69a99b277cf4ba83652242f30c17",
+      "htmlSha256": "fb510b634eeb77f0b54bf530e4a84c3a589108c168855628250898b41382873c"
+    },
+    "/fund-flows/withdrawal": {
+      "markdownSha256": "bab7448cf4a1b668041c3422b55b2e9919e8c14176eb5d25980f41e940465c81",
+      "htmlSha256": "09d1691cfd569d489da4e74ec2de85cf9fea6c9b8ee8e22aa74b863b63e590b7"
+    },
+    "/policy": {
+      "markdownSha256": "a9bff1cb7b1e0e702bb905bb11a6017e91e037bca8b0d17b4dc1f7123f4573a1",
+      "htmlSha256": "db26ea8619a53b31b7df51747a4aaa45f8b9f55abc3482134645be88e4abaa42"
+    },
+    "/policy/architecture": {
+      "markdownSha256": "d06075b9ae12eb988b2d643877592abc42ea35a9dafdfd7d7fc0177d514e7499",
+      "htmlSha256": "0de631b8518971b3728c6db720b604778aa257a375b1ea286153a60b7ff53d8a"
+    },
+    "/policy/diagrams": {
+      "markdownSha256": "91a6e694ff7c0199c5f85f946764cf3caa06f83d4cba316d4e8743dff8e64dd3",
+      "htmlSha256": "b7ed7293f29c6cb4d8d2d187d7ef4896e11297e1dbe5884e1d8a7da1292a11aa"
+    },
+    "/policy/examples": {
+      "markdownSha256": "1cab882289289059a59e5e08e4100cd551a71245ff40411d7a1b13171f3410f8",
+      "htmlSha256": "4eda42e67426b55e78e209099b70370656b8e7894769d0e4fe63b797730f3898"
+    },
+    "/policy/map": {
+      "markdownSha256": "fd2b0399759f70a51bcd7d31d208e572f527751dfcb11c8c97c3a894d1987d67",
+      "htmlSha256": "c1f39383d72b350a20ed92acdfb0650072efff47fa38122016e0a58dda659c0c"
+    },
+    "/policy/operations": {
+      "markdownSha256": "3b64fcb277729a0b7ee48f2888ec5d2b5b3f894ae39f172b6aca0591c05a603e",
+      "htmlSha256": "0845a6502d1a786701c33d069b9745733408682aafd6c5c46d75a473437a1928"
+    },
+    "/policy/results": {
+      "markdownSha256": "ddfe74248455f51d0976c4fb8568b3c6a66eaa0e8b0dcac5f9c8bf5b84b99d63",
+      "htmlSha256": "b315c2ee7fdc0118cd93e3f8063031849d1ec559dde04ea07f7dd7a52e6b8754"
+    },
+    "/policy/rule/decision": {
+      "markdownSha256": "8e117296d6af304fc3a04fe6296e1e6f4022cdd1b9551a4dc2da5f8fa059d2ee",
+      "htmlSha256": "7a42014fba4744f0f3fe2f960fb3ba90d31b59d566f53be86c812b7b1b001ce6"
+    },
+    "/policy/rule/reference": {
+      "markdownSha256": "8cc992f7f9ed52eb821462d8b3dfec43f3ca1e973fe11950031ddf33e7e5510a",
+      "htmlSha256": "697eabf5236af04bbb29d0f3f1421c5bc12043c99554761ef9e043735ebc6e4d"
+    },
+    "/policy/rules": {
+      "markdownSha256": "049786d4184ffd536a94ecb219c633fcea3de37358e4d1ceca0c04fa10608fc9",
+      "htmlSha256": "7f13c9657e167e0e0eb4350d0dbd5094b3d3834c3c5f1cf14346cd75a9133cf9"
+    },
+    "/policy/runtime/evaluation": {
+      "markdownSha256": "2f912f40183298df75dae48a4c7cb212b8027d032274beae670851928edde272",
+      "htmlSha256": "e8f3121a9f61cd9070ac5a0d813711d0762bb72a9bf64e3505c57e125a927dd0"
+    },
+    "/policy/runtime/normalization": {
+      "markdownSha256": "ed2fa1101f4586bfbef3ee10241f1bb9173ab8b465bf08db1bf180e2fe2c5f8f",
+      "htmlSha256": "4fe786d0c89a97629998dc5cb01ba166af3e48149fd9073553b6065473757020"
+    },
+    "/policy/runtime/pip": {
+      "markdownSha256": "a5ec20d8284fa6ec03a3de1005fe7cd77cb9ad0be8d2161e88b1caa6e0aeff8b",
+      "htmlSha256": "cb3ac8d7afa1aaeb4a2a754a4c06f99602c354ce0e2a91e1eef1b608fd4e2038"
+    },
+    "/policy/runtime/storage": {
+      "markdownSha256": "eb718c0b3352b15b790b6b54e5bf58983342333b64b7a37b4b0493f2adc1ee33",
+      "htmlSha256": "3d5be9e6e1749147790f2e362afbb0f3f7a5fdcb43c920ff230bb84175cdf24d"
+    },
+    "/policy/sequences/approval-gate": {
+      "markdownSha256": "d51606e3f3dc7b10e1a59aa09cd8cc6c727f3141129d23d019e039a04dd196df",
+      "htmlSha256": "8959d3f7a3a43d01f520bbde38f04e0400b65a7b2758c9672b5ca69046e89961"
+    },
+    "/policy/sequences/obligations": {
+      "markdownSha256": "3bea130cbaba962d1767a5d9628eec0d16ad1432943519eea18b2479d3dd875a",
+      "htmlSha256": "ddbc08bc14cfc0dcb5b074d3a768af118eebaa8d885bdf39e957982282b78587"
+    },
+    "/policy/sequences/pending-data": {
+      "markdownSha256": "05f24eb36874c01ba0d74787c985ed5c71193805683d32667e48436d4eb56766",
+      "htmlSha256": "240e8766076836f812afec89950593b8eedc64724cf7619d6da59b1235fdfe35"
+    },
+    "/policy/signing-gate": {
+      "markdownSha256": "36c9719cb2293a5d67ed5129f1acdc755e219513430c4c75c482879ddaa03332",
+      "htmlSha256": "7161b344a6f2ed030c828f27c009ccc0936133027ba725f9a13e7ffb7d088fd6"
+    },
+    "/policy/use-cases/callback-limit": {
+      "markdownSha256": "bb37359efbddc8002480b9578e84d409b20110af4ebf5da8a22f4e8f4f9ed0c5",
+      "htmlSha256": "7e0122693c379d39d52c847b4e1d73228e30e3d469ed78db67d59145c8b88245"
+    },
+    "/policy/use-cases/deny-override": {
+      "markdownSha256": "ee8ddd45535777a31205a875577774c06ce70a2d44e576855557318a2042737f",
+      "htmlSha256": "c7b14c509345371b8ef9323eb83894b760a15bc90ddcd0b9d84824385f43da75"
+    },
+    "/policy/use-cases/escalation-pending": {
+      "markdownSha256": "6e439e1e458c407bc3822927b425b0677fe77195d4ce6f2a9d82aee4a89c00fc",
+      "htmlSha256": "ce1d428711691f2220b39097a268de19849b083d524bb172404d58716348e28b"
+    },
+    "/policy/use-cases/rule-change": {
+      "markdownSha256": "00ca8a4aa67eb05560640226301bb2b323ad8ea53517dff4a05c590c7bafc69a",
+      "htmlSha256": "6bc99e8be22b21eba5adc28bb427a1e18fa6e007137ed575884b218322cb3405"
+    },
+    "/policy/use-cases/whitelist-loop": {
+      "markdownSha256": "3eb80883d85dd8968a14ea6dee0cf1ed5625e83aa05683abeffe4cf044a05aca",
+      "htmlSha256": "abdb83399dfd48ed96add882c33cf07edc2a9d6bbb958ad5e5dc4aa8d54cb468"
+    },
+    "/policy/workflow": {
+      "markdownSha256": "fc90af0a6596d3c4e9de0891ac66a2a361445f1ad2cee48e79d74edcb27656d6",
+      "htmlSha256": "0ca4f9ee6baaa996eafcae1678878a38757b797a95f32928868742104959948c"
+    },
+    "/reference": {
+      "markdownSha256": "18e31bc64528d2d0e56f3b2077fbe08c71c27ef7be7dcd4a3e08badc4e7d2136",
+      "htmlSha256": "7cc161858ddbf901da6a20183fe70cabd3d9e1f3d6dd3f5500f1432289052f5e"
+    },
+    "/reference/admin": {
+      "markdownSha256": "59a3320f1a79760af42e3d8517f4aebc70c2f554a32380b041112269ec2c5269",
+      "htmlSha256": "c572bde26cd8d6d259bcd379f0496f84b75085bf283a201aa9126701043778b6"
+    },
+    "/reference/admin/api-keys/api-keys-change-status": {
+      "markdownSha256": "9eb059ef6d441ee5ed88a1849346c86340d154040f059bbadae20aca27e0b83c",
+      "htmlSha256": "f7b523fbaac54689fc25ee586f9bd88a082d148915c411457ef754e1207e35ca"
+    },
+    "/reference/admin/api-keys/api-keys-create": {
+      "markdownSha256": "c67c7f046b67ab957a73fec47e46c41e42d2d220252e2fa2278ff7644216a2cf",
+      "htmlSha256": "fa018aa1650ebf735457bb82312b8fd045ceb874f4f0987919380df6e60e3326"
+    },
+    "/reference/admin/api-keys/api-keys-get": {
+      "markdownSha256": "afaf747868d46a3863cb8449b398bfb64056ea6951834fea0ebbd01c339cf82e",
+      "htmlSha256": "ff3ffb04f401c85566bfba73d7b290f78521f449e87bd30781dcd2ce088725bc"
+    },
+    "/reference/admin/api-keys/api-keys-get-api-key": {
+      "markdownSha256": "060512a6543fcb23527e324a8d902f1d0585b675ee2d87b2a98463b22268a7b5",
+      "htmlSha256": "d9a9e4c657da2f9ba96af43015fb73a1f94eb967010640a728b34cabd216a9bb"
+    },
+    "/reference/admin/api-keys/api-keys-list": {
+      "markdownSha256": "e7debcab06d6dbc84429dd924034571514a50a53396fdf43ddb88015bba0d768",
+      "htmlSha256": "f03f8a2d7832a656d33b2650b0bdaf9a5e6b0b81dff2fb5854fa78c22951541f"
+    },
+    "/reference/admin/approvals/approvals-approve": {
+      "markdownSha256": "ad986853ff8e155e13ee5126c4c0945fea2cc39ab0e27a0b37b17c2e294db0f7",
+      "htmlSha256": "b94ba1899363dac53c265dfb359f9acad72f02c1a17bac3229429126751a364c"
+    },
+    "/reference/admin/approvals/approvals-get": {
+      "markdownSha256": "92adeaf219650a7aeb4c0c764555e7ae63d728ce410f8ac3b262ed9f41c44eb3",
+      "htmlSha256": "27fc24b495042092f91d1d42f872036f2fe5bb72bad95c56d6e08a7fa2ecce8a"
+    },
+    "/reference/admin/approvals/approvals-list": {
+      "markdownSha256": "81f99849796dbcfdcf65e798644ec7a6e8166c1128640e86f8d114ca85a94da5",
+      "htmlSha256": "30059400ade1e66ae5d42243d97696b08ea04576c883add26c6ff4ee873eb321"
+    },
+    "/reference/admin/auth/auth-auth2fa": {
+      "markdownSha256": "d38a7d56f6272f1834a572b49ef554a8eba15e5387752fc03ca205219afe242a",
+      "htmlSha256": "f97502ecff7c4041ff9cde030dc37fecaa023dca8ec5c7da463e8b25604397f8"
+    },
+    "/reference/admin/auth/auth-join": {
+      "markdownSha256": "b4dc2e8dfddfe102bf86a743800dd0caaf6b68a9b27f073736c01d49dbf8db5a",
+      "htmlSha256": "ec65db90ac35603c5826dcee290026663b7c85c136cd4dfdeac4eadcd0b402d9"
+    },
+    "/reference/admin/auth/auth-login": {
+      "markdownSha256": "68760835485917388cbdadc62331f005bd2d833301cf435789d0855eb431392e",
+      "htmlSha256": "37baa7a1794c31aecd1c59321afba8cba69f165025ba308efdbd2631ff121302"
+    },
+    "/reference/admin/auth/auth-register2-fa": {
+      "markdownSha256": "747552cf767d218dcee987fcc40862e2d96f1e3f8f2e571e71ed0922b4154257",
+      "htmlSha256": "29e4d9bcdcd6273ad29dccf0ec9f381fb6c386b219a627f482e074b589f42071"
+    },
+    "/reference/admin/initialize/initialize-initialize": {
+      "markdownSha256": "b17f4449bf8aeec14925090f2a42111e6f195ed669391814e5b3f8d084103ea6",
+      "htmlSha256": "4fa7911518913423efb8fd114782e49bc44a377e76f1f09816eb21551487598d"
+    },
+    "/reference/admin/networks/networks-change-status": {
+      "markdownSha256": "dbb43c6707685125b8ceb609302cccdcf93512008455ad2c09bd4eaf69a76656",
+      "htmlSha256": "e031dabfafa503c6d196a61a76a560bb09d371e86fd71cceb5b339f6d6a69a04"
+    },
+    "/reference/admin/networks/networks-get": {
+      "markdownSha256": "2036ff0934f64a93ab4910d5f71d8bf1001b261a7c0bdcff0f2fb84ab1a69a44",
+      "htmlSha256": "60014b5212dcf65f6c765ad82cf8af245135478542c404e819569a739d1f9911"
+    },
+    "/reference/admin/networks/networks-list": {
+      "markdownSha256": "2bc3e971885d6638ce87ad6f8c0f73654e51827441de4925dfc15b3791234930",
+      "htmlSha256": "aa563fe9fb1eaa60131f8311ea6c5b50b4289a0ffd3fecae840b5edb474019eb"
+    },
+    "/reference/admin/policies/policies-change-status": {
+      "markdownSha256": "5722554454b207d40f7d8064d8c4bc7cbaa3fc7037509fe7eb9c8c834ff23166",
+      "htmlSha256": "6381c158313edbfba81d5861fc9c0f8f1eaebd990f15b81afdc42b5399594150"
+    },
+    "/reference/admin/policies/policies-create": {
+      "markdownSha256": "21b015046b308402af5c91314d5e924835da783683e0e9ebbdfe1dc479f72e0f",
+      "htmlSha256": "9f6c4ffc28f88b7f7ee6aa0e364c7d2066a70c3a2697636593f5c2f7667f7e0e"
+    },
+    "/reference/admin/policies/policies-get": {
+      "markdownSha256": "1416131263478645ee0d1a51487a10868923b06a2ea4b5f8186b8ce0d131949a",
+      "htmlSha256": "09c9758f880800caecd37c22aa29c9f08b78cdf9a051ebadb9872b278f12d8b5"
+    },
+    "/reference/admin/policies/policies-list": {
+      "markdownSha256": "93707a89871300500b7e692af1ea8b052055b4fbeeee26d6444ce2a9584968fd",
+      "htmlSha256": "0dff5aad765ecbbf28632e46f22f1b925d183ca402cbf887fdbc5a581aece3d8"
+    },
+    "/reference/admin/roles/roles-change-status": {
+      "markdownSha256": "2d0e08656460b0946a9418c36043b414474af999511bcb10ee181da049d8e6e1",
+      "htmlSha256": "382af062e66be948c4b37b89916563afe7dd9cbb14d739b40c76176cb14cc48e"
+    },
+    "/reference/admin/roles/roles-create": {
+      "markdownSha256": "811f0c8d7aa8b904d0302ab3daaee697c68809adae2b97fc0f88c9d977a7bb43",
+      "htmlSha256": "8cc616198a2bd64a1bc8f886b35a5ecf431997d65f7f1745381a3bef308e66ba"
+    },
+    "/reference/admin/roles/roles-get": {
+      "markdownSha256": "d6f7adc8503d2d1805eba97d486aeb6f4170117bce2d26f7f912b2ef1f2288c3",
+      "htmlSha256": "d4599b835b7600ddbce6204c23af5b42fcdfdf9a16f856df132c27f35bdcc062"
+    },
+    "/reference/admin/roles/roles-list": {
+      "markdownSha256": "2300e52e3f18f20474a72b9b32cd2c37cd951b63caa83bec4e9917393c4e7261",
+      "htmlSha256": "4c250184b1ad8b954c80443b938a05df23a5ae17f17ebfad71692781b09d655a"
+    },
+    "/reference/admin/tenants/tenants-change-status": {
+      "markdownSha256": "4b8c7c720caf981e5cde0e0fe0e3c4b1bd92a07d263041b50f3ee66cb1282893",
+      "htmlSha256": "123ae37f2d84762d66a1b861c106e93eec0d17472f285677758d69226060b8f7"
+    },
+    "/reference/admin/tenants/tenants-create": {
+      "markdownSha256": "ecd2a166b0d376023c138c8f122bb22b32783460eaa846ac7a7a4bb6995db592",
+      "htmlSha256": "95118cf41f8dd6edbc767c0bbc076dd0144b38030edef5e005eb4f95834c9664"
+    },
+    "/reference/admin/tenants/tenants-get": {
+      "markdownSha256": "c93000e6e29667c4bb6f497e075050c7a0c98c8039374e7527528032a54f9d82",
+      "htmlSha256": "797dbca18047d4ad4f9d5d6acbd701333908712caba16389b440ebdedb3bcba1"
+    },
+    "/reference/admin/tenants/tenants-list": {
+      "markdownSha256": "deb03f32c0621746f8030769285961da78f551e2a4c5a513d0af7df30d5b9a01",
+      "htmlSha256": "285267fe576fd79a8fc9646d55e75552ec2b05655fbe053a7597dc759dff1d7e"
+    },
+    "/reference/admin/tokens/tokens-change-status": {
+      "markdownSha256": "85bd01340d66f7ebb4504b996a9f7ab5f7d0261b255ab4352e38df8eab015381",
+      "htmlSha256": "a34cc17ac3ac15a53b3cc43a2a639a63802b54925634abc30a0d6a7632bacd12"
+    },
+    "/reference/admin/tokens/tokens-create": {
+      "markdownSha256": "ddf1056c990df61ec1034c5b86cda271ae6b58f2dbb89f55957c54bf86daa058",
+      "htmlSha256": "bb68e5daabc2eeeb9af423f46ffa8f3d01dc98bc78e53dd0665724f2634804df"
+    },
+    "/reference/admin/tokens/tokens-get": {
+      "markdownSha256": "e294aeb071fc009c1a32e50a42e85759d1fc27e6a580d5cf3d25290e3ae74a78",
+      "htmlSha256": "8e7854e17ae61eed86d91ae81f8d14fe3bdfcbb185645adbcbc00e92739966cb"
+    },
+    "/reference/admin/tokens/tokens-list": {
+      "markdownSha256": "4ab44149dd4088aad3310deb66484374cc135d25def6e8f31c1d735243863e81",
+      "htmlSha256": "86493fead899990edcc8a8a34e19afcb27bf150eea0832dd211f1f2372f15959"
+    },
+    "/reference/admin/users/users-change-status": {
+      "markdownSha256": "4affc9d38643d0f1f4d2b9097fe4b2d57b159c8b4678e12c79cad79a9fc21e4c",
+      "htmlSha256": "51e462217b24748b62980bc2002c72a17571ec4c1c186dbe665bbb4849f47bc1"
+    },
+    "/reference/admin/users/users-get": {
+      "markdownSha256": "d75478806b89a4ef9420a5b462f0519711c9169016535c724d9ef54788f91b7e",
+      "htmlSha256": "471797d302f12b09a2e22ab1c7a6fa6991e319b1bf340dcd2cb8ae55c0ae25bf"
+    },
+    "/reference/admin/users/users-invite": {
+      "markdownSha256": "03b3a0a89536e28a128fc96aa5b50b7e241b771846074f31d064bb5fe5f57e5d",
+      "htmlSha256": "568f632afed01f3630df84492016c0e443edac66754159d1668c9cb2633c964e"
+    },
+    "/reference/admin/users/users-list": {
+      "markdownSha256": "1070ef6c0adcc784c15ec961a2f5642ec63b95d997769d4fe124f93ed527600a",
+      "htmlSha256": "fd12eee8821cf940b4bd794bf6274996a4f99a736113adb14b4fa028f15d818e"
+    },
+    "/reference/admin/users/users-me": {
+      "markdownSha256": "73727f231687fe68e6b79975e27f4a74a9ee2da954cdcdeaa35f45d8c33e8012",
+      "htmlSha256": "a193278157b72689982e1d218182e3dbca8f3ab28839b8ba56d3a0bb222e3df3"
+    },
+    "/reference/admin/users/users-update": {
+      "markdownSha256": "abf5cb8a27ff43d06d6a544141cb5ea5c430d2458326687eaeff4803d2c86d60",
+      "htmlSha256": "ed5a7df56173175ca2c1030f779f14c658911d8c9d2b3fee498ee441e281ed24"
+    },
+    "/reference/admin/workspace-vaults/workspace-vaults-change-status": {
+      "markdownSha256": "349837faf939c5ec1515b5568883998f0b28e6c3951f174b463e44662eddf2dd",
+      "htmlSha256": "90bd41948676d559d4382706c5923a0ac74047edbdde6234b43b1f6dfe2fde8f"
+    },
+    "/reference/admin/workspace-vaults/workspace-vaults-create": {
+      "markdownSha256": "6188fafd09e079431a3ed38c193962c7aae2ae88157367e63ec13f3f56dbbd68",
+      "htmlSha256": "ac782c43bad3eebbaff190babbd47fe0dd916be9762a58cc135524c465332637"
+    },
+    "/reference/admin/workspace-vaults/workspace-vaults-create-wallet": {
+      "markdownSha256": "5dbcc1602d7df0026718e623251422909c221ff7f90d95e790c0862ce34ec8df",
+      "htmlSha256": "476e26eaa5352aa262e89dad34ad4097a98d6d7282fe646506a61e23e93d66da"
+    },
+    "/reference/admin/workspace-vaults/workspace-vaults-get": {
+      "markdownSha256": "b13ed803b62d8351f4d59e83d78c9913f0e4c74eb7a0f9ce51b86ec8c3644ac9",
+      "htmlSha256": "0c1f981c947d09d140da1722b2d66399d4e8babd7d507fba92973a0c5795b146"
+    },
+    "/reference/admin/workspace-vaults/workspace-vaults-get-wallet": {
+      "markdownSha256": "0449ac72a0d6d29f68f8d54a790afb192ca5eea848ef3c9f32d684573e92b9d6",
+      "htmlSha256": "23a956b339b874c6fa137d858941ba7221d82243851024a3d084a06898636b6d"
+    },
+    "/reference/admin/workspace-vaults/workspace-vaults-list": {
+      "markdownSha256": "bc8b868062d7f17e807331a4d5f634b5ea46ed7cc5ed46c288c4f854ac32933e",
+      "htmlSha256": "97aaa8d4541a7cae61aafb1f1a37f07b9a9afd0794f309892fb37a197a95e593"
+    },
+    "/reference/admin/workspace-vaults/workspace-vaults-list-wallets": {
+      "markdownSha256": "2ad87a1b8c4c08895ee696849a63756fd6eda92c5facdc06a22a6e79f234b69d",
+      "htmlSha256": "5c03b7ec5f5c2f01338d6e406140c7ffb40b1ed33c179b4a9ad2dbe47aa8d8a7"
+    },
+    "/reference/policy": {
+      "markdownSha256": "d04626a159c771f272bf6dbf0e2b01d534224f8fdfebc1d60d38a174ae59a312",
+      "htmlSha256": "161136322f3cfe3a8d70726dd8ca144b4e374029086541a31722d924457af69b"
+    },
+    "/reference/policy/admin-auth/policy-admin-auth-confirm": {
+      "markdownSha256": "fc4c3d1fced771a48a75b9133d82fcd389baf5e356c989ecabeaa58d9f700acf",
+      "htmlSha256": "a2daea936f950bce02a8085f6f22ad2f021b3e37b63070eaf76f3054e66aad2a"
+    },
+    "/reference/policy/admin-auth/policy-admin-auth-enroll": {
+      "markdownSha256": "8c517f96d01c642725e6a2362a1a1c5c3af42632e5a8750e9172aa7f421ea7a5",
+      "htmlSha256": "a97dcbe24e8108ff4ac13d3df2e7a56421d8ee4d1f2922879a087fc78458eace"
+    },
+    "/reference/policy/admin-auth/policy-admin-auth-login": {
+      "markdownSha256": "3327f7a7de2a83ab8b2dcb60d312fa2d7fd49114877beec8d5c9cf8484179431",
+      "htmlSha256": "d5c7cb377f82b33c160d5a479177b21823d9790eae5131453e7dc96b43de2d47"
+    },
+    "/reference/policy/admin-auth/policy-admin-auth-logout": {
+      "markdownSha256": "c9decb6f2c85f7b69452c8f66d8e1ed041db3321d018c9109b87944619146d50",
+      "htmlSha256": "6169f477286a8ad7f4c69558a345d9de9c05c6ace8e04bc3bd487dc1ad098045"
+    },
+    "/reference/policy/admin-auth/policy-admin-auth-session": {
+      "markdownSha256": "b857dad1b9f652920e2617bc955d900f4fe25a19645cc73ac23278eaf98bb818",
+      "htmlSha256": "4bd51bf45ef09f5f194901b5f8bda870c6ac10cf685b71afd7f04bdf28388091"
+    },
+    "/reference/policy/admin-auth/policy-admin-auth-verify2-fa": {
+      "markdownSha256": "2822581f8500bc5a40582636c25b8b6eaaaa30d3fba0daacd9b4c0dbd85d35cf",
+      "htmlSha256": "1b540a2e9a54ef642db5c3b23d9bbd42470829f4ba2663cb28801c942c9436ba"
+    },
+    "/reference/policy/admins/policy-admin-directory-create": {
+      "markdownSha256": "7dee97dda1107e210241183c40bfd99a805961a38c9816047f9b3dbe3bebe3c8",
+      "htmlSha256": "35e47f677a616dde1f7c9a2d0a8f5b00b4c940efa6931229e869199062024a45"
+    },
+    "/reference/policy/admins/policy-admin-directory-list": {
+      "markdownSha256": "9b0688bf92bcb23a319ceafc87d190be9318bbdb80fbdff02ff50b72a8a333d7",
+      "htmlSha256": "b287223676108626e73121d65264cf66a056b306c731240bed00dd476155eeda"
+    },
+    "/reference/policy/approvals/policy-approval-get-pending": {
+      "markdownSha256": "c7e980653eaa4ed20b6c84ef4b921747f03e299fef7058a4f830a9eaa88ca7a4",
+      "htmlSha256": "895f3d72a652ad42962564e4643e1a753e08e84d3d411aec719a01ad9e766abc"
+    },
+    "/reference/policy/approvals/policy-approval-vote-vote": {
+      "markdownSha256": "8e18525394cc25a70ab2d693507470751cf1e10584698d8ea4af9887bf36fd6d",
+      "htmlSha256": "0170f6e2671a454b39ace8b92271fe63f04d0801a3802746f35c0de0986913dd"
+    },
+    "/reference/policy/bootstrap/policy-bootstrap-create-admin": {
+      "markdownSha256": "5d65014d57506c686e88299f0e446b4c796768aedfc583286065cd73acb46cf6",
+      "htmlSha256": "9bf9da2ee08d1987afdde75eb7d7499cf68ead15d7ac4780cff6159a2df97650"
+    },
+    "/reference/policy/bundle-serving/policy-bundle-serving-active": {
+      "markdownSha256": "9a29454f612e76f5b95091368affeac3c114423fd882016484fec7d86c4eb0f7",
+      "htmlSha256": "4142bc9cdbfc8584ba729a4c730235e213a5a124f470d2cbc4acff28d6066322"
+    },
+    "/reference/policy/bundle-serving/policy-bundle-serving-download": {
+      "markdownSha256": "888e42eb0fdcc3a6d1b21ea416c1160d74b56d5eb11da281d04be6646e8e0d7e",
+      "htmlSha256": "c561cb912dd6ac48ecc2316f34f779c3ffb75298adb96fa0d6b3440486e1bcee"
+    },
+    "/reference/policy/callback/policy-callback-handle": {
+      "markdownSha256": "d70f8acf2a8ea9a68e39f07a8c73a1a03fbcb58ef740fadc701e54cce4f0461c",
+      "htmlSha256": "dad0f3acf4546a690d96d1adb9a6cccd2aad7cf204e759df279c39160bf84b68"
+    },
+    "/reference/policy/partner/policy-partner-submission-submit": {
+      "markdownSha256": "b5bddb7069b9b0353aa3997896a4a12fba7a57112345d44b740e2cc140fc9cf0",
+      "htmlSha256": "38f14092757fcdcfe1b581931612b220a5f4c351066e20dee6f9e10c2da40635"
+    },
+    "/reference/policy/pip-source-kinds/pip-source-kind-list": {
+      "markdownSha256": "98016b5caac065d6c8b5fea81ad165df8251ea66eb5f22d6cfcf8109b4c319b4",
+      "htmlSha256": "2cc77359317d0d57bb452e70e900da71a1ad4831f2a1dd4376829d864cc0eb89"
+    },
+    "/reference/policy/policy-bundle/policy-bundle-activation-activate": {
+      "markdownSha256": "77277521c8e5e1a1b292395734010e5580c7425d37291040bdb26eb2b1165f2a",
+      "htmlSha256": "a5bf64b432666c94f1e94492a36e0b1a26a1883db601810a642c04e65c0ffffc"
+    },
+    "/reference/policy/policy-bundle/policy-bundle-activation-view": {
+      "markdownSha256": "730b7b9f0988b7087fb5b8a558d7c59b384cd014ffdbb7c2e1f1b6145716b635",
+      "htmlSha256": "489a2496b1950a9f77539b69be4c6c72061e2f1dd82212872a75e02b4a4cf69b"
+    },
+    "/reference/policy/policy-bundle/policy-bundle-approval-list": {
+      "markdownSha256": "ab4b8e226e89a25068933ee320767250ac349a605fcee617b1cd12856cac15f4",
+      "htmlSha256": "0946d914bd16da4b24f47600391070a40aaf45c99f16960e3efa3bdfceb6d925"
+    },
+    "/reference/policy/policy-bundle/policy-bundle-approval-open": {
+      "markdownSha256": "62b2448ee723cf5ee20ff11a35fec121ac6a95f21c4f77a2348cf59b9eca65e3",
+      "htmlSha256": "70374654170bd57eb40b97a62320b3a8c7d726568a9056858f3aee632e0904b9"
+    },
+    "/reference/policy/policy-bundle/policy-bundle-approval-view-view": {
+      "markdownSha256": "5737fedb6c6dc8ab54451168912f024456633b92a4e812c5571da6d33b60c194",
+      "htmlSha256": "6b688c6ef67575f840ec21166e63c972d642a5c3cd62635dfed74df652d1cb81"
+    },
+    "/reference/policy/policy-bundle/policy-bundle-approval-vote-vote": {
+      "markdownSha256": "b9b3d43b306df720f4b2099879b6c556d2aee5bbe150360d8722f7c8aa98232b",
+      "htmlSha256": "bcd115c05219dff92ec8b5f32841e82182753e782f590befc9a2203c7c06d4e0"
+    },
+    "/reference/policy/policy-bundle/policy-bundle-publication-publish": {
+      "markdownSha256": "c00a757d0c479120f2463d68c8648d41489a8e34c0cd6eae215a6223095aa878",
+      "htmlSha256": "4a75f042bf6853f56ad2fce1ff4f487ffcef1fd40fc4b91ed11ada0d691c458d"
+    },
+    "/reference/policy/policy-draft/policy-draft-baseline-view": {
+      "markdownSha256": "83929f91f233d02ac12cd51131aeeecd5b0a414dec4ce91c652e4171195ae985",
+      "htmlSha256": "0956a561796d0a6377fd2bb20832bf1ff59b275061b451b2cb43f025fd66d0be"
+    },
+    "/reference/policy/policy-draft/policy-draft-create": {
+      "markdownSha256": "2b14fc94201aee3c53b40745d84d6bd745f2f41b7e5c9c3a9c3d4a6fc41235b2",
+      "htmlSha256": "8b44c4c8ae4cb299abaab3129d99c4dfd88b284b6cbfff93f905e608e376a01e"
+    },
+    "/reference/policy/policy-draft/policy-draft-discard-discard": {
+      "markdownSha256": "25e91d2106c59cec64bd36540646a243a8dabb494d60a2f576939e9a00ff4aa8",
+      "htmlSha256": "d0af56dc57acad94cde1de021448f8c77447655b4a3dc727e22b4efeff7854e6"
+    },
+    "/reference/policy/policy-draft/policy-draft-list": {
+      "markdownSha256": "6eb5999b3a243dc99c7cef38b0373870a23b08d716d7c6d580aa1d829bd69979",
+      "htmlSha256": "0fd2a3cac563f509760953d67bafc9181d19d205cec2124e55d7853525462fb0"
+    },
+    "/reference/policy/policy-draft/policy-draft-revision-append": {
+      "markdownSha256": "aed793f17cbaf65fcf1c9b1ef3cc3735fab404f124e0129f41918ad96a6c4424",
+      "htmlSha256": "4b1b35ab9ce527f3cff1d594814d1b51bf758301f65cdcbfa19c73e2efd3b2d0"
+    },
+    "/reference/policy/policy-draft/policy-draft-revision-by-address-view": {
+      "markdownSha256": "b34c636b238968ac44c1fb0c87cd2a844a6722d9e3d1239a5b29daa64a46b208",
+      "htmlSha256": "20413f1362634d0dd35437850bc89647ef76622b34f6b1307c1413772b669091"
+    },
+    "/reference/policy/policy-draft/policy-draft-revision-view": {
+      "markdownSha256": "23f64ccbb4dec76f786f3d2bc8ea8c2ceb4c946f0ec7681520a2d1537e23221e",
+      "htmlSha256": "00f798c0598008a7e9f9752cfb6622bb2d5b65b5597412619879da531486c30b"
+    },
+    "/reference/policy/policy-draft/policy-draft-validation-run": {
+      "markdownSha256": "306dc5cf11fd8cb923848d5b084a5a2445ce49dbb0da014590363d94f1d2e323",
+      "htmlSha256": "4ba987f5b0edf0b5889f1058da0db24af05085ac5bfee3aab35392c80a67f67c"
+    },
+    "/reference/policy/policy-draft/policy-draft-view": {
+      "markdownSha256": "285b95590ee2f84e809a31038ed30b7bca170be0c84f72d7eeed96cc9c0fe81e",
+      "htmlSha256": "e7444d393f93b121b4ca64cfba12213feff345c9bace4d10c3f21d7a6bb91701"
+    },
+    "/reference/policy/request/policy-request-get-detail": {
+      "markdownSha256": "5d16cb303925035b2cec904f3482bb938a53dd78060e7c3441237d7f4baafad9",
+      "htmlSha256": "a3ef095441ff686b212caf083be7fa277e6cd5c428d79ae53e7dd2f3d1ce5cbc"
+    },
+    "/reference/policy/request/policy-request-submit": {
+      "markdownSha256": "01b8dc720b462f28d9ddef664b1cdf038265fa74861276dae3216f93c7730188",
+      "htmlSha256": "9069364ed57e9303c97ffe51207c00a269f45f4dae4be962485bc8d665e258d7"
+    },
+    "/reference/policy/workspace-bundle/policy-workspace-bundle-activation-activate": {
+      "markdownSha256": "feef98f42a123fa9dcb1ae82e3ee53d8db197795819700c13365ba39ef03b2bb",
+      "htmlSha256": "6fb4775637f453bedf9237208527f43c961d974a57429783011fa02ec8af8d22"
+    },
+    "/reference/policy/workspace-bundle/policy-workspace-bundle-active-view-view": {
+      "markdownSha256": "e781adda797fcf45fc4bab6e6591f02c06237dc7703f0180b53a8f2f8cf04f8f",
+      "htmlSha256": "6e3b215a7dc9380738fbdd4210b6eed906987ae35e972345d7c9acee867e9ae1"
+    },
+    "/reference/policy/workspace-bundle/policy-workspace-bundle-publication-publish": {
+      "markdownSha256": "a1dc7e1ef09bb3a97493ae6470cebfa2f90fdf8390f80ee7f79a6a29f7797283",
+      "htmlSha256": "d0ccd5e7d484e9072ce1008013ae6bf6158db2ab46306f07ef7179e4ca463324"
+    },
+    "/reference/policy/workspace-registration/policy-workspace-managers-assign": {
+      "markdownSha256": "762517ae030e1dfc79d0a050b055a02c756405d2b53d6ef4886d00fcf956c05a",
+      "htmlSha256": "08c40d6167856735290bcc8274240d545a9becfaa9d45c493f659988c93d145d"
+    },
+    "/reference/policy/workspace-registration/policy-workspace-managers-reissue-enrollment-token": {
+      "markdownSha256": "a13780dcc65dce74a10b02b605aeaec49d3175afce256c2f9c2e3bd01f1b88ff",
+      "htmlSha256": "c6d0652c3265996233f18a552d8fa2db1a8b3edffb42cd310e134f4dd2482767"
+    },
+    "/reference/policy/workspace-registration/policy-workspace-managers-revoke": {
+      "markdownSha256": "91411d9dbdd24c6405d7a5033d6f55bd054c32ca0847aff971c1f9f28bdce3bc",
+      "htmlSha256": "38fbfc290171f7664287ba71baeac91be8e7782f2e053a75e58eae465c48b423"
+    },
+    "/reference/policy/workspace-registration/policy-workspace-registration-challenge": {
+      "markdownSha256": "aec1da015bb75e3727a0efef1077f6dd87979b7b78e5a14269c7e4fc85b8225c",
+      "htmlSha256": "5026cc059f249aa897a9d684c414377fb6d53d640891b4a045243207615d8d85"
+    },
+    "/reference/policy/workspace-registration/policy-workspace-registration-list": {
+      "markdownSha256": "69a56e35e38cce78238135422698463038071fd9e9b3436fc5c3326cd714c50b",
+      "htmlSha256": "42adae6fe07c21495d97f993f214af0b13a4a0a67e1af1e2cc5c174bec29b4ee"
+    },
+    "/reference/policy/workspace-registration/policy-workspace-registration-register": {
+      "markdownSha256": "2fffa674e5226a0a3752423ca74c2cb8a70603d1ec1a1e77f2af049879b522b0",
+      "htmlSha256": "13b429ba52fa579ac5b839813bf150f53e00ce44dfc89f8eb4633c47f2b653f8"
+    },
+    "/reference/policy/workspace-registration/policy-workspace-registration-view": {
+      "markdownSha256": "9c96df617f9df12a236a8552320dea57270de40202750d2ecd3d1655d8787536",
+      "htmlSha256": "34b008481e853c61a60710346b64e229476c26938ec2efbba61aff495cc4a16c"
+    },
+    "/reference/travel-rule": {
+      "markdownSha256": "28be64176ad3437607a419235ef8fbf8688d9717a1c96d5b5ca1065d4025f87a",
+      "htmlSha256": "a5a85bc52e6922528a2d92eed61a51e6647bc33862aab7f65ce2d157216f3a1a"
+    },
+    "/reference/travel-rule/service-api/travel-rule-address-check": {
+      "markdownSha256": "4c80447d96f3d14c408ec37ec6a6621d1f91915b2f68bc50c71739f79d0cf7ae",
+      "htmlSha256": "5b8124aa4c3ecc7aee05d6884698370425a1ce17f42eba66f4633c6dd688aea9"
+    },
+    "/reference/travel-rule/service-api/travel-rule-create-check": {
+      "markdownSha256": "819148cfa667c94828cc2f482ce77c439c27a184f900827be0deacfb523e47b3",
+      "htmlSha256": "e009c4383e195740e7892b60116b89c1f613e93feccebd9ffa368e2c116a87e9"
+    },
+    "/reference/travel-rule/service-api/travel-rule-get-check": {
+      "markdownSha256": "139b582232a92cfb78f7a3afe2115dc6d5f5e840997062da7156d405477d2ad7",
+      "htmlSha256": "75c1b6ddd6d244a32ed78ded09cdcb348a2145c34b828c600bfe674deb24cfe2"
+    },
+    "/reference/travel-rule/service-api/travel-rule-report-tx": {
+      "markdownSha256": "e43c11324c7f7e6229943bd0fb8338dc196f1a94de31f1aba08e45c2b1fee88d",
+      "htmlSha256": "e9ab8ba3de0d2fb72349539854e9472bc51268a87bdccee3e6166dc2bb24510d"
+    },
+    "/reference/travel-rule/service-api/vasps-get-self": {
+      "markdownSha256": "98234a92059075d0f66db5951e82a7543cfd67806a2fa83fbea886e2b3a4d277",
+      "htmlSha256": "708bb21241426c6de0f354f6bd1d4a9c2e880279859c9ea61905628d7c8bd735"
+    },
+    "/reference/travel-rule/service-api/vasps-list": {
+      "markdownSha256": "c5070b9c4e27e3306d42804eec6e8f39d098e6b282c14d73cb3ae06277237f77",
+      "htmlSha256": "62096c2ba412581df1ce38910ff23c8e905e9dc2a6a68c2425c28887d41721b4"
+    },
+    "/reference/travel-rule/verifyvasp-inbound/verify-vasp-callback-receive": {
+      "markdownSha256": "9976f80681c427850f577414fe4cbf461bc7ec52088e4ef360a974cad4f11931",
+      "htmlSha256": "09a8b46b83d8d940b2be67c2f067ff251e5f4f1f3b9346b0f9c56eb9cafe3c31"
+    },
+    "/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-account": {
+      "markdownSha256": "b0ad60f791687d0b408e3f9991fd40f36f569ff25010c77978923a932d8e59c8",
+      "htmlSha256": "e4a83f338dcae04d0c037215ef1eaa1b04ae53aa55cc4896952df1229ddd7e46"
+    },
+    "/reference/travel-rule/verifyvasp-inbound/verify-vasp-inbound-verifications-user": {
+      "markdownSha256": "cb7acebd13c8db7c7cf39ade4be26e29a3f7294f30bc7d76cba7cede4fbaac48",
+      "htmlSha256": "3adee9efe2fb34854203adaea6fddcc62bac6e5a4f0f4ce593232e8ef95525e6"
+    },
+    "/reference/wallet": {
+      "markdownSha256": "cb792f2a9bc42bd985c16149cf22486ded88e5ef152df67d8803a9b6948bffd0",
+      "htmlSha256": "9c5c3ee5633908b7851114e2cc64e47a390155cb52e15eff5f911d544e5e7194"
+    },
+    "/reference/wallet/account-wallets/account-wallets-create": {
+      "markdownSha256": "0a9acaf2093644125f59a36374cb19c42438dfb3c46c1de1f2209920116efa04",
+      "htmlSha256": "c6a321a3f51a55160543bad386a2953326040938f803a9bb496197d474799fe0"
+    },
+    "/reference/wallet/account-wallets/account-wallets-get": {
+      "markdownSha256": "a6b0599833b56314e3ba0c864f9bb9473ef22d867483a103d7944461e3015ef7",
+      "htmlSha256": "103a3fbc329c9a242b5d7cdf3243559f750ce6146468225bf3dd24bb6a3c0598"
+    },
+    "/reference/wallet/account-wallets/account-wallets-list": {
+      "markdownSha256": "d511aa56e1d1e7702a3862e7e641cb3dc1be815234e7d98a004cd4c8e3ecef42",
+      "htmlSha256": "eff68b33e9cb0446080c6e0dbdb6e77287b889d48fde7d15f475002cdbe61319"
+    },
+    "/reference/wallet/accounts/accounts-change-status": {
+      "markdownSha256": "62c2472dd6b74183b08396d6a85e2e0599a9014117ec961157169933cbfc487c",
+      "htmlSha256": "f5518c5b88a1dfadf50f784ec6b4756e7a8c5dc9dc225ac00587956ab7bbc6fe"
+    },
+    "/reference/wallet/accounts/accounts-create": {
+      "markdownSha256": "b984d92ea1f09e596e343a8c724c4db6597af023979f54cd4ac91e3e3ac19389",
+      "htmlSha256": "e8136dfc5b9cae328ba64ab390d7e724f9c735408ae045fe95a5a6eee41fc04e"
+    },
+    "/reference/wallet/accounts/accounts-get": {
+      "markdownSha256": "bef8b54137205ed6349fb83ff009efac93c0446e82e8e8979cf362817d8878e9",
+      "htmlSha256": "deb282808ba3725349388f54e4d5fe51dc3cda37e282598ea9a73ff55f381efe"
+    },
+    "/reference/wallet/accounts/accounts-get-by-reference-id": {
+      "markdownSha256": "2f4a304ebd11646075b3c7ea919d2c3fe18fe2dcea936310e08021b17d36e3f9",
+      "htmlSha256": "4069caa5dc287d529bdcc0bc78f7ebfd0c871a9146f4707d9095cb596f1907d0"
+    },
+    "/reference/wallet/address-books/address-books-create": {
+      "markdownSha256": "ddb90f08eb725d94d61013687d6cf78cf5fc5ac5b765d5e1594707bc0d8183ca",
+      "htmlSha256": "9b5472f878add71d0ae92e127cb2c39c605161163b1bcca78fb4ba40705da363"
+    },
+    "/reference/wallet/address-books/address-books-create-nonce": {
+      "markdownSha256": "d31bd056bdc7e05648b72635f6dac92f430909521e3d7c0090e397ac5ec22f57",
+      "htmlSha256": "793abf386463560e9f5b53f59b66fdaa58ff03ad9fbbee13b86e6e82c820af93"
+    },
+    "/reference/wallet/address-books/address-books-delete": {
+      "markdownSha256": "1dd16af899fa2a14c26c1d104bd29f5f8c73146ab08c1e729e4ec666494024d6",
+      "htmlSha256": "801f74e8d78037683777a9f362baecebfba024378e708468d2e4c3fe7bbf5128"
+    },
+    "/reference/wallet/address-books/address-books-get": {
+      "markdownSha256": "a2861de5b5ca3d64557ff4dbc6381be3aea73a5384a1387ae06bdc501f9fe558",
+      "htmlSha256": "aa1ba2fbbc140ac4482939d4c941549bd58ff19fa0292ee5bbf0aa44675a5ab2"
+    },
+    "/reference/wallet/address-books/address-books-list": {
+      "markdownSha256": "06b831a9ccd9254208b7a364d6ecf9ec78db7f4ec5f4b8f257710f419442bdf8",
+      "htmlSha256": "7ee9e192a30e0e02f74fbe22047302a712b4ec49d93c5057f509a91ce1646531"
+    },
+    "/reference/wallet/deposits/deposits-get": {
+      "markdownSha256": "949fb540043db95af314f03766961b0680b5390a5f48879d129449f62a57b7a1",
+      "htmlSha256": "9cf352a54b7f207fb2cc3c1cee444f4445e53057dc14e9a484f5009b4ff94422"
+    },
+    "/reference/wallet/deposits/deposits-list": {
+      "markdownSha256": "b42d1dfd0d754c3f75a64c408eeb158d294cd8e8d6e767da794e36a518c79d99",
+      "htmlSha256": "ba4bba152bb1ca697c9f35d03c2430525e5317b2c9cb26054741e83938c4ea60"
+    },
+    "/reference/wallet/networks/networks-get": {
+      "markdownSha256": "066c3ce9afd230109a0b041bd3bf9cac2c7ac84e3a131af2a3ba5790170c1a75",
+      "htmlSha256": "10cd3b103836e111150db11f130d7b51bcbcfa7f5cdb9a4a9f32fd2488094297"
+    },
+    "/reference/wallet/networks/networks-list": {
+      "markdownSha256": "b9d6ac4251657f2a0c300c7d53cdc25f5bc5476860446f65c5de22ab79b9f182",
+      "htmlSha256": "5cc88633ba3c285de96c7debfc22475440eb3266fa6000d33cfb60619a4bd002"
+    },
+    "/reference/wallet/sweeps/sweeps-create": {
+      "markdownSha256": "da4769b70a5ae6a25301235ef1b493d4fa8d254fa97cfd930631edb03edc5308",
+      "htmlSha256": "97c49933862d6f0c20499a366e74e7fa3125143b574aa99b9c60d66168d0866b"
+    },
+    "/reference/wallet/sweeps/sweeps-get": {
+      "markdownSha256": "0e94d26397c6321d65331f737527e5b027a86cbe7c5340c1430547b37d32856c",
+      "htmlSha256": "2ecbdca98c725f7417c5c00730e9001416232f1c94d669086834c92536546822"
+    },
+    "/reference/wallet/sweeps/sweeps-get-by-reference-id": {
+      "markdownSha256": "771aadd45135cdd41096918980b210f3c540de767bd5e7ca66cb69208cba745c",
+      "htmlSha256": "965ac8a1b941204f30114cf101757b9c4c4868c003572602216683aeca48e9e9"
+    },
+    "/reference/wallet/tokens/tokens-get": {
+      "markdownSha256": "c558a09f071bd52ffe79db9fe007b9be7053708d6ef03a0a0c23a66b748753f3",
+      "htmlSha256": "1f0ae0ecda5d5171195a495033758364583b0e06576154ebc51e76d518aee76f"
+    },
+    "/reference/wallet/tokens/tokens-list": {
+      "markdownSha256": "12e6f42d45f055e6d830a5b84cb79c923e82eff9c83f55ca48ea1267ab5e43e8",
+      "htmlSha256": "ef50ad69acb7682b5e1a2dcaa8a19c14720bda482e42c58f38913c05eb502931"
+    },
+    "/reference/wallet/travel-rules/travel-rules-list-vasps": {
+      "markdownSha256": "820839eb9b0a87a8e2a6109d2376d5313aee1a4d050ed0db0a65932b11b368be",
+      "htmlSha256": "69a1a8cb75d869eddfe122b35fe9f27a5c643f41cb24fd814aa315031cd84a12"
+    },
+    "/reference/wallet/withdrawals/withdrawals-create": {
+      "markdownSha256": "0c4e85f1df681dbadc15abf9beb73084fe321605179545aea370747c7421ce75",
+      "htmlSha256": "069a9cf9d1cfbe2fdf628ad149c952f246d5b3c1eab8e7e70d1bb31187f79249"
+    },
+    "/reference/wallet/withdrawals/withdrawals-get": {
+      "markdownSha256": "ebc5a9db6da5aeb6aa948dcbbcf9240f11765c3743d30cb4fb838175d4f3186e",
+      "htmlSha256": "96010442a03fa457e5f20d89d4d4aca151dee0aaf569ab861b08c42afa967ae6"
+    },
+    "/reference/wallet/withdrawals/withdrawals-list": {
+      "markdownSha256": "739de82032c7015eaec93b2602d31ce2794c2d25683c7a4c35d4eca60eaae5a7",
+      "htmlSha256": "94d140be8c9e072f83511e8c6c4544117e4a404a2bda7202082c3ffa7de69a9a"
+    },
+    "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-create": {
+      "markdownSha256": "b53d8538588f3e40875cd5ac56161519dacf519b628f608be68d6a286a3536e7",
+      "htmlSha256": "df8436d72527b6862cd22ad2648457d76153529442e47ea40803634f19a946dd"
+    },
+    "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get": {
+      "markdownSha256": "f94ae5d29c03a239cfc9d60a008609cb2daa5318192dd9c0ef4ddb40375fc09c",
+      "htmlSha256": "0ff84c133b157e7779ff06564153dc7c0067ebf8dc1b9b180409443331f0da23"
+    },
+    "/reference/wallet/workspace-vault-transfers/workspace-vault-transfers-get-by-reference-id": {
+      "markdownSha256": "58b89bac212371bf435d70f683d4fd0d4744b90a28707ad17c91fafe63c1cc16",
+      "htmlSha256": "b18739554500ff4323bf4e6f94df13d7d44b38fef25ef3c1d75065dde507ffd5"
+    },
+    "/start": {
+      "markdownSha256": "53dc9643b18049f5a0c50671a44f14bc38358ceeb2cf3ccfc7ff2d1793fa1a00",
+      "htmlSha256": "a3fbe5183ca416c810eb2aca879e1974f0335a4888d7763002dea9e3c778305a"
+    },
+    "/start/authentication": {
+      "markdownSha256": "08c58a4b2d26d87ff36ef3ed4a79f4d78f22cefaa3edde09eb68775d59a1f821",
+      "htmlSha256": "b7f31e2b6497f08d0db2509791a2b1865dc29fe770c840c34afe1a264280525d"
+    },
+    "/start/compliance": {
+      "markdownSha256": "a20f690449471b1247a592f12218af39317e844f38e9524d964415fc0892e0e0",
+      "htmlSha256": "a26d5236189207d2fe55790e07b39d2d6360f0b52cc09993773e8b0bd1164df3"
+    },
+    "/start/first-request": {
+      "markdownSha256": "7e38834423513762120fa636e50fb9cb57b314ba1cb498c1e1bf0cda7662ef64",
+      "htmlSha256": "197db5070a5fe40911c84493ffc20434b38ec86aa178cfe87b70eb82b8f80bb2"
+    },
+    "/start/terminology": {
+      "markdownSha256": "ef69fa3c318690a5ee0ce7e485a50bbee475b411a9e4556b953aa808c2703a48",
+      "htmlSha256": "ff32c393adfe45f9560157a65fc86f9fe317647a399b21ccaa3920c61dc1edb9"
+    }
+  },
+  "apiSpecChanges": [
+    "openapi/openapi.WalletApi.yaml"
+  ],
+  "reviewNotes": [
+    "Vault 이체 완료 통지는 최신 변경 이력과 본문의 양쪽 잔액 반영 후 기준을 적용한다. 웹훅 표의 이전 설명은 상충 사항으로 표시한다.",
+    "Wallet 서버와 실 정책 서버 미연결·동기 자동 승인, Wallet Admin 승인 API 고정 응답은 새 결과 읽기의 설명이며 실환경 검증 결과가 아니다.",
+    "집금 원문 전체 시퀀스를 유지하고 기록 생성·정책 거부 시점의 상충을 별도로 표시한다.",
+    "eventId 제공 및 Queue에 상응하는 전달 보장, UPDATED·TR·KYT 연동의 구현 완료는 확인되지 않았다."
+  ]
+}

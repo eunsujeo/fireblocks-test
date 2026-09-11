@@ -39,7 +39,7 @@
 확정한 값이 들어가는 구획입니다. 요청이 이 구획을 채울 수 없습니다.</li>
 </ul>
 <p>여기서 obligation은 통과로 확정되기 전에 이행해야 하는
-조건입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>).</p>
+조건입니다(<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>).</p>
 <p>값 이동 세 연산은 canonical에서 <code>value_transfer</code> 하나로 모입니다. 그래서 <code>operation</code>은 파트너
 대상 API의 연산 이름과 1 아닙니다. 최상위 키로 나열되는 PIP 스냅샷은 평가 루프에서 수집하는
 소스이고, 지금 그것은 <code>address_ownership</code> 하나입니다.</p>
@@ -50,7 +50,7 @@
 합니다. 룰 배열을 빼면 전송 중 사라진 구획이 “룰 없는 워크스페이스”로 읽히므로, 빈 룰 세트도
 <code>"rules": []</code>로 적습니다. 조립하는 쪽이 키를 빼면 그 워크스페이스의 모든 요청이 막힙니다.</p>
 <h2 id="두-층의-룰-병합"><a data-reference-title="평가의 순간" href="policy--runtime--evaluation.html#두-층의-룰-병합">두 층의 룰 병합</a></h2>
-<p>룰은 <code>scope</code>와 조건을 갖고 <code>allow</code>·<code>deny</code>를 내는 단위입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>).
+<p>룰은 <code>scope</code>와 조건을 갖고 <code>allow</code>·<code>deny</code>를 내는 단위입니다(<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>).
 커널은 조건 트리를 평가하고 결정을 결합하는 정책 무관 고정
 부분입니다(<a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a>).</p>
 <p>커널은 적재된 선언 트리의 플랫폼 룰과, 입력 문서에 담겨 온 워크스페이스 룰을 이어 붙여 하나의 룰
@@ -69,7 +69,7 @@
 오라는 요구가 되어 다음 평가 라운드로 이어집니다. 평가 라운드는 한 판단 요청 안에서 평가가 몇
 번째로 실행됐는지입니다(<a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a>).</p>
 <h2 id="슬롯-해석-우선순위-세-단계"><a data-reference-title="평가의 순간" href="policy--runtime--evaluation.html#슬롯-해석-우선순위-세-단계">슬롯 해석 우선순위 세 단계</a></h2>
-<p>슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>).
+<p>슬롯은 카탈로그에 선언되고 워크스페이스가 조정할 수 있는 값입니다(<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>).
 <code>{"slot": "이름"}</code> 참조를 만나면 커널이 그 시점에 값을 찾습니다. 우선순위는 세 단계입니다.</p>
 <ol>
 <li>입력의 워크스페이스 번들에 있는 테넌트별 값</li>
@@ -78,7 +78,7 @@
 </ol>
 <p><strong>조건의 비교값과 obligation의 파라미터가 같은 해석을 거칩니다.</strong> 그래서 승인에 필요한 최소
 인원인 정족수도, 허용 목록도 워크스페이스가 조정한 값이 같은 규칙으로 적용됩니다. 하한을 평가 시점에 한 번 더
-확인하는 이유는 <a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>에 있습니다.</p>
+확인하는 이유는 <a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>에 있습니다.</p>
 <h2 id="결정값-산출"><a data-reference-title="평가의 순간" href="policy--runtime--evaluation.html#결정값-산출">결정값 산출</a></h2>
 <p>커널은 <a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a>이 정한 우선순위를 정해진 검사 순서로 집행합니다. 그
 우선순위는 기본 거부, deny 최우선, 수집 요구, 모듈 AND, obligation입니다. 미평가 룰이 기록에 남는
@@ -89,7 +89,7 @@
 판정이 운영의 판정과 같은 코드 경로를 거칩니다.</p>
 <h2 id="다음으로"><a data-reference-title="평가의 순간" href="policy--runtime--evaluation.html#다음으로">다음으로</a></h2>
 <p>이 흐름의 각 조각이 어디에 저장되고 무엇이 네트워크를 오가는지는
-<a data-reference-title="저장과 이동" href="policy--runtime--storage.html">저장과 이동</a>에 있습니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+<a data-reference-title="저장과 이동" href="policy--runtime--storage.html">저장과 이동</a>에 있습니다.</p></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

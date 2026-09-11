@@ -41,10 +41,17 @@ vault 용도를 정의하는 값인 용도 태그입니다. 그 태그는 이동
 <p>송금이 실패하면 예약이 풀립니다. 예약이 막는 것은 동시 요청이 같은 잔액을 두 번 쓰는 것이고,
 온체인 충분성은 예약을 통과한 뒤에도 보증되지 않습니다. 예약의 기준 설명은
 <a data-reference-title="자금 동결" href="fund-flows--release.html">자금 동결</a>에 있습니다.</p>
-<h2 id="상태는-네-단계를-지나고-어디서든-실패합니다"><a data-reference-title="Vault 이체 (Vault Transfer)" href="fund-flows--vault-transfer.html#상태는-네-단계를-지나고-어디서든-실패합니다">상태는 네 단계를 지나고 어디서든 실패합니다</a></h2>
-<p>접수 → 심사 → 온체인 → 완료 순으로 갑니다. 어느 단계에서든 실패로 끝날 수 있습니다.</p>
-<p>세부 상태가 그 안을 가릅니다. 접수 단계에서만 비어 있고 그 뒤로는 항상 채워집니다. 값 목록은
-<a data-reference-title="Wallet API" href="reference--wallet.html">Wallet API</a>에 있습니다.</p>
+<h2 id="상태는-다섯-단계를-지나고-정산-중-전까지는-어디서든-실패합니다"><a data-reference-title="Vault 이체 (Vault Transfer)" href="fund-flows--vault-transfer.html#상태는-다섯-단계를-지나고-정산-중-전까지는-어디서든-실패합니다">상태는 다섯 단계를 지나고 정산 중 전까지는 어디서든 실패합니다</a></h2>
+<p>접수 → 심사 → 온체인 → 정산 중 → 완료 순으로 갑니다. 정산 중은 온체인 완료가 확인됐고 두 vault의
+잔액 반영이 남은 구간입니다. 목적지 vault의 잔액이 먼저 오르고, 출발 vault의 잔액이 내려가면서
+완료가 됩니다. 완료 통지는 그 뒤에 나갑니다.</p>
+<p><strong>정산 중에 이르면 실패로 끝나지 않습니다.</strong> 온체인에서 이미 옮겨진 자산이라 되돌릴 실패가 없기
+때문입니다. 실패는 접수·심사·온체인 단계에서만 옵니다.</p>
+<p>정산 중에 머무는 시간은 보통 1초 안입니다. 내부 처리가 끊기면 대사가 몇 분 안에 이어 갑니다. 그
+사이 출발 vault의 가용 잔액은 이체 금액만큼 잡혀 있고, 목적지 vault의 가용 잔액은 반영이 끝난
+쪽부터 오릅니다.</p>
+<p>세부 상태가 그 안을 가릅니다. 접수 단계에서만 비어 있고 그 뒤로는 항상 채워집니다. 정산 중과
+완료에서는 <code>COMPLETED</code>입니다. 값 목록은 <a data-reference-title="Wallet API" href="reference--wallet.html">Wallet API</a>에 있습니다.</p>
 <h2 id="실패-사유는-드러나는-시점으로-갈립니다"><a data-reference-title="Vault 이체 (Vault Transfer)" href="fund-flows--vault-transfer.html#실패-사유는-드러나는-시점으로-갈립니다">실패 사유는 드러나는 시점으로 갈립니다</a></h2>
 <p>요청 시점에 400으로 거부되는 것은 다섯입니다 — 출발지와 목적지가 같은 vault
 (<code>WORKSPACE_VAULT_TRANSFER_SOURCE_DESTINATION_SAME</code>), 금액이 0 이하이거나 토큰 정밀도를 넘는 경우
@@ -102,7 +109,7 @@ vault가 비활성인 경우(<code>WORKSPACE_VAULT_INACTIVE</code>), 출발 vaul
 <p>vault 이체는 완료와 실패만 통지합니다 — <code>VAULT_TRANSFER_FINALIZED</code>·<code>VAULT_TRANSFER_FAILED</code>.
 시작 통지가 없으므로 접수 직후 상태는 조회로 확인합니다. 통지 본문은
 <a data-reference-title="웹훅(Webhook)" href="fund-flows--webhooks.html">웹훅</a>에 있습니다.</p>
-<p>셋으로 나뉜 출금은 <a data-reference-title="출금 (Withdrawal)" href="fund-flows--withdrawal.html">출금</a>에 있습니다.</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+<p>셋으로 나뉜 출금은 <a data-reference-title="출금 (Withdrawal)" href="fund-flows--withdrawal.html">출금</a>에 있습니다.</p></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

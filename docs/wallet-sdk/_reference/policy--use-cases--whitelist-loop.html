@@ -9,7 +9,7 @@
 <figure><div class="interactive-diagram"><iframe loading="lazy" src="../diagrams/usecase-whitelist-loop.html" title="출금 화이트리스트 — 수집 루프가 있는 평가"></iframe></div><figcaption><a href="../diagrams/usecase-whitelist-loop.html" rel="noopener" target="_blank">다이어그램 크게 보기</a></figcaption></figure>
 <h2 id="룰-형태가-흐름을-정합니다"><a data-reference-title="출금 화이트리스트" href="policy--use-cases--whitelist-loop.html#룰-형태가-흐름을-정합니다">룰 형태가 흐름을 정합니다</a></h2>
 <p>외부 주소 출금을 허가하는 룰의 형태 예시입니다. 필드와 조각의 뜻은
-<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>에 있습니다.</p>
+<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>에 있습니다.</p>
 <pre tabindex="0"><code>{
   "id": "withdrawal/allow-evm-external-address",
   "effect": "allow",
@@ -50,7 +50,7 @@ default deny입니다. 결합 규칙은 <a data-reference-title="결정과 결�
 <li><a data-reference-title="비동기 수집" href="policy--sequences--pending-data.html">비동기 수집</a> — 수집 대기·도착 검사·타임아웃</li>
 <li><a data-reference-title="PIP" href="policy--runtime--pip.html">PIP</a> — 소스 선언과 수집 계약</li>
 <li><a data-reference-title="서명 상한 대조" href="policy--use-cases--callback-limit.html">서명 상한 대조</a> — 이 흐름이 발급한 스탬프의 마지막 일</li>
-</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+</ul></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

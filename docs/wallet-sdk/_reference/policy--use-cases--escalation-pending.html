@@ -2,7 +2,7 @@
 
 
 <p>이 페이지는 권한을 올리는 요청이 pending으로 멈추는 지점을 따라갑니다. obligation은 통과로
-확정되기 전에 이행해야 하는 조건이고(<a data-reference-title="룰 구조" href="policy--rule--structure.html">자세히</a>), 이 요청에서는 2단계
+확정되기 전에 이행해야 하는 조건이고(<a data-reference-title="룰 쓰기" href="policy--rules.html">자세히</a>), 이 요청에서는 2단계
 인증과, 승인에 필요한 최소 인원인 정족수의 승인이 그것입니다.</p>
 <p><strong>권한을 올리는 요청은 어떤 설정에서도 가장 강한 게이트를 받습니다.</strong> 그 하한을 만드는 것이
 조건 없는 룰 하나입니다.</p>
@@ -39,7 +39,7 @@
 <p><strong>값을 고르는 것은 워크스페이스이지만 하한 아래로는 내려가지 못합니다.</strong> 조건 트리를
 평가하고 결정을 결합하는 정책 무관 고정 부분인 커널(<a data-reference-title="결정과 결합" href="policy--rule--decision.html">자세히</a>)이 평가 시점에
 하한을 다시 확인합니다. <code>escalation_quorum</code>의 기본값은 3이고 하한은 2입니다. 슬롯 계약은
-<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>에 있습니다.</p>
+<a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a>에 있습니다.</p>
 <p>정족수를 리터럴로 고정하면 워크스페이스가 자기 규모에 맞게 올릴 수도 없습니다. 조정 가능성과
 하한 보증을 슬롯 하나가 함께 만듭니다.</p>
 <h2 id="pending-뒤의-흐름은-승인-게이트가-맡습니다"><a data-reference-title="권한 상승 게이트" href="policy--use-cases--escalation-pending.html#pending-뒤의-흐름은-승인-게이트가-맡습니다">pending 뒤의 흐름은 승인 게이트가 맡습니다</a></h2>
@@ -51,7 +51,7 @@
 <li><a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a> — pending 이후의 표 수집과 집행</li>
 <li><a data-reference-title="금지선" href="policy--use-cases--deny-override.html">금지선</a> — 같은 표면에서 deny 룰이 허가를 뒤집는 흐름</li>
 <li><a data-reference-title="룰 변경 게이트" href="policy--use-cases--rule-change.html">룰 변경 게이트</a> — 정책 변경 자체가 받는 게이트</li>
-</ul></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+</ul></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

@@ -5,7 +5,7 @@ description: 통과 조건으로 붙은 이행을 어디서 모으나
 
 _읽는 사람: 구현팀. 통과 조건으로 붙은 이행을 어느 채널에서 모으는지를 다룹니다._
 
-obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다([자세히](/policy/rule/structure)). 이
+obligation은 통과로 확정되기 전에 이행해야 하는 조건입니다([자세히](/policy/rules)). 이
 페이지는 그 이행을 어느 채널에서 모으고, 모으는 동안 요청이 어디에 머무는지를 씁니다.
 
 obligation은 **"통과시키되 이것을 이행하라"**는 요구입니다. 이행이 끝날 때까지 요청은
@@ -164,5 +164,5 @@ obligation마다 데드라인이 따로 있습니다. 대기 진입 시각에 �
 
 - [승인 게이트](/policy/sequences/approval-gate) — 정족수와 어드민 2단계 인증의 전체 흐름
 - [비동기 수집](/policy/sequences/pending-data) — 파트너를 기다리는 다른 경우
-- [룰 구조](/policy/rule/structure) — obligation을 룰에 어떻게 다나
+- [룰 쓰기](/policy/rules) — obligation을 룰에 어떻게 다나
 - [결정과 결합](/policy/rule/decision) — obligation 병합 규칙

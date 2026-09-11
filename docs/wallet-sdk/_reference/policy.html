@@ -6,41 +6,30 @@ Wallet 서버가 요청을 받으면 정책 엔진에 판단을 묻고, 허가�
 <p>서명한 뒤 거절하는 방식을 두지 않습니다. 서명이 나가면 그것은 이미 나간 것이라, 거절할 여지가
 남지 않기 때문입니다.</p>
 <p>정책 엔진은 서명 인프라로 요청이 나가기 전의 마지막 검사 단계입니다.</p>
+<h2 id="허가하는-룰이-없으면-거절입니다"><a data-reference-title="정책" href="policy.html#허가하는-룰이-없으면-거절입니다">허가하는 룰이 없으면 거절입니다</a></h2>
+<p>요청에 매치되는 <code>allow</code> 룰이 하나도 없으면 결정은 거절입니다. 그래서 새 체인·새 목적지 종류·새
+vault 종류가 등재돼도 그것을 허가하는 룰을 쓰기 전까지는 아무것도 나가지 않습니다.</p>
+<p><code>deny</code> 룰이 하나라도 매치되면 다른 룰이 허가해도 결정은 거절이고, 그 뒤의 평가는 멈춥니다. 룰이 여럿일 때 결정이 모이는 규칙은
+<a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a>에 있습니다.</p>
+<p>허가에는 조건이 붙을 수 있습니다. 2단계 인증이나 승인이 성립하는 데 필요한 최소 승인자 수인
+정족수를 요구하는 룰이 통과하면, 결정은 <code>allow</code>가 아니라 <code>pending</code>이고 그 조건이 채워진 뒤에 확정됩니다.</p>
 <h2 id="판단-주체를-갈라-두면-한쪽이-침해돼도-서명이-나가지-않습니다"><a data-reference-title="정책" href="policy.html#판단-주체를-갈라-두면-한쪽이-침해돼도-서명이-나가지-않습니다">판단 주체를 갈라 두면 한쪽이 침해돼도 서명이 나가지 않습니다</a></h2>
 <p><strong>Wallet SDK만 탈취당해도 서명이 나가지 않습니다.</strong> 정책 엔진이 별도 판단 주체라, 침해된 쪽이
 자기 판단으로 서명을 얻어낼 수 없습니다.</p>
-<p>정책 엔진을 제외한 전부가 침해돼도 한 번에 다량이 나가지 않습니다. 1회 송금 한도 같은 룰이 그
-즉시 작동하기 때문입니다.</p>
-<h2 id="문서는-답하는-질문에-따라-나뉩니다"><a data-reference-title="정책" href="policy.html#문서는-답하는-질문에-따라-나뉩니다">문서는 답하는 질문에 따라 나뉩니다</a></h2>
-<p>먼저 여섯 장이 정책 엔진 전체를 덮습니다. 전체 그림부터 잡으려면 전체 지도가 첫 진입입니다.</p>
+<p>정책 엔진을 제외한 전부가 침해돼도 한 번에 다량이 나가지 않습니다. 건당 자원 상한 같은 통제가
+승인마다 붙기 때문입니다.</p>
+<h2 id="다음으로"><a data-reference-title="정책" href="policy.html#다음으로">다음으로</a></h2>
+<p>파트너사가 읽는 길은 「정책 쓰기」 절 다섯 쪽입니다. 순서대로 읽으면 정책을 쓰고 발행하고 결과를
+읽는 데 필요한 것이 다 나옵니다.</p>
 <ul>
-<li><a data-reference-title="전체 지도" href="policy--map.html">전체 지도</a> — 저작 산출물이 가는 세 경로와 평가 입력의 조립을 두 장으로 요약합니다</li>
-<li><a data-reference-title="구조" href="policy--architecture.html">구조</a> — 각 역할이 어디에 배포되고 무엇을 맡는지</li>
 <li><a data-reference-title="서명 게이트" href="policy--signing-gate.html">서명 게이트</a> — 판단과 집행이 나뉘는 두 단계</li>
-<li><a data-reference-title="다이어그램" href="policy--diagrams.html">다이어그램</a> — 배포 토폴로지부터 코드 호출 경로까지 상호작용 뷰어로</li>
+<li><a data-reference-title="룰 쓰기" href="policy--rules.html">룰 쓰기</a> — 룰 하나가 무엇으로 이루어지고 무엇을 참조할 수 있나</li>
+<li><a data-reference-title="예시 정책" href="policy--examples.html">예시 정책</a> — 워크스페이스 시드의 실물 룰 셋과 통과·거절 대조</li>
 <li><a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a> — draft 하나가 검증·승인을 거쳐 활성 번들이 되기까지</li>
-<li><a data-reference-title="운영과 관측" href="policy--operations.html">운영과 관측</a> — 무엇을 보고 무엇을 알리나</li>
+<li><a data-reference-title="결과 읽기" href="policy--results.html">결과 읽기</a> — 결정이 API 응답의 어느 자리에 나타나나</li>
 </ul>
-<p>그 아래로 그룹이 넷입니다.</p>
-<ul>
-<li><strong>룰</strong>: 룰이라는 언어 자체를 씁니다. <a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>·<a data-reference-title="룰 명세" href="policy--rule--reference.html">룰 명세</a>·<a data-reference-title="결정과 결합" href="policy--rule--decision.html">결정과 결합</a> 셋입니다</li>
-<li><strong>평가</strong>: 요청 하나가 거치는 런타임을 씁니다. <a data-reference-title="정규화" href="policy--runtime--normalization.html">정규화</a>·<a data-reference-title="PIP" href="policy--runtime--pip.html">PIP</a>·<a data-reference-title="평가의 순간" href="policy--runtime--evaluation.html">평가의 순간</a>·<a data-reference-title="저장과 이동" href="policy--runtime--storage.html">저장과 이동</a> 넷입니다</li>
-<li><strong>승인과 수집 흐름</strong>: 사람의 승인과 파트너의 답을 기다리는 흐름입니다. <a data-reference-title="승인 게이트" href="policy--sequences--approval-gate.html">승인 게이트</a>·<a data-reference-title="비동기 수집" href="policy--sequences--pending-data.html">비동기 수집</a>·<a data-reference-title="obligation 수집" href="policy--sequences--obligations.html">obligation 수집</a> 셋입니다</li>
-<li><strong>유즈케이스</strong>: 룰과 승인 스탬프의 형태가 어떤 런타임 흐름을 발동하는지를 <a data-reference-title="출금 화이트리스트" href="policy--use-cases--whitelist-loop.html">사례 다섯</a>으로 봅니다</li>
-</ul>
-<p>저작에서 발행까지의 파이프라인은 <a data-reference-title="구조" href="policy--architecture.html">구조</a>와
-<a data-reference-title="룰 저작과 발행" href="policy--workflow.html">룰 저작과 발행</a>이 한 문단으로 서술합니다.</p>
-<h2 id="저작은-번들-두-종류로-나뉩니다"><a data-reference-title="정책" href="policy.html#저작은-번들-두-종류로-나뉩니다">저작은 번들 두 종류로 나뉩니다</a></h2>
-<p>정책 로직 번들은 룰과 선언 데이터를 커널과 함께 담아 발행한 배포 산출물입니다. 플랫폼 거버넌스가
-소유하고, 배포 단위당 하나이며, 변경은 제안자와 승인자를 갈라 두는 maker-checker 승인을 거칩니다.</p>
-<p>워크스페이스 번들은 한 워크스페이스가 소유하는 값 이동 룰과 슬롯 값입니다. 값 이동은 출금·vault
-이체·집금처럼 자산을 실제로 움직이는 연산 셋입니다.</p>
-<p>플랫폼이 파라미터의 하한(floor)을 정하고 파트너사는 그 안에서 값을 고릅니다.</p>
-<p>하한만 두고 상한을 두지 않습니다. 인가 TTL의 상한은 슬롯 선언이 아니라 검사 둘이 강제합니다.
-발행 시점의 컴파일 검사와, 승인 스탬프를 찍는 절차입니다.</p>
-<p>조건 트리를 평가하고 결정을 결합하는 <a data-reference-title="결정과 결합" href="policy--rule--decision.html">커널</a>은 평가 시점에 그 상한을 읽지
-않습니다. 그래서 조정을 불허할 값은 슬롯이 아니라 룰에 직접 씁니다. 슬롯은 카탈로그에 선언되고
-워크스페이스가 조정할 수 있는 값입니다(<a data-reference-title="룰 구조" href="policy--rule--structure.html">룰 구조</a>).</p></article><p class="ref-source-footer">2026-09-10 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
+<p>엔진을 만드는 사람은 그 아래 「엔진 내부 동작」 절로 갑니다. <a data-reference-title="전체 지도" href="policy--map.html">전체 지도</a>가 첫
+진입이고, 구조·다이어그램·운영과 관측 뒤에 룰의 구현팀 층과 평가 런타임이 옵니다.</p></article><p class="ref-source-footer">2026-09-11 공개 문서 기준 · <a href="../_guide/originals.html#about">문서 출처와 검토 범위</a></p></main><script>(()=>{
   const embedded=new URLSearchParams(location.search).get('view')==='modal'&&parent!==window;
   if(embedded)document.documentElement.classList.add('embed');
   const send=data=>parent.postMessage({kind:'wallet-reference-v1',...data},'*');

@@ -1747,6 +1747,7 @@ components:
         - PENDING
         - SCREENING
         - ON_CHAIN
+        - SETTLING
         - COMPLETED
         - FAILED
       description: 스윕 상태
@@ -2038,6 +2039,7 @@ components:
         - PENDING
         - SCREENING
         - ON_CHAIN
+        - SETTLING
         - COMPLETED
         - FAILED
       description: 출금 상태
@@ -2105,7 +2107,9 @@ components:
           description: 이체 금액의 raw 값. 토큰 decimals 미적용
         status:
           $ref: '#/components/schemas/WorkspaceVaultTransferStatus'
-          description: 이체 상태
+          description: |-
+            이체 상태. SETTLING은 온체인 완료가 확인됐고 두 vault의 잔액 반영이 남은 구간이다 — 완료 통지는 그 뒤에
+            나간다. 값이 늘 수 있으므로 알 수 없는 값은 진행 중으로 취급한다
           examples:
             - SCREENING
         subStatus:
@@ -2160,6 +2164,7 @@ components:
         - PENDING
         - SCREENING
         - ON_CHAIN
+        - SETTLING
         - COMPLETED
         - FAILED
       description: 워크스페이스 Vault 이체 상태
