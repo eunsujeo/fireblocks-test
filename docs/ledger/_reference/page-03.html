@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="ko" class="reference-page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>p.3 · 전체 구조 | DAW 원장 v0.1.4</title><link rel="stylesheet" href="../assets/style.css"><script>document.documentElement.classList.add('js');if(new URLSearchParams(location.search).get('view')==='modal')document.documentElement.classList.add('embed');</script></head><body class="reference-page"><a class="skip" href="#main">본문으로</a><header class="site-header"><a class="brand" href="../index.html"><span class="brand-symbol">L</span><strong>DAW 원장</strong><small>v0.1.4</small></a><div class="header-right"><span class="classification">Strictly Confidential</span><a href="../index.html">문서 홈</a></div></header><main id="main"><div class="page-heading"><p class="eyebrow">DAW / 원장 v0.1.4</p><h1>p.3 · 전체 구조</h1><p class="lede">원장 v0.1.4의 원문 페이지</p></div><div class="figure-toolbar"><span>원문 3 / 64</span><button data-zoom="-" aria-label="원문 축소">−</button><output id="zoom-level">100%</output><button data-zoom="+" aria-label="원문 확대">＋</button><button data-zoom="fit">화면 맞춤</button><a href="../../원장_v0.1.4.pdf#page=3" target="_blank" rel="noopener">PDF 열기 ↗</a></div><figure class="source-figure"><div class="figure-viewport" tabindex="0" aria-label="원문 확대 영역"><div class="figure-inner"><img src="../assets/page-03.webp" width="2160" height="1215" alt="전체 구조 — 원문 3쪽"></div></div><figcaption>원장 v0.1.4 · PDF 3쪽 · Strictly Confidential</figcaption></figure><details class="full-source"><summary>추출한 본문 텍스트</summary><pre class="source-text">네트워크
+DAWBC
+DAW코어
+카뱅 계정계
+(수신, 회계)
+지갑 주소 구분 SC자산 온체인잔고 입금중 송금중 입금감지 송금감지
+크로스브릿
+징입금중
+크로스브릿
+징입금감지
+크로스브릿
+징송금중
+크로스브릿
+징송금감지
+델타정산
+입금대기
+델타정산
+송금대기
+0xaa...01 받는주소
+ETH
+-USDC
+0xaa...01 받는주소
+BASE
+-USDC
+0xaa...02 받는주소
+ETH
+-USDC
+…
+0xbb...01 보내는주소
+ETH
+-USDC
+…
+0xcc...01 콜드월렛
+ETH
+-USDC
+[고객]주소별 잔고 일일
+스냅샷
+거래내역
+[카뱅]주소별 잔고 일일
+스냅샷
+거래내역
+[고객]주소별
+잔고와 비슷
+SC자산 구분 잔고 입금중 송금중
+크로스브릿
+징입금중
+크로스브릿
+징송금중
+ETH
+-USDC
+받는주소합
+BASE
+-USDC
+받는주소합
+ETH
+-KRWK
+보내는주소합
+BASE
+-KRWK
+콜드월렛합
+[고객]자산별 잔고 일일
+스냅샷
+거래내역
+[카뱅]자산별 잔고 일일
+스냅샷
+거래내역 [고객]자산별 잔고와 비슷
+원거래TID 정산TID SC통화 TO 수량 상태
+txxx01 txxx10 USDC KB 10 정산완료
+txxx02 txxx11 USDC USER 20 정산중
+txxx03 txxx11 KRWK USER 4 정산중
+txxx05 - KRWK KB 60 미정산
+정산내역
+일일
+스냅샷
+델타원장
+유저ID SC통화 잔고 입금중 송금중
+Ux001 USDC
+Ux001 KRWK
+Ux002 USDC
+Ux002 KRWK
+[고객]고객별 SC통화잔고 일일
+스냅샷
+거래내역
+유저ID SC자산 받는주소
+Ux001 ETH-USDC 0xaa...01
+Ux001 BASE-USDC 0xaa...01
+[고객] 지갑 메타
+거래내역
+SC통화 잔고 입금중 송금중
+외부브릿
+징중
+USDC
+KRWK
+[카뱅]SC통화잔고 일일
+스냅샷
+거래내역
+서비스
+카뱅 대외계
+(트래블룰)
+트래블룰 내역
+- TID, SC자산, 트래블룰솔루션ID, 트래블룰ID
+- txHash
+- 송금인정보: VASP정보, 보내는주소, 이름 등
+- 금액
+- 수신인정보: VASP정보, 받는주소, 이름 등
+SC통화 소유권 (원장)
+SC자산 총량
+블록체인 기타
+큐
+어드민
+전체 구조
+txHash SC자산 수량 상태
+0xha….01 ETH-USDC 1000 송금완료
+0xha….02 ETH-USDC 100 입금완료
+0xha….03 BASE-USDC 200 입금중
+[고객] 별단 입금
+거래내역
+txHash SC자산 수량 상태
+0xha….11 ETH-USDC 1000 송금완료
+[카뱅] 별단 입금
+거래내역
+Strictly Confidential</pre></details><nav class="source-pagination" aria-label="원문 페이지 이동"><a class="source-link" href="../_reference/page-02.html" data-reference-title="p.2 · 용어" target="_blank" rel="noopener">← 이전 페이지</a><a class="source-link" href="../_reference/page-04.html" data-reference-title="p.4 · 전체 구조 설명" target="_blank" rel="noopener">다음 페이지 →</a></nav><footer class="site-footer"><span>DAW 아키텍처 · 원장 v0.1.4</span><span>Strictly Confidential</span></footer></main><script data-root="../">// Included inline in the generated HTML. All navigation stays within the local reader.
+(() => {
+  const root = new URL(document.currentScript.dataset.root, location.href);
+  const embedded = document.documentElement.classList.contains('embed');
+  const refPage = document.documentElement.classList.contains('reference-page');
+  const modal = document.getElementById('reference-dialog');
+  const search = document.getElementById('search-dialog');
+  const send = data => parent.postMessage({kind:'ledger-reference-v1', ...data}, '*');
+  function reference(raw) {
+    const u = new URL(raw, location.href);
+    if (!u.href.startsWith(new URL('_reference/', root).href) || !u.pathname.endsWith('.html')) return null;
+    u.searchParams.delete('view');
+    return u;
+  }
+  let zoom = 100;
+  const inner = document.querySelector('.figure-inner');
+  const viewport = document.querySelector('.figure-viewport');
+  function setZoom(value) {
+    if (!inner) return;
+    zoom = Math.min(400, Math.max(100, value));
+    inner.style.width = zoom + '%';
+    document.getElementById('zoom-level').value = zoom + '%';
+  }
+  document.querySelectorAll('[data-zoom]').forEach(button => button.addEventListener('click', () => {
+    const action = button.dataset.zoom;
+    const ratioX = viewport.scrollWidth ? (viewport.scrollLeft + viewport.clientWidth / 2) / viewport.scrollWidth : .5;
+    const ratioY = viewport.scrollHeight ? (viewport.scrollTop + viewport.clientHeight / 2) / viewport.scrollHeight : .5;
+    setZoom(action === 'fit' ? 100 : zoom + (action === '+' ? 50 : -50));
+    if(action==='fit')document.querySelectorAll('.source-mark').forEach(x=>x.classList.remove('current'));
+    viewport.scrollLeft = ratioX * viewport.scrollWidth - viewport.clientWidth / 2;
+    viewport.scrollTop = ratioY * viewport.scrollHeight - viewport.clientHeight / 2;
+  }));
+  function markSource() {
+    if (!inner) return;
+    const id = location.hash.slice(1);
+    const mark = document.getElementById(id);
+    document.querySelectorAll('.source-mark').forEach(x => x.classList.remove('current'));
+    if (!mark?.classList.contains('source-mark')) return;
+    mark.classList.add('current');setZoom(200);
+    requestAnimationFrame(() => {
+      viewport.scrollLeft = mark.offsetLeft + mark.offsetWidth / 2 - viewport.clientWidth / 2;
+      viewport.scrollTop = mark.offsetTop + mark.offsetHeight / 2 - viewport.clientHeight / 2;
+    });
+  }
+  function snapshot() {
+    return {top:scrollY, details:[...document.querySelectorAll('details')].map(x=>x.open), zoom,
+      markedId:document.querySelector('.source-mark.current')?.id || null,
+      left:viewport?.scrollLeft || 0, insideTop:viewport?.scrollTop || 0};
+  }
+  function restore(state) {
+    if (!state) return;
+    document.querySelectorAll('details').forEach((x,i)=>x.open=Boolean(state.details?.[i]));
+    setZoom(state.zoom || 100);
+    document.querySelectorAll('.source-mark').forEach(x=>x.classList.toggle('current',x.id===state.markedId));
+    requestAnimationFrame(() => {
+      if (viewport) {viewport.scrollLeft=state.left || 0;viewport.scrollTop=state.insideTop || 0}
+      scrollTo(0,state.top || 0);
+    });
+  }
+  if (embedded) {
+    document.addEventListener('click', event => {
+      const link=event.target.closest('a[href]');
+      if (!link || event.defaultPrevented || event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const url=reference(link.href);
+      if (url) {
+        event.preventDefault();
+        send({action:'navigate',url:url.href,title:link.dataset.referenceTitle || link.textContent,state:snapshot()});
+      } else if (link.target!=='_blank' && link.href.startsWith(root.href) && !link.getAttribute('href').startsWith('#')) {
+        event.preventDefault();window.open(link.href,'_blank','noopener');
+      }
+    });
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();send({action:'close'})}});
+    addEventListener('message',event=>{
+      if(event.source===parent && event.data?.kind==='ledger-parent-v1' && event.data.action==='restore') restore(event.data.state);
+    });
+  }
+  async function ready() {
+    await document.fonts.ready;
+    await Promise.all([...document.images].filter(img=>img.loading!=='lazy').map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true})})));
+    markSource();
+    document.documentElement.dataset.readerReady='true';
+    if(embedded)send({action:'ready',url:location.href,title:document.title.split(' | ')[0]});
+  }
+  if(document.readyState==='complete')ready();else addEventListener('load',ready,{once:true});
+  addEventListener('hashchange',markSource);
+
+  if(modal){
+    const frame=document.getElementById('reference-frame');
+    const title=document.getElementById('reference-title');
+    const back=modal.querySelector('[data-reference-back]');
+    const separate=modal.querySelector('[data-reference-window]');
+    const close=modal.querySelector('[data-reference-close]');
+    const loading=modal.querySelector('.reference-loading');
+    let history=[],opener=null;
+    function show(entry){
+      title.textContent=entry.title;separate.href=entry.url;back.disabled=history.length<2;loading.hidden=false;
+      frame.title=entry.title;const u=new URL(entry.url);u.searchParams.set('view','modal');frame.src=u.href;
+    }
+    function open(raw,label,trigger){
+      const url=reference(raw);if(!url)return;
+      opener=search?.contains(trigger)?document.querySelector('.search-open'):trigger;
+      if(search?.open)search.close();
+      history=[{url:url.href,title:label,state:null}];
+      if(!modal.open)modal.showModal();
+      document.body.classList.add('modal-open');show(history[0]);close.focus();
+    }
+    modal.addEventListener('close',()=>{
+      frame.src='about:blank';document.body.classList.remove('modal-open');history=[];
+      if(opener?.isConnected)opener.focus({preventScroll:true});
+    });
+    close.addEventListener('click',()=>modal.close());
+    back.addEventListener('click',()=>{if(history.length>1){history.pop();show(history[history.length-1])}});
+    modal.addEventListener('click',event=>{
+      if(event.target!==modal)return;const b=modal.getBoundingClientRect();
+      if(event.clientX<b.left || event.clientX>b.right || event.clientY<b.top || event.clientY>b.bottom)modal.close();
+    });
+    document.addEventListener('click',event=>{
+      const link=event.target.closest('a[data-reference-title]');
+      if(!link || event.defaultPrevented || event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)return;
+      if(!reference(link.href))return;event.preventDefault();open(link.href,link.dataset.referenceTitle,link);
+    });
+    addEventListener('message',event=>{
+      if(event.source!==frame.contentWindow || !modal.open || event.data?.kind!=='ledger-reference-v1')return;
+      const entry=history[history.length-1];
+      if(event.data.action==='ready'){
+        const loaded=reference(event.data.url),expected=new URL(entry.url);
+        if(!loaded || loaded.pathname!==expected.pathname || loaded.hash!==expected.hash)return;
+        title.textContent=event.data.title;entry.title=event.data.title;loading.hidden=true;
+        if(entry.state)frame.contentWindow.postMessage({kind:'ledger-parent-v1',action:'restore',state:entry.state},'*');
+      }else if(event.data.action==='navigate'){
+        const url=reference(event.data.url);if(!url)return;
+        entry.state=event.data.state;history.push({url:url.href,title:event.data.title,state:null});show(history[history.length-1]);
+      }else if(event.data.action==='close')modal.close();
+    });
+  }
+  if(search){
+    const data=JSON.parse(document.getElementById('search-index').textContent);
+    const input=document.getElementById('search-input'),results=document.getElementById('search-results'),status=document.getElementById('search-status');
+    const normalize=s=>s.toLocaleLowerCase().replace(/\s+/g,' ').trim();
+    const indexed=data.map(item=>({...item,hay:normalize(item.title+' '+item.text)}));
+    function render(){
+      const raw=normalize(input.value);
+      const terms=raw.split(' ').filter(Boolean);
+      const aliases={'출금':['송금'],'핫월렛':['보내는주소'],'핫지갑':['보내는주소']};
+      const groups=terms.map(term=>[term,...(aliases[term]||[])]);
+      const matches=indexed.filter(x=>groups.every(group=>group.some(term=>x.hay.includes(term))));
+      matches.sort((a,b)=>{
+        const score=x=>terms.reduce((sum,t)=>sum+(normalize(x.title).includes(t)?15:0),0)+(x.kind==='업무 단계'?3:x.kind==='정의'?2:x.kind==='원문'?-5:0);
+        return score(b)-score(a);
+      });
+      const shown=matches.slice(0,40);results.replaceChildren();
+      status.textContent=terms.length?(matches.length?matches.length+'개 결과'+(matches.length>40?' · 상위 40개 표시':''):'검색 결과가 없습니다. 다른 용어나 페이지 번호로 찾아보세요.'):'업무명·테이블·필드명을 입력하세요.';
+      for(const item of shown){
+        const li=document.createElement('li'),link=document.createElement('a'),type=document.createElement('small'),heading=document.createElement('strong'),excerpt=document.createElement('p');
+        link.href=new URL(item.path,root).href;
+        if(item.path.startsWith('_reference/')){link.dataset.referenceTitle=item.title;link.target='_blank';link.rel='noopener'}
+        type.textContent=item.kind;heading.textContent=item.title;
+        const excerptText=item.text.replace(/\s+/g,' ').trim();
+        const hits=groups.flat().map(term=>normalize(excerptText).indexOf(term)).filter(hit=>hit>=0);
+        const start=Math.max(0,(hits.length?Math.min(...hits):0)-30);
+        excerpt.textContent=(start?'…':'')+excerptText.slice(start,start+120)+(excerptText.length>start+120?'…':'');
+        link.append(type,heading,excerpt);li.append(link);results.append(li);
+      }
+    }
+    function openSearch(){render();search.showModal();input.focus()}
+    document.querySelector('.search-open').addEventListener('click',openSearch);
+    document.querySelector('[data-search-close]').addEventListener('click',()=>search.close());
+    search.addEventListener('close',()=>document.querySelector('.search-open').focus({preventScroll:true}));
+    input.addEventListener('input',render);
+    results.addEventListener('click',event=>{
+      const link=event.target.closest('a[href]');
+      if(!link || event.defaultPrevented || event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)return;
+      if(!link.dataset.referenceTitle)search.close();
+    });
+    document.addEventListener('keydown',event=>{
+      if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'&&!modal?.open){event.preventDefault();if(!search.open)openSearch()}
+    });
+  }
+  const menu=document.querySelector('.menu-toggle'),sidebar=document.getElementById('sidebar');
+  menu?.addEventListener('click',()=>{const open=sidebar.classList.toggle('visible');menu.setAttribute('aria-expanded',String(open))});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&sidebar?.classList.contains('visible')){sidebar.classList.remove('visible');menu.setAttribute('aria-expanded','false');menu.focus()}});
+  document.querySelectorAll('.phase').forEach(phase=>{
+    const details=[...phase.querySelectorAll('.step details')];
+    const expand=phase.querySelector('[data-expand-phase]');
+    phase.querySelector('[data-expand-phase]').addEventListener('click',event=>{
+      const all=details.every(x=>x.open);
+      details.forEach(x=>x.open=!all);event.currentTarget.textContent=all?'모두 펼치기':'모두 접기';
+    });
+    phase.querySelectorAll('.step details').forEach(detail=>detail.addEventListener('toggle',()=>{
+      expand.textContent=details.every(x=>x.open)?'모두 접기':'모두 펼치기';
+      const active=detail.open?detail:details.find(x=>x.open&&x.closest('.step').hasAttribute('aria-current'))||details.filter(x=>x.open).pop();
+      const step=active?.closest('.step'),actor=step?.dataset.actor||'';
+      phase.querySelectorAll('.step').forEach(x=>x.removeAttribute('aria-current'));step?.setAttribute('aria-current','step');
+      phase.querySelectorAll('[data-node]').forEach(x=>x.classList.toggle('active',actor.includes(x.dataset.node)));
+      phase.querySelector('.stage-selected').textContent=step?'원문 '+step.dataset.step+' · '+actor:'처리 순서를 펼치면 해당 시스템과 변경 내용을 강조합니다.';
+      phase.querySelectorAll('[data-mutation]').forEach(x=>x.classList.toggle('selected',x.dataset.mutation===step?.dataset.step));
+    }));
+  });
+  const filter=document.getElementById('page-filter');
+  filter?.addEventListener('input',()=>{
+    const q=filter.value.trim().toLowerCase();let count=0;
+    document.querySelectorAll('.source-card').forEach(card=>{card.hidden=!card.dataset.pageLabel.toLowerCase().includes(q);if(!card.hidden)count++});
+    document.getElementById('page-count').textContent=count+'쪽';
+  });
+  let printDetails=[];
+  addEventListener('beforeprint',()=>{printDetails=[...document.querySelectorAll('.step details')].map(x=>[x,x.open]);printDetails.forEach(([x])=>x.open=true)});
+  addEventListener('afterprint',()=>printDetails.forEach(([x,open])=>x.open=open));
+})();
+</script></body></html>

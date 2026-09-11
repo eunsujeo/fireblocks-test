@@ -1,0 +1,1733 @@
+{
+  "version": "0.1.4",
+  "pdf": "docs/원장_v0.1.4.pdf",
+  "pdfSha256": "95ac3ddb36d7a5caddacfc5e144baff8878141c380f775045a861fdfa3dee3a5",
+  "pdfPages": 64,
+  "flows": 13,
+  "flowPhases": 31,
+  "numberedSteps": 291,
+  "definitions": 10,
+  "htmlPages": 94,
+  "pages": [
+    {
+      "path": "_reference/currency.html",
+      "title": "SC통화잔고",
+      "kind": "reference",
+      "sourcePages": [
+        6
+      ]
+    },
+    {
+      "path": "_reference/delta.html",
+      "title": "델타원장과 정산내역",
+      "kind": "reference",
+      "sourcePages": [
+        7,
+        50,
+        51,
+        52
+      ]
+    },
+    {
+      "path": "_reference/assets.html",
+      "title": "자산별 잔고",
+      "kind": "reference",
+      "sourcePages": [
+        8
+      ]
+    },
+    {
+      "path": "_reference/suspense.html",
+      "title": "별단입금",
+      "kind": "reference",
+      "sourcePages": [
+        9,
+        57,
+        62
+      ]
+    },
+    {
+      "path": "_reference/wallet-meta.html",
+      "title": "고객 지갑 메타",
+      "kind": "reference",
+      "sourcePages": [
+        10,
+        21
+      ]
+    },
+    {
+      "path": "_reference/travel-rule.html",
+      "title": "트래블룰 내역",
+      "kind": "reference",
+      "sourcePages": [
+        10,
+        30
+      ]
+    },
+    {
+      "path": "_reference/addresses.html",
+      "title": "주소별 잔고",
+      "kind": "reference",
+      "sourcePages": [
+        11
+      ]
+    },
+    {
+      "path": "_reference/bctx.html",
+      "title": "BCTX와 식별자",
+      "kind": "reference",
+      "sourcePages": [
+        12
+      ]
+    },
+    {
+      "path": "_reference/records.html",
+      "title": "상태·거래내역·일일스냅샷",
+      "kind": "reference",
+      "sourcePages": [
+        5,
+        7
+      ]
+    },
+    {
+      "path": "_reference/glossary.html",
+      "title": "용어",
+      "kind": "reference",
+      "sourcePages": [
+        2,
+        4,
+        5,
+        6,
+        11,
+        12
+      ]
+    },
+    {
+      "path": "index.html",
+      "title": "원장과 자금 흐름",
+      "kind": "guide",
+      "sourcePages": [
+        1,
+        2,
+        18
+      ]
+    },
+    {
+      "path": "architecture.html",
+      "title": "전체 구조와 주소",
+      "kind": "guide",
+      "sourcePages": [
+        3,
+        4,
+        13
+      ]
+    },
+    {
+      "path": "data.html",
+      "title": "원장과 DB",
+      "kind": "guide",
+      "sourcePages": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ]
+    },
+    {
+      "path": "flows.html",
+      "title": "업무 흐름",
+      "kind": "guide",
+      "sourcePages": [
+        18
+      ]
+    },
+    {
+      "path": "flows/account.html",
+      "title": "계좌 생성",
+      "kind": "guide",
+      "sourcePages": [
+        20,
+        21
+      ]
+    },
+    {
+      "path": "flows/ramp.html",
+      "title": "온램프·오프램프",
+      "kind": "guide",
+      "sourcePages": [
+        22,
+        23,
+        24
+      ]
+    },
+    {
+      "path": "flows/withdrawal.html",
+      "title": "송금",
+      "kind": "guide",
+      "sourcePages": [
+        25,
+        26,
+        27,
+        28
+      ]
+    },
+    {
+      "path": "flows/deposit.html",
+      "title": "입금",
+      "kind": "guide",
+      "sourcePages": [
+        29,
+        30,
+        31,
+        32
+      ]
+    },
+    {
+      "path": "flows/cross-bridge.html",
+      "title": "크로스브릿징",
+      "kind": "guide",
+      "sourcePages": [
+        33,
+        34,
+        35,
+        36
+      ]
+    },
+    {
+      "path": "flows/external-bridge.html",
+      "title": "외부브릿징",
+      "kind": "guide",
+      "sourcePages": [
+        37,
+        38,
+        39,
+        40
+      ]
+    },
+    {
+      "path": "flows/bridging-sweep.html",
+      "title": "브릿징스윕",
+      "kind": "guide",
+      "sourcePages": [
+        41,
+        42,
+        43,
+        44,
+        45
+      ]
+    },
+    {
+      "path": "flows/sweep.html",
+      "title": "스윕",
+      "kind": "guide",
+      "sourcePages": [
+        46,
+        47,
+        48,
+        49
+      ]
+    },
+    {
+      "path": "flows/settlement.html",
+      "title": "델타정산",
+      "kind": "guide",
+      "sourcePages": [
+        50,
+        51,
+        52
+      ]
+    },
+    {
+      "path": "flows/mint.html",
+      "title": "Mint",
+      "kind": "guide",
+      "sourcePages": [
+        53,
+        54
+      ]
+    },
+    {
+      "path": "flows/burn.html",
+      "title": "Burn",
+      "kind": "guide",
+      "sourcePages": [
+        55,
+        56
+      ]
+    },
+    {
+      "path": "flows/customer-suspense.html",
+      "title": "고객가수금",
+      "kind": "guide",
+      "sourcePages": [
+        57,
+        58,
+        59,
+        60,
+        61
+      ]
+    },
+    {
+      "path": "flows/company-suspense.html",
+      "title": "카뱅가수금",
+      "kind": "guide",
+      "sourcePages": [
+        62,
+        63
+      ]
+    },
+    {
+      "path": "reconciliation.html",
+      "title": "대사와 자산 총액",
+      "kind": "guide",
+      "sourcePages": [
+        14,
+        15,
+        16,
+        17
+      ]
+    },
+    {
+      "path": "principles.html",
+      "title": "처리 원칙과 확인 사항",
+      "kind": "guide",
+      "sourcePages": [
+        4,
+        19
+      ]
+    },
+    {
+      "path": "sources.html",
+      "title": "원문 보기",
+      "kind": "guide",
+      "sourcePages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64
+      ]
+    },
+    {
+      "path": "_reference/page-01.html",
+      "title": "p.1 · DAW아키텍처 원장 관점 v0.1.4",
+      "kind": "reference",
+      "sourcePages": [
+        1
+      ]
+    },
+    {
+      "path": "_reference/page-02.html",
+      "title": "p.2 · 용어",
+      "kind": "reference",
+      "sourcePages": [
+        2
+      ]
+    },
+    {
+      "path": "_reference/page-03.html",
+      "title": "p.3 · 전체 구조",
+      "kind": "reference",
+      "sourcePages": [
+        3
+      ]
+    },
+    {
+      "path": "_reference/page-04.html",
+      "title": "p.4 · 전체 구조 설명",
+      "kind": "reference",
+      "sourcePages": [
+        4
+      ]
+    },
+    {
+      "path": "_reference/page-05.html",
+      "title": "p.5 · DB구조 설명",
+      "kind": "reference",
+      "sourcePages": [
+        5
+      ]
+    },
+    {
+      "path": "_reference/page-06.html",
+      "title": "p.6 · SC통화잔고",
+      "kind": "reference",
+      "sourcePages": [
+        6
+      ]
+    },
+    {
+      "path": "_reference/page-07.html",
+      "title": "p.7 · 델타원장",
+      "kind": "reference",
+      "sourcePages": [
+        7
+      ]
+    },
+    {
+      "path": "_reference/page-08.html",
+      "title": "p.8 · 자산별 잔고",
+      "kind": "reference",
+      "sourcePages": [
+        8
+      ]
+    },
+    {
+      "path": "_reference/page-09.html",
+      "title": "p.9 · 별단 입금",
+      "kind": "reference",
+      "sourcePages": [
+        9
+      ]
+    },
+    {
+      "path": "_reference/page-10.html",
+      "title": "p.10 · 블록체인 기타",
+      "kind": "reference",
+      "sourcePages": [
+        10
+      ]
+    },
+    {
+      "path": "_reference/page-11.html",
+      "title": "p.11 · 주소별 잔고",
+      "kind": "reference",
+      "sourcePages": [
+        11
+      ]
+    },
+    {
+      "path": "_reference/page-12.html",
+      "title": "p.12 · 그 외 DB테이블",
+      "kind": "reference",
+      "sourcePages": [
+        12
+      ]
+    },
+    {
+      "path": "_reference/page-13.html",
+      "title": "p.13 · BCTX 동반 연산 도식",
+      "kind": "reference",
+      "sourcePages": [
+        13
+      ]
+    },
+    {
+      "path": "_reference/page-14.html",
+      "title": "p.14 · 고객 잔고합 대사",
+      "kind": "reference",
+      "sourcePages": [
+        14
+      ]
+    },
+    {
+      "path": "_reference/page-15.html",
+      "title": "p.15 · 고객 잔고합 대사 — 설명",
+      "kind": "reference",
+      "sourcePages": [
+        15
+      ]
+    },
+    {
+      "path": "_reference/page-16.html",
+      "title": "p.16 · 카뱅 잔고 대사",
+      "kind": "reference",
+      "sourcePages": [
+        16
+      ]
+    },
+    {
+      "path": "_reference/page-17.html",
+      "title": "p.17 · 자산 총액",
+      "kind": "reference",
+      "sourcePages": [
+        17
+      ]
+    },
+    {
+      "path": "_reference/page-18.html",
+      "title": "p.18 · 연산별 시퀀스 설명",
+      "kind": "reference",
+      "sourcePages": [
+        18
+      ]
+    },
+    {
+      "path": "_reference/page-19.html",
+      "title": "p.19 · 프로세스 처리 원칙",
+      "kind": "reference",
+      "sourcePages": [
+        19
+      ]
+    },
+    {
+      "path": "_reference/page-20.html",
+      "title": "p.20 · 계좌 생성 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        20
+      ]
+    },
+    {
+      "path": "_reference/page-21.html",
+      "title": "p.21 · 계좌 생성",
+      "kind": "reference",
+      "sourcePages": [
+        21
+      ]
+    },
+    {
+      "path": "_reference/page-22.html",
+      "title": "p.22 · 온램프·오프램프 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        22
+      ]
+    },
+    {
+      "path": "_reference/page-23.html",
+      "title": "p.23 · 온램프",
+      "kind": "reference",
+      "sourcePages": [
+        23
+      ]
+    },
+    {
+      "path": "_reference/page-24.html",
+      "title": "p.24 · 오프램프",
+      "kind": "reference",
+      "sourcePages": [
+        24
+      ]
+    },
+    {
+      "path": "_reference/page-25.html",
+      "title": "p.25 · 송금 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        25
+      ]
+    },
+    {
+      "path": "_reference/page-26.html",
+      "title": "p.26 · 송금 시작",
+      "kind": "reference",
+      "sourcePages": [
+        26
+      ]
+    },
+    {
+      "path": "_reference/page-27.html",
+      "title": "p.27 · 송금 컨펌",
+      "kind": "reference",
+      "sourcePages": [
+        27
+      ]
+    },
+    {
+      "path": "_reference/page-28.html",
+      "title": "p.28 · 송금 확정",
+      "kind": "reference",
+      "sourcePages": [
+        28
+      ]
+    },
+    {
+      "path": "_reference/page-29.html",
+      "title": "p.29 · 입금 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        29
+      ]
+    },
+    {
+      "path": "_reference/page-30.html",
+      "title": "p.30 · 트래블룰 사전 통보",
+      "kind": "reference",
+      "sourcePages": [
+        30
+      ]
+    },
+    {
+      "path": "_reference/page-31.html",
+      "title": "p.31 · 입금 감지 · Confirmed",
+      "kind": "reference",
+      "sourcePages": [
+        31
+      ]
+    },
+    {
+      "path": "_reference/page-32.html",
+      "title": "p.32 · 입금 확정 · Finalized",
+      "kind": "reference",
+      "sourcePages": [
+        32
+      ]
+    },
+    {
+      "path": "_reference/page-33.html",
+      "title": "p.33 · 크로스브릿징 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        33
+      ]
+    },
+    {
+      "path": "_reference/page-34.html",
+      "title": "p.34 · 크로스브릿징 시작",
+      "kind": "reference",
+      "sourcePages": [
+        34
+      ]
+    },
+    {
+      "path": "_reference/page-35.html",
+      "title": "p.35 · BASE 컨펌",
+      "kind": "reference",
+      "sourcePages": [
+        35
+      ]
+    },
+    {
+      "path": "_reference/page-36.html",
+      "title": "p.36 · BASE 확정",
+      "kind": "reference",
+      "sourcePages": [
+        36
+      ]
+    },
+    {
+      "path": "_reference/page-37.html",
+      "title": "p.37 · 외부브릿징 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        37
+      ]
+    },
+    {
+      "path": "_reference/page-38.html",
+      "title": "p.38 · 외부브릿징 시작",
+      "kind": "reference",
+      "sourcePages": [
+        38
+      ]
+    },
+    {
+      "path": "_reference/page-39.html",
+      "title": "p.39 · 송금 확정",
+      "kind": "reference",
+      "sourcePages": [
+        39
+      ]
+    },
+    {
+      "path": "_reference/page-40.html",
+      "title": "p.40 · 입금 확정",
+      "kind": "reference",
+      "sourcePages": [
+        40
+      ]
+    },
+    {
+      "path": "_reference/page-41.html",
+      "title": "p.41 · 브릿징스윕 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        41
+      ]
+    },
+    {
+      "path": "_reference/page-42.html",
+      "title": "p.42 · 브릿징스윕 시작",
+      "kind": "reference",
+      "sourcePages": [
+        42
+      ]
+    },
+    {
+      "path": "_reference/page-43.html",
+      "title": "p.43 · 보내는주소 컨펌",
+      "kind": "reference",
+      "sourcePages": [
+        43
+      ]
+    },
+    {
+      "path": "_reference/page-44.html",
+      "title": "p.44 · 보내는주소 확정",
+      "kind": "reference",
+      "sourcePages": [
+        44
+      ]
+    },
+    {
+      "path": "_reference/page-45.html",
+      "title": "p.45 · 콜드 시작",
+      "kind": "reference",
+      "sourcePages": [
+        45
+      ]
+    },
+    {
+      "path": "_reference/page-46.html",
+      "title": "p.46 · 스윕 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        46
+      ]
+    },
+    {
+      "path": "_reference/page-47.html",
+      "title": "p.47 · 자동스윕 시작",
+      "kind": "reference",
+      "sourcePages": [
+        47
+      ]
+    },
+    {
+      "path": "_reference/page-48.html",
+      "title": "p.48 · 수동스윕 시작",
+      "kind": "reference",
+      "sourcePages": [
+        48
+      ]
+    },
+    {
+      "path": "_reference/page-49.html",
+      "title": "p.49 · 교환스윕 시작",
+      "kind": "reference",
+      "sourcePages": [
+        49
+      ]
+    },
+    {
+      "path": "_reference/page-50.html",
+      "title": "p.50 · 델타정산 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        50
+      ]
+    },
+    {
+      "path": "_reference/page-51.html",
+      "title": "p.51 · 델타정산 시작",
+      "kind": "reference",
+      "sourcePages": [
+        51
+      ]
+    },
+    {
+      "path": "_reference/page-52.html",
+      "title": "p.52 · 델타정산 확정",
+      "kind": "reference",
+      "sourcePages": [
+        52
+      ]
+    },
+    {
+      "path": "_reference/page-53.html",
+      "title": "p.53 · Mint — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        53
+      ]
+    },
+    {
+      "path": "_reference/page-54.html",
+      "title": "p.54 · Mint 시작",
+      "kind": "reference",
+      "sourcePages": [
+        54
+      ]
+    },
+    {
+      "path": "_reference/page-55.html",
+      "title": "p.55 · Burn — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        55
+      ]
+    },
+    {
+      "path": "_reference/page-56.html",
+      "title": "p.56 · Burn 송금 확정",
+      "kind": "reference",
+      "sourcePages": [
+        56
+      ]
+    },
+    {
+      "path": "_reference/page-57.html",
+      "title": "p.57 · 고객가수금 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        57
+      ]
+    },
+    {
+      "path": "_reference/page-58.html",
+      "title": "p.58 · 가수금 입금 확정",
+      "kind": "reference",
+      "sourcePages": [
+        58
+      ]
+    },
+    {
+      "path": "_reference/page-59.html",
+      "title": "p.59 · 고객가수금 이동",
+      "kind": "reference",
+      "sourcePages": [
+        59
+      ]
+    },
+    {
+      "path": "_reference/page-60.html",
+      "title": "p.60 · 오입금 송금 시작",
+      "kind": "reference",
+      "sourcePages": [
+        60
+      ]
+    },
+    {
+      "path": "_reference/page-61.html",
+      "title": "p.61 · 오입금 송금 확정",
+      "kind": "reference",
+      "sourcePages": [
+        61
+      ]
+    },
+    {
+      "path": "_reference/page-62.html",
+      "title": "p.62 · 카뱅가수금 — 개요",
+      "kind": "reference",
+      "sourcePages": [
+        62
+      ]
+    },
+    {
+      "path": "_reference/page-63.html",
+      "title": "p.63 · 카뱅가수금 이동",
+      "kind": "reference",
+      "sourcePages": [
+        63
+      ]
+    },
+    {
+      "path": "_reference/page-64.html",
+      "title": "p.64 · 끝",
+      "kind": "reference",
+      "sourcePages": [
+        64
+      ]
+    }
+  ],
+  "coverage": [
+    {
+      "page": 1,
+      "title": "DAW아키텍처 원장 관점 v0.1.4",
+      "reader": "_reference/page-01.html",
+      "guides": [
+        "index.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 2,
+      "title": "용어",
+      "reader": "_reference/page-02.html",
+      "guides": [
+        "index.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 3,
+      "title": "전체 구조",
+      "reader": "_reference/page-03.html",
+      "guides": [
+        "architecture.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 4,
+      "title": "전체 구조 설명",
+      "reader": "_reference/page-04.html",
+      "guides": [
+        "architecture.html",
+        "principles.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 5,
+      "title": "DB구조 설명",
+      "reader": "_reference/page-05.html",
+      "guides": [
+        "data.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 6,
+      "title": "SC통화잔고",
+      "reader": "_reference/page-06.html",
+      "guides": [
+        "data.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 7,
+      "title": "델타원장",
+      "reader": "_reference/page-07.html",
+      "guides": [
+        "data.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 8,
+      "title": "자산별 잔고",
+      "reader": "_reference/page-08.html",
+      "guides": [
+        "data.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 9,
+      "title": "별단 입금",
+      "reader": "_reference/page-09.html",
+      "guides": [
+        "data.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 10,
+      "title": "블록체인 기타",
+      "reader": "_reference/page-10.html",
+      "guides": [
+        "data.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 11,
+      "title": "주소별 잔고",
+      "reader": "_reference/page-11.html",
+      "guides": [
+        "data.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 12,
+      "title": "그 외 DB테이블",
+      "reader": "_reference/page-12.html",
+      "guides": [
+        "data.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 13,
+      "title": "BCTX 동반 연산 도식",
+      "reader": "_reference/page-13.html",
+      "guides": [
+        "architecture.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 14,
+      "title": "고객 잔고합 대사",
+      "reader": "_reference/page-14.html",
+      "guides": [
+        "reconciliation.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 15,
+      "title": "고객 잔고합 대사 — 설명",
+      "reader": "_reference/page-15.html",
+      "guides": [
+        "reconciliation.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 16,
+      "title": "카뱅 잔고 대사",
+      "reader": "_reference/page-16.html",
+      "guides": [
+        "reconciliation.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 17,
+      "title": "자산 총액",
+      "reader": "_reference/page-17.html",
+      "guides": [
+        "reconciliation.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 18,
+      "title": "연산별 시퀀스 설명",
+      "reader": "_reference/page-18.html",
+      "guides": [
+        "index.html",
+        "flows.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 19,
+      "title": "프로세스 처리 원칙",
+      "reader": "_reference/page-19.html",
+      "guides": [
+        "principles.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 20,
+      "title": "계좌 생성 — 개요",
+      "reader": "_reference/page-20.html",
+      "guides": [
+        "flows/account.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 20
+    },
+    {
+      "page": 21,
+      "title": "계좌 생성",
+      "reader": "_reference/page-21.html",
+      "guides": [
+        "flows/account.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 20
+    },
+    {
+      "page": 22,
+      "title": "온램프·오프램프 — 개요",
+      "reader": "_reference/page-22.html",
+      "guides": [
+        "flows/ramp.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 23,
+      "title": "온램프",
+      "reader": "_reference/page-23.html",
+      "guides": [
+        "flows/ramp.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 24,
+      "title": "오프램프",
+      "reader": "_reference/page-24.html",
+      "guides": [
+        "flows/ramp.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 25,
+      "title": "송금 — 개요",
+      "reader": "_reference/page-25.html",
+      "guides": [
+        "flows/withdrawal.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 25
+    },
+    {
+      "page": 26,
+      "title": "송금 시작",
+      "reader": "_reference/page-26.html",
+      "guides": [
+        "flows/withdrawal.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 25
+    },
+    {
+      "page": 27,
+      "title": "송금 컨펌",
+      "reader": "_reference/page-27.html",
+      "guides": [
+        "flows/withdrawal.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 25
+    },
+    {
+      "page": 28,
+      "title": "송금 확정",
+      "reader": "_reference/page-28.html",
+      "guides": [
+        "flows/withdrawal.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 25
+    },
+    {
+      "page": 29,
+      "title": "입금 — 개요",
+      "reader": "_reference/page-29.html",
+      "guides": [
+        "flows/deposit.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 29
+    },
+    {
+      "page": 30,
+      "title": "트래블룰 사전 통보",
+      "reader": "_reference/page-30.html",
+      "guides": [
+        "flows/deposit.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 29
+    },
+    {
+      "page": 31,
+      "title": "입금 감지 · Confirmed",
+      "reader": "_reference/page-31.html",
+      "guides": [
+        "flows/deposit.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 29
+    },
+    {
+      "page": 32,
+      "title": "입금 확정 · Finalized",
+      "reader": "_reference/page-32.html",
+      "guides": [
+        "flows/deposit.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 29
+    },
+    {
+      "page": 33,
+      "title": "크로스브릿징 — 개요",
+      "reader": "_reference/page-33.html",
+      "guides": [
+        "flows/cross-bridge.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 33
+    },
+    {
+      "page": 34,
+      "title": "크로스브릿징 시작",
+      "reader": "_reference/page-34.html",
+      "guides": [
+        "flows/cross-bridge.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 33
+    },
+    {
+      "page": 35,
+      "title": "BASE 컨펌",
+      "reader": "_reference/page-35.html",
+      "guides": [
+        "flows/cross-bridge.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 33
+    },
+    {
+      "page": 36,
+      "title": "BASE 확정",
+      "reader": "_reference/page-36.html",
+      "guides": [
+        "flows/cross-bridge.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 33
+    },
+    {
+      "page": 37,
+      "title": "외부브릿징 — 개요",
+      "reader": "_reference/page-37.html",
+      "guides": [
+        "flows/external-bridge.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 37
+    },
+    {
+      "page": 38,
+      "title": "외부브릿징 시작",
+      "reader": "_reference/page-38.html",
+      "guides": [
+        "flows/external-bridge.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 37
+    },
+    {
+      "page": 39,
+      "title": "송금 확정",
+      "reader": "_reference/page-39.html",
+      "guides": [
+        "flows/external-bridge.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 37
+    },
+    {
+      "page": 40,
+      "title": "입금 확정",
+      "reader": "_reference/page-40.html",
+      "guides": [
+        "flows/external-bridge.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 37
+    },
+    {
+      "page": 41,
+      "title": "브릿징스윕 — 개요",
+      "reader": "_reference/page-41.html",
+      "guides": [
+        "flows/bridging-sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 41
+    },
+    {
+      "page": 42,
+      "title": "브릿징스윕 시작",
+      "reader": "_reference/page-42.html",
+      "guides": [
+        "flows/bridging-sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 41
+    },
+    {
+      "page": 43,
+      "title": "보내는주소 컨펌",
+      "reader": "_reference/page-43.html",
+      "guides": [
+        "flows/bridging-sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 41
+    },
+    {
+      "page": 44,
+      "title": "보내는주소 확정",
+      "reader": "_reference/page-44.html",
+      "guides": [
+        "flows/bridging-sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 41
+    },
+    {
+      "page": 45,
+      "title": "콜드 시작",
+      "reader": "_reference/page-45.html",
+      "guides": [
+        "flows/bridging-sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 41
+    },
+    {
+      "page": 46,
+      "title": "스윕 — 개요",
+      "reader": "_reference/page-46.html",
+      "guides": [
+        "flows/sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 46
+    },
+    {
+      "page": 47,
+      "title": "자동스윕 시작",
+      "reader": "_reference/page-47.html",
+      "guides": [
+        "flows/sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 48,
+      "title": "수동스윕 시작",
+      "reader": "_reference/page-48.html",
+      "guides": [
+        "flows/sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 49,
+      "title": "교환스윕 시작",
+      "reader": "_reference/page-49.html",
+      "guides": [
+        "flows/sweep.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 50,
+      "title": "델타정산 — 개요",
+      "reader": "_reference/page-50.html",
+      "guides": [
+        "flows/settlement.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 50
+    },
+    {
+      "page": 51,
+      "title": "델타정산 시작",
+      "reader": "_reference/page-51.html",
+      "guides": [
+        "flows/settlement.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 52,
+      "title": "델타정산 확정",
+      "reader": "_reference/page-52.html",
+      "guides": [
+        "flows/settlement.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 53,
+      "title": "Mint — 개요",
+      "reader": "_reference/page-53.html",
+      "guides": [
+        "flows/mint.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 53
+    },
+    {
+      "page": 54,
+      "title": "Mint 시작",
+      "reader": "_reference/page-54.html",
+      "guides": [
+        "flows/mint.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 53
+    },
+    {
+      "page": 55,
+      "title": "Burn — 개요",
+      "reader": "_reference/page-55.html",
+      "guides": [
+        "flows/burn.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 55
+    },
+    {
+      "page": 56,
+      "title": "Burn 송금 확정",
+      "reader": "_reference/page-56.html",
+      "guides": [
+        "flows/burn.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 55
+    },
+    {
+      "page": 57,
+      "title": "고객가수금 — 개요",
+      "reader": "_reference/page-57.html",
+      "guides": [
+        "flows/customer-suspense.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 57
+    },
+    {
+      "page": 58,
+      "title": "가수금 입금 확정",
+      "reader": "_reference/page-58.html",
+      "guides": [
+        "flows/customer-suspense.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 57
+    },
+    {
+      "page": 59,
+      "title": "고객가수금 이동",
+      "reader": "_reference/page-59.html",
+      "guides": [
+        "flows/customer-suspense.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 60,
+      "title": "오입금 송금 시작",
+      "reader": "_reference/page-60.html",
+      "guides": [
+        "flows/customer-suspense.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 57
+    },
+    {
+      "page": 61,
+      "title": "오입금 송금 확정",
+      "reader": "_reference/page-61.html",
+      "guides": [
+        "flows/customer-suspense.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 57
+    },
+    {
+      "page": 62,
+      "title": "카뱅가수금 — 개요",
+      "reader": "_reference/page-62.html",
+      "guides": [
+        "flows/company-suspense.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": 62
+    },
+    {
+      "page": 63,
+      "title": "카뱅가수금 이동",
+      "reader": "_reference/page-63.html",
+      "guides": [
+        "flows/company-suspense.html",
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    },
+    {
+      "page": 64,
+      "title": "끝",
+      "reader": "_reference/page-64.html",
+      "guides": [
+        "sources.html"
+      ],
+      "rasterNoteSource": null
+    }
+  ],
+  "extractionCorrections": [
+    {
+      "page": 24,
+      "step": 1
+    },
+    {
+      "page": 24,
+      "step": 2
+    },
+    {
+      "page": 34,
+      "step": 3
+    },
+    {
+      "page": 34,
+      "step": 10
+    },
+    {
+      "page": 35,
+      "step": 6
+    },
+    {
+      "page": 36,
+      "step": 4
+    },
+    {
+      "page": 52,
+      "step": 6
+    },
+    {
+      "page": 52,
+      "step": 8
+    },
+    {
+      "page": 60,
+      "step": 9
+    },
+    {
+      "page": 63,
+      "step": 3
+    }
+  ],
+  "files": {
+    "_reference/addresses.html": "17331e81df7b58ca8a62302ad34e473f6897a45a4116e9cec873631a8ca4d76b",
+    "_reference/assets.html": "f1327823aa1ba4b6ea40fe73cba8b9292a0a41db23845b3c4511632471a5400b",
+    "_reference/bctx.html": "614801dfd835b4901760ba40f35df6ae5c76590578633679cd4754e0e54be4d8",
+    "_reference/currency.html": "b8c3e087f7014e4b0159db73d2bc6ce84114238414421f7425cf281f6b8c3267",
+    "_reference/delta.html": "787d04b73ed5778a2793a8e65d513cfd928f4eff4c6ddf2822495e261a8df0bf",
+    "_reference/glossary.html": "6fb085f749911191acc7a5d586a39b83b3b29fd23cd2c92b11acf5fdf86aa3a4",
+    "_reference/page-01.html": "f904e0b7264ec6596b8396a8d6dc06f5fb5012cec3a28b501e9c748fea9fe938",
+    "_reference/page-02.html": "26c7223b3c2c0b64dc1f734fc0ad851b3d41ded730f9d6c77db184a4c9f03311",
+    "_reference/page-03.html": "77eb46ef4788de7c211cc310a98176da41cdaf20269e0e9215e9292ec1f3e99e",
+    "_reference/page-04.html": "0877af01a8db3b66634b42e17dbedf7764bd979ab29a2b9fcfa31abe44d1ba02",
+    "_reference/page-05.html": "42679327fb3a929af578eaa21ad0994e8c7a82ac550cfde473ed5d5b93eb76cf",
+    "_reference/page-06.html": "a47fa5ad48dd60d3d42728ed5958eb8ede1202a4a233f197f48d60cd5ee50559",
+    "_reference/page-07.html": "28365153a0bbfbfc816171301769a216bf2e1e10e495f235a6ce10db4a7e94f5",
+    "_reference/page-08.html": "18f77d91655e2ab5f5a4466e9f0ca86b056a6ab914e43a89665eabaa0651e57d",
+    "_reference/page-09.html": "2dd31cc213dea4e5ff7f7b5acfdfaa5572818c6c8761d19bd049b9cb01380cc5",
+    "_reference/page-10.html": "cbf81840be3bff95aef92597eae2b3ea6bb043112942005e5eca82fe038ad1f4",
+    "_reference/page-11.html": "cbb5bec4a442d80fc59fa09361fdee27db09daf2375e0b1996dadbaa11f50e3d",
+    "_reference/page-12.html": "8076bc0b3cbd1927e373a230af2a1d14d1730e490bfb5cb60556cb6a82d0ad29",
+    "_reference/page-13.html": "4003faff32f73fd0bd0a39be2dc4e2a390272653f06e0c82a0f401d0ec4ff90e",
+    "_reference/page-14.html": "0ab0e08d2949f9f763025710e63d8ad56342e43e1c6c6397e293a2da415e5d8f",
+    "_reference/page-15.html": "fa883d8b3927061ce62e5c2f2a87e29201eb7787fb3c2b372f93942cf3130c09",
+    "_reference/page-16.html": "f811dccd3cb991832fe6331afbaf29b50db96194791654aa4a28acd06e6bb921",
+    "_reference/page-17.html": "99bdd35887ed6ca7b039740f8c92fa517f203a29f7d0a5601be11f7890f34203",
+    "_reference/page-18.html": "af7a67b8b2cca5eac5d64a99962e996f555ff56ad2eded31cfebc7048b1ed0ef",
+    "_reference/page-19.html": "6d5022bd89d6a39391d4bd3ae1a8a3cde926cff7b052c052f1d2f62821520d08",
+    "_reference/page-20.html": "f79a52131c70d6a3aa68f6ac8932df0e897db91a8b61b436987c57ce101f3ad8",
+    "_reference/page-21.html": "b5b126e71e20036628c6bfcb1205309a54f123c9a1fef21542df519801b44c97",
+    "_reference/page-22.html": "eefbc8456bd71cc6840462a800f80660255ce2dda91022cff1d09d52a06af4e5",
+    "_reference/page-23.html": "d21a7e0c36ac93d262ef9766599a8bd6af23fa72baaa22d5d371e59fbf3be8e4",
+    "_reference/page-24.html": "6ceda20b0935c4488032113576349b301ded7f11374386fb9cfcfd6b35c624b7",
+    "_reference/page-25.html": "4f61a958fd6b9cdd139b2e486a7e3f949bcf4e41eafa9cc808c493eb89830de9",
+    "_reference/page-26.html": "3e6dadb4bc8fd64264161cde079b1e66dfab688e1e46a2297a02efd4c6a65c87",
+    "_reference/page-27.html": "063707952dba834f166a62df1158fd001aead34a898d9a89953106e2039dfd2d",
+    "_reference/page-28.html": "6a71d1ce93af076fb3a78b2cdda3e4821232396e2a4404ebbfef1c4425bc6f56",
+    "_reference/page-29.html": "845ed8a81a7480fff482a274a112b9253dcedaa4e9be0393fa151eef9e41545c",
+    "_reference/page-30.html": "c9a3929d721e2ebc0dac53ee2c09839bef5ebcb961e9840fd09aacf5d9641974",
+    "_reference/page-31.html": "129d2efd349e9b942153291bb73ad87fbc00074011083741324f85a7873db35c",
+    "_reference/page-32.html": "7e9a7f028f41edbd2f49f146dad924bfac93343e100724aae72c22ba555fa71d",
+    "_reference/page-33.html": "3ad8f74a15195ee39345c595ff97dab46be4f00f960b41cd429cd7e6c82739c0",
+    "_reference/page-34.html": "e22932b8faa6b921013946eb9f799d30df8878245814a1d586bbd456f4c8239f",
+    "_reference/page-35.html": "b020f90a8c3bdb6a6cdd7cc1ade2e4ddaf6e94e42a466097c3d03671310e0069",
+    "_reference/page-36.html": "b3d0d57be3eac7a668137bb960a46c03614b8d01e765f84b842bff46f4a62d05",
+    "_reference/page-37.html": "a5a34dc688f1346dd18c64bbb88b584b695d17a7bb4b7543d940cb9674d282f7",
+    "_reference/page-38.html": "4b1eb509a51c0d0037768156644468d621fc2df123e174e21a225afc2e2b94e4",
+    "_reference/page-39.html": "0b7a5b7a6c5a9f972394417904e20438fa4afe43a1d63d13b63fff66fc0d856f",
+    "_reference/page-40.html": "f235dcf7bfcf57801ea04731a67e6a0384bf0979a69882429d31a29c6436b08d",
+    "_reference/page-41.html": "d1a11c7b60dd9417ca6f2aa8caa756bc5d1dd39daeda66a416a0b9097817ad40",
+    "_reference/page-42.html": "ba94a6625436a3dcb9953b80bcaaf16c3893a4c9890891991116528b53ff60eb",
+    "_reference/page-43.html": "57e42efe93d986b81e8b3cb328aa8ff31a85fb262388f311f05c5fe945c8ccf0",
+    "_reference/page-44.html": "ffb52693cdf0b6695c7d1bec778976c5419730ab795167ebe6d618dafb46ac35",
+    "_reference/page-45.html": "ae9ade17daf776d0f7808d3ab8378327406cfd1f7f5babcf5ab66b197c686cbe",
+    "_reference/page-46.html": "064334e4dc6c2a7c4127826df0a736e1104d9f2e5fc0a57e413066ffa2ce0efc",
+    "_reference/page-47.html": "6dc0bce83ab0e7da308c946a24af91a47f37a5c61c91734191b4fbe3413cef85",
+    "_reference/page-48.html": "0af7d551985989b6b760770c65d607af7dab94c7fdbcfa0dddb2d6cbaef26897",
+    "_reference/page-49.html": "ebb0d9d66aa391c9f91ef7600aa30610c4db0164d0a42cfa5ace91aeb385d282",
+    "_reference/page-50.html": "74f4fcf08f93dafd4369ec25d9e4f6297cc0023b2e12a739e8fa3be7d25e82e5",
+    "_reference/page-51.html": "6ea109e5df9096177c845767b6fe302e2a5912bc2d6447bcd0cede5bf2c01e90",
+    "_reference/page-52.html": "bc7910d651e63964474e987220b6ffb01177f04a6aa70305fb4b71e2fa582059",
+    "_reference/page-53.html": "7f4e5a7d02b0f181bfdec1ec2d52677dacf4b3de8a0e29407a8bab158c37772b",
+    "_reference/page-54.html": "e635c2d1b4c067700ebfcacb37d075c189e5558d7ef3375ee0904f4dd86a453e",
+    "_reference/page-55.html": "05dd8b474901e167979b7a362c2a4fa80d497732af7693431996f7489e76ba9a",
+    "_reference/page-56.html": "70f035a4a6d0c04fdad45fecd2576e9bb44338a0b7127c5e044da3cdddd47a15",
+    "_reference/page-57.html": "7ef3a210722f361536581c9adefd335d015065278d2b21abff9faeea1cf6834f",
+    "_reference/page-58.html": "88703031c68e66ba17b71bef3ffb195ed119fab83bee34c6d5ff273a546c61a1",
+    "_reference/page-59.html": "913df18355aaeccdee82669845cf171c8fd8ef3d80dc2fc766ed12ab40a8fdaa",
+    "_reference/page-60.html": "70e5632e34473bba028b347c845e4acc326626a5b90e601bb79885d0e835ad33",
+    "_reference/page-61.html": "1a1101392e9ac028e759bc973cd96d94a3c418e611371a37a6342d921da79f50",
+    "_reference/page-62.html": "3c30468187abea7be76f0dbf0584265f00e5759db415312ab4005e8f8f9fb9eb",
+    "_reference/page-63.html": "a87f4daadf86e2719b1d8224ebb8ff64a0d8465a5dfc7b4eb4da468b9410c3fc",
+    "_reference/page-64.html": "b718914acaaf91b119f13e48539f1608960c42dbc2907967fc57c1f5611f50e9",
+    "_reference/records.html": "746f177874ed457324539c07b867025c0a2b71af709673e86ebc59db65404677",
+    "_reference/suspense.html": "7a001ca000ef9a5169022ac324a54dc8e067c6ce16b608d61d5146abfc9775f0",
+    "_reference/travel-rule.html": "1e52b481e523627a91ddb851ef7e0d9fada43a27a39dfdddafad94bd4abda72b",
+    "_reference/wallet-meta.html": "c3841a7373c031c73a337462bfd3a14a1f3f7df50341661aeb59463a68378a47",
+    "architecture.html": "07177c8d11f085a31e72b7a96037b67feb0a57c5ada0b755860a32fb527e231a",
+    "assets/page-01.webp": "b35f8aab916dd76c9e81ad16a7f1e36f1a92799b3d617c8b4c9ca501a82c8779",
+    "assets/page-02.webp": "ce7cc2159bbed6c5a9b88352156c828009102c7c4a56af4c01ba417d8fa927f1",
+    "assets/page-03.webp": "2386e97c6fec89347ecbc669df6e01f1f4fc9cdd2f4b4cd673a7f23e33888902",
+    "assets/page-04.webp": "ec7daad6b6f414701f5e604b96376ac21a71330f35a0cafacec525c5e249212a",
+    "assets/page-05.webp": "55efec9e73abce8f446d9ed63a814e9f8c710f51c86f2e331d169c418df473bc",
+    "assets/page-06.webp": "572c025b05013f5ddca390259cd4195293a9ebc1bb57cf72adfd331d38e3f160",
+    "assets/page-07.webp": "e5634d42fa20977425c550a95725c76b979d64e28f1ba86879a8d2fbd661a80a",
+    "assets/page-08.webp": "ed6bfbd99d6a56e092d1e88b08411ef8b0f26ee11c8a3de27d91e07ad160cc42",
+    "assets/page-09.webp": "56651998e27ffce5885b840ad28ea92d62d49ba38668eb4d9033cd650df290c2",
+    "assets/page-10.webp": "728b5e2051277ce6d3b86ebee465f17983fc651ac9ad486cf1f0adbcd299ee10",
+    "assets/page-11.webp": "2651f32352d52c9b262f13f387643d7192457a944978f436dc1e798e146d9baa",
+    "assets/page-12.webp": "b9ccc062e844698ebf816609ff9bf3922bea6e2d4fe0b87cd2c48f096dd543ce",
+    "assets/page-13.webp": "4f10518eac538431a54bfb08639254f0763318d145b089b8c996af036c1f0c26",
+    "assets/page-14.webp": "c26da4b45d0dab5e2e49fe76debe4b41b6f40da416a221f483642a8c25a61d38",
+    "assets/page-15.webp": "eca70671441de8474e12b59dd2898c07e86b21ce1d8dc4bda81831b06d2ee526",
+    "assets/page-16.webp": "38c22a6301d0cef7435dfdff7d8ca032c65fa35b35476904351a7f7bd5b84774",
+    "assets/page-17.webp": "16d56d777f4bd6b8c454df95aac036f7ba644d40ca5b639821e80724d90fa120",
+    "assets/page-18.webp": "25452fd43845ab5ae75ae9179f33e905bb899d7b52188013c26b407732b2c025",
+    "assets/page-19.webp": "5a76a892b6f63da600f29e919690b56d5a77de62574b10f3f3aefcff1275356a",
+    "assets/page-20.webp": "b25156436fd4f2515e6ff24305070d5a7acf5fe2948c3bbedf33668ad13a14cb",
+    "assets/page-21.webp": "aee731669e86c8fa92925d2d417d59c88a6cd2c44cd009b51009dd22ca402fbc",
+    "assets/page-22.webp": "3aec33c05504ac300b8c6801e35d153a442e85adc410a1b36af2679cd6778ba9",
+    "assets/page-23.webp": "b4a96fa71a03c9acf119243a1263d8d370e7d2909ddcfe5caae8f0a00c145334",
+    "assets/page-24.webp": "fefd60e8d2768923ea371063353f2f404f8cc5a2d2a16bb95624e03233b52b43",
+    "assets/page-25.webp": "228298cedf2c142700ed7f4a21a464a44368c80d17de20dc54f00d84214ff8d3",
+    "assets/page-26.webp": "c2b5e151d1ba1f3e2f8180dddf0dd0f5ca1f93f912e579fa78d6db41cd9c159f",
+    "assets/page-27.webp": "55c5470610d848896a4d5be11b5b4170a4c2733223acb1d479ccac458af1bad2",
+    "assets/page-28.webp": "eaa45bb7f1cdf88607a354726a23b6b0ac78d34fda92dc1c1a4ebcc5e31a388d",
+    "assets/page-29.webp": "3d4fa359d2012c511feecddfe5c584b076be0c9f44ca75c5949a075b32168349",
+    "assets/page-30.webp": "d0c9771ebbe46437d06b55b8c8589857002bee9e13ce9158982828c711fca82a",
+    "assets/page-31.webp": "aa9e168dab204ad7fa5a7bf6fd7419a5d61a71e81bc84f6ea92d77d71952f0f0",
+    "assets/page-32.webp": "4d8255d9fd56dd6cf744e887c07f81f9fcd53833c4b6e557cf7b3dad79f58bbc",
+    "assets/page-33.webp": "c2ea193f7af530db8d627b919d48d719bfb48788146be4d80a24dc6675adf529",
+    "assets/page-34.webp": "38d2caf6ec4abea525ba2d77feadf06037906b43ae099a38a3afffebb5cccab8",
+    "assets/page-35.webp": "4a554db43aadf8546bbc040b32e4afd5be666ef3745010bec5742f615eabd32c",
+    "assets/page-36.webp": "a2a2d8248bc09b4132859486c28999ed1e003c99ce13f82b4596c2a98c85a9b8",
+    "assets/page-37.webp": "66531fc18a56d97b903a6b14da992ba5a5dd0ee38d07baf7dc8370f6b2730b0d",
+    "assets/page-38.webp": "c6ed236cae266eeeeae79b3db1bda73edd1171757ebe286bd0fc1d657841e793",
+    "assets/page-39.webp": "bd983404528939a79bc2bb14c3d4d8c19fc686a2da17d3edbeb1f57551ab091c",
+    "assets/page-40.webp": "7a65b70cf0613ec74d2b62fd0be7021619fc3a3de8078f21703ffdfa68b59c4d",
+    "assets/page-41.webp": "bda29ff442eaa3c8974560b520061b08cd9fd9e963e3994dc6d03e0d875c2261",
+    "assets/page-42.webp": "3502f3feff4462bc24ba5b83166262ecdbd99a7ef2e1bedc558e89ceba9f008f",
+    "assets/page-43.webp": "f7db96330e4434c86e43b0598451c12d000bcabe5fa72878ecb2889e0fe29e07",
+    "assets/page-44.webp": "2655ca07cb500a7ea3f35e8f602515eb3818c46cb6be3b162760b64aee275e23",
+    "assets/page-45.webp": "df55f9345d9164c9b177eb098461819565171ecc248fe3b52e169ea326e38bd9",
+    "assets/page-46.webp": "26bf49fd86db437e7cc8a85dfc390f994275e984bad8b8c42c837e95caf30d10",
+    "assets/page-47.webp": "8c4ec2291fcd1af670035c27703fb24092747f7cf394c77096f5251a1890a43a",
+    "assets/page-48.webp": "51d0aa4dbb0eedc1da1e5dc0a6f266ef634cd91ebdb3820f6974ff0028f94c02",
+    "assets/page-49.webp": "cc10f202d728548ee9a7e3543659c83b9ee750855f6e7a79d9ccc02775aee633",
+    "assets/page-50.webp": "037073beece6af09dde9fb0f1f790f95fff0c7a36a29c8ba837b988b76925229",
+    "assets/page-51.webp": "1f1af08184707b88f51dfeaa4a7a38a9873feaf79a68413b5211958cfe489ea1",
+    "assets/page-52.webp": "fda20b6d84e5d58037ec985d9e3bed84c3ea3e3773f3075b64fdffb48899a2cc",
+    "assets/page-53.webp": "eb46b78af9ba48f6cf2022792374af78f54cca85989775c5d071f580d81e76f2",
+    "assets/page-54.webp": "2ab7ed8fd26c0b89bf802c4fda08e983ef7f592c6790bcab646c1a684a0cca15",
+    "assets/page-55.webp": "0f11030bd3446859abb172b7476dd7b68fb1b367a5c9ec89f0ea72f302a6b1f0",
+    "assets/page-56.webp": "b4ea8c71cfaec452c6be454a4bb6935f353d39108d79b28d36c23bd3e601740e",
+    "assets/page-57.webp": "4e983dd55df18942456ce2f8f069a8e3f9ca28381d56413a6eafce6d14f0f4ac",
+    "assets/page-58.webp": "f2171471ca4d82e945fcb864f31f6c97ce137ec1df6eb6bc8dd3cf4f5ddf6ca4",
+    "assets/page-59.webp": "6894f7284ce0326658044be4f52263e118232a032fe913a1b1a19d9b806fbfd7",
+    "assets/page-60.webp": "f323ac434f0c847ff1b9bfb9fe1d298db9fb7e65e2a6e5835d797827780a4327",
+    "assets/page-61.webp": "8b8f5e8f8ccde274ce7e3ef6144ae4f2221d127f5fee0f4323dfc9035b758f8d",
+    "assets/page-62.webp": "75784477791e4795227ce1696a4ae16a9c60b3e7f8f59a34ea11dd73fa0afe85",
+    "assets/page-63.webp": "43645d0c27e48a988414a5f9482cceff69e36621d7dc05a97e2c0c79aded6222",
+    "assets/page-64.webp": "98ce75af2f63fc7b8099de935fcd9f05802d458aa1458be247d97d0793308526",
+    "assets/style.css": "27042d1269cf196ba24166b30fb40c0d689717a6dfc4c63c01013e13535440a1",
+    "data.html": "a3c35d1fe68735d42cc3bc12907da0b44dc580407bbcbe701ed204a4f571d65c",
+    "flows/account.html": "32f41594fd678a73ad1c0d570eab5d7da74b0fe4a4ab45f6fbaf925b9b62698a",
+    "flows/bridging-sweep.html": "1e60865d9984ff430df050bb0800454bf5df3ae14956601c616039c5dda0d644",
+    "flows/burn.html": "e15e70eb03354d2a40c48bb174289e2dd9c13d92b3f0b3f578dcf7d356788d8d",
+    "flows/company-suspense.html": "97110a6a9fb72da03ad78ba2defa9c8791b13b9f438afd693fbbc32daa82932d",
+    "flows/cross-bridge.html": "9d5820072d0580d0a4cc884d3919b020ddd98e376b1a0f5a187f10a32e4a1eb5",
+    "flows/customer-suspense.html": "6b0b9dd4a10b6fbce75333c5dec59876455e0dd4dc13345c07b757402207e59d",
+    "flows/deposit.html": "ffe558423b3113dfc087fcfda640e0bcdb7d3eb8a73ee12ed3a3834aba113f6c",
+    "flows/external-bridge.html": "fa2a6cbbed38bd25bacf2591c6f221883cee955413356a3a0355f10bffed7c71",
+    "flows/mint.html": "11ff195cf2662ba31081b86b337e9269d3f8a425c5c2016d7c2209671ceb612d",
+    "flows/ramp.html": "a8c40787d923388c2189e0dde207677f05a448f715813f18fabf56ad0d561738",
+    "flows/settlement.html": "a1aa095115bdbde651cf648ea6b08a64a8f0bde302b44c12349a7331dcd71e13",
+    "flows/sweep.html": "d5f0cfad95cf79afc9239d4b99d171475719a3defc4dec7f3d704d60918e7731",
+    "flows/withdrawal.html": "0c518e09d80c6749961eac1c7b4184a3f0c64c7b28cf1e6310cf6b999848d245",
+    "flows.html": "e326403673e39ce3c844884e3a4dce454694ceed86c5a292ffd504a35caee596",
+    "index.html": "58441fb9c27d643b944333967c874c894697fb49c555db077caf1c62acea3a52",
+    "principles.html": "66b133c72b705486ada5a8d075a07d59b71d72a6c10779f5193f12022ab437ee",
+    "reconciliation.html": "a73808769299112265d8170b7239e2d1e67824d7e0ce674d834c63acc1328915",
+    "sources.html": "ff29ab85cbab251f759a0bf40e272604e050132d85bfa2ca25faa8006cdf7cb4"
+  }
+}
