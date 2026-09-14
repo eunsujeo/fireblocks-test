@@ -4,11 +4,11 @@ import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.monitoring.WebhookIngestionMetricOutcome
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookNotification
+import com.whatto.bcm.domain.webhook.WebhookProtocol
 import com.whatto.bcm.domain.webhook.WebhookSignatureVerifier
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import tools.jackson.databind.ObjectMapper
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Clock
@@ -18,7 +18,7 @@ import java.time.Clock
 class WebhookIngestionService(
     private val signatureVerifier: WebhookSignatureVerifier,
     private val webhookInboxRepository: WebhookInboxRepository,
-    private val objectMapper: ObjectMapper,
+    private val protocol: WebhookProtocol,
     private val metrics: OperationalMetricsPort,
     private val clock: Clock,
 ) {
@@ -31,21 +31,13 @@ class WebhookIngestionService(
                 recordMetric(WebhookIngestionMetricOutcome.INVALID_SIGNATURE, null)
                 WebhookIngestionResult.INVALID_SIGNATURE
             } else {
-                val root = objectMapper.readTree(payload)
-                val notificationId = requiredText(root.path("id").asString(), "id")
-                val eventType = requiredText(root.path("eventType").asString(), "eventType")
-                val vendorTransactionId =
-                    root
-                        .path("data")
-                        .path("id")
-                        .asString()
-                        .takeIf(String::isNotBlank)
+                val envelope = protocol.parseEnvelope(payload)
                 val receivedAt = CoreDateTimes.now(clock)
                 webhookInboxRepository.insertIfAbsent(
                     WebhookNotification(
-                        notificationId = notificationId,
-                        eventType = eventType,
-                        vendorTransactionId = vendorTransactionId,
+                        notificationId = envelope.notificationId,
+                        eventType = envelope.eventType,
+                        vendorTransactionId = envelope.vendorTransactionId,
                         payload = String(payload, StandardCharsets.UTF_8),
                         payloadHash = sha256Hex(payload),
                         signature = signature,
@@ -70,11 +62,6 @@ class WebhookIngestionService(
             logger.error("Webhook ingestion metric recording failed outcome={}", outcome, exception)
         }
     }
-
-    private fun requiredText(
-        value: String,
-        field: String,
-    ): String = value.takeIf(String::isNotBlank) ?: throw IllegalArgumentException("webhook payload missing $field")
 
     private fun sha256Hex(payload: ByteArray): String =
         MessageDigest

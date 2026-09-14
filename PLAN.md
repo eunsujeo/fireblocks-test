@@ -204,7 +204,7 @@ Sweep 이벤트는 batch transaction의 `chainStatus`와 고객 leg의 `itemOutc
 시작 시 `BCM_PROVIDER=fireblocks|dfns|local`로 구현 하나를 조립한다. 요청별 다중 벤더 routing은 초기 범위에서 제외한다.
 Fireblocks 지원을 유지하며 종료·자산 이전을 완료 조건으로 두지 않는다. 기존 Stub→Anvil을 재사용하고 Dfns 로컬 검증 경로를 확장한다.
 Dfns 경로의 구성은 **노드 직접 운영 업체 + Dfns Baseline 전체 플랫폼 + DAWBC + DAW-CORE**다. 사용자 지정 wiki의 Baseline 정의를 반영했다.
-코드/API 인벤토리·공통 호출 시간 인터페이스·Fireblocks/로컬 조건부 제공자 조립을 구현했다. Dfns 어댑터·원천 DB 검증·실벤더 검증·운영 전환은 미완료다. Phase 15 보류는 유지한다.
+코드/API 인벤토리·공통 호출 시간/웹훅/생성 재시도·Fireblocks/로컬 조립과 DB 원천 대조를 구현했다. Dfns 어댑터·실제 원천 등록·실벤더 검증·운영 전환은 미완료다. Phase 15 보류는 유지한다.
 호환 기준은 현행 29개 OpenAPI operation과 런타임 운영 경로·C01~24다. #51 신규 책임 완성은 별도 후속 마일스톤으로 추적한다.
 Ethereum·Base·Solana와 USDC·KRWK는 모델 목표다. 사용자 후속 지시에 따라 **멀티체인 인터페이스 선행·실제 체인 확장 후속**으로 조정했다.
 초기 Dfns 체인/자산·발행/주소·규모/SLO·기존 주소는 DF0에서 고정한다. 후속 체인 구현·감사는 초기 출시를 막지 않는다.
@@ -229,7 +229,14 @@ Ethereum·Base·Solana와 USDC·KRWK는 모델 목표다. 사용자 후속 지�
 - [x] **DF0.1 코드/API 호환 인벤토리** — [29 API·구현/테스트 위치·24영역](docs/design/evidence/92-provider-compatibility-inventory.md)을 고정하고 Fireblocks/로컬 현행과 Dfns 미구현·실환경 미검증을 구분했다. 실제 토큰 배포·Baseline·SLO는 미확정이므로 DF0 전체는 열어 둔다.
 - [x] **DF1.1 공통 포트 설계·첫 의존 분리** — [설계12](docs/design/12-provider-compatibility.md)에 경계/입출력·조건부 조립·API/DB 선행 조건을 기록. `VendorExecutionLimits`를 추가하고 지갑 생성/제출/지갑 대사/미응답 회수/boost의 FireblocksProperties 직접 의존을 제거했다. 기존 산식·엄격한 TTL 경계를 보존. 테스트 컴파일 red→green, 신규 6건 포함 관련 22건(API5/BAT13/client4)·전체 ktlintCheck 통과. 기존 테스트 수정 없음. Phase converge 미수행.
 - [x] **DF3.1 제공자 조립 경계** — `BCM_PROVIDER` 필수 선택·Fireblocks/로컬 조건부 조립, 미구현 Dfns 조기 거절, 선택 자격/로컬 API·JWKS·RPC/기존 모드 충돌 검증과 실행 스크립트 연결. 기존 배치 게이트 유지. 세 앱의 조기 실패·단일 포트·로컬 실제 EVM 이체·실행 경계 회귀 및 ktlint 검증은 [설계12](docs/design/12-provider-compatibility.md)에 기록. DDL/OpenAPI 변경·실벤더 호출·Phase converge 없음.
-- [ ] **다음 구현: Dfns 지갑·웹훅 계약** — Baseline 릴리스/schema 근거로 지갑 멱등·원천 ID/DB·공개 자산 필드·웹훅 헤더/메타데이터 계약을 구체화한다. 이후 Dfns 어댑터/Stub·체인 확장 인터페이스를 구현한다. Dfns 어댑터 준비 전 기동 차단 유지.
+- [x] **DF1.2 Dfns 계약 대조** — 사용자 지정 Baseline 자료와 공개 지갑/멱등/웹훅 명세를 [연결 계약13](docs/design/13-dfns-contracts.md)에 대조했다. 실제 도입 릴리스·서명 원문/멱등 확답은 미확보이며 공개 명세를 Baseline 실측으로 취급하지 않는다. 계정·네트워크 wallet 관계, 원천·요청/이동/수신 시도·CORE 이벤트 분리와 DB/API 선행 변경을 기록했다. DDL/OpenAPI 변경 없음.
+- [x] **DF3.2 웹훅 공통 수신 경계** — WebhookProtocol/WebhookEnvelope(domain)와 FireblocksWebhookProtocol(infra)로 헤더·id/eventType/data.id 해석을 분리. 서명 성공 후 envelope 파싱, 원문·실제 서명·해시와 기존 인박스 처리 유지. 비선택/누락/중복 헤더 거절·대체 protocol 대역 검증 추가. Dfns 프로토콜/인증/기동은 미구현이며 차단 유지. 검증은 설계12에 기록.
+- [x] **DF1.3 영속 원천 binding 상세 설계** — 03에 단일 데이터셋의 `bcm_prvd_bndg_m` 컬럼/PK/허용 조합·앱 조회 전용 권한·기존 데이터 원천 확인/백필·기동 전 불일치 차단·롤백 계약을 상세화했다. 현행 ID/이벤트/원문을 보존하며 자동 원천 등록·혼합 원천 수용은 금지한다. SQL/guard는 DF3.4에서 구현했으며 Dfns 개별 wallet/요청/이동 연결 테이블은 후속이다.
+- [x] **DF3.3 지갑 생성 재시도 정책 분리** — `WalletCreationPolicy`와 조건부 `FireblocksWalletCreationPolicy`를 추가했다. 공통 생성 정책은 판정을 위임하고 API는 시간 상한만으로 Fireblocks의 24시간 규칙을 선택하지 않는다. 기존 시간 경계 테스트를 Fireblocks 소유 모듈로 이동하고 판정 전달·정책 누락 거절·선택 조립·계정/로컬 실행 회귀를 검증한다. 검증 결과는 설계12에 기록한다.
+- [x] **DF3.4 영속 원천 검증** — V21·ProviderOrigin/Repository·조회 어댑터·필수 원천 설정과 세 앱의 처리 시작 전 guard를 구현했다. 누락/불일치/조회 실패는 중단하며 전역 lazy 설정에서도 검증한다. 기존 원천의 자동 등록/재표기는 없다. PostgreSQL 제약·조회 전용 역할·기존 의도/보관 원문 보존, 세 앱 실패 시 벤더 호출/실행 빈 생성 0, Fireblocks/별도 로컬 DB 회귀 포함 161건·전체 ktlintCheck 통과. local 스크립트와 신규 Stub DB 원천 초기화·등록 runbook을 연결했다. 실제 원천 등록/DB 권한 부여·운영 적용·Dfns 실행 수용은 미수행이다.
+- [x] **DF3.5 네트워크 지갑 생성·회수 인터페이스** — NetworkWalletProvisioningPort·scope/request/정규화 관찰과 순수 RecoveryPolicy를 구현했다. 미관찰/미완료/주소 대기는 새 POST를 허가하지 않고 원천·네트워크·correlation·조직 소유/known ID 불일치와 중복 지갑은 충돌로 구분한다. 03·13에 논리 계정/네트워크 지갑/자산 주소의 키·의도 CAS·원자 완료·호환 전환 및 API 후속 계약을 상세화했다. 기존 accountId의 vault 설명 3곳만 교정하고 API 문서를 재생성했다. 신규 14건 포함 domain18/API49=67건·포털11건·전체 ktlintCheck 통과. 영속화/업무 연결·Dfns 어댑터/Stub은 미구현이다.
+- [x] **DF3.6 네트워크 지갑 생성 의도 영속화** — V22의 의도·조회 페이지/후보·완료 연결 4테이블과 domain Repository/상태 판단·JDBC 어댑터를 구현했다. 독립 커밋의 최초 제출 권한, 원천 대조·행 잠금/revision CAS, cursor 재개/반복·이전 worker 거절, 미완료 조회에서도 known ID 보존, 충돌 증적·완료 연결 원자 저장을 검증했다. 신규16건 포함 domain17/persistence41/API60/Webhook3/BAT2=123건·전체 ktlintCheck 통과. 기존 SQL V1~20/계정/미완료 의도 보존 확인. 증적은 참조/hash를 저장하며 실제 원문 보관 어댑터·논리 계정 전환·API/벤더 호출자는 후속이다. 기존 계정/주소 DDL과 Dfns 기동 차단 유지.
+- [ ] **다음 구현: 논리 계정 모델 분리와 생성 유스케이스** — Account의 필수 vendorVaultId 소비 지점을 분리하고 VAULT/LOGICAL 구분·호환 마이그레이션을 구현한다. Fireblocks/로컬 계정 계약을 보존하면서 생성 포트와 새 의도 원장을 잇는 내부 유스케이스·증적 보관 입구를 마련하고 동시 요청/응답 유실의 호출 수를 검증한다. Dfns 보류/충돌 HTTP 계약은 연결 전에 고정한다. 실제 Baseline 릴리스/schema·createWallet 중복/회수 보장·서명 원문은 실제 Dfns 어댑터/Stub 채택 전 확보. 추가 체인 인터페이스는 후속이며 Dfns 기동 차단을 유지한다.
 
 DF8은 DF6 이후 진행하며 DF7 신규 기능 완료를 선행 조건으로 두지 않는다. 초기 세 실행 환경 호환·#51 신규 기능·전체 멀티체인 호환은 구분한다. 완료 기준은 상세 계획 5~7절을 따른다.
 기존 85~135인일은 전체 Baseline 구축·3체인·Solana 집금/감사 반영 전 추정이다. DF0에서 초기/후속 및 담당별 분해, DF2 뒤 초기 실제 차이로 재산정한다.

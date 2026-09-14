@@ -7,6 +7,7 @@ import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.sweep.SweepInvalidationService
 import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
 import com.whatto.bcm.app.config.ClockConfig
+import com.whatto.bcm.app.config.ProviderOriginConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.TypeExcludeFilter
@@ -21,6 +22,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
 @SpringBootApplication
 @Import(
     ClockConfig::class,
+    ProviderOriginConfiguration::class,
     OutboxEventService::class,
     SweepOutboxEventPublisher::class,
     SweepInvalidationService::class,

@@ -1188,7 +1188,7 @@ components:
       in: path
       required: true
       schema: { type: string, maxLength: 64 }
-      description: 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId)
+      description: BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다.
       example: acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890
 
   schemas:
@@ -2179,7 +2179,7 @@ components:
       properties:
         accountType: { $ref: '#/components/schemas/AccountType' }
         ref: { type: string, maxLength: 64, description: "우리 참조 키 — 호출 쪽 계정 ID 그대로. 접두사는 붙지 않는다", example: "000123" }
-        accountId: { type: string, description: "매니저가 돌려주는 vault 핸들 (DB ext_acnt_id = vaultAccountId)", example: acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 }
+        accountId: { type: string, description: "BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다.", example: acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 }
       required: [accountType, ref, accountId]
 
     Transfer:
@@ -2238,7 +2238,7 @@ components:
         txId: { type: string, description: 최초 root 거래의 벤더 tx id }
         txHash: { type: [string, "null"], description: 온체인 거래해시 — 전파 후 채워짐 }
         externalTxId: { type: [string, "null"], description: 우리 요청 키 (출금·내부이체) }
-        accountId: { type: string, description: "파티션 키 (vault 핸들)" }
+        accountId: { type: string, description: "파티션 키 (BCM이 발급한 계정 ID)" }
         network: { type: string, description: 네트워크 코드, example: ETHEREUM }
         symbol: { type: string, description: 토큰 심볼, example: USDC }
         to:

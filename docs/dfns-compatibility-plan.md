@@ -6,6 +6,10 @@ Fireblocks와 Dfns를 지원 대상으로 유지하고 로컬에서도 실제 �
 이 문서는 작업 순서와 검증 기준이며 현행 [설계 정본](design/README.md)·[HTTP 계약](api/openapi.yaml)을 대체하지 않는다.
 착수 결과: [29 API·24영역 인벤토리](design/evidence/92-provider-compatibility-inventory.md),
 [제공자 선택·공통 포트 계약](design/12-provider-compatibility.md). 첫 구현은 `VendorExecutionLimits`와 API/BAT 5개 조립 지점의 구체 벤더 의존 분리다.
+후속으로 Fireblocks/로컬 선택 조립·웹훅 공통 경계·`WalletCreationPolicy` 분리를 구현했다.
+네트워크 지갑의 생성·조회 공통 포트와 보수적 회수 판정도 구현했다. [지갑 계약](design/13-dfns-contracts.md)의 내부 인터페이스이며 Dfns 실행 연결은 아니다.
+V22에는 생성 의도·조회 페이지/후보·완료 지갑을 저장하고 최초 제출 권한·회수/완료 원자성을 검증했다. 논리 계정 전환과 업무 연결은 후속이다.
+[DB 원천 binding](design/03-bcm-db.md#제공자-원천-binding--후속-물리-계약)은 V21·조회 Repository·세 앱 기동 guard까지 구현했다. 실제 원천 등록/권한 설정·운영 적용은 미수행이다.
 Dfns 채택 완료나 운영 전환 승인으로 해석하지 않는다. 작업 현황은 [PLAN](../PLAN.md), 인계는 [PROGRESS](../PROGRESS.md)에서 관리한다.
 
 ## 1. 완전 호환의 정의
@@ -505,4 +509,8 @@ Solana와 추가 체인의 노드·집금·감사·수용 공수는 후속 MC0~2
 Phase 15의 운영 배포 보류는 이 계획 작성으로 해제하지 않는다.
 
 첫 구현 세션은 DF0 Fireblocks/Dfns/로컬 기능표 고정과 DF1 환경변수 선택·공통 포트·로컬 연결 계약 검토를 task 1~2개로 수행한다.
-2026-09-14 착수 세션에서 공통 호출 시간 인터페이스와 기존 Fireblocks 연결을 구현했다. `BCM_PROVIDER`의 Fireblocks/로컬 조건부 조립과 자격·로컬 주소 검증, 기존 실행 스크립트 연결까지 구현했다. Dfns는 기동을 차단하며 어댑터·원천 DB·웹훅 계약은 후속이다. 상세는 [설계12](design/12-provider-compatibility.md)를 따른다. DDL·OpenAPI 변경·실벤더 호출은 없다.
+2026-09-14 착수 세션에서 공통 호출 시간 인터페이스와 기존 Fireblocks 연결을 구현했다. `BCM_PROVIDER`의 Fireblocks/로컬 조건부 조립과 자격·로컬 주소 검증, 기존 실행 스크립트 연결까지 구현했다. 당시 Dfns 어댑터·원천 DB·웹훅 계약은 후속이었으며 DDL·OpenAPI 변경·실벤더 호출은 없었다.
+
+2026-09-14 후속으로 [Dfns 지갑·원천·웹훅 계약](design/13-dfns-contracts.md)을 공개 명세/사용자 지정 Baseline 자료와 대조하고, 공통 웹훅 수신 헤더/envelope 경계를 구현했다. 실제 Dfns 릴리스·지갑 생성 멱등 보장·서명된 원문은 미확보이며 Dfns 실행/DB/API 변경은 아직 적용하지 않았다.
+
+이어 지갑 생성 재시도 정책을 분리하고, 공통 V21 원천 binding/조회/기동 guard를 구현했다. 현재 검증 범위와 결과는 [설계12](design/12-provider-compatibility.md), 실제 등록·권한 절차는 [원천 runbook](runbooks/provider-origin.md)을 따른다. 다음은 Dfns 논리 계정→네트워크 wallet 생성·회수/DB/API 계약이다. Dfns 기동 차단·운영 배포 보류는 유지한다.

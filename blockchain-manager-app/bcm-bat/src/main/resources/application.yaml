@@ -15,6 +15,11 @@ bcm:
   fireblocks:
     webhook-jwks-url: ${FIREBLOCKS_JWKS_URL:https://keys.fireblocks.io/.well-known/jwks.json}
   provider: ${BCM_PROVIDER:}
+  chain-mode: ${BCM_CHAIN_MODE:}
+  origin:
+    id: ${BCM_ORIGIN_ID:}
+    platform-instance-id: ${BCM_ORIGIN_PLATFORM_INSTANCE_ID:}
+    vendor-organization-id: ${BCM_ORIGIN_VENDOR_ORGANIZATION_ID:}
   admin-policy:
     hard-ceiling:
       execution-enabled: ${BCM_SWEEP_EXECUTION_ENABLED:false}

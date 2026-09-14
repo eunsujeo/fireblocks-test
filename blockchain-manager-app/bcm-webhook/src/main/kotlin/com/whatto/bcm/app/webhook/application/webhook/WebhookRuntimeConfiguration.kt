@@ -11,6 +11,7 @@ import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
 import com.whatto.bcm.app.application.tx.BoostObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.app.config.ClockConfig
+import com.whatto.bcm.app.config.ProviderOriginConfiguration
 import com.whatto.bcm.app.webhook.application.event.OutboxRelayJob
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
@@ -31,5 +32,6 @@ import org.springframework.context.annotation.Import
     BoostObservationService::class,
     TxStateService::class,
     ClockConfig::class,
+    ProviderOriginConfiguration::class,
 )
 class WebhookRuntimeConfiguration

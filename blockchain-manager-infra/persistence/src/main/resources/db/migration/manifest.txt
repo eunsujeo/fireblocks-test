@@ -19,3 +19,5 @@ V17__completed_webhook_marker_expand.sql
 V18__completed_webhook_marker_backfill_and_index.sql
 V19__completed_webhook_backfill_index_cleanup.sql
 V20__wallet_provisioning_ledgers.sql
+V21__provider_origin_binding.sql
+V22__network_wallet_provisioning.sql

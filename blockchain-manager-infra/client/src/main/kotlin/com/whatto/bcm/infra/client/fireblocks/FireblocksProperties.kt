@@ -1,6 +1,5 @@
 package com.whatto.bcm.infra.client.fireblocks
 
-import com.whatto.bcm.domain.account.WalletProvisioningPolicy
 import com.whatto.bcm.domain.vendor.VendorExecutionLimits
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.nio.file.Files
@@ -48,8 +47,8 @@ data class FireblocksProperties(
         require(connectTimeoutMillis > 0) { "connectTimeoutMillis must be positive" }
         require(readTimeoutMillis > 0) { "readTimeoutMillis must be positive" }
         require(contractCallGasAssetIds.values.all(String::isNotBlank)) { "contractCallGasAssetIds must not be blank" }
-        require(maximumCallMillis <= WalletProvisioningPolicy.MAX_VENDOR_CALL_UPPER_BOUND.toMillis()) {
-            "maximum Fireblocks call must not exceed ${WalletProvisioningPolicy.MAX_VENDOR_CALL_UPPER_BOUND}"
+        require(maximumCallMillis <= FireblocksWalletCreationPolicy.MAX_VENDOR_CALL_UPPER_BOUND.toMillis()) {
+            "maximum Fireblocks call must not exceed ${FireblocksWalletCreationPolicy.MAX_VENDOR_CALL_UPPER_BOUND}"
         }
         maximumSubmissionFlowMillis
     }

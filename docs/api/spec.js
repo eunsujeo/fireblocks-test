@@ -1591,7 +1591,7 @@ window.OPENAPI = {
           "type": "string",
           "maxLength": 64
         },
-        "description": "매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId)",
+        "description": "BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다.",
         "example": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890"
       }
     },
@@ -5453,7 +5453,7 @@ window.OPENAPI = {
           },
           "accountId": {
             "type": "string",
-            "description": "매니저가 돌려주는 vault 핸들 (DB ext_acnt_id = vaultAccountId)",
+            "description": "BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다.",
             "example": "acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890"
           }
         },
@@ -5590,7 +5590,7 @@ window.OPENAPI = {
           },
           "accountId": {
             "type": "string",
-            "description": "파티션 키 (vault 핸들)"
+            "description": "파티션 키 (BCM이 발급한 계정 ID)"
           },
           "network": {
             "type": "string",

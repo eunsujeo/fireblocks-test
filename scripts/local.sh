@@ -137,7 +137,7 @@ load_env() {
         value="${value%$'\r'}"
         case "$key" in
             ''|'#'*) continue ;;
-            SPRING_DATASOURCE_URL|SPRING_DATASOURCE_USERNAME|SPRING_DATASOURCE_PASSWORD|KAFKA_BOOTSTRAP_SERVERS|BCM_HTTP_MAX_CONNECTIONS|BCM_FIREBLOCKS_BASE_URL|BCM_FIREBLOCKS_API_KEY|BCM_FIREBLOCKS_PRIVATE_KEY_FILE|FIREBLOCKS_JWKS_URL|BCM_PROVIDER|BCM_VENDOR_MODE|BCM_CHAIN_MODE)
+            SPRING_DATASOURCE_URL|SPRING_DATASOURCE_USERNAME|SPRING_DATASOURCE_PASSWORD|KAFKA_BOOTSTRAP_SERVERS|BCM_HTTP_MAX_CONNECTIONS|BCM_FIREBLOCKS_BASE_URL|BCM_FIREBLOCKS_API_KEY|BCM_FIREBLOCKS_PRIVATE_KEY_FILE|FIREBLOCKS_JWKS_URL|BCM_PROVIDER|BCM_VENDOR_MODE|BCM_CHAIN_MODE|BCM_ORIGIN_ID|BCM_ORIGIN_PLATFORM_INSTANCE_ID|BCM_ORIGIN_VENDOR_ORGANIZATION_ID)
                 export "$key=$value"
                 ;;
         esac
@@ -195,6 +195,9 @@ write_env() {
         echo "BCM_PROVIDER=fireblocks"
         echo "BCM_VENDOR_MODE=FIREBLOCKS"
         echo "BCM_CHAIN_MODE=TESTNET"
+        echo "BCM_ORIGIN_ID=${5:-}"
+        echo "BCM_ORIGIN_PLATFORM_INSTANCE_ID=${6:-}"
+        echo "BCM_ORIGIN_VENDOR_ORGANIZATION_ID=${7:-}"
     } > "$temporary"
     mv "$temporary" "$ENV_FILE"
     chmod 600 "$ENV_FILE"
@@ -202,6 +205,7 @@ write_env() {
 
 configure_fireblocks() {
     local base_url api_key private_key_file jwks_url resolved_key
+    local origin_id platform_instance_id vendor_organization_id
     local current_base_url current_jwks_url
     current_base_url="$(env_value BCM_FIREBLOCKS_BASE_URL || true)"
     current_jwks_url="$(env_value FIREBLOCKS_JWKS_URL || true)"
@@ -216,7 +220,11 @@ configure_fireblocks() {
     [ -f "$resolved_key" ] || fail "Private Key 파일을 찾을 수 없습니다: $resolved_key"
     [ -r "$resolved_key" ] || fail "Private Key 파일을 읽을 수 없습니다: $resolved_key"
 
-    write_env "$base_url" "$api_key" "$resolved_key" "$jwks_url"
+    origin_id="$(prompt "BCM origin ID (DB binding)" "$(env_value BCM_ORIGIN_ID || true)")"
+    platform_instance_id="$(prompt "Platform instance ID (DB binding)" "$(env_value BCM_ORIGIN_PLATFORM_INSTANCE_ID || true)")"
+    vendor_organization_id="$(prompt "Fireblocks workspace ID (DB binding)" "$(env_value BCM_ORIGIN_VENDOR_ORGANIZATION_ID || true)")"
+    [ -n "$origin_id" ] && [ -n "$platform_instance_id" ] && [ -n "$vendor_organization_id" ] || fail "DB origin binding identifiers are required."
+    write_env "$base_url" "$api_key" "$resolved_key" "$jwks_url" "$origin_id" "$platform_instance_id" "$vendor_organization_id"
     echo "로컬 설정을 생성했습니다: $ENV_FILE"
 }
 
@@ -514,6 +522,9 @@ sync_asset_catalog_now() {
             export BCM_PROVIDER=local
             export BCM_VENDOR_MODE=STUB
             export BCM_CHAIN_MODE=LOCAL
+            export BCM_ORIGIN_ID=local-stub
+            export BCM_ORIGIN_PLATFORM_INSTANCE_ID="$COMPOSE_PROJECT"
+            export BCM_ORIGIN_VENDOR_ORGANIZATION_ID=local-stub
             export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
             export SPRING_DATASOURCE_USERNAME=postgres
             export SPRING_DATASOURCE_PASSWORD=bcm
@@ -719,6 +730,9 @@ up_stub() {
     export BCM_PROVIDER=local
     export BCM_VENDOR_MODE=STUB
     export BCM_CHAIN_MODE=LOCAL
+    export BCM_ORIGIN_ID=local-stub
+    export BCM_ORIGIN_PLATFORM_INSTANCE_ID="$COMPOSE_PROJECT"
+    export BCM_ORIGIN_VENDOR_ORGANIZATION_ID=local-stub
     export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
     export SPRING_DATASOURCE_USERNAME=postgres
     export SPRING_DATASOURCE_PASSWORD=bcm
@@ -923,6 +937,9 @@ test_local_deposit() {
     export BCM_PROVIDER=local
     export BCM_VENDOR_MODE=STUB
     export BCM_CHAIN_MODE=LOCAL
+    export BCM_ORIGIN_ID=local-stub
+    export BCM_ORIGIN_PLATFORM_INSTANCE_ID="$COMPOSE_PROJECT"
+    export BCM_ORIGIN_VENDOR_ORGANIZATION_ID=local-stub
     export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
     export SPRING_DATASOURCE_USERNAME=postgres
     export SPRING_DATASOURCE_PASSWORD=bcm

@@ -91,7 +91,7 @@ F=현행 코드 경로, L=로컬 시험 방식, D=Dfns 잔여 작업. 파일별/
 - `ClientConfig`는 `BCM_PROVIDER=fireblocks|local`에서만 Fireblocks/EVM 설정과 JWT signer를 조립한다. 공통 ProviderConfiguration이 선택값/자격/로컬 주소를 검증하고 Dfns는 구현 전 기동을 거절한다.
 - 지갑 생성/제출/지갑 대사/제출 회수/boost의 시간 검사가 Fireblocks 구체 설정에 의존했다. 첫 구현에서 `VendorExecutionLimits`로 분리했다.
 - `WalletProvisioningPolicy`는 24시간 멱등 창을 사용한다. Dfns 지갑 생성에 그대로 재사용하려면 별도 근거/계약이 필요하다.
-- 웹훅 Controller는 Fireblocks 서명 헤더를 고정한다. Dfns 헤더/검증/원문 감사 전달 계약을 분리해야 한다.
+- 웹훅 Controller의 헤더 선택과 수신 envelope 파싱은 WebhookProtocol로 분리했다. FireblocksWebhookProtocol이 현행 필드를 해석하며 Dfns HMAC·실제 원문·재전달/복구 증적은 후속이다.
 - 자산 API/BFF의 `fireblocksAssetId`, 지갑 대사의 `MISSING_IN_FIREBLOCKS`는 공개 계약 차이다. 별도 API 설계 없이 치환하지 않는다.
 - `BCM_PROVIDER` 선택은 구현했다. 원천 불일치 거절·Dfns 인증/클라이언트·Dfns Stub은 아직 구현되지 않았다.
 - 최초 실제 체인/토큰 배포·Baseline 릴리스/지원·규모/SLO는 미확정이다. 로컬 ERC-20 테스트 자산으로 실제 USDC/KRWK 발행을 입증하지 않는다.

@@ -17,6 +17,7 @@ DB를 변경하는 개발자를 위한 스키마·물리 제약 정본이다. �
 | 전체 구조 | [테이블 한눈에](#테이블-한눈에) · [ERD](#erd) · [시나리오로 보는 테이블 흐름](#시나리오로-보는-테이블-흐름) |
 | 온체인 잔고 | [책임·저장 경계와 구현 상태](#주소별-온체인-잔고--구현-대상-설계) · [주소와 vault 매핑](09-asset-map.md#주소와-vault-매핑) |
 | 계정·주소 | [계정 생성 의도](#bcm_acnt_crtn_l--vault-생성-의도회수-원장) · [계정 매핑](#bcm_acnt_m--계정-매핑) · [주소 생성 의도](#bcm_addr_crtn_l--vault-wallet주소-생성-의도회수-원장) · [주소 매핑](#bcm_addr_m--주소-매핑) |
+| Dfns 지갑 후속 | [네트워크 지갑 생성 의도와 연결](#네트워크-지갑-생성-의도와-연결--후속-db-계약) |
 | Vault 조사 | [Vault 전체 대사](#bcm_vlt_rcnc_l--bcm_vlt_rcnc_item_l--vault-전체-대사-실행) |
 | 거래·이벤트 | [수신 원본](#bcm_whk_l--수신-알림-원본) · [거래 상태](#bcm_tx_l--거래-운영-상태) · [제출 원장](#bcm_sbmt_l--제출-원장) · [outbox](#bcm_outbox_l--발행-아웃박스) · [DAW 완료](#bcm_evnt_cmpl_l--daw-core-이벤트-처리-완료) |
 | Sweep | [요청](#bcm_swp_req_l--bcm_swp_req_item_l--bcm_swp_req_src_l--daw-core-sweep-요청) · [대상](#bcm_swp_trgt--sweep-대상) · [allowance](#bcm_swp_auth_m--sweep-승인-관찰-상태) · [실행·항목](#bcm_swp_exec_l--bcm_swp_item_l--sweep-실행-1n) |
@@ -66,6 +67,7 @@ DB를 변경하는 개발자를 위한 스키마·물리 제약 정본이다. �
 
 | 테이블 | 무엇을 저장하나 | 쓰는 곳 |
 |---|---|---|
+| `bcm_prvd_bndg_m` | 데이터셋의 불변 제공자·설치·조직·체인 원천 | API/Webhook/BAT 기동 전 기대 설정 대조 · DBA 등록 |
 | `bcm_acnt_crtn_l` | vault 생성 의도·현재 멱등 키 세대·회수 결과 | Fireblocks 호출 선기록 · 응답 유실/로컬 저장 실패 회수 |
 | `bcm_acnt_m` | 계정 매핑 — (계정유형, ref) ↔ vault | 계정 생성 · 모든 오퍼레이션의 계정 해석 |
 | `bcm_addr_crtn_l` | vault wallet·주소 생성 의도·assetId snapshot·회수 결과 | Fireblocks 호출 선기록 · 응답 유실/로컬 저장 실패 회수 |
@@ -272,6 +274,143 @@ upd: bcm_job_m | 1 | last_scs_dttm=12:00
 ## 테이블 상세
 
 모든 테이블은 코어 규약의 감사 4컬럼(`frst_reg_empno`·`frst_reg_brcd`·`last_chng_empno`·`last_chng_brcd`)을 끝에 둔다 — 아래 스키마에서는 반복을 줄여 **감사 4컬럼**으로 줄여 적고, 자동 처리 행은 시스템 센티넬로 채운다.
+
+Dfns 원천·지갑/요청/수신 시도의 논리 식별 요구는 [연결 계약](13-dfns-contracts.md#실행-원천과-저장-식별자)에 기록한다. 아래 DDL은 현행 Fireblocks 계약이며 Dfns 물리 스키마 변경은 아직 적용하지 않는다.
+
+### 제공자 원천 binding — 후속 물리 계약
+
+**구현 상태: V21·조회 Repository·세 앱의 기동 전 원천 대조를 구현했다. 운영 적용/실제 원천 등록은 미수행이다.**
+초기에는 업무 데이터셋(DB/schema) 하나를 실행 원천 하나에 고정한다. API/Webhook/BAT는 같은 binding을 읽는다.
+환경변수로 구현을 선택하는 기능은 이 binding을 바꾸거나 데이터를 다른 제공자로 이전하는 기능이 아니다.
+다른 원천을 운영하려면 별도 데이터셋을 사용한다. 동일 데이터셋에 여러 원천을 합치는 기능은 이번 계약에 포함하지 않는다.
+
+`V21__provider_origin_binding.sql`의 `bcm_prvd_bndg_m`은 아래 명세를 따른다. 애플리케이션은 조회 권한만 가지며 등록·수정·삭제는 하지 않는다.
+
+| 컬럼 | 타입·제약 | 의미 |
+|---|---|---|
+| `bndg_no` | SMALLINT PK, CHECK (= 1) | 데이터셋에 최대 한 binding만 허용하는 고정 슬롯 |
+| `orgn_id` | VARCHAR(64) NOT NULL UNIQUE | BCM에서 부여한 불변 원천 ID. 시크릿·접속 URL과 독립 |
+| `exec_mode` | VARCHAR(16) NOT NULL | `fireblocks`, `dfns`, `local` 중 하나 |
+| `prtc_prvd` | VARCHAR(16) NOT NULL | 실제 프로토콜: `fireblocks`, `dfns` 중 하나 |
+| `pltfrm_inst_id` | VARCHAR(64) NOT NULL | 운영 등록부에서 관리하는 플랫폼 설치 식별자. host/URL 변경 시 유지 |
+| `vndr_org_id` | VARCHAR(64) NOT NULL | 검증된 workspace/organization 식별자. local은 별도 Stub 데이터셋 식별자 |
+| `chain_mode` | VARCHAR(16) NOT NULL | 기존 실행 환경의 `LOCAL`, `TESTNET`, `MAINNET` |
+| `bndg_dttm` | VARCHAR(16) NOT NULL | 실제 원천 확인과 binding 등록을 완료한 UTC 시각 |
+| 감사 4컬럼 | 기존 규약의 VARCHAR(6/4/6/4) NOT NULL | 등록/변경 책임자. 자동 처리 시 `SYSTEM`/`9999` |
+
+문자 식별자는 빈 값·앞뒤 공백을 CHECK로 거절한다. 실행 모드/프로토콜/체인 환경은 다음 조합만 CHECK로 허용한다.
+`fireblocks/fireblocks/(TESTNET|MAINNET)`, `local/fireblocks/LOCAL`, `dfns/dfns/(TESTNET|MAINNET)`.
+이 제약에 Dfns가 포함돼도 어댑터·수용 계약을 충족하기 전 Dfns 기동을 허용하지 않는다.
+
+| 보호 대상 | 초기 binding 적용 범위 |
+|---|---|
+| 계정·생성 의도·주소·주소 생성 의도 | 모든 vault/asset ID와 미완료 POST 준비 이력을 데이터셋 원천에 귀속 |
+| 자산 매핑·회사 vault·스윕 설정/실행/항목·권한 | 설정에 남은 벤더 ID까지 같은 원천으로 확인. 계정 테이블만 검사하고 완료하지 않음 |
+| 제출·거래·가속/대체 연결 | externalTxId·vendorTxId의 현재 키/UNIQUE를 유지하며 전체 제출·회수 흐름을 원천에 귀속 |
+| 인박스·원문 보관·outbox | noti_id·원문/해시/실제 서명·evnt_id를 변경하지 않음. 보관 파티션과 미발행 이벤트도 점검 |
+| 대사 cursor·실행 이력·복구 의도 | 과거 처리 범위까지 같은 원천에 귀속. 새 제공자로 cursor를 복사해 이어 읽지 않음 |
+
+한 원천만 존재하므로 현행 ID PK/UNIQUE를 원천 복합키로 일괄 변경하지 않는다. binding이 모든 행의 원천을 대표하며,
+운영 역할에는 binding DML을 주지 않아 실행 중 변경을 금지한다. 개별 행을 다른 원천으로 재표기하는 백필은 허용하지 않는다.
+Dfns의 논리 계정→네트워크 wallet은 다음 절의 후속 저장 계약을 따른다. 요청→이동·수신 시도 연결은 별도 상세화가 필요하다.
+이 singleton은 그 모델을 대신하지 않으며 같은 DB에 여러 원천을 수용하려면 행별 원천/FK/복합 키 계약부터 다시 설계한다.
+
+등록·백필·시작 순서는 다음과 같다.
+
+1. **신규 데이터셋:** DBA가 새 SQL을 적용하고 실제 설치/조직/체인 환경에 대한 등록 증거로 binding을 등록한다.
+   앱이 빈 테이블에 현재 환경변수 값을 자동 삽입하는 TOFU(first use) 방식은 사용하지 않는다.
+2. **기존 데이터셋:** 모든 writer·scheduler·relay를 중지하고 백업 후 계정/주소/설정/진행 의도/거래/인박스/보관/대사 범위를 조사한다.
+   실제 Fireblocks workspace와 환경 증거로 원천을 확인한 뒤 단일 binding을 등록한다. 혼합·미상 원천은 등록을 중단한다.
+   기존 키·상태·진행 시각·payload·해시·이벤트 ID는 그대로 보존한다. 진행 중 요청을 성공/미제출로 바꿔 검사를 통과시키지 않는다.
+3. **기동 검증:** 각 앱의 요청 수용·worker/relay/scheduler 시작·외부 호출 전에 binding의 모든 식별 필드를 기대 설정과 대조한다.
+   누락 테이블/행·읽기 실패·불일치는 기동 실패다. 기본 Fireblocks binding이나 자동 fallback은 없다.
+   `BCM_ORIGIN_ID`·`BCM_ORIGIN_PLATFORM_INSTANCE_ID`·`BCM_ORIGIN_VENDOR_ORGANIZATION_ID`·`BCM_CHAIN_MODE`와
+   공통 guard의 선행 빈 의존은 설계12를 따른다. 전역 lazy 초기화에서도 guard는 지연시키지 않는다.
+4. **검증 한계:** 기대 설정과 DB 대조는 다른 데이터셋의 오연결을 차단하는 장치다. 설정까지 잘못 재표기하면 실제 벤더 조직의
+   증명이 되지 않으므로 원천 등록 증거와 선택 자격의 조직 대조는 별도 수용 항목으로 남긴다.
+5. **롤백:** 업무 원천을 바꾸지 않고 검증된 이전 애플리케이션/백업으로 돌아간다. binding을 지우거나 환경변수에 맞춰 덮어쓰는
+   롤백은 금지한다. guard 도입 전 바이너리는 이 보호를 제공하지 않으므로 운영 복귀 허용 대상으로 자동 간주하지 않는다.
+
+검증은 PostgreSQL 실제 PK/CHECK·앱 역할 DML 차단, 일치/누락/불일치 기동, 세 앱 외부 호출/처리 시작 0,
+기존 미완료 의도·보관 파티션 보존을 포함한다. [등록·권한·오류 절차](../runbooks/provider-origin.md)를 따른다.
+운영 DB에 SQL을 적용하거나 기존 binding을 자동 등록하지 않는다. 권한은 DBA가 부여하며 guard가 역할 권한을 자동 수정하지 않는다.
+
+### 네트워크 지갑 생성 의도와 연결 — 후속 DB 계약
+
+**상태: 생성 의도·회수 페이지·완료 연결은 아래 V22·Repository에 구현했다. 논리 계정 모델과 자산 주소/업무 연결은 미구현이다.**
+[13의 순수 생성·조회 포트와 회수 판정](13-dfns-contracts.md#네트워크-지갑-공통-포트와-회수-판정--구현)을 영속 원장에 연결했다.
+현재 `bcm_acnt_m.vndr_vlt_id NOT NULL`과 Fireblocks 생성 의도 두 테이블은 그대로 동작한다.
+
+| 저장 경계 | 불변 키와 내용 | 제약·원자성 |
+|---|---|---|
+| `bcm_acnt_m` 논리 계정 확장 | 기존 `acnt_id`·유형/ref·생성 시각 유지. 계정 모델 `VAULT`/`LOGICAL` 구분을 추가하는 안 | 기존 `(acnt_typ_dvcd, ref)` UNIQUE 유지. `VAULT`는 기존 vendor vault ID 필수, `LOGICAL`은 vault ID 없음. 새 CHECK로 조건부 필수화하기 전 현행 NOT NULL을 제거하지 않음. 모델은 원천의 프로토콜과 대조하며 실행 중 변경 금지 |
+| `bcm_ntwk_wlt_crtn_l` 생성 의도 | 내부 의도 ID, 원천 FK, account FK, BCM network, 고정 correlation ID, 정규화 요청 hash/버전, 실제 제출에 쓸 network 매핑 snapshot, 상태·버전, 최초 POST 준비 시각, known wallet ID, 관찰 결과 참조, 등록/변경 시각·감사 4컬럼 | UNIQUE `(orgn_id, acnt_id, ntwk_cd)`로 모든 토큰/동시 요청이 의도 하나에 합류. UNIQUE `(orgn_id, correlation_id)`로 재사용 차단. 의도/상관관계/hash·snapshot 불변; 같은 scope에 다른 hash는 충돌 |
+| `bcm_ntwk_wlt_m` 준비 완료 연결 | 원천 FK, account FK, BCM network, 벤더 wallet ID, 지갑 주소, 생성 의도 FK, 검증 관찰 참조·시각·감사 4컬럼 | UNIQUE `(orgn_id, acnt_id, ntwk_cd)` 및 `(orgn_id, vndr_wlt_id)`. 동일 wallet을 다른 계정/네트워크에 연결하지 않음. 의도와 scope를 복합 FK/동일 트랜잭션 검증으로 대조. signing key ID·동일 주소는 연결 키가 아님 |
+| `bcm_ntwk_wlt_obs_l` 회수 관찰 | 관찰/조회 실행 ID, 의도 FK, 대상 원천·known ID, cursor·완료 여부, 관찰 시각, 정규화 후보·검증 결과, 실제 응답 증적 참조/hash, 안전한 실패 분류·감사 4컬럼 | 조회 실패·페이지 미완료·미관찰·속성 충돌을 구분해 보존. 응답 원문/주소를 일반 오류 로그에 출력하지 않음. 관찰과 cursor 전진을 같은 트랜잭션으로 기록, 중단 재개 시 동일 페이지를 중복 수용 가능하게 식별 |
+| 기존 `bcm_addr_m` 자산 주소 | `(acnt_id, ntwk_cd, symbol)` 멱등성 유지, 준비한 네트워크 wallet 및 발급 시점의 자산 매핑 snapshot 연결 | 지갑 준비 완료와 자산 수신 주소 완료를 분리. 같은 체인 토큰은 wallet 의도를 공유하지만 token account·tag가 같은 주소라는 가정은 하지 않음 |
+
+표는 논리 저장 경계이며 구현 컬럼/제약은 아래 V22 명세를 따른다. BCM/벤더 ID는 기존 VARCHAR(64), network는 VARCHAR(20), 시각은 UTC VARCHAR(16),
+감사 4컬럼은 기존 규약을 따른다. 벤더 원문 ID가 저장 제약에 맞는지는 릴리스 schema로 검증하며 자르거나 대체하지 않는다.
+정규화 관찰은 페이지/후보 테이블로 분리했다. 실제 응답 증적은 보호된 보관 위치 참조/hash 계약을 두며 보관 어댑터는 후속이다.
+증적에 API key·인증 헤더를 보관하지 않는다.
+network는 [07](07-asset-master.md)의 BCM 코드이며 환경은 origin/코드 양쪽과 검증한다. origin FK는 singleton의 `orgn_id`만 참조한다.
+요청 hash는 토큰 symbol을 포함해 토큰마다 wallet을 만들지 않는다. 논리 계정·원천·network·지갑 생성 옵션/매핑 버전을 정규화해
+생성 의도 단위로 고정하며, 실제 제출 본문과의 연결도 보존한다. 매핑 변경을 재시도에 자동 적용하지 않는다.
+
+후속 생성 의도 상태와 제출 권한은 다음과 같다. 상태명은 BCM 내부 값이며 Dfns 응답 상태가 아니다.
+
+| 상태/전이 | 저장·허용 동작 |
+|---|---|
+| 신규 → `PREPARED` | 논리 계정 확인 후 scope UNIQUE로 의도 예약. 경합자는 기존 의도를 읽고 hash를 대조. 벤더 POST는 아직 불가 |
+| `PREPARED` → `SUBMITTING` | 상태·버전 CAS로 최초 제출 권한을 한 요청만 획득하고 POST 준비 시각을 먼저 커밋. 이긴 요청만 고정 본문으로 최초 POST 가능 |
+| `SUBMITTING` → `RECOVERING` | 응답 유실·timeout·재시작·완료 저장 실패 시 조회만 수행. 프로세스가 POST 전에 죽었더라도 `PREPARED`로 되돌리지 않음. claim 만료/시간 경과도 새 POST 권한을 만들지 않음 |
+| 응답/조회 → known ID 보존 | 원천·network·correlation·조직 소유 검사 후 기록. 주소가 없으면 같은 ID의 준비를 기다림. 한 번 기록한 ID는 다른 후보로 교체하지 않음 |
+| `SUBMITTING`/`RECOVERING` → `COMPLETED` | `Ready` 관찰을 얻은 뒤 의도 행 잠금·버전/scope/known ID 재검증. wallet 연결 insert와 의도 완료를 한 트랜잭션으로 저장. 늦은 응답은 이미 완료된 같은 자원만 확인 가능 |
+| 관찰 불일치 → `CONFLICT` | 상충 증적을 보존하고 자동 연결/제출 중단. 운영 해소 절차 확정 전 자동 상태 초기화 금지 |
+
+`Pending`은 재생성 지시가 아니며 현재 상태와 대기 사유를 보존한다. 조회 0건·404·페이지 실패를 미제출 증거로 바꾸지 않는다.
+불완전한 페이지 집합이나 이전 조회와 뒤섞인 관찰을 `scanComplete=true`로 전달하지 않는다. cursor 반복·조회 상한 도달은 미완료로 남긴다.
+조회 worker를 인계해도 최초 POST 권한은 인계/재발급하지 않는다. 이 보수적 계약을 완화하려면 해당 Baseline의 중복·회수 보장부터 확보한다.
+
+전환은 새 SQL로 확장하고 기존 migration을 수정하지 않는다. 기존 계정은 실제 원천이 확인된 Fireblocks `VAULT`로 분류하되,
+acnt_id·vendor vault ID·주소·진행 의도·이벤트 키를 치환하지 않는다. Dfns `LOGICAL` 계정은 별도 원천 데이터셋에서만 생성한다.
+`Account.vendorVaultId` 비선택 모델 처리와 Fireblocks 전용 소비자의 타입 검사까지 함께 변경한 뒤에만 nullable 행을 허용한다.
+기존 바이너리는 `LOGICAL` 행을 읽을 수 없으므로 신규 모델 writer를 연 데이터셋을 구버전으로 단순 롤백하지 않는다.
+실제 적용 전 기존 Fireblocks/로컬 회귀, 동시 토큰 요청 1 POST, 준비 직후 프로세스 종료, 늦은 응답·ID 충돌,
+페이지 중단/재개와 원자 저장 실패의 PostgreSQL 테스트를 추가한다. 이 절만으로 Dfns 기동을 열지 않는다.
+
+### V22 네트워크 지갑 원장 — 물리 저장 계약
+
+DF3.6은 앞 절의 생성 의도·페이지 회수·완료 연결을 확장 테이블로 구현한다. 기존 계정의 NOT NULL과 주소 매핑은 유지한다.
+계정 FK는 현재 `bcm_acnt_m`을 참조하고, `LOGICAL` 모델 도입/소비자 분리는 후속 마이그레이션으로 수행한다.
+새 원장에는 아직 공개 API/벤더 실행 호출자가 없다. 이 저장 계약만으로 Dfns 지갑을 생성하거나 기동을 허용하지 않는다.
+
+| 테이블 | 컬럼·타입 | 키·제약 |
+|---|---|---|
+| `bcm_ntwk_wlt_crtn_l` | `crtn_id, orgn_id, acnt_id, corr_id` VARCHAR(64), `ntwk_cd` VARCHAR(20), `req_hash` VARCHAR(64), `req_vrsn` VARCHAR(32), `vndr_ntwk` VARCHAR(64), `crtn_stcd` VARCHAR(16), `rvsn` BIGINT, `post_prep_dttm` VARCHAR(16) nullable, `vndr_wlt_id` VARCHAR(64) nullable, `scan_id` VARCHAR(64) nullable, `next_crsr` TEXT nullable, `scan_done_yn` VARCHAR(1), `last_rsn` VARCHAR(64) nullable, `reg_dttm, last_chng_dttm` VARCHAR(16) | PK crtn_id, UNIQUE(origin/account/network), UNIQUE(origin/correlation), UNIQUE(crtn_id/origin/account/network), 원천/계정 FK. hash는 소문자 SHA-256 hex, revision ≥ 0, 상태 5종. PREPARED만 POST 준비 시각 없음. COMPLETED는 wallet ID·완료 scan 필수 |
+| `bcm_ntwk_wlt_obs_l` | `page_id, crtn_id, scan_id` VARCHAR(64), `page_no` INT, `qry_crsr, next_crsr` TEXT nullable, `evdc_ref` VARCHAR(512), `evdc_hash` VARCHAR(64), `obs_dttm` VARCHAR(16) | PK page_id, UNIQUE(crtn_id/scan_id/page_no), UNIQUE(page_id/crtn_id), 의도 FK. page_no ≥ 0, 증적 hash 소문자 SHA-256 hex. 0건 페이지도 보존 |
+| `bcm_ntwk_wlt_obs_item_l` | `page_id, crtn_id` VARCHAR(64), `item_no` INT, 관찰 원천 `orgn_id, pltfrm_inst_id, vndr_org_id` VARCHAR(64), `exec_mode, prtc_prvd, chain_mode` VARCHAR(16), `ntwk_cd` VARCHAR(20), `vndr_wlt_id` VARCHAR(64), `corr_id` VARCHAR(64) nullable, `ownr_dvcd` VARCHAR(16), `wlt_addr` VARCHAR(256) nullable | PK(page_id/item_no), 복합 FK(page_id/crtn_id)→페이지. item_no ≥ 0, 소유 값 ORGANIZATION/OTHER/UNVERIFIED. 불일치 원천도 증적으로 남기므로 관찰 원천은 binding FK로 강제하지 않음 |
+| `bcm_ntwk_wlt_m` | `crtn_id, orgn_id, acnt_id` VARCHAR(64), `ntwk_cd` VARCHAR(20), `vndr_wlt_id` VARCHAR(64), `wlt_addr` VARCHAR(256), `page_id` VARCHAR(64), `reg_dttm` VARCHAR(16) | PK crtn_id, UNIQUE(origin/account/network), UNIQUE(origin/vendor wallet ID), 복합 FK(crtn_id/origin/account/network)→의도, FK(page_id/crtn_id)→최종 증적 페이지 |
+
+의도 ID·network·correlation·요청 버전/snapshot과 후보 ID/주소는 빈 값·앞뒤 공백을 거절한다.
+네 테이블 끝에 감사 4컬럼 NOT NULL을 둔다. 벤더 ID/주소는 잘라 저장하지 않는다.
+요청 hash/버전·벤더 network snapshot은 예약 시 고정한다. 같은 scope의 경합 요청은 최초 correlation/의도 ID로 합류하되
+hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실제 벤더 본문으로 만들어 주지 않으며 어댑터 연결 시 정규화 규칙을 고정한다.
+
+- 변경 메서드는 독립 트랜잭션으로 커밋한다. 외부 서비스 트랜잭션의 롤백이 이미 부여한 POST 권한을 되살리지 않게 한다.
+  원천 6필드를 조회 대조하고 의도 행 잠금·revision CAS로 변경한다. 최초 제출은 PREPARED에서만 가능하며 반환된 승자만 호출할 수 있다.
+  참조 계정은 먼저 커밋되어 있어야 한다. 호출자는 계정/의도 잠금을 가진 채 독립 트랜잭션을 기다리는 방식으로 조립하지 않는다.
+- 회수 시작은 제출된 의도에서만 가능하며 새 scan ID·revision으로 기존 worker를 차단한다. 동일 scan 재개는 저장된 next cursor를 쓴다.
+  끝난/중단한 scan을 새로 조회할 때는 새 scan ID를 사용한다. 이전 scan의 후보를 새 scan에 섞지 않는다.
+- 페이지 저장은 기대 revision·scan ID·요청 cursor를 재검사한다. 페이지/모든 후보/다음 cursor/판정은 한 트랜잭션이다.
+  cursor 반복은 저장 전에 거절한다. HTTP 실패/미지원 조회는 페이지 성공으로 기록하지 않으며 기존 cursor를 유지하고 오류를 전파한다.
+  조회 실행·오류 수집 스케줄러는 후속이며, 이 원장은 성공적으로 읽은 페이지와 그 검증 결과를 보존한다.
+- 모든 페이지의 정규화 후보를 모아 기존 RecoveryPolicy로 판정한다. 미완료 조회/주소 대기 중에도 유일하게 검증된 known ID를 고정하고,
+  다른 ID·중복 wallet·원천/소유 불일치는 CONFLICT로 저장한다. 다른 계정에 연결된 wallet은 `WALLET_ALREADY_BOUND`로 격리한다.
+  Ready는 wallet insert와 COMPLETED 갱신을 원자 처리한다. 저장 실패는 페이지·cursor·연결 전체 롤백이며 POST 권한은 이전 커밋에 남는다.
+- 완료/충돌 행은 새 제출이나 새 scan을 열지 않는다. 늦은 응답·오래된 revision은 변경을 거절하고 저장된 결과를 다시 조회하게 한다.
+- `evdc_ref/hash`는 비밀 정보 없는 보호된 실제 응답 증적 위치/해시를 호출자가 제공하는 계약이다. 임의 URI가 원문 보관을 보장하지 않는다.
+  원문 보관 어댑터와 릴리스별 증적 수용은 Dfns 연결 전 구현해야 한다. 본 원장의 후보 행은 BCM 정규화 값이며 벤더 JSON을 창작하지 않는다.
 
 ### bcm_acnt_crtn_l — vault 생성 의도·회수 원장
 

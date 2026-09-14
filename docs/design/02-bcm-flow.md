@@ -8,6 +8,10 @@ group: 블록체인 매니저
 
 ## 계정 생성 · 입금 주소 발급 · 조회
 
+아래 실행 흐름은 현행 Fireblocks/로컬 계약이다. accountId는 BCM 발급 계정 ID이며 벤더 vault ID와 다르다.
+Dfns의 논리 계정→네트워크 지갑→자산 주소는 [13의 후속 연결 계약](13-dfns-contracts.md#계정주소-api의-후속-연결-계약)을 따른다.
+현재 공통 생성·조회 인터페이스와 순수 회수 판정만 구현했으며, 아래 서비스/DB 동작을 Dfns 방식으로 변경하지 않았다.
+
 | 오퍼레이션 | API | 하는 일 | 멱등 |
 |---|---|---|---|
 | `createAccount` | `POST /accounts` | vault 생성 의도를 먼저 남기고 vault 를 만든 뒤 ref↔accountId 매핑을 반환한다. ref = DAW-CORE 계정 ID (접두사 없음), 유형(`CUSTOMER`·`SYSTEM`)을 함께 받는다 | 같은 (유형, ref) → 같은 accountId. 생성 의도의 복합 UNIQUE와 현재 세대 `Idempotency-Key`가 멱등의 최초 방어고, 완료 매핑의 UNIQUE가 최종 방어 |
@@ -57,6 +61,8 @@ Fireblocks 조회로 회수한다. vault는 의도에 고정한 이름을
 선기록된 벤더 assetId snapshot은 재시도 중 자산 매핑이 바뀌어도 달라지지 않는다.
 
 ## 감지 — 웹훅 수신
+
+제공자별 수신 헤더·envelope 해석은 [WebhookProtocol](12-provider-compatibility.md#웹훅-수신-프로토콜-경계)이 담당한다. Fireblocks/로컬의 아래 이벤트 순서·원문 보존은 유지하며, Dfns의 지갑·멱등·수신/복구 차이는 [연결 계약](13-dfns-contracts.md)에 별도로 기록한다.
 
 온체인 상태 변경은 Fireblocks 웹훅으로 받는다. 매니저가 계열을 가려 세 토픽으로 publish 하고, 백엔드는 토픽별 컨슈머로 consume 한다. 감지용 상시 폴링은 없다 — 놓친 웹훅은 tx 대사(10분 주기 목록 대조)가 복구한다.
 

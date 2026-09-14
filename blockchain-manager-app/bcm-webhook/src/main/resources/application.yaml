@@ -7,6 +7,11 @@ spring:
 
 bcm:
   provider: ${BCM_PROVIDER:}
+  chain-mode: ${BCM_CHAIN_MODE:}
+  origin:
+    id: ${BCM_ORIGIN_ID:}
+    platform-instance-id: ${BCM_ORIGIN_PLATFORM_INSTANCE_ID:}
+    vendor-organization-id: ${BCM_ORIGIN_VENDOR_ORGANIZATION_ID:}
   operational-metrics:
     fixed-delay-millis: ${BCM_OPERATIONAL_METRICS_FIXED_DELAY_MILLIS:60000}
     initial-delay-millis: ${BCM_OPERATIONAL_METRICS_INITIAL_DELAY_MILLIS:60000}

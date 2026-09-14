@@ -7,6 +7,11 @@ spring:
 
 bcm:
   provider: ${BCM_PROVIDER:}
+  chain-mode: ${BCM_CHAIN_MODE:}
+  origin:
+    id: ${BCM_ORIGIN_ID:}
+    platform-instance-id: ${BCM_ORIGIN_PLATFORM_INSTANCE_ID:}
+    vendor-organization-id: ${BCM_ORIGIN_VENDOR_ORGANIZATION_ID:}
   daw-integration:
     enabled: ${BCM_DAW_INTEGRATION_ENABLED:false}
   admin-api:

@@ -381,7 +381,7 @@ _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다. |
 
 
 _요청 본문_
@@ -486,7 +486,7 @@ _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다. |
 | `symbol` | query | string | - | USDC | 토큰 심볼로 거른다 (선택) |
 | `network` | query | string | - | BASE | 네트워크 코드로 거른다 (선택) |
 
@@ -582,7 +582,7 @@ _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다. |
 | `network` | query | string | - | BASE | 네트워크 코드로 거른다 (선택) |
 | `symbol` | query | string | - | USDC | 토큰 심볼로 거른다 (선택) |
 
@@ -1020,7 +1020,7 @@ _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | 매니저가 돌려준 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | path | string | 필수 | acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890 | BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다. |
 | `after` | query | string (ISO 8601) | - | 2026-07-01T00:00:00.000Z | 시작 시각 — 거래 시각(createdAt) 기준 (ISO 8601 UTC). **첫 요청(`cursor` 없음)에는 필수**고, 없으면 `400 VALIDATION_FAILED` 다. `cursor` 가 있으면 조회 조건이 토큰에 들어 있어 이 값은 무시되므로 생략한다.  |
 | `before` | query | string (ISO 8601) | - | 2026-07-13T00:00:00.000Z | 종료 시각 — 거래 시각(createdAt) 기준 (ISO 8601 UTC). 생략하면 상한 없음 — 증분 폴링(`order=asc`) 조회는 생략한다. |
 | `order` | query | string | - | desc | 정렬 방향 — 거래 시각(createdAt) 기준. 기본 desc(최신순). 마지막 커서를 보관해 새 내역을 이어받는 증분 폴링은 `asc` 조회에서만 성립한다. |
@@ -3996,7 +3996,7 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 |---|---|---|---|
 | `accountType` | AccountType | 필수 | `CUSTOMER` `SYSTEM` |
 | `ref` | string | 필수 | 우리 참조 키 — 호출 쪽 계정 ID 그대로. 접두사는 붙지 않는다 |
-| `accountId` | string | 필수 | 매니저가 돌려주는 vault 핸들 (DB ext_acnt_id = vaultAccountId) |
+| `accountId` | string | 필수 | BCM이 발급한 계정 ID (DB bcm_acnt_m.acnt_id). 벤더 vault 또는 wallet ID와 구분한다. |
 
 
 ### Transfer
@@ -4034,7 +4034,7 @@ RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값�
 | `txId` | string | 필수 | 최초 root 거래의 벤더 tx id |
 | `txHash` | string \\| null | - | 온체인 거래해시 — 전파 후 채워짐 |
 | `externalTxId` | string \\| null | - | 우리 요청 키 (출금·내부이체) |
-| `accountId` | string | 필수 | 파티션 키 (vault 핸들) |
+| `accountId` | string | 필수 | 파티션 키 (BCM이 발급한 계정 ID) |
 | `network` | string | 필수 | 네트워크 코드 |
 | `symbol` | string | 필수 | 토큰 심볼 |
 | `to` | string \\| null | 필수 | 목적지 주소 — 입금 판별. **입금은 항상 채워진다.** 출금·내부이체의 `SUBMITTED` 이벤트는 아직 체인에 오르기 전이라 비어 있을 수 있다 |
