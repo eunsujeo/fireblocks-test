@@ -22,7 +22,32 @@ Dfns 실행 어댑터·보호 원문 저장소·공개 API 연결은 미구현�
 | [Webhook 검증](https://docs.dfns.co/guides/developers/webhooks) | `X-DFNS-WEBHOOK-SIGNATURE`의 HMAC-SHA256, `sha256=` 형식, timestampSent 검사 예제가 있다. secret은 생성 응답에서 한 번 제공된다. | Fireblocks JWKS/RS512와 다른 검증기·secret 관리가 필요하다. 예제의 JSON 재직렬화와 BCM의 원문 byte[] 원칙 사이의 정확한 서명 입력은 실제 릴리스와 대조한다. |
 | [Webhook Events](https://docs.dfns.co/api-reference/webhook-events) | 최상위 종류는 kind다. 재시도는 별도 ID이고 retryOf/deliveryAttempt가 사용되며 순서 보장은 없다. 이력 보존은 31일, 수동 retry API는 없다고 명시한다. | 알림 시도·논리 이동·CORE 이벤트를 분리한다. 복구는 이력 회수와 처리 재개로 설계하고 벤더 재전송 성공을 꾸며내지 않는다. |
 
-공개 명세 열은 문서 확인이며 Baseline 실측이 아니다. 구현 코드에 채택할 Dfns 필드·원문은 릴리스별 schema와 서명된 샘플을 확보한 뒤 별도 증거로 고정한다.
+공개 명세 열은 문서 확인이며 Baseline 실측이 아니다. 공개 명세에 있는 필드·동작은 출처와 버전을 고정해 어댑터·계약 테스트의 구현 근거로 사용한다.
+실제 배포 릴리스 대조와 서명된 수신 원문 검증은 운영 연결 전 수용 항목이며 모든 어댑터 개발의 선행 조건으로 두지 않는다.
+
+### 공식 OpenAPI 재확인과 구현 근거 (2026-09-14 사용자 정정)
+
+사용자는 Dfns 공식 홈페이지에서 명세를 확인해 진행하도록 정정했다. [공식 문서 색인](https://docs.dfns.co/llms.txt)은
+현재 OpenAPI와 버전별 파일을 제공한다. 아래 두 파일을 실제 다운로드하고 YAML 파싱·info.version·경로를 확인했다.
+이는 다운로드 시점의 명세 식별이며 실제 Baseline 도입 버전을 선택했다는 뜻은 아니다.
+
+| 공식 파일 | info.version | SHA-256 |
+|---|---|---|
+| [현재 OpenAPI](https://docs.dfns.co/openapi.yaml) | 2.0.54 | `e617d55cbcc4a31cf817dbc5ffce3d0159b36846ab922039b4a956e6dcea4849` |
+| [버전별 OpenAPI](https://docs.dfns.co/openapi-versions/openapi-1.1018.3.yaml) | 1.1018.3 | `2c46e1d1a17fd37143192dd2191cb2771d29cf40c6f7974427f9a36acedc9439` |
+
+두 파일 모두 `/wallets` POST/GET, `/wallets/{walletId}` GET, `/auth/action/init` POST와 `/auth/action` POST를 포함한다.
+공식 [인증 흐름](https://docs.dfns.co/api-reference/auth/login-flows)과 위 Create Wallet 명세도 함께 대조한다.
+구현 시 변경 가능한 최신 URL만 참조하지 않고 실제 채택한 버전·필드·응답 예시의 근거를 고정한다. 공개 예시는 실측 payload라고 표시하지 않는다.
+
+- **바로 개발 가능:** 공개 명세에 근거한 인증·요청 서명 흐름, 지갑 생성/조회 DTO·HTTP 어댑터, 오류 매핑과 계약 테스트.
+  기존 증적 저장소/DB 복구 작업과 연결하며 실제 자격·네트워크 호출 없이 개발할 수 있다.
+- **별도 수용:** 도입 Baseline과 채택 명세의 차이, 지정 RPC·정책·권한·서명 원문, 실제 동시성/지연/장애 동작.
+  공개 웹훅 예시와 로컬 암호 검증은 실제 Dfns가 발송한 서명 원문 수용을 대신하지 않는다.
+- **보장 미확인 부분:** 위 Idempotency 문서는 Transfer/Broadcast를 대상으로 하며 Wallet 생성의 멱등 보장으로 확대하지 않는다.
+  List Wallets는 externalId 서버 필터를 지원하지 않는다고 명시한다. 현재 최초 POST 1회·조회 회수 정책을 유지한다.
+
+공식 명세가 있다는 사실만으로 미구현 실행 빈을 등록하거나 Dfns 기동 차단을 해제하지 않는다. 구현·공통 계약 검증·수용은 구분한다.
 
 ## 지갑 생성과 재시도
 
@@ -182,8 +207,8 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 
 | 확인 항목 | 필요한 증거 | 그 전에도 가능한 작업 |
 |---|---|---|
-| 실제 Baseline 릴리스·schema | 릴리스/이미지와 명세 버전의 연결, 배포 지원 범위 | 현행 Fireblocks 포트 추출·원천 DB 상세 설계 |
-| createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위 | 생성 의도/회수 계약의 순수 테스트 |
+| 실제 Baseline 릴리스와 공개 schema의 일치 | 릴리스/이미지와 채택 명세 버전의 연결, 배포 지원 범위 | 공식 버전별 OpenAPI에 근거한 DTO·인증/HTTP 어댑터·계약 테스트 |
+| createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위 | 최초 POST 1회·목록/단건 조회 어댑터·원장 결합 복구 테스트 |
 | 웹훅 원문·서명·retry | 서명된 바이트, timestamp, 실제 retry/이력 응답과 ID 연결 | 공통 수신 순서·보존·선택 구현 회귀 |
 | 조직 Wallet·초기 체인/USDC·KRWK | 지원 조합·자산 locator·소유·정책/가스 권한 | 체인 식별/확정/대납 인터페이스 설계; 추가 체인 실구현은 후속 |
 
