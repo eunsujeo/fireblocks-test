@@ -26,6 +26,8 @@ python3 scripts/wallet-sdk/sync_sources.py --cache /tmp/wallet-sdk-capture-YYYYM
 - `reference-controller.js`: 가이드의 모달·이력·새 창 제어
 - `reference-page.js`: 참고 문서 내부 이동·도식 크기 조정
 - `build_references.py`: 본문 변환, 링크 치환, HTML 내 스크립트 삽입, 공유 ZIP 생성
+- `_guide/policy.html`: 정책 평가·서명 흐름과 시드 출금/서명 대조 예제를 관리하는 가이드 원본
+- `policy-terms.json`·`policy-tooltips.js`·`policy-tooltips.css`: 정책 가이드의 네 용어 설명과 마우스·키보드·터치 툴팁. 빌드 시 해당 가이드에 인라인으로 반영하고 검색 본문도 갱신
 
 Python 환경에 BeautifulSoup이 필요하다. `docs/api` 생성기와는 별개다.
 
@@ -43,6 +45,7 @@ SVG 30개는 `_reference/diagrams/`에 보관한다. 원문 도식이 변경되�
 python3 scripts/wallet-sdk/verify_current.py
 python3 scripts/wallet-sdk/verify_references.py
 node scripts/wallet-sdk/verify_references.cjs
+node scripts/wallet-sdk/verify_policy.cjs
 ```
 
 `verify_current.py`는 원문 해시·코드 예시·본문과 변경된 상태·도식의 일치를 확인한다.
@@ -50,6 +53,7 @@ node scripts/wallet-sdk/verify_references.cjs
 `/tmp/wallet-reference-test.json`에 브라우저 검증 경로를 기록한다.
 `verify_references.cjs`는 참고 링크·중첩 이동·뒤로 가기·새 창·검색·모바일과 참고 문서 201개를 검사한다.
 브라우저 검사에서는 HTTP/HTTPS 요청을 차단한다.
+`verify_policy.cjs`는 최종 ZIP의 정책 가이드에서 툴팁·키보드·320/390px 화면·검색·참고 모달·원문 정책 JSON 일치를 확인한다.
 
 브라우저 도구에는 Playwright가 필요하다. 기존 설치를 쓸 때는 `PLAYWRIGHT_MODULE`에
 모듈 경로를 지정할 수 있다. 시스템 Chrome을 쓸 경우 `CHROME_BIN`에 실행 파일 경로를 지정한다.
