@@ -5,6 +5,7 @@ import com.whatto.bcm.domain.monitoring.WebhookIngestionMetricOutcome
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookInsertResult
 import com.whatto.bcm.domain.webhook.WebhookSignatureVerifier
+import com.whatto.bcm.infra.client.fireblocks.FireblocksWebhookProtocol
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -22,7 +23,8 @@ class WebhookIngestionServiceTest {
     private val objectMapper = mockk<ObjectMapper>()
     private val metrics = mockk<OperationalMetricsPort>(relaxed = true)
     private val clock = Clock.fixed(Instant.parse("2026-08-06T03:00:00Z"), ZoneId.of("Asia/Seoul"))
-    private val service = WebhookIngestionService(signatureVerifier, inboxRepository, objectMapper, metrics, clock)
+    private val service =
+        WebhookIngestionService(signatureVerifier, inboxRepository, FireblocksWebhookProtocol(objectMapper), metrics, clock)
 
     @Test
     fun `서명이 틀리면 payload를 파싱하거나 적재하지 않고 거절한다`() {

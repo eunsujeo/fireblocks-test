@@ -59,7 +59,7 @@ class WebhookIntegrationTest : IntegrationTestSupport() {
             .perform(
                 post("/webhook")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .header(WebhookController.SIGNATURE_HEADER, signature)
+                    .header("Fireblocks-Webhook-Signature", signature)
                     .content(payload),
             ).andExpect(status().isOk)
 
@@ -88,7 +88,7 @@ class WebhookIntegrationTest : IntegrationTestSupport() {
                 .perform(
                     post("/webhook")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header(WebhookController.SIGNATURE_HEADER, signature)
+                        .header("Fireblocks-Webhook-Signature", signature)
                         .content(payload),
                 ).andExpect(status().isOk)
         }
@@ -116,7 +116,7 @@ class WebhookIntegrationTest : IntegrationTestSupport() {
                                 .perform(
                                     post("/webhook")
                                         .contentType(MediaType.APPLICATION_JSON)
-                                        .header(WebhookController.SIGNATURE_HEADER, signature)
+                                        .header("Fireblocks-Webhook-Signature", signature)
                                         .content(payload),
                                 ).andReturn()
                                 .response
@@ -147,7 +147,7 @@ class WebhookIntegrationTest : IntegrationTestSupport() {
             .perform(
                 post("/webhook")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .header(WebhookController.SIGNATURE_HEADER, fakeSignature)
+                    .header("Fireblocks-Webhook-Signature", fakeSignature)
                     .content(payload),
             ).andExpect(status().isUnauthorized)
 

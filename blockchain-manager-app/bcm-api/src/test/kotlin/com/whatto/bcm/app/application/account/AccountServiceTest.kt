@@ -22,6 +22,8 @@ import com.whatto.bcm.domain.vendor.VendorDepositAddress
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorVault
 import com.whatto.bcm.domain.vendor.WalletVendorPort
+import com.whatto.bcm.infra.client.fireblocks.FireblocksProperties
+import com.whatto.bcm.infra.client.fireblocks.FireblocksWalletCreationPolicy
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -33,7 +35,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 
@@ -46,7 +47,7 @@ class AccountServiceTest {
     private val provisioningRepository = mockk<WalletProvisioningRepository>()
     private val assetMappingQueryService = mockk<VendorAssetMappingQueryService>()
     private val walletVendorPort = mockk<WalletVendorPort>()
-    private val provisioningPolicy = WalletProvisioningPolicy(Duration.ofSeconds(49))
+    private val provisioningPolicy = WalletProvisioningPolicy(FireblocksWalletCreationPolicy(FireblocksProperties()))
 
     // zone이 KST인 Clock이어도 registeredAt은 UTC 14자 일시로 정규화한다 (CLAUDE.md 3절).
     private val fixedClock = Clock.fixed(Instant.parse("2026-08-05T12:04:05Z"), ZoneId.of("Asia/Seoul"))

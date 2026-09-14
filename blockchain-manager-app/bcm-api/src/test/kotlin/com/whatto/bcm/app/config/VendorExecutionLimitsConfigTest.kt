@@ -4,6 +4,7 @@ import com.whatto.bcm.app.application.admin.VaultReconciliationProperties
 import com.whatto.bcm.app.application.submission.TransactionSubmissionProperties
 import com.whatto.bcm.domain.account.VendorCallDecision
 import com.whatto.bcm.domain.vendor.VendorExecutionLimits
+import com.whatto.bcm.infra.client.fireblocks.FireblocksWalletCreationPolicy
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -40,8 +41,8 @@ class VendorExecutionLimitsConfigTest {
     }
 
     @Test
-    fun `지갑 생성은 선택 벤더 호출이 멱등 창 안에 끝날 때만 키를 재사용한다`() {
-        val policy = WalletProvisioningConfig().walletProvisioningPolicy(limits)
+    fun `Fireblocks 지갑 생성은 선택 벤더 호출이 멱등 창 안에 끝날 때만 키를 재사용한다`() {
+        val policy = WalletProvisioningConfig().walletProvisioningPolicy(FireblocksWalletCreationPolicy(limits))
         val expiresAt = LocalDateTime.of(2026, 9, 15, 0, 0)
 
         assertThat(policy.vendorCallDecision("key", "20260914000000", null, expiresAt.minusSeconds(18)))

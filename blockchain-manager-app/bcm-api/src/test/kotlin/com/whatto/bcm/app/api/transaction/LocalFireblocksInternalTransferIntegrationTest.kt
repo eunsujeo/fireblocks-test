@@ -15,6 +15,7 @@ import com.whatto.bcm.testsupport.TestSupportApplication
 import com.whatto.bcm.testsupport.chain.LocalChainConfiguration
 import com.whatto.bcm.testsupport.chain.LocalChainEnvironment
 import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
+import com.whatto.bcm.testsupport.integration.LocalProviderDatabaseConfiguration
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.serialization.StringDeserializer
@@ -28,6 +29,7 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -50,6 +52,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+@Import(LocalProviderDatabaseConfiguration::class)
 @SpringBootTest(
     classes = [BcmApiApplication::class],
     webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
@@ -1026,7 +1029,7 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
                     "--server.port=$webhookPort",
                     "--management.server.address=127.0.0.1",
                     "--management.server.port=0",
-                    "--spring.datasource.url=${postgres.jdbcUrl}",
+                    "--spring.datasource.url=$localJdbcUrl",
                     "--spring.datasource.username=${postgres.username}",
                     "--spring.datasource.password=${postgres.password}",
                     "--spring.datasource.hikari.maximum-pool-size=2",
@@ -1034,6 +1037,10 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
                     "--bcm.webhook-worker.enabled=false",
                     "--bcm.outbox-relay.enabled=false",
                     "--bcm.provider=local",
+                    "--bcm.chain-mode=LOCAL",
+                    "--bcm.origin.id=test-local-origin",
+                    "--bcm.origin.platform-instance-id=test-local-platform",
+                    "--bcm.origin.vendor-organization-id=test-local-organization",
                     "--bcm.fireblocks.base-url=http://127.0.0.1:$stubPort",
                     "--bcm.fireblocks.api-key=bcm-local-stub",
                     "--bcm.fireblocks.private-key-file=$privateKeyFile",
@@ -1048,6 +1055,10 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
             registry.add("management.server.address") { "127.0.0.1" }
             registry.add("management.server.port") { "0" }
             registry.add("bcm.provider") { "local" }
+            registry.add("bcm.chain-mode") { "LOCAL" }
+            registry.add("bcm.origin.id") { "test-local-origin" }
+            registry.add("bcm.origin.platform-instance-id") { "test-local-platform" }
+            registry.add("bcm.origin.vendor-organization-id") { "test-local-organization" }
             registry.add("bcm.fireblocks.private-key-pem") { "" }
             registry.add("bcm.fireblocks.base-url") { "http://127.0.0.1:$stubPort" }
             registry.add("bcm.fireblocks.api-key") { "bcm-local-stub" }

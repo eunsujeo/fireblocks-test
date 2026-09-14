@@ -5,16 +5,23 @@ import com.whatto.bcm.domain.vendor.VendorExecutionLimits
 import com.whatto.bcm.domain.vendor.VendorNetworkFeePort
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.domain.vendor.VendorWebhookRecoveryPort
+import com.whatto.bcm.testsupport.integration.LocalProviderDatabaseConfiguration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.ApplicationContext
+import org.springframework.context.annotation.Import
 
+@Import(LocalProviderDatabaseConfiguration::class)
 @SpringBootTest(
     classes = [BcmBatApplication::class],
     properties = [
         "bcm.provider=local",
+        "bcm.chain-mode=LOCAL",
+        "bcm.origin.id=test-local-origin",
+        "bcm.origin.platform-instance-id=test-local-platform",
+        "bcm.origin.vendor-organization-id=test-local-organization",
         "bcm.fireblocks.base-url=http://127.0.0.1:9",
         "bcm.fireblocks.webhook-jwks-url=http://127.0.0.1:9/jwks",
         "bcm.catalog-sync.cron=-",

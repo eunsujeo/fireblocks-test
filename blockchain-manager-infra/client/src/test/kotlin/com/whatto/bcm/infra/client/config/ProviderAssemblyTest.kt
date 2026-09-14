@@ -9,7 +9,9 @@ import com.whatto.bcm.domain.vendor.VendorNetworkFeePort
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.domain.vendor.VendorWebhookRecoveryPort
+import com.whatto.bcm.domain.vendor.WalletCreationPolicy
 import com.whatto.bcm.domain.vendor.WalletVendorPort
+import com.whatto.bcm.domain.webhook.WebhookProtocol
 import com.whatto.bcm.domain.webhook.WebhookSignatureVerifier
 import com.whatto.bcm.domain.webhook.WebhookTransactionParser
 import org.assertj.core.api.Assertions.assertThat
@@ -42,6 +44,7 @@ class ProviderAssemblyTest {
             assertThat(context).hasNotFailed()
             listOf(
                 WalletVendorPort::class.java,
+                WalletCreationPolicy::class.java,
                 VendorTransactionPort::class.java,
                 VendorContractCallPort::class.java,
                 VendorAssetCatalogPort::class.java,
@@ -50,6 +53,7 @@ class ProviderAssemblyTest {
                 VendorExecutionLimits::class.java,
                 VendorStatusTranslator::class.java,
                 WebhookSignatureVerifier::class.java,
+                WebhookProtocol::class.java,
                 WebhookTransactionParser::class.java,
             ).forEach { port -> assertThat(context.getBeansOfType(port)).hasSize(1) }
         }

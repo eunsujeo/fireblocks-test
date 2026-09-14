@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.bat.support
 
 import com.whatto.bcm.testsupport.database.PostgreSqlSchemaInitializer
+import com.whatto.bcm.testsupport.database.ProviderOriginTestDatabase
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -113,6 +114,8 @@ abstract class IntegrationTestSupport {
             .joinToString("") { "%02x".format(it) }
 
     companion object {
+        val localJdbcUrl: String by lazy { ProviderOriginTestDatabase.createLocal(postgres.jdbcUrl, postgres.username, postgres.password) }
+
         private val providerTestPem: String by lazy {
             val key =
                 KeyPairGenerator
@@ -137,6 +140,7 @@ abstract class IntegrationTestSupport {
                 .apply {
                     start()
                     PostgreSqlSchemaInitializer.initialize(jdbcUrl, username, password)
+                    ProviderOriginTestDatabase.registerFireblocks(jdbcUrl, username, password)
                 }
     }
 }
