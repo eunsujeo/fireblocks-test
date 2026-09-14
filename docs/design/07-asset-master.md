@@ -20,9 +20,17 @@ group: 운영 설계
 현재 매핑 표는 매핑만 담는다. 지원 여부는 여전히 사람이 등록한 현재 매핑으로 정하며, 벤더 자산 카탈로그는 **찾기 위한 캐시**일
 뿐 지원 자산 목록이나 등록 근거가 아니다. 블록체인 목록과 채택한 네트워크의 자산 목록을 하루 한 번 받아 둔다(아래 "표 셋").
 
-**범위 (시작 시점)** — 스테이블코인만, 네트워크 계열은 Ethereum · Base 둘이다. mainnet과 testnet은 서로 다른 BCM 코드로 두며,
+**현행 Fireblocks 구현 범위** — 스테이블코인만, 네트워크 계열은 Ethereum · Base 둘이다. mainnet과 testnet은 서로 다른 BCM 코드로 두며,
 로컬 Fireblocks TESTNET은 `ETHEREUM_SEPOLIA` · `BASE_SEPOLIA`를 지원 목록에서 자동 연결한다. 벤더 자산 분류는
 NATIVE · FT · FIAT · NFT · SFT · VIRTUAL 로, 스테이블코인이라는 분류는 없다.
+
+**Dfns 전환 목표(2026-09-14 사용자 지정)** — Ethereum·Base·Solana, 대상 종목 USDC·KRWK.
+3체인×2종목은 모델/후속 확장 목표이며 초기 동시 구현·출시 범위가 아니다. 초기에는 자산 식별 인터페이스를 마련하고 실제 초기 자산은 DF0에서 고정한다.
+후속 체인 어댑터·등록은 확장 단계에서 수행하며 여섯 조합의 발행·지원 완료를 의미하지 않는다. 체인별 발행사·실제 배포·decimals·권한을 확인한 뒤 활성화한다.
+EVM은 환경/chainId+contract, Solana는 cluster/genesis+Token Program+mint로 구분하고 owner와 token account를 분리하는 모델을 설계한다.
+같은 심볼의 체인별 잔고를 합치지 않으며 native/bridged도 별도 식별한다. 현행 `(network, symbol)`은 정확한 한 물리 자산에 연결한다.
+기존 카탈로그/매핑 DDL·decimals 저장·API에 필요한 확장은 DF1에서 확정한다. 이번 기록으로 운영 자산을 등록하거나 Solana 지원을 완료하지 않는다.
+[체인별 등록표·확정·대납 계약](../dfns-compatibility-plan.md)을 따른다.
 
 ## 네트워크 코드와 토큰 심볼
 
@@ -314,7 +322,7 @@ Origin·JSON 요청을 모두 확인한다. 로컬 Blockchain Manager Admin BFF�
 
 ## 아직 못 정한 것
 
-- **컨트랙트 주소의 정본 출처** — 대조에 쓸 "진짜 USDC 주소" 를 어디서 가져올지, 누가 확인해 등록 요청에 넣을지.
+- **운영 자산 등록 증적·담당자** — USDC는 발행사 Circle 공식 목록과 노드 원본을 대조하는 전환 계획이다. 실제 등록 주소·검토자·승인 절차는 확정 전이다. KRWK는 발행사·체인별 배포·contract/mint/표준까지 확인해야 한다.
 
 ## 확인한 것
 

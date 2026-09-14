@@ -1,6 +1,7 @@
 package com.whatto.bcm.infra.client.fireblocks
 
 import com.whatto.bcm.domain.account.WalletProvisioningPolicy
+import com.whatto.bcm.domain.vendor.VendorExecutionLimits
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.nio.file.Files
 import java.nio.file.Path
@@ -36,7 +37,7 @@ data class FireblocksProperties(
     val webhookJwksTimeoutMillis: Long = 3_000,
     /** 낯선 kid 연속 입력이 JWKS 외부 호출을 증폭시키지 않게 하는 비동기 갱신 최소 간격. */
     val webhookJwksRefreshCooldownMillis: Long = 30_000,
-) {
+) : VendorExecutionLimits {
     init {
         require(privateKeyPem.isBlank() || privateKeyFile.isBlank()) {
             "privateKeyPem and privateKeyFile cannot be configured together"
@@ -64,7 +65,7 @@ data class FireblocksProperties(
     }
 
     /** 연결·응답·429 백오프를 모두 포함한 벤더 API 한 번의 보수적 최장 시간. */
-    val maximumCallMillis: Long
+    override val maximumCallMillis: Long
         get() =
             Math.addExact(
                 Math.multiplyExact(maxAttempts.toLong(), Math.addExact(connectTimeoutMillis, readTimeoutMillis)),
@@ -72,6 +73,6 @@ data class FireblocksProperties(
             )
 
     /** POST가 400이면 externalTxId 조회가 이어지므로 제출 흐름은 API 호출 두 번까지 잡는다. */
-    val maximumSubmissionFlowMillis: Long
+    override val maximumSubmissionFlowMillis: Long
         get() = Math.multiplyExact(maximumCallMillis, 2)
 }

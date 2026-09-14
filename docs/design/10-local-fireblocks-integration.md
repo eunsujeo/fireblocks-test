@@ -42,6 +42,11 @@ database, Kafka log·consumer offset을 재사용하지 않으며 한 모드에�
 manifest는 별도 런타임 경로에 둔다. 모드 전환은 반대 모드 프로세스를 종료한 뒤 수행하며, `down`은 선택 모드의 데이터를 보존하고
 `purge`는 사용자가 지정하고 확인한 모드의 데이터만 삭제한다.
 
+BCM API·Webhook·BAT의 실행 선택은 [제공자 기동 계약](12-provider-compatibility.md)을 따른다.
+`local.sh up stub`은 `BCM_PROVIDER=local`, `up fireblocks`는 `BCM_PROVIDER=fireblocks`를 주입한다.
+직접 실행할 때도 세 앱에 같은 값을 주입한다. 선택값과 기존 vendor/chain mode가 충돌하면 기동을 거절한다.
+로컬 앱의 API/JWKS/RPC 주소는 내부 주소여야 하며 선택된 API key·서명 키가 필요하다.
+
 ### 기본 로컬 EVM 카탈로그와 최초 준비
 
 상시 개발용 `STUB+LOCAL`은 다음 두 독립 Anvil과 네 ERC-20 자산을 고정 카탈로그로 제공한다. BCM 네트워크 코드는 업무 표준인

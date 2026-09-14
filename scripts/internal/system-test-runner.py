@@ -719,6 +719,7 @@ class SmokeEnvironment:
                 "SPRING_DATASOURCE_PASSWORD": "bcm",
                 "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{SMOKE_KAFKA_PORT}",
                 "BCM_HTTP_MAX_CONNECTIONS": "100",
+                "BCM_PROVIDER": "local",
                 "BCM_FIREBLOCKS_BASE_URL": f"http://127.0.0.1:{SMOKE_STUB_PORT}",
                 "BCM_FIREBLOCKS_API_KEY": "bcm-local-stub",
                 "BCM_FIREBLOCKS_PRIVATE_KEY_FILE": str(self.state_dir / "stub" / "fireblocks-api-private-key.pem"),

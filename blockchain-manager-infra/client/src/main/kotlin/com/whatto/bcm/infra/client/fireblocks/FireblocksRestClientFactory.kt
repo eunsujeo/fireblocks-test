@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.client.fireblocks
 
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -15,6 +16,7 @@ fun interface FireblocksRestClientFactory {
 
 /** Fireblocks 전용 풀링 HTTP 클라이언트. 다른 RestClient.Builder의 전역 정책을 바꾸지 않는다. */
 @Component
+@ConditionalOnFireblocksProtocol
 class PooledFireblocksRestClientFactory : FireblocksRestClientFactory {
     override fun create(
         builder: RestClient.Builder,

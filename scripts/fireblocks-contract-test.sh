@@ -15,6 +15,7 @@ fail() {
 [ -r "$BCM_FIREBLOCKS_PRIVATE_KEY_FILE" ] || fail "Fireblocks private key 파일을 읽을 수 없습니다."
 [ -n "${BCM_FIREBLOCKS_CONTRACT_BLOCKCHAIN_ID:-}" ] || fail "조회할 blockchain ID가 필요합니다."
 
+export BCM_PROVIDER=fireblocks
 export BCM_VENDOR_MODE=FIREBLOCKS
 export BCM_CHAIN_MODE=TESTNET
 export BCM_FIREBLOCKS_CONTRACT_TEST_SCOPE=READ_ONLY

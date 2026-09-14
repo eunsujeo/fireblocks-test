@@ -8,12 +8,14 @@ import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.webhook.WebhookPayloadException
 import com.whatto.bcm.domain.webhook.WebhookTransaction
 import com.whatto.bcm.domain.webhook.WebhookTransactionParser
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import org.springframework.stereotype.Component
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
 
 /** Fireblocks 원문 JSON을 워커가 소비할 검증된 관찰값으로 변환한다. */
 @Component
+@ConditionalOnFireblocksProtocol
 class FireblocksTransactionParser(
     private val objectMapper: ObjectMapper,
 ) : WebhookTransactionParser {
@@ -75,6 +77,7 @@ class FireblocksTransactionParser(
 
 /** Fireblocks 상태 원어를 벤더 중립 TxStatus로 번역한다. */
 @Component
+@ConditionalOnFireblocksProtocol
 class FireblocksStatusTranslator(
     private val finalityPolicy: FinalityPolicy,
 ) : VendorStatusTranslator {

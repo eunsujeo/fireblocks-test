@@ -8,6 +8,7 @@ BCM을 구현하거나 연동하는 개발자를 위한 설계 정본이다. 전
 | 하려는 일 | 먼저 읽기 | 필요할 때 더 읽기 |
 |---|---|---|
 | 시스템 파악 | [구성·보안 경계](01-infra.md) | [자산 이동 지도](09-asset-map.md) |
+| Fireblocks·Dfns·로컬 호환 | [제공자 선택·공통 포트](12-provider-compatibility.md) | [코드/API 인벤토리](evidence/92-provider-compatibility-inventory.md) · [전체 계획](../dfns-compatibility-plan.md) |
 | 계정·주소 생성 | [계정 생성·조회](02-bcm-flow.md#계정-생성--입금-주소-발급--조회) | [자산 매핑](07-asset-master.md) · [DB](03-bcm-db.md#찾아보기) |
 | 입금·출금·내부이체 | [거래·이벤트 흐름](02-bcm-flow.md) | [웹훅 부하·장애 사례](99-detection-detail.md) |
 | Sweep 실행 | [Sweep 정책·실행 계약](06-sweep.md) | [채택·실측 근거](#실측과-채택-근거) |

@@ -12,9 +12,9 @@ import com.whatto.bcm.domain.tx.StallCandidateRepository
 import com.whatto.bcm.domain.tx.StallDecision
 import com.whatto.bcm.domain.tx.StallDecisionPolicy
 import com.whatto.bcm.domain.tx.StallLatestObservation
+import com.whatto.bcm.domain.vendor.VendorExecutionLimits
 import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
-import com.whatto.bcm.infra.client.fireblocks.FireblocksProperties
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -154,16 +154,16 @@ class StallCheckConfig
 @Configuration(proxyBeanMethods = false)
 class StallCheckSafetyConfig(
     properties: StallCheckProperties,
-    fireblocksProperties: FireblocksProperties,
+    limits: VendorExecutionLimits,
 ) {
     init {
         val maximumRecoveryAndSubmissionMillis =
             Math.addExact(
-                fireblocksProperties.maximumCallMillis,
-                fireblocksProperties.maximumSubmissionFlowMillis,
+                limits.maximumCallMillis,
+                limits.maximumSubmissionFlowMillis,
             )
         require(properties.boostClaimTtlMillis > maximumRecoveryAndSubmissionMillis) {
-            "boost claim TTL must be longer than the maximum Fireblocks recovery and submission flow"
+            "boost claim TTL must be longer than the maximum vendor recovery and submission flow"
         }
     }
 }

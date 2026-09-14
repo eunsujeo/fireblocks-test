@@ -12,6 +12,9 @@ management:
         include: health, metrics, webhookRecovery, webhookRecoveryExecution
 
 bcm:
+  fireblocks:
+    webhook-jwks-url: ${FIREBLOCKS_JWKS_URL:https://keys.fireblocks.io/.well-known/jwks.json}
+  provider: ${BCM_PROVIDER:}
   admin-policy:
     hard-ceiling:
       execution-enabled: ${BCM_SWEEP_EXECUTION_ENABLED:false}

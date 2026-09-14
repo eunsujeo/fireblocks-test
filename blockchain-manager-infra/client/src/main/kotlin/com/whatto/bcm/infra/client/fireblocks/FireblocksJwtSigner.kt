@@ -13,7 +13,7 @@ import java.util.UUID
 /**
  * 벤더 API 요청 서명 — RS256 JWT, 클레임 uri/nonce/iat/exp/sub/bodyHash (exp 는 iat+30s 미만 요구).
  * 근거: Fireblocks 공식 문서 "Signing a request (JWT Structure)" (2026-08-05 확인).
- * 키 파싱은 lazy — 시크릿 미주입 환경(로컬 부트스트랩·테스트)에서도 컨텍스트는 뜨고, 실호출 시점에 설정 오류로 실패한다.
+ * 직접 생성 시 키는 lazy로 파싱하며, 실행 조립부는 validateConfiguration으로 기동 시 자격을 검증한다.
  */
 class FireblocksJwtSigner(
     private val apiKey: String,
@@ -23,6 +23,11 @@ class FireblocksJwtSigner(
     private val pem = privateKeyPem
     private val objectMapper = ObjectMapper()
     private val privateKey: PrivateKey by lazy { parsePrivateKey(pem) }
+
+    internal fun validateConfiguration() {
+        check(apiKey.isNotBlank()) { "bcm.fireblocks.api-key is required" }
+        privateKey
+    }
 
     fun sign(
         uri: String,

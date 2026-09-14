@@ -1,6 +1,7 @@
 package com.whatto.bcm.infra.client.fireblocks
 
 import com.whatto.bcm.domain.exception.VendorApiException
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import tools.jackson.databind.JsonNode
@@ -25,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Fireblocks JWKS 캐시. 정상 수신은 메모리만 읽고, 최초 조회와 낯선 kid(키 교체)는 별도 가상 스레드에서 수행한다.
  */
 @Component
+@ConditionalOnFireblocksProtocol
 internal class FireblocksJwksProvider(
     private val properties: FireblocksProperties,
     private val objectMapper: ObjectMapper,

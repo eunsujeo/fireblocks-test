@@ -32,6 +32,7 @@ import com.whatto.bcm.domain.vendor.VendorWebhookResendReceipt
 import com.whatto.bcm.domain.vendor.VendorWebhookStatus
 import com.whatto.bcm.domain.vendor.VendorWebhookSubscription
 import com.whatto.bcm.domain.vendor.WalletVendorPort
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
@@ -51,6 +52,7 @@ import tools.jackson.databind.ObjectMapper
  * 429 는 Retry-After 존중 + 지수 백오프 보조 (90-QnA rate limit 확답).
  */
 @Component
+@ConditionalOnFireblocksProtocol
 class FireblocksClient(
     restClientBuilder: RestClient.Builder,
     private val properties: FireblocksProperties,

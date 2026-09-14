@@ -1,6 +1,7 @@
 package com.whatto.bcm.infra.client.fireblocks
 
 import com.whatto.bcm.domain.webhook.WebhookSignatureVerifier
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 import java.nio.charset.StandardCharsets
@@ -10,6 +11,7 @@ import java.util.Base64
 
 /** Fireblocks 웹훅 v2의 RS512 detached JWS 검증 — payload 재직렬화 없이 수신 byte[] 를 쓴다. */
 @Component
+@ConditionalOnFireblocksProtocol
 internal class FireblocksWebhookSignatureVerifier(
     private val keyProvider: WebhookPublicKeyProvider,
     private val objectMapper: ObjectMapper,

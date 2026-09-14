@@ -40,6 +40,7 @@ docker run --rm --network none --platform "$platform" \
         export BCM_EVM_RPC_URL=http://127.0.0.1:8545
         export BCM_LOCAL_CHAIN_MANIFEST_FILE=/tmp/state/chain/manifest.json
         export BCM_LOCAL_CHAIN_KEY_FILE=/tmp/state/chain/evm-keys.json
+        export BCM_PROVIDER=local
         export BCM_VENDOR_MODE=STUB
         export BCM_CHAIN_MODE=LOCAL
         export BCM_FIREBLOCKS_BASE_URL=http://127.0.0.1:18080

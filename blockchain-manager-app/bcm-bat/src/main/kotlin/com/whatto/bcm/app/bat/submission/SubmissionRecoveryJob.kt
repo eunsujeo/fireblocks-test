@@ -2,8 +2,8 @@ package com.whatto.bcm.app.bat.submission
 
 import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.domain.submission.PendingSubmissionRecoveryRepository
+import com.whatto.bcm.domain.vendor.VendorExecutionLimits
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
-import com.whatto.bcm.infra.client.fireblocks.FireblocksProperties
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -102,11 +102,11 @@ class SubmissionRecoveryConfig
 @Configuration(proxyBeanMethods = false)
 class SubmissionRecoverySafetyConfig(
     properties: SubmissionRecoveryProperties,
-    fireblocksProperties: FireblocksProperties,
+    limits: VendorExecutionLimits,
 ) {
     init {
-        require(properties.retryAfterMillis > fireblocksProperties.maximumCallMillis) {
-            "submission recovery retry interval must be longer than the maximum Fireblocks call"
+        require(properties.retryAfterMillis > limits.maximumCallMillis) {
+            "submission recovery retry interval must be longer than the maximum vendor call"
         }
     }
 }

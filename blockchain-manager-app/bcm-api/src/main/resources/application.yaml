@@ -6,6 +6,7 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
 
 bcm:
+  provider: ${BCM_PROVIDER:}
   daw-integration:
     enabled: ${BCM_DAW_INTEGRATION_ENABLED:false}
   admin-api:
@@ -52,6 +53,7 @@ bcm:
     claim-ttl-seconds: ${BCM_VAULT_RECONCILIATION_CLAIM_TTL_SECONDS:120}
     resume-delay-millis: ${BCM_VAULT_RECONCILIATION_RESUME_DELAY_MILLIS:60000}
   fireblocks:
+    webhook-jwks-url: ${FIREBLOCKS_JWKS_URL:https://keys.fireblocks.io/.well-known/jwks.json}
     connect-timeout-millis: ${BCM_VENDOR_CONNECT_TIMEOUT_MILLIS:3000}
     # 제출 소유권(claim) TTL 산정의 실제 근거다.
     read-timeout-millis: ${BCM_TRANSACTION_SUBMIT_TIMEOUT_MILLIS:10000}

@@ -10,6 +10,7 @@ DNS·방화벽 변경, DB migration, Kafka topic 생성, Fireblocks 호출을 �
 
 | 항목 | 현재 계약 |
 |---|---|
+| 실행 제공자 | 세 프로세스에 동일한 `BCM_PROVIDER=fireblocks`를 명시. 현재 `dfns`는 미구현으로 기동 거절. 상세는 [기동 계약](../design/12-provider-compatibility.md) 참조 |
 | 운영 프로세스 | `bcm-api`, `bcm-webhook`, `bcm-bat` 독립 BootJar. 기동·health·장애 단위가 분리됨 |
 | Admin | 현재 `FUNCTION_TEST+loopback` 전용. 환경별로 배포 여부를 선택하되, 공유/운영 환경은 mTLS와 5분 이하 JWT 구현 전 공개 금지 |
 | 항상 제외할 산출물 | `blockchain-manager-test-support`, Anvil, Fireblocks Stub, 로컬 system-test 실행기 |

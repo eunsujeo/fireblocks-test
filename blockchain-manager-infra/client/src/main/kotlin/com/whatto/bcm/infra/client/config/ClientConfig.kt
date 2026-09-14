@@ -13,11 +13,13 @@ import java.time.Clock
  * Clock 빈은 app 조립부(ClockConfig) 소유 — 여기서는 주입만 받는다.
  */
 @Configuration
+@ConditionalOnFireblocksProtocol
 @EnableConfigurationProperties(FireblocksProperties::class, EvmRpcProperties::class)
 class ClientConfig {
     @Bean
     fun fireblocksJwtSigner(
         properties: FireblocksProperties,
         clock: Clock,
-    ): FireblocksJwtSigner = FireblocksJwtSigner(properties.apiKey, properties.resolvePrivateKeyPem(), clock)
+    ): FireblocksJwtSigner =
+        FireblocksJwtSigner(properties.apiKey, properties.resolvePrivateKeyPem(), clock).also { it.validateConfiguration() }
 }

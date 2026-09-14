@@ -137,7 +137,7 @@ load_env() {
         value="${value%$'\r'}"
         case "$key" in
             ''|'#'*) continue ;;
-            SPRING_DATASOURCE_URL|SPRING_DATASOURCE_USERNAME|SPRING_DATASOURCE_PASSWORD|KAFKA_BOOTSTRAP_SERVERS|BCM_HTTP_MAX_CONNECTIONS|BCM_FIREBLOCKS_BASE_URL|BCM_FIREBLOCKS_API_KEY|BCM_FIREBLOCKS_PRIVATE_KEY_FILE|FIREBLOCKS_JWKS_URL|BCM_VENDOR_MODE|BCM_CHAIN_MODE)
+            SPRING_DATASOURCE_URL|SPRING_DATASOURCE_USERNAME|SPRING_DATASOURCE_PASSWORD|KAFKA_BOOTSTRAP_SERVERS|BCM_HTTP_MAX_CONNECTIONS|BCM_FIREBLOCKS_BASE_URL|BCM_FIREBLOCKS_API_KEY|BCM_FIREBLOCKS_PRIVATE_KEY_FILE|FIREBLOCKS_JWKS_URL|BCM_PROVIDER|BCM_VENDOR_MODE|BCM_CHAIN_MODE)
                 export "$key=$value"
                 ;;
         esac
@@ -192,6 +192,7 @@ write_env() {
         echo "BCM_FIREBLOCKS_API_KEY=$api_key"
         echo "BCM_FIREBLOCKS_PRIVATE_KEY_FILE=$private_key_file"
         echo "FIREBLOCKS_JWKS_URL=$jwks_url"
+        echo "BCM_PROVIDER=fireblocks"
         echo "BCM_VENDOR_MODE=FIREBLOCKS"
         echo "BCM_CHAIN_MODE=TESTNET"
     } > "$temporary"
@@ -230,6 +231,7 @@ ensure_fireblocks_config() {
         configure_fireblocks
         load_env
     fi
+    export BCM_PROVIDER=fireblocks
     [ -r "$BCM_FIREBLOCKS_PRIVATE_KEY_FILE" ] || fail "Private Key 파일을 읽을 수 없습니다: $BCM_FIREBLOCKS_PRIVATE_KEY_FILE"
     case "${BCM_FIREBLOCKS_BASE_URL%/}" in
         https://api.fireblocks.io) export BCM_FIREBLOCKS_BASE_URL=https://api.fireblocks.io ;;
@@ -509,6 +511,7 @@ sync_asset_catalog_now() {
             ;;
         stub)
             running stub || fail "Stub 모드 자산 카탈로그 동기화에는 Fireblocks 로컬 Stub이 필요합니다."
+            export BCM_PROVIDER=local
             export BCM_VENDOR_MODE=STUB
             export BCM_CHAIN_MODE=LOCAL
             export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
@@ -713,6 +716,7 @@ up_stub() {
         assert_port_free "$STUB_PORT" "Fireblocks Stub"
         assert_port_free "$STUB_MANAGEMENT_PORT" "Stub management"
     fi
+    export BCM_PROVIDER=local
     export BCM_VENDOR_MODE=STUB
     export BCM_CHAIN_MODE=LOCAL
     export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"
@@ -916,6 +920,7 @@ test_local_deposit() {
     compose ps --status running --services | grep -Fxq postgres || fail "PostgreSQL이 실행 중이지 않습니다."
     compose ps --status running --services | grep -Fxq kafka || fail "Kafka가 실행 중이지 않습니다."
 
+    export BCM_PROVIDER=local
     export BCM_VENDOR_MODE=STUB
     export BCM_CHAIN_MODE=LOCAL
     export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:$POSTGRES_PORT/bcm"

@@ -2,7 +2,7 @@ package com.whatto.bcm.app.config
 
 import com.whatto.bcm.app.application.admin.AdminVaultReconciliationService
 import com.whatto.bcm.app.application.admin.VaultReconciliationProperties
-import com.whatto.bcm.infra.client.fireblocks.FireblocksProperties
+import com.whatto.bcm.domain.vendor.VendorExecutionLimits
 import org.springframework.boot.ApplicationRunner
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -24,12 +24,12 @@ class VaultReconciliationResumeConfig(
 @EnableConfigurationProperties(VaultReconciliationProperties::class)
 class VaultReconciliationSafetyConfig(
     properties: VaultReconciliationProperties,
-    fireblocks: FireblocksProperties,
+    limits: VendorExecutionLimits,
 ) {
     init {
         val claimTtlMillis = Math.multiplyExact(properties.claimTtlSeconds, 1_000)
-        require(claimTtlMillis > fireblocks.maximumCallMillis) {
-            "vault reconciliation claim TTL must be longer than the maximum Fireblocks call"
+        require(claimTtlMillis > limits.maximumCallMillis) {
+            "vault reconciliation claim TTL must be longer than the maximum vendor call"
         }
     }
 }

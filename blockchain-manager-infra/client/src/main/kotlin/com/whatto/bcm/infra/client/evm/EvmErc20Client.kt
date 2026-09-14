@@ -7,6 +7,7 @@ import com.whatto.bcm.domain.sweep.SweepBatchContractPort
 import com.whatto.bcm.domain.sweep.SweepBatchReceipt
 import com.whatto.bcm.domain.sweep.SweepBatchReceiptPort
 import com.whatto.bcm.domain.sweep.SweepLegObservation
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import java.math.BigDecimal
@@ -14,6 +15,7 @@ import java.math.BigInteger
 import java.util.UUID
 
 @Component
+@ConditionalOnFireblocksProtocol
 class EvmErc20Client(
     builder: RestClient.Builder,
     properties: EvmRpcProperties,
