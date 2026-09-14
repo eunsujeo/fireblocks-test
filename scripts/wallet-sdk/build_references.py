@@ -44,6 +44,7 @@ def link(a,origin,destination):
 
 css=(HERE/'references.css').read_text();(ROOT/'_guide/references.css').write_text(css)
 controller=(HERE/'reference-controller.js').read_text();page_script=(HERE/'reference-page.js').read_text()
+policy_terms=json.loads((HERE/'policy-terms.json').read_text())
 converted=[]
 for p in pages:
  source=old_path(p['route']);destination=OUT/(slug(p['route'])+'.html')
@@ -111,6 +112,20 @@ for p in pages:
 
 for page in manifest['editorialPages']:
  f=ROOT/page['path'];doc=BeautifulSoup(f.read_text(),'html.parser');root=relative(ROOT/'index.html',f).removesuffix('index.html')
+ if page['path']=='_guide/policy.html':
+  for old in doc.select('#policy-tooltips,#policy-tooltip-style'):old.decompose()
+  for node in list(doc.select_one('main').find_all(string=True)):
+   if node.find_parent(['script','style','pre','code','button','a']):continue
+   parts=re.split(r'\b(Orchestrator|PDP|PIP|PEP)\b',str(node))
+   if len(parts)==1:continue
+   for part in parts:
+    if part in policy_terms:
+     button=doc.new_tag('button',type='button',attrs={'class':'policy-term','title':policy_terms[part]});button.string=part;node.insert_before(button)
+    else:node.insert_before(part)
+   node.extract()
+  for button in doc.select('.policy-term'):button['title']=policy_terms[button.get_text()]
+  style=doc.new_tag('style',id='policy-tooltip-style');style.string=(HERE/'policy-tooltips.css').read_text();doc.head.append(style)
+  js=doc.new_tag('script',id='policy-tooltips');js.string=(HERE/'policy-tooltips.js').read_text();doc.body.append(js)
  for a in doc.select('a.source'):
   assert link(a,f,f),a.get('href');a['aria-haspopup']='dialog';a['target']='_blank';a['rel']='noopener'
  for old in doc.select('#reference-dialog,#reference-controller,link[data-reference-style]'):old.decompose()
@@ -124,6 +139,9 @@ for page in manifest['editorialPages']:
  f.write_text(str(doc))
 search=ROOT/'_guide/search.html';doc=BeautifulSoup(search.read_text(),'html.parser');data=doc.select_one('#data');records=json.loads(data.string)
 for x in records:
+ if x['path']=='_guide/policy.html':
+  guide=BeautifulSoup((ROOT/x['path']).read_text(),'html.parser')
+  x['text']=guide.select_one('main').get_text(' ',strip=True)
  ref=reference(x['path'],ROOT/'index.html')
  if x['kind'].startswith(('원문','참고 문서')) and ref:
   p,dest,_=ref;x['path']=str(dest.relative_to(ROOT));x['kind']='참고 문서';x['reference']=True

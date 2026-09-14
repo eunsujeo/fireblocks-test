@@ -1,0 +1,6 @@
+{
+  "Orchestrator": "정책 처리 조율자. 판단 요청을 접수하고 정규화·PIP 수집·재평가를 조율합니다. 인가를 저장하고 서명 직전 대조와 일회용 소비를 맡으며, 룰의 판정 자체는 PDP에 맡깁니다.",
+  "PDP": "Policy Decision Point · 정책 평가기. 완성된 입력에 룰을 적용해 allow·deny·need_more_data·pending을 산출합니다. 직접 외부 시스템을 조회하지 않습니다.",
+  "PIP": "Policy Information Point · 정책 판단 자료 수집 경로. Orchestrator의 어댑터 계층으로, 룰이 요구하는 주소 소유·외부 심사 등의 사실을 읽어 평가 입력에 제공합니다. 보관된 버전의 평가 루프 수집 소스는 address_ownership입니다.",
+  "PEP": "Policy Enforcement Point · 서명 콜백 접점. Co-Signer 요청의 JWT를 검증하고 인가 ID·실제 서명 대상을 추출합니다. Orchestrator에 대조·소비를 맡긴 뒤 승인 또는 거부 응답에 서명합니다."
+}

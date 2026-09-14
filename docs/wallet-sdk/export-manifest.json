@@ -67,8 +67,8 @@
       "sha256": "9f442753b24e09ae03ba7b4a2c5ebbdca93ab120e5a3c086f39a270ddb184174"
     },
     "_guide/policy.html": {
-      "bytes": 24397,
-      "sha256": "59ad0f61bee3e5b8e5cfd08899f190da53dda2e561c55f8fc265732df767b40d"
+      "bytes": 41568,
+      "sha256": "9d883762de05f7b577791754f9bfe5292dab40881c9a97dbb6fbae173f52e4e1"
     },
     "_guide/recovery.html": {
       "bytes": 23238,
@@ -79,8 +79,8 @@
       "sha256": "4310233636e2fb56a8f82246d8ba6ded209d8dac160842fdc9c9bd9653b85eba"
     },
     "_guide/search.html": {
-      "bytes": 655349,
-      "sha256": "7e723ab205accdb9958246125248680199ae4f9aa99e44d9871f2500aa5cd054"
+      "bytes": 664132,
+      "sha256": "299ab2d279ece9349545abe4a032e9c03aca12a556411df2b3dbd4f0e42f50e5"
     },
     "_guide/start.html": {
       "bytes": 21295,
