@@ -373,7 +373,7 @@ class TransactionSubmissionService(
 
                 is TransactionSubmissionRecipient.Account -> {
                     val account = accounts.requiredAccount(recipient.accountId)
-                    VendorTransactionDestination.Account(account.vendorVaultId)
+                    VendorTransactionDestination.Account(account.requireVendorVaultId())
                 }
 
                 is TransactionSubmissionRecipient.Whitelisted -> {
@@ -381,7 +381,7 @@ class TransactionSubmissionService(
                 }
             }
         return PreparedSubmission(
-            sourceVaultId = source.vendorVaultId,
+            sourceVaultId = source.requireVendorVaultId(),
             vendorAssetId = mapping.vendorAssetId,
             recipientType = recipient.type,
             recipientValue = recipient.value,

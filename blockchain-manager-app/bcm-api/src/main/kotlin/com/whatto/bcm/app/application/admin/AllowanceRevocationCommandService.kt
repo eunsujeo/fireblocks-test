@@ -194,7 +194,7 @@ class AllowanceRevocationCommandService(
                         ).requestHash
                 ObservedTarget(
                     authorization,
-                    account.vendorVaultId,
+                    account.requireVendorVaultId(),
                     address.address,
                     tokenContractAddress,
                     observation,

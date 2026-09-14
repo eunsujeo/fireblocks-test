@@ -2,7 +2,8 @@
 
 상태: 2026-09-14 공개 명세·사용자 지정 Baseline 자료와 현행 코드를 대조했다.
 웹훅 공통 수신 경계와 네트워크 지갑 생성·조회 포트/순수 회수 판정, V22 생성 의도·회수·완료 연결 원장을 구현했다.
-Dfns 실행 어댑터·논리 계정 모델·업무 연결은 미구현이다.
+V23의 VAULT/LOGICAL 계정 모델과 내부 논리 계정·네트워크 지갑 생성 유스케이스, 원문 증적 보관 포트를 구현했다.
+Dfns 실행 어댑터·보호 원문 저장소·공개 API 연결은 미구현이다.
 [제공자 선택](12-provider-compatibility.md) · [전체 계획](../dfns-compatibility-plan.md) · [현행 API](../api/openapi.yaml)
 
 ## 자료의 적용 범위
@@ -26,7 +27,7 @@ Dfns 실행 어댑터·논리 계정 모델·업무 연결은 미구현이다.
 ## 지갑 생성과 재시도
 
 현재 `WalletVendorPort.createVault`·`AccountService`는 Fireblocks의 vault/asset wallet 모델을 사용한다.
-`bcm_acnt_m.vndr_vlt_id NOT NULL`도 같은 계약이다. 이 포트에 가짜 Dfns vault ID를 반환해서는 안 된다.
+V23은 `VAULT` 계정에만 vault ID를 필수로 요구하고 `LOGICAL` 계정에는 NULL을 요구한다. 이 포트에 가짜 Dfns vault ID를 반환해서는 안 된다.
 
 생성 재시도는 domain의 `WalletCreationPolicy`로 분리한다. 입력은 현재 멱등키·키 등록 시각·마지막 POST 준비 시각·현재 UTC 시각이며,
 출력은 기존 `VendorCallDecision`(키 유지/회전/대기)다. `WalletProvisioningPolicy`는 이 포트에 판정을 위임하고 후보 유일성·cursor 검사는 유지한다.
@@ -38,7 +39,7 @@ Dfns 연결의 설계 후보는 다음과 같다. 아래 구조를 적용할 때
 
 | 단위 | Dfns 연결 후보 | 변경 전 확인할 것 |
 |---|---|---|
-| BCM 계정 | `(accountType, ref)`로 유일한 논리 계정과 불변 원천을 등록한다. | 외부 지갑 없이 계정 생성이 완료되는 의미와 필수 vault 컬럼을 별도 계약으로 바꿔야 한다. accountId는 이미 BCM 발급 ID이며 잘못된 vault 핸들 설명만 이번에 교정했다. |
+| BCM 계정 | `(accountType, ref)`로 유일한 논리 계정과 불변 원천을 등록한다. | V23·LogicalAccountService로 내부 등록을 구현했다. 외부 지갑 없이 계정 생성이 완료되는 공개 HTTP 연결은 후속이며 accountId는 BCM 발급 ID를 유지한다. |
 | 네트워크 지갑 | `(accountId, origin, network/environment)`별 조직 소유 wallet을 연결한다. | 다른 chain의 동일 주소·공유 signing key를 동일 wallet로 합치지 않는다. 초기 chain은 실제 지원 조합 확정 뒤 선택한다. |
 | 토큰 주소 | 같은 네트워크 wallet에 검증한 자산 locator를 연결한다. | USDC/KRWK 심볼만으로 자산을 찾지 않는다. contract/mint·정밀도는 별도 검증한다. 같은 체인에서 토큰마다 지갑을 새로 만들지 않는 후보이며 추가 체인 주소 모델은 후속이다. |
 | 생성 의도 | 원천·네트워크·요청 해시·상관관계 ID·제출 시도/회수 결과를 먼저 보존한다. | Dfns createWallet의 중복·동시 호출·응답 유실 계약 확인 전 자동 재생성을 열지 않는다. |
@@ -57,7 +58,7 @@ Dfns 연결의 설계 후보는 다음과 같다. 아래 구조를 적용할 때
 
 ### 네트워크 지갑 공통 포트와 회수 판정 — 구현
 
-domain의 `NetworkWalletProvisioningPort`는 `create(request)`, `read(scope, vendorWalletId)`,
+domain의 `NetworkWalletProvisioningPort`는 `create(request, submission)`, `read(scope, vendorWalletId)`,
 `candidates(request, pageCursor)`를 정의한다. `NetworkWalletScope`는 불변 `ProviderOrigin` 6필드·BCM accountId·BCM network 코드다.
 네트워크 코드는 [07](07-asset-master.md)의 mainnet/testnet 구분을 유지하며 벤더 network 문자열은 어댑터에서 변환한다.
 `NetworkWalletCreationRequest.correlationId`는 해당 scope의 생성 의도에 한 번 저장하는 값이다. 공개 API 키나 멱등 보장의 대용이 아니다.
@@ -82,19 +83,19 @@ domain의 `NetworkWalletProvisioningPort`는 `create(request)`, `read(scope, ven
 `scanComplete=true`는 이 조회의 마지막 페이지를 성공적으로 읽었다는 뜻이다. 동시 생성·지연 노출의 부재 보장이 아니므로 0건이어도 생성하지 않는다.
 known ID 단건 조회는 응답 검증까지 성공한 때만 완료 조회로 판정하며, null은 현재 미관찰로 처리한다.
 
-포트에는 기본 성공/빈 조회 구현이 없다. 실행 어댑터·업무 조립은 아직 없으며 기존 `AccountService`는 계속
+포트에는 기본 성공/빈 조회 구현이 없다. 실제 실행 어댑터·공개 API 조립은 아직 없으며 기존 `AccountService`는 계속
 Fireblocks `WalletVendorPort`와 기존 회수 정책을 쓴다. Dfns에 현재 vault 포트를 억지로 연결하거나 `WalletCreationPolicy`를 기본 제공하지 않는다.
-생성 응답 자체에도 같은 식별/소유 검사를 적용할 후속 서비스가 필요하다.
+내부 `NetworkWalletProvisioningService`는 생성 응답도 조회와 같은 원장 판정에 전달해 식별/소유 검사를 적용한다.
 최초 제출 권한·재시작 복구는 [03의 V22 원장](03-bcm-db.md#v22-네트워크-지갑-원장--물리-저장-계약)과
 `NetworkWalletProvisioningRepository`/`NetworkWalletProvisioningJdbcAdapter`로 구현했다.
 예약과 최초 권한은 호출자 트랜잭션과 독립적으로 커밋하며, 회수 페이지의 증적·후보·cursor와 완료 연결을 원자 저장한다.
 미완료 scan에서 유일하게 검증된 ID도 known ID로 고정해 다른 scan의 후보로 바꾸지 않는다.
-실제 HTTP 호출·원문 보관 어댑터·논리 계정/주소 연결은 아직 없으며 저장 결과를 Dfns 수용으로 해석하지 않는다.
+V23 논리 계정과 내부 생성 서비스를 연결했다. 실제 HTTP 호출·원문 보관 어댑터·자산 주소 연결은 아직 없으며 저장 결과를 Dfns 수용으로 해석하지 않는다.
 
 ## 실행 원천과 저장 식별자
 
 다음은 필요한 논리 키다. 초기 단일 데이터셋 원천의 물리 binding은 [03](03-bcm-db.md#제공자-원천-binding--후속-물리-계약)에서 상세화한다.
-네트워크 지갑 생성·조회/연결 원장은 V22로 구현했다. Dfns 요청/이동·수신 시도 연결 테이블과 논리 계정 전환은 후속이다.
+네트워크 지갑 생성·조회/연결 원장은 V22, 계정 모델 구분은 V23으로 구현했다. Dfns 요청/이동·수신 시도 연결 테이블은 후속이다.
 
 | 식별 대상 | 반드시 분리할 내용 |
 |---|---|
@@ -157,6 +158,25 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 - `Pending`/`Conflict`는 내부 판정이며 아직 HTTP 상태/오류에 매핑하지 않는다. Dfns 연결 전 보류 응답·조회/재개·운영 충돌 해소 계약을
   OpenAPI와 수용 테스트로 고정한다. Fireblocks의 현행 `503 CREATION_RETRY_LATER`·`Retry-After`는 유지하며,
   Dfns에 Fireblocks 시간 기반 재생성을 허용하는 의미로 재사용하지 않는다. 별도 API나 가짜 성공 응답은 이번에 추가하지 않는다.
+
+### 내부 생성 유스케이스와 증적 보관 입구
+
+`LogicalAccountService`는 명시적으로 선택된 Dfns 원천에서 외부 호출 없이 논리 계정을 예약한다.
+`NetworkWalletProvisioningService`는 AccountQueryService로 LOGICAL 계정과 원천을 확인한 뒤 V22 원장과 생성 포트를 연결한다.
+두 클래스는 아직 기본 Spring 실행 빈/API에 연결하지 않는다. Fireblocks/로컬 AccountService의 공개 계약은 유지한다.
+
+1. 같은 scope는 최초 의도/상관관계·요청 hash/버전/벤더 network snapshot으로 합류한다. 검증된 자산/네트워크 매핑으로
+   seed를 만드는 것은 호출자의 책임이다. 포트 create에도 고정 submission snapshot을 전달해 실행 중 현재 매핑으로 바꾸지 않는다.
+2. PREPARED의 최초 claim 승자만 create를 한 번 호출한다. 경합 패자는 현재 의도를 반환하며 같은 호출 안에서 재제출하지 않는다.
+   create 오류·응답 유실·증적 보관 실패는 전파하고 제출 이력을 남긴다. 후속 요청은 조회만 수행한다.
+3. 포트 응답은 정규화 값과 실제 응답 byte[]를 함께 전달한다. NetworkWalletEvidenceStore에 원천·의도·작업 종류·조회 위치와
+   같은 바이트를 보관하고 반환 hash가 SHA-256과 일치해야 V22에 기록한다. JSON 재직렬화·임의 URI로 보관 성공을 대체하지 않는다.
+   실제 보호 저장소 구현과 벤더 schema 대조는 후속이며 테스트의 내부 바이트는 Dfns payload가 아니다.
+4. 생성 응답도 원천/소유/상관관계 검사를 거쳐 완료/대기/충돌로 저장한다. 이전 revision의 늦은 응답은 원장을 덮어쓰지 못한다.
+5. 회수는 호출당 한 페이지만 읽어 저장한다. 진행 중 scan은 저장 cursor에서 이어가고, 끝난 대기는 새 scan으로 조회한다.
+   새 scan에서 known ID가 있으면 단건 read, 없으면 후보 조회를 사용한다. 진행 중 목록 scan은 known ID를 얻어도 그 cursor를 끝까지 따른다.
+   조회 실패·증적 보관 실패에는 cursor를 전진시키지 않는다. 0건/404는 재생성 허가가 아니다.
+6. COMPLETED/CONFLICT는 외부 호출 없이 저장 상태를 반환한다. Pending/Conflict의 공개 HTTP 매핑과 자산 수신 주소 완료는 후속이다.
 
 ## 다음 구현의 수용 자료
 

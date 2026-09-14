@@ -337,19 +337,19 @@ Dfns의 논리 계정→네트워크 wallet은 다음 절의 후속 저장 계�
 
 ### 네트워크 지갑 생성 의도와 연결 — 후속 DB 계약
 
-**상태: 생성 의도·회수 페이지·완료 연결은 아래 V22·Repository에 구현했다. 논리 계정 모델과 자산 주소/업무 연결은 미구현이다.**
+**상태: V22 생성 의도·회수·완료 연결과 V23 계정 모델, 내부 생성 유스케이스를 구현했다. 실제 원문 보관 어댑터와 자산 주소/공개 API 연결은 미구현이다.**
 [13의 순수 생성·조회 포트와 회수 판정](13-dfns-contracts.md#네트워크-지갑-공통-포트와-회수-판정--구현)을 영속 원장에 연결했다.
-현재 `bcm_acnt_m.vndr_vlt_id NOT NULL`과 Fireblocks 생성 의도 두 테이블은 그대로 동작한다.
+V23에서 vault ID의 필수 여부를 모델별 CHECK로 전환했다. 기존 VAULT 계정과 Fireblocks 생성 의도 두 테이블의 동작은 유지한다.
 
 | 저장 경계 | 불변 키와 내용 | 제약·원자성 |
 |---|---|---|
-| `bcm_acnt_m` 논리 계정 확장 | 기존 `acnt_id`·유형/ref·생성 시각 유지. 계정 모델 `VAULT`/`LOGICAL` 구분을 추가하는 안 | 기존 `(acnt_typ_dvcd, ref)` UNIQUE 유지. `VAULT`는 기존 vendor vault ID 필수, `LOGICAL`은 vault ID 없음. 새 CHECK로 조건부 필수화하기 전 현행 NOT NULL을 제거하지 않음. 모델은 원천의 프로토콜과 대조하며 실행 중 변경 금지 |
+| `bcm_acnt_m` 논리 계정 확장 | 기존 `acnt_id`·유형/ref·생성 시각 유지. V23에서 계정 모델 `VAULT`/`LOGICAL` 구분 추가 | 기존 `(acnt_typ_dvcd, ref)` UNIQUE 유지. CHECK로 `VAULT`는 vault ID 필수, `LOGICAL`은 NULL 필수. trigger로 모델 불변·원천 프로토콜 대조 |
 | `bcm_ntwk_wlt_crtn_l` 생성 의도 | 내부 의도 ID, 원천 FK, account FK, BCM network, 고정 correlation ID, 정규화 요청 hash/버전, 실제 제출에 쓸 network 매핑 snapshot, 상태·버전, 최초 POST 준비 시각, known wallet ID, 관찰 결과 참조, 등록/변경 시각·감사 4컬럼 | UNIQUE `(orgn_id, acnt_id, ntwk_cd)`로 모든 토큰/동시 요청이 의도 하나에 합류. UNIQUE `(orgn_id, correlation_id)`로 재사용 차단. 의도/상관관계/hash·snapshot 불변; 같은 scope에 다른 hash는 충돌 |
 | `bcm_ntwk_wlt_m` 준비 완료 연결 | 원천 FK, account FK, BCM network, 벤더 wallet ID, 지갑 주소, 생성 의도 FK, 검증 관찰 참조·시각·감사 4컬럼 | UNIQUE `(orgn_id, acnt_id, ntwk_cd)` 및 `(orgn_id, vndr_wlt_id)`. 동일 wallet을 다른 계정/네트워크에 연결하지 않음. 의도와 scope를 복합 FK/동일 트랜잭션 검증으로 대조. signing key ID·동일 주소는 연결 키가 아님 |
 | `bcm_ntwk_wlt_obs_l` 회수 관찰 | 관찰/조회 실행 ID, 의도 FK, 대상 원천·known ID, cursor·완료 여부, 관찰 시각, 정규화 후보·검증 결과, 실제 응답 증적 참조/hash, 안전한 실패 분류·감사 4컬럼 | 조회 실패·페이지 미완료·미관찰·속성 충돌을 구분해 보존. 응답 원문/주소를 일반 오류 로그에 출력하지 않음. 관찰과 cursor 전진을 같은 트랜잭션으로 기록, 중단 재개 시 동일 페이지를 중복 수용 가능하게 식별 |
 | 기존 `bcm_addr_m` 자산 주소 | `(acnt_id, ntwk_cd, symbol)` 멱등성 유지, 준비한 네트워크 wallet 및 발급 시점의 자산 매핑 snapshot 연결 | 지갑 준비 완료와 자산 수신 주소 완료를 분리. 같은 체인 토큰은 wallet 의도를 공유하지만 token account·tag가 같은 주소라는 가정은 하지 않음 |
 
-표는 논리 저장 경계이며 구현 컬럼/제약은 아래 V22 명세를 따른다. BCM/벤더 ID는 기존 VARCHAR(64), network는 VARCHAR(20), 시각은 UTC VARCHAR(16),
+표는 논리 저장 경계이며 구현 컬럼/제약은 아래 V22·V23 명세를 따른다. BCM/벤더 ID는 기존 VARCHAR(64), network는 VARCHAR(20), 시각은 UTC VARCHAR(16),
 감사 4컬럼은 기존 규약을 따른다. 벤더 원문 ID가 저장 제약에 맞는지는 릴리스 schema로 검증하며 자르거나 대체하지 않는다.
 정규화 관찰은 페이지/후보 테이블로 분리했다. 실제 응답 증적은 보호된 보관 위치 참조/hash 계약을 두며 보관 어댑터는 후속이다.
 증적에 API key·인증 헤더를 보관하지 않는다.
@@ -411,6 +411,24 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
 - 완료/충돌 행은 새 제출이나 새 scan을 열지 않는다. 늦은 응답·오래된 revision은 변경을 거절하고 저장된 결과를 다시 조회하게 한다.
 - `evdc_ref/hash`는 비밀 정보 없는 보호된 실제 응답 증적 위치/해시를 호출자가 제공하는 계약이다. 임의 URI가 원문 보관을 보장하지 않는다.
   원문 보관 어댑터와 릴리스별 증적 수용은 Dfns 연결 전 구현해야 한다. 본 원장의 후보 행은 BCM 정규화 값이며 벤더 JSON을 창작하지 않는다.
+
+### V23 계정 모델 분리 — 물리 저장 계약
+
+`bcm_acnt_m`에 `acnt_mdl VARCHAR(16) NOT NULL DEFAULT 'VAULT'`를 추가한다. 기존 ID·유형/ref·vault ID·생성 시각은 보존한다.
+기존 `vndr_vlt_id`의 무조건 NOT NULL은 아래 CHECK를 적용하면서 조건부 필수로 바꾼다.
+
+- `VAULT`: vndr_vlt_id 필수이며 빈 값/앞뒤 공백을 거절한다. 기존 Fireblocks/로컬 insert는 기본값으로 이 모델을 유지한다.
+- `LOGICAL`: vndr_vlt_id는 NULL이다. 빈 ID·합성 vault ID를 넣지 않는다. `(acnt_typ_dvcd, ref)` UNIQUE는 그대로 유지한다.
+- INSERT/UPDATE trigger `guard_bcm_account_model`은 LOGICAL 저장 시 Dfns 원천 binding을 요구하고,
+  Dfns binding에서 VAULT 저장을 거절한다. 기존 원천 등록 전 VAULT 자료는 보존하며 실행 허용은 기존 기동 guard가 담당한다.
+  UPDATE로 계정 모델을 바꾸지 못한다. V23 적용 전 Dfns binding에 기존 vault 계정이 있으면 변환하지 않고 적용을 중단한다.
+- 애플리케이션의 `Account`는 명시적 AccountModel과 nullable vault ID의 조합을 검사한다. 기존 vault 소비자는
+  `requireVendorVaultId()`를 통해 LOGICAL 모델을 벤더 호출 전에 거절한다. 계정 조회 응답에는 내부 모델을 추가하지 않는다.
+- `LogicalAccountRepository.reserve(account, origin)`는 Dfns 원천 전체 대조 후 독립 트랜잭션으로 논리 계정을 예약한다.
+  유형/ref 경합은 기존 accountId로 합류하며 기존 VAULT 계정을 LOGICAL로 바꾸지 않는다.
+  Fireblocks vault 대사는 LOGICAL 계정이 있으면 snapshot/벤더 조회 진행을 거절하며 NULL을 vault ID로 사용하지 않는다.
+- 기존 바이너리는 LOGICAL 행을 해석하지 못하므로 신규 모델 writer 활성화 후 구버전으로 단순 롤백하지 않는다.
+  실제 Dfns writer/API는 아직 활성화하지 않는다. 배포 SQL은 DBA가 적용하며 기존 V1~22를 수정하지 않는다.
 
 ### bcm_acnt_crtn_l — vault 생성 의도·회수 원장
 

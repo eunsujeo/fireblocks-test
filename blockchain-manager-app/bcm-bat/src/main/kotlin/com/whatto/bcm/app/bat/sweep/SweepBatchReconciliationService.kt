@@ -191,7 +191,7 @@ class SweepBatchReconciliationService(
         itemAccounts: Map<SweepItem, Account>,
         reconciled: List<SweepItemReconciliation>,
     ) {
-        val itemByVault = itemAccounts.entries.associate { (item, account) -> account.vendorVaultId to item }
+        val itemByVault = itemAccounts.entries.associate { (item, account) -> account.requireVendorVaultId() to item }
         check(itemByVault.size == items.size) { "sweep source vaults must be unique" }
         val relevant =
             transaction.networkRecords.filter { record ->
@@ -231,7 +231,8 @@ class SweepBatchReconciliationService(
         val finalizedBefore = successfulItems.associateWith { transactionStatuses.finalizedDepositIds(key(execution, it)) }
         val belowMinimum =
             successfulItems.associateWith { item ->
-                val available = amount(wallet.balanceOf(requireNotNull(itemAccounts[item]).vendorVaultId, mapping.vendorAssetId).available)
+                val available =
+                    amount(wallet.balanceOf(requireNotNull(itemAccounts[item]).requireVendorVaultId(), mapping.vendorAssetId).available)
                 val minimum =
                     checkNotNull(properties.minimumAmount(execution.network, execution.symbol)) {
                         "sweep minimum amount is not configured"

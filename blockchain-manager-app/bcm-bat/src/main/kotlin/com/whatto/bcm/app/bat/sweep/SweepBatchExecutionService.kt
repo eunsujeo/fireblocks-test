@@ -268,7 +268,7 @@ class SweepBatchExecutionService(
                 externalTransactionId = execution.externalTransactionId,
                 transactionType = SubmissionTransactionType.SWEEP_BATCH,
                 senderAccountId = operator.accountId,
-                sourceVaultId = operator.vendorVaultId,
+                sourceVaultId = operator.requireVendorVaultId(),
                 network = execution.network,
                 symbol = execution.symbol,
                 contractAddress = execution.sweepContractAddress,

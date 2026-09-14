@@ -88,7 +88,7 @@ class SweepCandidateSelectionService(
         check(source.accountType == AccountType.CUSTOMER) {
             "sweep source account must be CUSTOMER: accountId=${target.accountId}"
         }
-        check(source.vendorVaultId != omnibus.vendorVaultId) {
+        check(source.requireVendorVaultId() != omnibus.requireVendorVaultId()) {
             "sweep source and omnibus vault must differ: accountId=${target.accountId}"
         }
         val mapping =
@@ -96,7 +96,7 @@ class SweepCandidateSelectionService(
                 "sweep asset mapping not found: network=${target.network} symbol=${target.symbol}"
             }
         val finalizedBeforeBalance = sweepTransactionStatuses.finalizedDepositIds(target.key)
-        val available = BigDecimal(wallet.balanceOf(source.vendorVaultId, mapping.vendorAssetId).available)
+        val available = BigDecimal(wallet.balanceOf(source.requireVendorVaultId(), mapping.vendorAssetId).available)
         check(available.signum() >= 0) {
             "vendor available balance must not be negative: accountId=${target.accountId}"
         }
@@ -161,9 +161,9 @@ class SweepCandidateSelectionService(
     ): SweepCandidate =
         SweepCandidate(
             target = target,
-            sourceVaultId = source.vendorVaultId,
+            sourceVaultId = source.requireVendorVaultId(),
             omnibusAccountId = omnibus.accountId,
-            omnibusVaultId = omnibus.vendorVaultId,
+            omnibusVaultId = omnibus.requireVendorVaultId(),
             vendorAssetId = vendorAssetId,
             amount = amount,
         )

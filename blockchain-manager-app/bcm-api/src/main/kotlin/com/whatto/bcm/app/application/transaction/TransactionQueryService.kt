@@ -82,7 +82,7 @@ class TransactionQueryService(
             val page =
                 vendor.transactions(
                     vendorRequest(
-                        sourceVaultId = account.vendorVaultId,
+                        sourceVaultId = account.requireVendorVaultId(),
                         conditions = conditions,
                         vendorCursor = vendorCursor,
                     ),

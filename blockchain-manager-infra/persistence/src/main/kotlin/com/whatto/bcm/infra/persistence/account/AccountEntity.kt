@@ -1,6 +1,7 @@
 package com.whatto.bcm.infra.persistence.account
 
 import com.whatto.bcm.domain.account.Account
+import com.whatto.bcm.domain.account.AccountModel
 import com.whatto.bcm.support.audit.SystemAudit
 import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Column
@@ -16,7 +17,7 @@ data class AccountEntity(
     @Column("ref")
     val ref: String,
     @Column("vndr_vlt_id")
-    val vndrVltId: String,
+    val vndrVltId: String?,
     @Column("reg_dttm")
     val regDttm: String,
     @Column("frst_reg_empno")
@@ -27,6 +28,8 @@ data class AccountEntity(
     val lastChngEmpno: String,
     @Column("last_chng_brcd")
     val lastChngBrcd: String,
+    @Column("acnt_mdl")
+    val acntMdl: String = "VAULT",
 ) {
     fun toDomain(): Account =
         Account(
@@ -35,6 +38,7 @@ data class AccountEntity(
             ref = ref,
             vendorVaultId = vndrVltId,
             registeredAt = regDttm,
+            model = AccountModel.valueOf(acntMdl),
         )
 
     companion object {
@@ -49,6 +53,7 @@ data class AccountEntity(
                 frstRegBrcd = SystemAudit.BRCD,
                 lastChngEmpno = SystemAudit.EMPNO,
                 lastChngBrcd = SystemAudit.BRCD,
+                acntMdl = account.model.name,
             )
     }
 }

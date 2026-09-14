@@ -218,3 +218,20 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   마지막 결합 실행은 `BUILD SUCCESSFUL in 25s`다.
 - 기존 계정/주소 테이블과 공개 API는 이번 단계에서 변경하지 않았다. 원문 보관 어댑터·논리 계정 모델·실행 유스케이스,
   실제 Dfns/벤더 호출·운영 DB 적용·배포·독립 Phase converge는 미수행이다. Dfns 기동 차단을 유지한다.
+
+## 계정 모델 분리와 내부 생성 유스케이스 검증 (2026-09-14)
+
+- V23은 기존 계정을 VAULT로 보존하고 LOGICAL의 vault ID는 NULL로 제한한다. 원천 프로토콜과 모델 불변을 DB에서도 검사한다.
+  논리 계정 예약은 독립 커밋하며 동시 요청이 같은 `(유형, ref)` 계정으로 합류한다.
+- 새 모델·생성 서비스 테스트의 구현 부재 실패를 먼저 확인했다. 논리 계정의 vault 대사 거절도 실패를 확인한 뒤 구현했다.
+  기존 Account 조회 SQL의 신규 컬럼 누락은 구현을 수정했고 기존 테스트의 assertion을 변경하지 않았다.
+- 신규 23건은 모델 제약, PostgreSQL 동시 예약/롤백, 기존 계정·미완료 의도의 V23 업그레이드 보존,
+  생성 호출 권한 1개, 응답 유실 뒤 POST 없이 조회, 증적 보관 실패/해시 불일치, known ID·cursor 재개를 검증한다.
+  서비스의 벤더/증적/원장 대역 테스트와 실제 PostgreSQL 원장 테스트는 별도이며 서비스+DB 결합 검증은 후속이다.
+- 선택 회귀: domain 17 · application 12 · persistence 47 · API 60 · BAT 44 · Webhook 7 = **187건**,
+  실패/오류/skip 0. 계정·전송·조회·Sweep·allowance 회수·vault 대사와 실제 로컬 Stub→Anvil 이체를 포함한다.
+  API/BAT production·test 컴파일도 통과했다. 전체 ktlint는 Sweep 줄바꿈 수정 후 별도 실행에서 `BUILD SUCCESSFUL in 1s`로 통과했다.
+- 테스트 로그는 `/tmp/bcm-logical-wallet-verified.log`, 최종 스타일 검사는 `/tmp/bcm-logical-ktlint-final.log`다.
+  전자는 테스트 성공 후 스타일 실패를 포함하며 후자의 성공으로 해당 실패를 해소했다. V1~22와 공개 API 계약은 수정하지 않았다.
+- 내부 서비스는 기본 실행 빈/공개 API에 연결하지 않는다. 증적은 원문 바이트를 전달하고 저장 hash를 확인하는 포트까지만 구현했다.
+  실제 보호 원문 저장소·Dfns 어댑터·자산 수신 주소 연결·실벤더 호출·운영 적용·독립 converge는 미수행이며 Dfns 기동 차단을 유지한다.

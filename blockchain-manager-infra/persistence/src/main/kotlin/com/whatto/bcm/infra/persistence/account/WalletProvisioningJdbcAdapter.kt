@@ -2,6 +2,7 @@ package com.whatto.bcm.infra.persistence.account
 
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountCreationIntent
+import com.whatto.bcm.domain.account.AccountModel
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.account.CreationStatus
 import com.whatto.bcm.domain.account.DepositAddress
@@ -62,6 +63,7 @@ class WalletProvisioningJdbcAdapter(
                 ref = rs.getString("ref"),
                 vendorVaultId = rs.getString("vndr_vlt_id"),
                 registeredAt = rs.getString("reg_dttm"),
+                model = AccountModel.valueOf(rs.getString("acnt_mdl")),
             )
         }
     private val addressMapper =
@@ -494,7 +496,7 @@ class WalletProvisioningJdbcAdapter(
                 "last_vndr_call_dttm, crtn_stcd, try_cnt, dpst_addr, reg_dttm, last_chng_dttm " +
                 "FROM bcm_addr_crtn_l"
         const val ACCOUNT_SELECT =
-            "SELECT acnt_id, acnt_typ_dvcd, ref, vndr_vlt_id, reg_dttm FROM bcm_acnt_m"
+            "SELECT acnt_id, acnt_typ_dvcd, ref, vndr_vlt_id, reg_dttm, acnt_mdl FROM bcm_acnt_m"
         const val ADDRESS_SELECT =
             "SELECT acnt_id, ntwk_cd, tkn_smbl, dpst_addr, reg_dttm FROM bcm_addr_m"
     }

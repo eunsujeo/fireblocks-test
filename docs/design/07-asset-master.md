@@ -32,7 +32,7 @@ EVM은 환경/chainId+contract, Solana는 cluster/genesis+Token Program+mint로 
 기존 카탈로그/매핑 DDL·decimals 저장·API에 필요한 확장은 DF1에서 확정한다. 이번 기록으로 운영 자산을 등록하거나 Solana 지원을 완료하지 않는다.
 [체인별 등록표·확정·대납 계약](../dfns-compatibility-plan.md)을 따른다.
 네트워크 지갑의 생성 의도는 `(origin, accountId, network)`로 공유하고 자산 주소는 기존 `(accountId, network, symbol)`로 구분하는
-[후속 연결 계약](13-dfns-contracts.md#계정주소-api의-후속-연결-계약)을 상세화했다. 현재 내부 지갑 포트·회수 판정만 구현했으며
+[후속 연결 계약](13-dfns-contracts.md#계정주소-api의-후속-연결-계약)을 상세화했다. 현재 계정 모델·지갑 원장·내부 생성/회수 유스케이스까지 구현했으며
 기존 자산 등록/조회 흐름과 DDL은 유지한다. 지갑 준비 완료를 모든 토큰 수신 계정의 준비 완료로 간주하지 않는다.
 
 ## 네트워크 코드와 토큰 심볼

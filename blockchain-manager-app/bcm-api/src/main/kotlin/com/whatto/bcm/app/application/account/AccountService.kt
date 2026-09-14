@@ -180,7 +180,7 @@ class AccountService(
         }
         val recovered =
             if (submitting.attemptCount > 1) {
-                recoverDepositAddress(account.vendorVaultId, submitting)
+                recoverDepositAddress(account.requireVendorVaultId(), submitting)
             } else {
                 null
             }
@@ -189,7 +189,7 @@ class AccountService(
             recovered?.let { it to submitting }
                 ?: prepareAddressVendorCall(submitting).let { prepared ->
                     walletVendorPort.createDepositAddress(
-                        vaultId = account.vendorVaultId,
+                        vaultId = account.requireVendorVaultId(),
                         assetSymbol = prepared.vendorAssetId,
                         idempotencyKey = prepared.idempotencyKey,
                     ) to prepared
@@ -318,7 +318,7 @@ class AccountService(
                 symbol = it.symbol,
                 balance =
                     walletVendorPort.balanceOf(
-                        vaultId = account.vendorVaultId,
+                        vaultId = account.requireVendorVaultId(),
                         assetSymbol = assetMappingQueryService.requiredMapping(it.network, it.symbol).vendorAssetId,
                     ),
             )

@@ -94,6 +94,13 @@ class VaultReconciliationJdbcAdapter(
         if (!ownsClaim(runId, claimId)) return false
         if (run.status == VaultReconciliationStatus.RUNNING) return true
         if (run.status != VaultReconciliationStatus.ACCEPTED) return false
+        val hasLogicalAccounts =
+            jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM bcm_acnt_m WHERE acnt_mdl = 'LOGICAL')",
+                emptyMap<String, Any>(),
+                Boolean::class.java,
+            ) == true
+        if (hasLogicalAccounts) throw ConflictException("vaultReconciliationAccountModel", runId)
         jdbc.update(
             """
             INSERT INTO bcm_vlt_rcnc_item_l

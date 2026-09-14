@@ -352,7 +352,7 @@ class SweepAllowancePreparationService(
         val sweepContract = expectedSweepContractAddress ?: checkNotNull(runtime).contractAddress
         return AllowanceContext(
             key,
-            account.vendorVaultId,
+            account.requireVendorVaultId(),
             address.address,
             tokenContract,
             sweepContract,

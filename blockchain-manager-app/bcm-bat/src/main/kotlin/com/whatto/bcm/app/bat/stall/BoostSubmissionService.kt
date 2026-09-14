@@ -193,7 +193,7 @@ class BoostSubmissionService(
                 SubmissionRecipientType.WHITELISTED -> VendorTransactionDestination.Whitelisted(submission.recipientValue)
                 SubmissionRecipientType.ACCOUNT -> error("internal transaction cannot be boosted")
             }
-        return PreparedBoost(submission, source.vendorVaultId, mapping.vendorAssetId, destination)
+        return PreparedBoost(submission, source.requireVendorVaultId(), mapping.vendorAssetId, destination)
     }
 
     private fun BoostAttempt.transferRequest(prepared: PreparedBoost) =
