@@ -1,0 +1,14 @@
+%%{init: {'theme':'base','htmlLabels':false,'themeVariables':{'primaryColor':'#edf5ef','primaryTextColor':'#193e32','primaryBorderColor':'#7b9f8a','lineColor':'#547564','fontFamily':'sans-serif','fontSize':'16px'},'flowchart':{'htmlLabels':false,'curve':'linear'}}}%%
+flowchart TD
+    T["Fireblocks에 생성된 거래"] --> C["Co-Signer Callback → PEP<br/>JWT 검증·실제 서명 대상 추출"]
+    C --> O{"Orchestrator · 인가 대조<br/>유효·미소비·거래 일치·수수료 상한"}
+    C -->|인증 실패| X["서명 차단"]
+    O -->|인가 없음·만료·변조 등| X
+    O -->|통과| A["인가 원자적 소비<br/>PEP가 승인 응답에 서명"]
+    A --> G{"서비스 콜백 통과<br/>AND Fireblocks 정책·승인 요건 충족"}
+    F["Fireblocks 자체 정책<br/>필요한 추가 승인"] --> G
+    G -->|조건 미충족| B["진행 불가<br/>승인 대기 또는 거부"]
+    G -->|모두 충족| S["나머지 실행 조건 확인 후<br/>거래 서명·방송"]
+    S --> R["거래 상태·웹훅으로 결과 추적<br/>온체인 완료 별도 확인"]
+    classDef stop fill:#fff0ef,stroke:#b26d66,color:#78382f;
+    class X,B stop;

@@ -62,13 +62,21 @@
       "bytes": 25688,
       "sha256": "92d706f08985aa46bfb3c433a1c0e62e7b7311b6ab31289bca26470c1f772785"
     },
+    "_guide/diagrams/policy-evaluation.svg": {
+      "bytes": 30376,
+      "sha256": "ff7aa3377aa3c8c19721d68a3adf65b658dbf1bd5b06887809371178ed599b63"
+    },
+    "_guide/diagrams/policy-signing.svg": {
+      "bytes": 32529,
+      "sha256": "7cdfe2609777f958864b0fa614ffd45b475d3eb1d647f7861bc1224d18aba7a0"
+    },
     "_guide/originals.html": {
       "bytes": 64803,
       "sha256": "9f442753b24e09ae03ba7b4a2c5ebbdca93ab120e5a3c086f39a270ddb184174"
     },
     "_guide/policy.html": {
-      "bytes": 41568,
-      "sha256": "9d883762de05f7b577791754f9bfe5292dab40881c9a97dbb6fbae173f52e4e1"
+      "bytes": 45524,
+      "sha256": "5a5868c11faae4745665ddae7b613813095341d8e806fa20c67773fd71a9bea4"
     },
     "_guide/recovery.html": {
       "bytes": 23238,
@@ -79,8 +87,8 @@
       "sha256": "4310233636e2fb56a8f82246d8ba6ded209d8dac160842fdc9c9bd9653b85eba"
     },
     "_guide/search.html": {
-      "bytes": 664132,
-      "sha256": "299ab2d279ece9349545abe4a032e9c03aca12a556411df2b3dbd4f0e42f50e5"
+      "bytes": 665732,
+      "sha256": "21b7b72df0885a5b76713137f467f3fc4188d4e43e530bcee8ae3b59e2684df5"
     },
     "_guide/start.html": {
       "bytes": 21295,

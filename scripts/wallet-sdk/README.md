@@ -31,6 +31,11 @@ python3 scripts/wallet-sdk/sync_sources.py --cache /tmp/wallet-sdk-capture-YYYYM
 
 Python 환경에 BeautifulSoup이 필요하다. `docs/api` 생성기와는 별개다.
 
+정책 가이드의 두 흐름도는 `policy-evaluation.mmd`·`policy-signing.mmd`에서 관리한다.
+수정 시 `node scripts/wallet-sdk/render_policy_diagrams.cjs`로 기존 오프라인 Mermaid 런타임을 사용해
+`docs/wallet-sdk/_guide/diagrams/`의 SVG를 갱신한 뒤 `build_references.py`를 실행한다.
+가이드와 공유 ZIP은 SVG를 바로 표시하므로 JavaScript 없이도 읽을 수 있다.
+
 ```sh
 python3 scripts/wallet-sdk/build_references.py
 ```

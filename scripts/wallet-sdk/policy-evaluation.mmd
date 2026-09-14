@@ -1,0 +1,14 @@
+%%{init: {'theme':'base','htmlLabels':false,'themeVariables':{'primaryColor':'#edf5ef','primaryTextColor':'#193e32','primaryBorderColor':'#7b9f8a','lineColor':'#547564','fontFamily':'sans-serif','fontSize':'16px'},'flowchart':{'htmlLabels':false,'curve':'linear'}}}%%
+flowchart TD
+    W["Wallet 서버 · 정책 판단 요청"] --> O["Orchestrator · 접수·정규화"]
+    O -.-> ACK["202 + 판단 요청 ID 반환<br/>이후 비동기 처리"]
+    O --> D{"PDP · 정책 평가"}
+    D -->|자료 부족| P["Orchestrator → PIP<br/>필요한 사실 수집"]
+    P -->|입력 보완 후 재평가| D
+    D -->|deny| X["거부 이벤트<br/>거래 제출 안 함"]
+    D -->|allow| A["일회용 인가 저장<br/>승인 내용·TTL·수수료 상한"]
+    A --> E["허용 이벤트 → Wallet 서버"]
+    E --> F["Fireblocks 거래 제출<br/>externalTxId = 인가 ID"]
+    F --> N["다음 그림 · 서명 단계 검증"]
+    classDef stop fill:#fff0ef,stroke:#b26d66,color:#78382f;
+    class X stop;

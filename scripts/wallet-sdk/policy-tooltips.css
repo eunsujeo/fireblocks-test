@@ -5,3 +5,9 @@
 #withdrawal-example pre{max-width:100%;overflow-x:auto;box-sizing:border-box;padding:18px;border:1px solid #d7dfd9;border-radius:8px;background:#f5f7f4;line-height:1.7}
 #withdrawal-example pre code{display:block;width:max-content;min-width:100%;padding:0;background:transparent;white-space:pre;font-size:13px}
 @media print{.policy-term-explanation{display:none!important}.policy-term{border:0}}
+.policy-diagram{margin:20px 0 32px}
+.policy-diagram-scroll{max-width:100%;overflow-x:auto;border:1px solid #d7dfd9;border-radius:8px;background:#fff;padding:16px;box-sizing:border-box}
+.policy-diagram-scroll img{display:block;width:100%;min-width:560px;max-width:900px;height:auto;margin:0 auto}
+.policy-diagram-scroll:focus-visible{outline:2px solid #215c4b;outline-offset:2px}
+.policy-diagram figcaption{font-size:13px;line-height:1.7;color:#53665d;margin-top:10px}
+@media print{.policy-diagram-scroll{overflow:visible;padding:0;border:0}.policy-diagram-scroll img{min-width:0;max-height:220mm;object-fit:contain}.policy-diagram{break-inside:avoid}}
