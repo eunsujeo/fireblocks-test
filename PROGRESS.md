@@ -2,12 +2,12 @@
 > 50줄 이내. 다음 세션의 AI가 읽는 전제. 결정은 CLAUDE.md·PLAN.md·docs 정본에 둔다.
 
 ## 현재 위치
+- 2026-09-14 DF0.1 인벤토리·DF1.1 VendorExecutionLimits 분리에 이어 DF3.1 제공자 조립 구현. BCM_PROVIDER=fireblocks/local만 기존 포트를 조립하고 dfns/누락/오타는 일반 빈 생성 전 거절. 선택 API key/PKCS#8 키 기동 검증, local API/JWKS/RPC 내부 주소·marker 및 기존 vendor/chain mode 충돌 검사. API/Webhook/BAT 동일 공통 조립, 실행 스크립트/env·설계12/계획 갱신. 신규29+기존110=139건(client83/API44/Webhook7/BAT5)·전체 ktlintCheck·로컬/배포/실벤더 호출 차단 스크립트 검사 통과. 초기에 기존 코드 조립 계약12건 red 확인; 통합 픽스처 키 중복 주입·검사 runner의 테스트 설정 중복 스캔·lint 오류는 각각 원인 수정 후 통과. 마지막 결합 실행의 client EOF는 단독 재실행83건 통과. 기존 assertion 완화 없음; 기존 테스트는 선택/일회성 키 공급만 추가. Dfns 어댑터/Stub·웹훅 메타데이터·자산/지갑 멱등/API/원천 DB·추가 체인 인터페이스는 후속. 다음: Baseline 릴리스/schema 대조로 이 계약 구체화. 멀티체인 실구현·#51 후속, DDL/OpenAPI 변경·실벤더 호출·배포·Phase converge 없음; Phase15 보류. 사용자 commit/push 지시: 구현·설계 4b3b65a와 테스트 변경을 분리 커밋해 origin/main에 push한다. 커밋 전 ktlint 재검증 통과. gitleaks의 명세 SHA-256·동적 PEM 문자열 오탐은 해시와 생성 결과를 보존하면서 문구/문자열 조립을 정리해 해소했다. 검사 예외·hook 우회 없음.
 - **Phase 14 후속 T14.11~30 완료. Phase 15는 계속 보류.** 2026-09-11 문서 커밋: 15659d0 SDK 갱신, 0d81bcf 원장 HTML, a6f04d8 비교·시퀀스·용어 툴팁. 사용자 요청으로 검증 도구를 별도 커밋 후 origin/main에 push한다. ktlint·gitleaks, SDK 정적/8개 기능/201화면, 비교 20개·툴팁 검사 통과. 원장 정적·19개 기능은 통과했으나 일괄 188화면 중 1개는 이전 화면 이미지 요청 취소(ERR_ABORTED)가 다음 화면에 집계되어 실패(2회 재현). 원문 01·02·43·44 개별 이미지 로딩은 정상. 테스트 완화 없이 scripts/ledger/README.md에 한계를 기록했다.
 - 설계 정본은 이 저장소의 `docs/design/`다. 사용자 요청·확정 결정에 따라 직접 수정·리뷰한다.
 - 공유 환경 Admin workflow는 DAW-ADMIN 소유다. 이 저장소 Admin은 로컬 개발·진단 콘솔이다.
 - 운영 DB SQL은 DBA가 먼저 배포하며 애플리케이션은 DDL 권한을 갖지 않는다.
 - 2026-09-10 외부 Wallet SDK: 비교상 계정·전송·이벤트·Sweep은 BCM 대체 범위이며 주소 잔고/소유·용도 식별은 미구현 과제다. SDK 채택·경계 변경 결정 없음. docs/wallet-sdk/에 가이드 10개·원문 198개·새 참고 화면 198개와 공유 ZIP을 제공한다. 참고 링크·검색·목록은 새 화면을 모달로 열며 내부 이동·뒤로 가기·스크롤 복구·새 창을 지원한다. 재생성 도구는 scripts/wallet-sdk/다. 최종 ZIP 링크 2,988개·참고 화면 198개·브라우저 기능 8개 통과, 예시 648개·본문 문단 1,294개 보존 확인. 기존 원문은 유지. ktlintCheck·gitleaks·오탐 예외 양방향 검증 통과. gitleaks 예외는 명시한 문서 파일의 정확한 tokenId 예제·curl 자리표시자만 허용한다. BCM 코드 변경·벤더 호출 없음.
-
 ## 이번 작업 — 문서 정리 (2026-09-08, Codex)
 - 사용자 승인에 따라 PLAN D1~D4 완료. 모듈 경계 보완과 문서 정리를 3개 커밋으로 분리했다. push는 하지 않았다.
 - docs/README는 31줄·6개 목적별 입구, design/README는 업무별 읽기 순서, runbooks/README는 상황별 절차다.

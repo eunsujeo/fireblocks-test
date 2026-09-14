@@ -1033,6 +1033,7 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
                     "--spring.kafka.bootstrap-servers=${kafka.bootstrapServers}",
                     "--bcm.webhook-worker.enabled=false",
                     "--bcm.outbox-relay.enabled=false",
+                    "--bcm.provider=local",
                     "--bcm.fireblocks.base-url=http://127.0.0.1:$stubPort",
                     "--bcm.fireblocks.api-key=bcm-local-stub",
                     "--bcm.fireblocks.private-key-file=$privateKeyFile",
@@ -1046,6 +1047,8 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
             registry.add("server.port") { bcmPort }
             registry.add("management.server.address") { "127.0.0.1" }
             registry.add("management.server.port") { "0" }
+            registry.add("bcm.provider") { "local" }
+            registry.add("bcm.fireblocks.private-key-pem") { "" }
             registry.add("bcm.fireblocks.base-url") { "http://127.0.0.1:$stubPort" }
             registry.add("bcm.fireblocks.api-key") { "bcm-local-stub" }
             registry.add("bcm.fireblocks.private-key-file") { privateKeyFile.toString() }

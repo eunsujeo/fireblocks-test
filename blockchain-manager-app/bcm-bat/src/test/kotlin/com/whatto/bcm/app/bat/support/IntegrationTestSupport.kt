@@ -3,7 +3,11 @@ package com.whatto.bcm.app.bat.support
 import com.whatto.bcm.testsupport.database.PostgreSqlSchemaInitializer
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.postgresql.PostgreSQLContainer
+import java.security.KeyPairGenerator
+import java.util.Base64
 
 /** bcm-bat 통합 테스트가 JVM 안에서 공유하는 PostgreSQL 컨테이너. */
 abstract class IntegrationTestSupport {
@@ -109,6 +113,23 @@ abstract class IntegrationTestSupport {
             .joinToString("") { "%02x".format(it) }
 
     companion object {
+        private val providerTestPem: String by lazy {
+            val key =
+                KeyPairGenerator
+                    .getInstance("RSA")
+                    .apply { initialize(2048) }
+                    .generateKeyPair()
+                    .private
+            val body = Base64.getEncoder().encodeToString(key.encoded)
+            "-----BEGIN PRIVATE KEY-----\n$body\n-----END PRIVATE KEY-----"
+        }
+
+        @JvmStatic
+        @DynamicPropertySource
+        fun providerTestProperties(registry: DynamicPropertyRegistry) {
+            registry.add("bcm.test.provider-private-key-pem") { providerTestPem }
+        }
+
         @JvmStatic
         @ServiceConnection
         val postgres: PostgreSQLContainer =

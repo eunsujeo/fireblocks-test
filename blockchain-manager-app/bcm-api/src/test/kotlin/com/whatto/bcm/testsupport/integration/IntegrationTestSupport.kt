@@ -7,6 +7,8 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.kafka.KafkaContainer
 import org.testcontainers.postgresql.PostgreSQLContainer
+import java.security.KeyPairGenerator
+import java.util.Base64
 
 /**
  * 모듈 공용 PostgreSQL 컨테이너 — 싱글턴 재사용 (docs/testing.md: 테스트마다 새로 띄우지 않는다).
@@ -115,6 +117,23 @@ abstract class IntegrationTestSupport {
             .joinToString("") { "%02x".format(it) }
 
     companion object {
+        private val providerTestPem: String by lazy {
+            val key =
+                KeyPairGenerator
+                    .getInstance("RSA")
+                    .apply { initialize(2048) }
+                    .generateKeyPair()
+                    .private
+            val body = Base64.getEncoder().encodeToString(key.encoded)
+            "-----BEGIN PRIVATE KEY-----\n$body\n-----END PRIVATE KEY-----"
+        }
+
+        @JvmStatic
+        @DynamicPropertySource
+        fun providerTestProperties(registry: DynamicPropertyRegistry) {
+            registry.add("bcm.test.provider-private-key-pem") { providerTestPem }
+        }
+
         @JvmStatic
         @ServiceConnection
         val postgres: PostgreSQLContainer =
