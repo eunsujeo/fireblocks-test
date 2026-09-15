@@ -10,7 +10,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.time.LocalDateTime
 
 class WalletCreationPolicyBindingTest {
-    private val runner = ApplicationContextRunner().withUserConfiguration(WalletProvisioningConfig::class.java)
+    // WalletProvisioningConfig는 Fireblocks 생성 흐름 전용 조건부 조립이다 — 선택값을 주어 원래 계약(정책 미제공 시 조립 거절)을 그대로 검사한다.
+    private val runner =
+        ApplicationContextRunner()
+            .withPropertyValues("bcm.provider=fireblocks")
+            .withUserConfiguration(WalletProvisioningConfig::class.java)
 
     @Test
     fun `시간 상한만 있으면 생성 정책을 추정하지 않고 조립을 거절한다`() {

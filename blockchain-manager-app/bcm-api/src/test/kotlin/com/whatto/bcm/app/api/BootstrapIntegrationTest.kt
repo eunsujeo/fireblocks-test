@@ -209,6 +209,14 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
     lateinit var accountRepository: com.whatto.bcm.domain.account.AccountRepository
 
     @Test
+    fun `조립 검증 — fireblocks 선택은 Fireblocks 계정 서비스만 조립하고 Dfns 설정·서명기·유스케이스는 만들지 않는다`() {
+        assertThat(webServerApplicationContext.getBean(com.whatto.bcm.app.application.account.AccountOperations::class.java))
+            .isInstanceOf(com.whatto.bcm.app.application.account.AccountService::class.java)
+        assertThat(webServerApplicationContext.beanDefinitionNames).noneMatch { it.contains("dfns", ignoreCase = true) }
+        assertThat(environment.containsProperty("bcm.dfns.base-url")).isFalse()
+    }
+
+    @Test
     fun `조립 검증 — persistence 어댑터가 앱 컨텍스트에 domain 포트로 배선된다`() {
         val account =
             com.whatto.bcm.domain.account.Account(
