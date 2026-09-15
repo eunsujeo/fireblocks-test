@@ -15,6 +15,7 @@ import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.exception.VendorAssetMappingRegistrationConflictException
+import com.whatto.bcm.domain.vendor.ChainAssetLocator
 import com.whatto.bcm.domain.vendor.ChainAssetResolution
 import com.whatto.bcm.domain.vendor.ChainAssetResolver
 import com.whatto.bcm.domain.vendor.ResolvedChainAsset
@@ -178,17 +179,34 @@ class VendorAssetMappingServiceTest {
             ) { assertThat(it.reason).isEqualTo("fireblocksAssetIdRequired") }
         verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
         verify(exactly = 0) { mappings.save(any(), any()) }
+
+        // 정상 ID와 누락 ID가 섞인 일괄 요청도 카탈로그를 읽기 전에 누락 항목의 index로 거절한다.
+        every { mappings.find("ETHEREUM", "DAI") } returns null
+        val failure =
+            assertThrows<BulkAssetMappingException> {
+                service.registerAll(
+                    listOf(command, command.copy(symbol = "DAI", fireblocksAssetId = null)),
+                )
+            }
+        assertThat(failure.index).isEqualTo(1)
+        assertThat(failure.reason).isEqualTo("fireblocksAssetIdRequired")
+        verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
+        verify(exactly = 0) { mappings.saveAll(any(), any()) }
     }
 
     @Test
     fun `등록 — 관문이 해소한 벤더 식별자·컨트랙트 주소를 그대로 저장하고 요청 안에서 같은 자산으로 해소되면 일괄 등록을 거절한다`() {
         val resolver =
-            ChainAssetResolver { blockchain, locators ->
-                locators.map {
-                    ChainAssetResolution.Resolved(
-                        ResolvedChainAsset("${blockchain.candidateId}:Erc20:${it.contractAddress}", it.contractAddress, null),
-                    )
-                }
+            object : ChainAssetResolver {
+                override fun resolveAll(
+                    blockchain: VendorBlockchainCatalog,
+                    locators: List<ChainAssetLocator>,
+                ): List<ChainAssetResolution> =
+                    locators.map {
+                        ChainAssetResolution.Resolved(
+                            ResolvedChainAsset("${blockchain.candidateId}:Erc20:${it.contractAddress}", it.contractAddress, null),
+                        )
+                    }
             }
         val neutral = VendorAssetMappingService(mappings, blockchains, addressQueryService, assetCatalogCache, resolver, clock)
         val dfnsCommand = command.copy(fireblocksAssetId = null)
