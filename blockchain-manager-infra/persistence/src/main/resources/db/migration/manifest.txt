@@ -22,3 +22,4 @@ V20__wallet_provisioning_ledgers.sql
 V21__provider_origin_binding.sql
 V22__network_wallet_provisioning.sql
 V23__account_models.sql
+V24__network_wallet_evidence.sql

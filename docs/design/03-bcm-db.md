@@ -17,7 +17,7 @@ DB를 변경하는 개발자를 위한 스키마·물리 제약 정본이다. �
 | 전체 구조 | [테이블 한눈에](#테이블-한눈에) · [ERD](#erd) · [시나리오로 보는 테이블 흐름](#시나리오로-보는-테이블-흐름) |
 | 온체인 잔고 | [책임·저장 경계와 구현 상태](#주소별-온체인-잔고--구현-대상-설계) · [주소와 vault 매핑](09-asset-map.md#주소와-vault-매핑) |
 | 계정·주소 | [계정 생성 의도](#bcm_acnt_crtn_l--vault-생성-의도회수-원장) · [계정 매핑](#bcm_acnt_m--계정-매핑) · [주소 생성 의도](#bcm_addr_crtn_l--vault-wallet주소-생성-의도회수-원장) · [주소 매핑](#bcm_addr_m--주소-매핑) |
-| Dfns 지갑 후속 | [네트워크 지갑 생성 의도와 연결](#네트워크-지갑-생성-의도와-연결--후속-db-계약) |
+| Dfns 지갑 후속 | [네트워크 지갑 생성 의도와 연결](#네트워크-지갑-생성-의도와-연결--후속-db-계약) · [응답 증적 보관](#v24-네트워크-지갑-응답-증적-보관--물리-저장-계약) |
 | Vault 조사 | [Vault 전체 대사](#bcm_vlt_rcnc_l--bcm_vlt_rcnc_item_l--vault-전체-대사-실행) |
 | 거래·이벤트 | [수신 원본](#bcm_whk_l--수신-알림-원본) · [거래 상태](#bcm_tx_l--거래-운영-상태) · [제출 원장](#bcm_sbmt_l--제출-원장) · [outbox](#bcm_outbox_l--발행-아웃박스) · [DAW 완료](#bcm_evnt_cmpl_l--daw-core-이벤트-처리-완료) |
 | Sweep | [요청](#bcm_swp_req_l--bcm_swp_req_item_l--bcm_swp_req_src_l--daw-core-sweep-요청) · [대상](#bcm_swp_trgt--sweep-대상) · [allowance](#bcm_swp_auth_m--sweep-승인-관찰-상태) · [실행·항목](#bcm_swp_exec_l--bcm_swp_item_l--sweep-실행-1n) |
@@ -337,7 +337,7 @@ Dfns의 논리 계정→네트워크 wallet은 다음 절의 후속 저장 계�
 
 ### 네트워크 지갑 생성 의도와 연결 — 후속 DB 계약
 
-**상태: V22 생성 의도·회수·완료 연결과 V23 계정 모델, 내부 생성 유스케이스를 구현했다. 실제 원문 보관 어댑터와 자산 주소/공개 API 연결은 미구현이다.**
+**상태: V22 생성 의도·회수·완료 연결, V23 계정 모델, 내부 생성 유스케이스, V24 응답 증적 보관 어댑터와 서비스+실제 DB 결합 검증을 구현했다. Dfns HTTP 어댑터·자산 주소/공개 API 연결은 미구현이다.**
 [13의 순수 생성·조회 포트와 회수 판정](13-dfns-contracts.md#네트워크-지갑-공통-포트와-회수-판정--구현)을 영속 원장에 연결했다.
 V23에서 vault ID의 필수 여부를 모델별 CHECK로 전환했다. 기존 VAULT 계정과 Fireblocks 생성 의도 두 테이블의 동작은 유지한다.
 
@@ -351,8 +351,8 @@ V23에서 vault ID의 필수 여부를 모델별 CHECK로 전환했다. 기존 V
 
 표는 논리 저장 경계이며 구현 컬럼/제약은 아래 V22·V23 명세를 따른다. BCM/벤더 ID는 기존 VARCHAR(64), network는 VARCHAR(20), 시각은 UTC VARCHAR(16),
 감사 4컬럼은 기존 규약을 따른다. 벤더 원문 ID가 저장 제약에 맞는지는 릴리스 schema로 검증하며 자르거나 대체하지 않는다.
-정규화 관찰은 페이지/후보 테이블로 분리했다. 실제 응답 증적은 보호된 보관 위치 참조/hash 계약을 두며 보관 어댑터는 후속이다.
-증적에 API key·인증 헤더를 보관하지 않는다.
+정규화 관찰은 페이지/후보 테이블로 분리했다. 실제 응답 증적은 V24 `bcm_ntwk_wlt_evdc_l`에 원문 바이트로 보관하고 페이지는 참조/hash로 연결한다.
+증적에 API key·인증 헤더·서명 secret을 보관하지 않는다. 응답 본문만 보관한다.
 network는 [07](07-asset-master.md)의 BCM 코드이며 환경은 origin/코드 양쪽과 검증한다. origin FK는 singleton의 `orgn_id`만 참조한다.
 요청 hash는 토큰 symbol을 포함해 토큰마다 wallet을 만들지 않는다. 논리 계정·원천·network·지갑 생성 옵션/매핑 버전을 정규화해
 생성 의도 단위로 고정하며, 실제 제출 본문과의 연결도 보존한다. 매핑 변경을 재시도에 자동 적용하지 않는다.
@@ -410,7 +410,32 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
   Ready는 wallet insert와 COMPLETED 갱신을 원자 처리한다. 저장 실패는 페이지·cursor·연결 전체 롤백이며 POST 권한은 이전 커밋에 남는다.
 - 완료/충돌 행은 새 제출이나 새 scan을 열지 않는다. 늦은 응답·오래된 revision은 변경을 거절하고 저장된 결과를 다시 조회하게 한다.
 - `evdc_ref/hash`는 비밀 정보 없는 보호된 실제 응답 증적 위치/해시를 호출자가 제공하는 계약이다. 임의 URI가 원문 보관을 보장하지 않는다.
-  원문 보관 어댑터와 릴리스별 증적 수용은 Dfns 연결 전 구현해야 한다. 본 원장의 후보 행은 BCM 정규화 값이며 벤더 JSON을 창작하지 않는다.
+  보관 위치는 아래 V24 원장이며 참조는 보관 어댑터가 발급한 형식만 유효하다. 본 원장의 후보 행은 BCM 정규화 값이며 벤더 JSON을 창작하지 않는다.
+  릴리스별 실제 응답 schema 대조는 Dfns HTTP 어댑터 연결 시 수용한다.
+
+### V24 네트워크 지갑 응답 증적 보관 — 물리 저장 계약
+
+`NetworkWalletEvidenceStore`의 실제 저장소다. 생성/조회 포트가 받은 **실제 응답 바이트**를 재직렬화 없이 보관하고,
+길이와 SHA-256은 DB가 계산해 CHECK로 강제한다. 어댑터가 반환하는 hash는 저장된 컬럼에서 다시 계산한 값이며,
+호출 서비스는 자신이 전달한 바이트의 SHA-256과 대조한 뒤에만 V22 페이지에 참조/hash를 기록한다.
+
+| 테이블 | 컬럼·타입 | 키·제약 |
+|---|---|---|
+| `bcm_ntwk_wlt_evdc_l` | `evdc_id, crtn_id, orgn_id, acnt_id, corr_id, req_hash` VARCHAR(64), `ntwk_cd` VARCHAR(20), `oprtn_dvcd` VARCHAR(16), `qry_crsr` TEXT nullable, `vndr_wlt_id` VARCHAR(64) nullable, `body` BYTEA, `body_len` INT, `body_hash` VARCHAR(64), `obs_dttm` VARCHAR(16), 감사 4컬럼 | PK evdc_id, 원천 FK, 복합 FK(crtn_id/origin/account/network)→의도. `oprtn_dvcd`는 CREATE/READ/DISCOVER. CHECK `body_len = octet_length(body)`, `body_hash = encode(sha256(body), 'hex')`. UPDATE/DELETE는 append-only trigger로 거절 |
+
+- **접근권한** — 마이그레이션은 PUBLIC 권한을 회수한다. 앱 역할에는 INSERT와 `body`를 제외한 컬럼의 SELECT만 부여하고
+  `body` 열람은 감사 역할에만 허용한다. 어댑터는 원문을 반환하는 메서드를 두지 않으며 `find(reference)`는 메타데이터·길이·hash만 돌려준다.
+  권한 부여는 [원천 runbook](../runbooks/provider-origin.md)의 DBA 절차를 따르고 앱은 DDL/GRANT를 실행하지 않는다.
+- **보관/조회** — 참조 형식은 `bcm-evidence://network-wallet/<evdc_id>`이며 어댑터가 발급한 형식만 조회를 허용한다.
+  다른 형식은 거절하고 존재하지 않는 ID는 null이다. 임의 URI를 페이지 `evdc_ref`에 넣어도 원문 보관을 뜻하지 않는다.
+  증적 행은 의도 복합 FK로 scope와 대조하며 원천 6필드는 저장 전 binding과 대조한다. 다른 계정/네트워크/원천의 증적은 저장되지 않는다.
+- **무결성** — 바이트는 그대로 저장하고(빈 본문 포함) DB가 길이·hash를 계산한다. 본문과 다른 hash/길이는 CHECK로 거절되며
+  저장 후 수정·삭제는 trigger로 거절된다. 반환 hash와 호출자 계산 hash가 다르면 서비스는 V22 기록 없이 오류를 전파한다.
+- **실패 전파** — 보관은 `REQUIRES_NEW`로 독립 커밋한다. 보관 실패는 예외로 전파하고 V22 페이지·cursor·연결은 기록하지 않는다.
+  보관 성공 뒤 V22 저장이 실패하면 증적은 남고 페이지/연결만 롤백된다. 두 경우 모두 다음 요청은 새 POST 없이 조회만 재개한다.
+  증적 원장의 행 존재가 지갑 완료나 벤더 수용을 뜻하지 않는다.
+
+실제 Dfns 응답 바이트·릴리스별 schema 대조는 HTTP 어댑터 연결 시 수용 항목이다. 현재 테스트의 바이트는 BCM 내부 표기이며 Dfns payload가 아니다.
 
 ### V23 계정 모델 분리 — 물리 저장 계약
 

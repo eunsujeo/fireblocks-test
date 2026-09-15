@@ -67,6 +67,23 @@ V23 이후의 신규 논리 계정은 구버전 Account 모델로 읽을 수 없
 롤백하지 않으며 검증된 호환 버전 또는 적용 전 백업 복구 절차를 사용한다. 논리 계정을 가짜 vault ID로 바꾸지 않는다.
 현재 논리 계정/네트워크 지갑 서비스는 내부 조립용이고 실제 보호 원문 저장소·공개 API·Dfns 어댑터는 미연결이다.
 
+V24는 네트워크 지갑 생성/조회 응답 원문 증적 테이블 `bcm_ntwk_wlt_evdc_l`을 추가한다. V23 뒤에 manifest 순서로 적용하며 기존 원장은 변경하지 않는다.
+마이그레이션은 PUBLIC 권한을 회수하고 append-only trigger를 건다. 앱 역할에는 INSERT와 원문(`body`)을 제외한 컬럼 SELECT만 부여한다.
+원문 열람은 감사 역할에만 허용하고 앱 역할의 `body` SELECT·UPDATE·DELETE 거절을 확인한다. 아래는 `psql` 변수 양식이다.
+
+```sql
+REVOKE ALL ON bcm_ntwk_wlt_evdc_l FROM :"app_role";
+GRANT INSERT ON bcm_ntwk_wlt_evdc_l TO :"app_role";
+GRANT SELECT (evdc_id, crtn_id, orgn_id, acnt_id, ntwk_cd, corr_id, req_hash, oprtn_dvcd, qry_crsr, vndr_wlt_id,
+              body_len, body_hash, obs_dttm, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+  ON bcm_ntwk_wlt_evdc_l TO :"app_role";
+GRANT SELECT ON bcm_ntwk_wlt_evdc_l TO :"audit_role";
+SELECT has_column_privilege(:'app_role', 'bcm_ntwk_wlt_evdc_l', 'body', 'SELECT') AS app_reads_body,
+       has_table_privilege(:'app_role', 'bcm_ntwk_wlt_evdc_l', 'UPDATE,DELETE,TRUNCATE') AS app_mutates;
+```
+
+`app_reads_body=false`, `app_mutates=false`를 확인한다. 증적 행이 있어도 지갑 완료나 Dfns 수용을 뜻하지 않으며 Dfns 기동 차단은 유지된다.
+
 | 오류 | 확인할 내용 |
 |---|---|
 | `Required provider origin configuration` | 세 앱의 환경변수 누락/빈 값 |

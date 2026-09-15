@@ -3,7 +3,7 @@
 상태: 2026-09-14 공개 명세·사용자 지정 Baseline 자료와 현행 코드를 대조했다.
 웹훅 공통 수신 경계와 네트워크 지갑 생성·조회 포트/순수 회수 판정, V22 생성 의도·회수·완료 연결 원장을 구현했다.
 V23의 VAULT/LOGICAL 계정 모델과 내부 논리 계정·네트워크 지갑 생성 유스케이스, 원문 증적 보관 포트를 구현했다.
-Dfns 실행 어댑터·보호 원문 저장소·공개 API 연결은 미구현이다.
+V24 보호 원문 저장소와 내부 생성 서비스+실제 PostgreSQL 결합 복구 검증을 구현했다. Dfns HTTP 어댑터·공개 API 연결은 미구현이다.
 [제공자 선택](12-provider-compatibility.md) · [전체 계획](../dfns-compatibility-plan.md) · [현행 API](../api/openapi.yaml)
 
 ## 자료의 적용 범위
@@ -196,19 +196,38 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
    create 오류·응답 유실·증적 보관 실패는 전파하고 제출 이력을 남긴다. 후속 요청은 조회만 수행한다.
 3. 포트 응답은 정규화 값과 실제 응답 byte[]를 함께 전달한다. NetworkWalletEvidenceStore에 원천·의도·작업 종류·조회 위치와
    같은 바이트를 보관하고 반환 hash가 SHA-256과 일치해야 V22에 기록한다. JSON 재직렬화·임의 URI로 보관 성공을 대체하지 않는다.
-   실제 보호 저장소 구현과 벤더 schema 대조는 후속이며 테스트의 내부 바이트는 Dfns payload가 아니다.
+   보호 저장소는 [03의 V24](03-bcm-db.md#v24-네트워크-지갑-응답-증적-보관--물리-저장-계약)로 구현했다. 벤더 schema 대조는 후속이며 테스트의 내부 바이트는 Dfns payload가 아니다.
 4. 생성 응답도 원천/소유/상관관계 검사를 거쳐 완료/대기/충돌로 저장한다. 이전 revision의 늦은 응답은 원장을 덮어쓰지 못한다.
 5. 회수는 호출당 한 페이지만 읽어 저장한다. 진행 중 scan은 저장 cursor에서 이어가고, 끝난 대기는 새 scan으로 조회한다.
    새 scan에서 known ID가 있으면 단건 read, 없으면 후보 조회를 사용한다. 진행 중 목록 scan은 known ID를 얻어도 그 cursor를 끝까지 따른다.
    조회 실패·증적 보관 실패에는 cursor를 전진시키지 않는다. 0건/404는 재생성 허가가 아니다.
 6. COMPLETED/CONFLICT는 외부 호출 없이 저장 상태를 반환한다. Pending/Conflict의 공개 HTTP 매핑과 자산 수신 주소 완료는 후속이다.
 
+### 응답 증적 보관 계약 — 구현
+
+`NetworkWalletEvidenceJdbcAdapter`가 `NetworkWalletEvidenceStore`/`NetworkWalletEvidenceArchive`를 구현한다. 저장 계약은 03의 V24를 따른다.
+보관 대상은 아래 공식 명세 작업의 **응답 본문 바이트**이며 요청 본문·인증 헤더·서명 secret은 보관하지 않는다.
+작업 종류는 BCM 내부 값이고 아래 대응은 위 [공식 OpenAPI 1.1018.3](#공식-openapi-재확인과-구현-근거-2026-09-14-사용자-정정)에서 확인한 경로다.
+
+| BCM 작업 | 공식 명세 작업 (1.1018.3) | 응답 본문에서 확인한 것 |
+|---|---|---|
+| `CREATE` | `POST /wallets` 200 | `Wallet` 객체(`allOf` Wallet + additionalProperties false). `id`·`network`·`signingKey`·`status`·`dateCreated`·`custodial`·`tags` 필수, `address`·`externalId`는 선택 |
+| `READ` | `GET /wallets/{walletId}` 200 | 같은 `Wallet` 객체. 404/빈 본문도 그대로 보관하며 미관찰로 처리한다 |
+| `DISCOVER` | `GET /wallets` 200 | `items[]`(Wallet)와 `nextPageToken`. query는 `limit`·`paginationToken`·`owner`·`ownerId`·`ownerUsername`만 있고 externalId 서버 필터는 없다 |
+
+- 어댑터는 응답을 정규화한 값과 같은 바이트를 서비스에 전달하고 서비스가 SHA-256을 계산한다. 저장소가 저장 컬럼에서 다시 계산한 hash와 일치해야 V22 페이지에 기록한다.
+- 증적 행의 존재는 지갑 준비 완료나 Dfns 수용이 아니다. `address` 부재는 주소 대기이며 `status`·`custodial`의 의미 해석은 HTTP 어댑터 연결 시 고정한다.
+- **별도 수용:** 실제 Baseline 릴리스가 위 schema와 같은지, 서명/인증 원문, 실제 지연·장애 동작. 현재 결합 테스트의 바이트는 BCM 내부 표기이며 Dfns payload가 아니다.
+  이 저장소가 있다는 사실로 `BCM_PROVIDER=dfns` 기동 차단을 해제하지 않는다.
+
+내부 생성 서비스와 실제 PostgreSQL 원장·증적 저장소를 결합한 검증 결과는 [설계12](12-provider-compatibility.md#응답-증적-보관과-서비스db-결합-검증-2026-09-15)에 기록했다.
+
 ## 다음 구현의 수용 자료
 
 | 확인 항목 | 필요한 증거 | 그 전에도 가능한 작업 |
 |---|---|---|
 | 실제 Baseline 릴리스와 공개 schema의 일치 | 릴리스/이미지와 채택 명세 버전의 연결, 배포 지원 범위 | 공식 버전별 OpenAPI에 근거한 DTO·인증/HTTP 어댑터·계약 테스트 |
-| createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위 | 최초 POST 1회·목록/단건 조회 어댑터·원장 결합 복구 테스트 |
+| createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위 | 목록/단건 조회 HTTP 어댑터·계약 테스트. 최초 POST 1회·원장/증적 결합 복구는 내부 대역으로 검증 완료 |
 | 웹훅 원문·서명·retry | 서명된 바이트, timestamp, 실제 retry/이력 응답과 ID 연결 | 공통 수신 순서·보존·선택 구현 회귀 |
 | 조직 Wallet·초기 체인/USDC·KRWK | 지원 조합·자산 locator·소유·정책/가스 권한 | 체인 식별/확정/대납 인터페이스 설계; 추가 체인 실구현은 후속 |
 
