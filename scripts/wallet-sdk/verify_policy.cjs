@@ -19,9 +19,11 @@ const url = pathToFileURL(path.join(root, '_guide/policy.html')).href;
     page.on('requestfailed', r => errors.push(r.url() + ' ' + r.failure().errorText));
     await page.goto(url);
     await page.waitForFunction(() => document.documentElement.dataset.guideReady === 'true');
+    assert.equal(await page.locator('main > section').first().getAttribute('id'), 'roles');
+    assert.equal(await page.locator('#roles tbody tr').count(), 4);
     const tip = page.locator('#policy-term-explanation');
     for (const [word, definition] of Object.entries(definitions)) {
-      const term = page.locator('#flow .policy-term').filter({hasText:new RegExp(`^${word}$`)}).first();
+      const term = page.locator('#roles .policy-term').filter({hasText:new RegExp(`^${word}$`)}).first();
       await term.hover();
       assert.equal(await tip.innerText(), definition);
       assert.equal(await term.getAttribute('aria-describedby'), 'policy-term-explanation');
@@ -66,7 +68,7 @@ const url = pathToFileURL(path.join(root, '_guide/policy.html')).href;
     await page.screenshot({path:'/tmp/wallet-policy-desktop.png'});
     for (const width of [320,390]) {
       await page.setViewportSize({width,height:844});
-      const term = page.locator('#flow .policy-term').first();
+      const term = page.locator('#roles .policy-term').first();
       await term.click();
       assert(await tip.isVisible());
       const b = await tip.boundingBox();
@@ -81,7 +83,7 @@ const url = pathToFileURL(path.join(root, '_guide/policy.html')).href;
     const fallback = await offline.newPage();
     await fallback.goto(url);
     for (const [word,definition] of Object.entries(definitions)) {
-      assert.equal(await fallback.locator('#flow .policy-term').filter({hasText:new RegExp(`^${word}$`)}).first().getAttribute('title'),definition);
+      assert.equal(await fallback.locator('#roles .policy-term').filter({hasText:new RegExp(`^${word}$`)}).first().getAttribute('title'),definition);
     }
     assert(await fallback.locator('#withdrawal-policy-json').isVisible());
     console.log('PASS no-JavaScript definitions and examples');
