@@ -38,6 +38,8 @@ dependencies {
     }
     // 통합 테스트의 JdbcTemplate 컴파일 참조용 — 런타임 배선 소관은 infra/persistence
     testImplementation("org.springframework.boot:spring-boot-starter-data-jdbc")
+    // 내부 생성 서비스 + 실제 원장 결합 슬라이스(@DataJdbcTest) — 별도 Dfns 데이터셋으로 실행한다
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jdbc-test")
     testImplementation(libs.archunit)
     testImplementation(libs.openapi.validator.mockmvc)
     testImplementation(libs.mockk)
