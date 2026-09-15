@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.api.admin
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSource
@@ -108,7 +109,8 @@ data class AssetCandidateSearchData(
 
 /**
  * 등록 요청 — `fireblocksAssetId`는 Fireblocks 원천의 후보 assetId다(그 원천에서 필수, 없으면 관문이 400).
- * Dfns 원천은 자산을 network·contractAddress로만 지정하며 이 필드를 보내면 관문이 400으로 거절한다 — Dfns 값을 Fireblocks 필드에 채우지 않는다.
+ * Dfns 원천은 자산을 network·contractAddress로 지정하며 이 필드를 보내면 관문이 400으로 거절한다 — Dfns 값을 Fireblocks 필드에 채우지 않는다.
+ * `tokenStandard`(SPL·SPL_2022)는 Dfns Solana 토큰(mint)에서만 필수이고 그 밖에서는 보내면 400이다.
  */
 data class RegisterAssetMappingRequest(
     @field:NotBlank
@@ -122,6 +124,7 @@ data class RegisterAssetMappingRequest(
     @field:Size(max = 128)
     @param:JsonProperty(value = "contractAddress", required = true)
     val contractAddress: String?,
+    val tokenStandard: TokenStandard? = null,
 )
 
 data class BulkRegisterAssetMappingsRequest(

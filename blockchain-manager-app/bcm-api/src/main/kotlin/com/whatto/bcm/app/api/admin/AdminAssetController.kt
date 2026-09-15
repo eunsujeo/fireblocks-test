@@ -112,6 +112,7 @@ class AdminAssetController(
                     employeeNo = employeeNo,
                     branchCode = branchCode,
                     requestId = RequestIdFilter.requestIdOf(httpRequest),
+                    tokenStandard = request.tokenStandard,
                 ),
             )
         return ApiResponse.of(AssetMappingData.from(mapping, origin), RequestIdFilter.requestIdOf(httpRequest))
@@ -137,6 +138,7 @@ class AdminAssetController(
                         employeeNo = employeeNo,
                         branchCode = branchCode,
                         requestId = requestId,
+                        tokenStandard = item.tokenStandard,
                     )
                 },
             )

@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.application.asset
 
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheRepository
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
 import com.whatto.bcm.domain.asset.VendorAssetMapping
@@ -260,7 +261,10 @@ data class AdoptNetworkCommand(
     val branchCode: String,
 )
 
-/** 등록 명령 — `fireblocksAssetId`는 Fireblocks 원천의 후보 assetId(필수)이고 Dfns 원천에서는 없어야 한다(관문이 거절). */
+/**
+ * 등록 명령 — `fireblocksAssetId`는 Fireblocks 원천의 후보 assetId(필수)이고 Dfns 원천에서는 없어야 한다(관문이 거절).
+ * `tokenStandard`는 Dfns Solana 토큰의 Token Program 구분이며 EVM·Fireblocks 원천에서는 없어야 한다.
+ */
 data class RegisterVendorAssetMappingCommand(
     val network: String,
     val symbol: String,
@@ -269,6 +273,7 @@ data class RegisterVendorAssetMappingCommand(
     val employeeNo: String,
     val branchCode: String,
     val requestId: String = "UNSPECIFIED",
+    val tokenStandard: TokenStandard? = null,
 ) {
-    fun locator() = ChainAssetLocator(network, fireblocksAssetId, contractAddress)
+    fun locator() = ChainAssetLocator(network, fireblocksAssetId, contractAddress, tokenStandard)
 }

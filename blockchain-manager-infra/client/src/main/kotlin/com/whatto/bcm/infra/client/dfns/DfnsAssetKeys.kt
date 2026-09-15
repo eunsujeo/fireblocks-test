@@ -1,11 +1,13 @@
 package com.whatto.bcm.infra.client.dfns
 
+import com.whatto.bcm.domain.asset.TokenStandard
+
 /**
  * Dfns 자산의 대조 키 — 자산 매핑의 `vendorAssetId`(등록)와 지갑 자산 관찰(잔액)이 같은 규칙으로 만든다(계약13 "Dfns 데이터셋의 자산 매핑").
  * 채택 명세 1.1018.3 `GET /wallets/{walletId}/assets`의 자산 kind와 locator 필드를 따른다. Dfns에는 벤더 assetId가 없으므로
  * `<Network>:Native` / `<Network>:<Kind>:<locator>` 형식의 결정적 문자열이 그 자리를 대신한다. 현재 모델링한 kind는 EVM(`Native`·`Erc20`)과
  * Solana(`Spl`·`Spl2022`)이며 그 밖의 kind는 등록할 수 없고 잔액 관찰에서도 대조 대상이 아니다.
- * EVM 컨트랙트 주소는 소문자 hex로 정규화한다(주소 동일성은 대소문자와 무관). Solana mint는 base58 그대로다.
+ * EVM 컨트랙트 주소는 소문자 hex로 정규화한다(주소 동일성은 대소문자와 무관). Solana mint는 base58 32바이트 공개키를 그대로 둔다(대소문자 구분).
  */
 internal object DfnsAssetKeys {
     const val NATIVE_KIND = "Native"
@@ -48,6 +50,50 @@ internal object DfnsAssetKeys {
             kind in SPL_KINDS -> "${requireNetwork(vendorNetwork)}:$kind:${requireLocator(locator)}"
             else -> null
         }
+
+    /** Solana SPL/Token-2022 토큰 키 — mint는 base58 32바이트 공개키여야 한다. */
+    fun spl(
+        vendorNetwork: String,
+        standard: TokenStandard,
+        mint: String,
+    ): String {
+        require(isSolanaPublicKey(mint)) { "Invalid Solana mint address" }
+        val kind = if (standard == TokenStandard.SPL) SPL_KIND else SPL_2022_KIND
+        return "${requireNetwork(vendorNetwork)}:$kind:$mint"
+    }
+
+    /** base58(비트코인 알파벳)로 32바이트가 되는 문자열인지 — Solana 공개키/mint 형식. */
+    fun isSolanaPublicKey(value: String): Boolean = decodeBase58(value)?.size == SOLANA_PUBLIC_KEY_BYTES
+
+    private fun decodeBase58(value: String): ByteArray? {
+        if (value.isEmpty() || value.length > SOLANA_PUBLIC_KEY_MAX_CHARS) return null
+        var number = java.math.BigInteger.ZERO
+        for (char in value) {
+            val digit = BASE58_ALPHABET.indexOf(char)
+            if (digit < 0) return null
+            number = number.multiply(BASE58_RADIX).add(java.math.BigInteger.valueOf(digit.toLong()))
+        }
+        val leadingZeros = value.takeWhile { it == BASE58_ALPHABET[0] }.length
+        val magnitude =
+            number.toByteArray().let { bytes ->
+                if (bytes.size > 1 &&
+                    bytes[0] == 0.toByte()
+                ) {
+                    bytes.copyOfRange(1, bytes.size)
+                } else {
+                    bytes
+                }
+            }
+        val digits = if (number == java.math.BigInteger.ZERO) ByteArray(0) else magnitude
+        return ByteArray(leadingZeros) + digits
+    }
+
+    private const val SPL_KIND = "Spl"
+    private const val SPL_2022_KIND = "Spl2022"
+    private const val SOLANA_PUBLIC_KEY_BYTES = 32
+    private const val SOLANA_PUBLIC_KEY_MAX_CHARS = 44
+    private const val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    private val BASE58_RADIX = java.math.BigInteger.valueOf(58)
 
     private fun requireNetwork(vendorNetwork: String): String {
         require(

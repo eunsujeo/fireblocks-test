@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.12.0`
+`v0.12.1`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -1752,9 +1752,11 @@ _응답_
 - **Fireblocks 원천**: 후보의 **Fireblocks Asset ID와 컨트랙트 주소로** 지정한다. Asset ID·주소·네트워크가 모두 일치해야 한다 —
   Fireblocks 최신 조회에서 하나라도 다르면 `400`, 둘 이상이면 `409` 다. 화면의 캐시 값이나 브라우저 입력을 그대로 신뢰하지 않는다.
   `fireblocksAssetId` 가 없으면 `400`(`fireblocksAssetIdRequired`) 이다.
-- **Dfns 원천**: 자산을 **network와 contractAddress로만** 지정한다. `fireblocksAssetId` 를 보내면 `400`(`fireblocksAssetIdNotApplicable`) 이다.
-  서버는 데이터셋 네트워크 행과 실행 설정의 Dfns network 일치(`networkBindingMismatch`), EVM 계정 모델 네트워크(`assetModelUnsupported`),
-  EVM 컨트랙트 주소 형식 `^0x[0-9a-fA-F]{40}$`(`contractAddressInvalid`) 을 검증하고 Dfns 자산 키(`dfnsAssetKey`) 를 만든다.
+- **Dfns 원천**: 자산을 **network와 contractAddress로** 지정한다. `fireblocksAssetId` 를 보내면 `400`(`fireblocksAssetIdNotApplicable`) 이다.
+  서버는 데이터셋 네트워크 행과 실행 설정의 Dfns network 일치(`networkBindingMismatch`)와 행의 계정·자산 모델(없으면 `assetModelUnsupported`)을 검증한다.
+  EVM 모델은 컨트랙트 주소 형식 `^0x[0-9a-fA-F]{40}$`(`contractAddressInvalid`), Solana 모델은 mint가 base58 32바이트 공개키(`mintAddressInvalid`)이고
+  `tokenStandard`(SPL·SPL_2022)가 필수(`tokenStandardRequired`)다. 네이티브·EVM에 `tokenStandard` 를 보내면 `tokenStandardNotApplicable` 이다.
+  검증을 지나면 Dfns 자산 키(`dfnsAssetKey`) 를 만든다.
   Dfns 공개 명세에는 자산 카탈로그 API 가 없어 온체인 존재·decimals 는 운영자의 발행사 공식 자료로 대조한다.
 - **활성 매핑을 덮어쓰지 않는다** — 이미 활인 (네트워크, 토큰) 매핑은 `409` 다. 논리 해제된 행은 검증을 다시 통과한 뒤 재활성 또는 교체하고 전후 snapshot을 남긴다.
 - **한 자산은 한 매핑** — 다른 (네트워크, 토큰) 이 이미 그 자산이면 `409` 다.
@@ -1769,7 +1771,8 @@ curl -X POST "https://{baseUrl}/blockchain/manage-api/admin/asset-mappings" \
   "network": "BASE",
   "symbol": "USDC",
   "fireblocksAssetId": "USDC_BASE",
-  "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "tokenStandard": "SPL"
 }'
 ```
 
@@ -1788,7 +1791,8 @@ _요청 본문_
   "network": "BASE",
   "symbol": "USDC",
   "fireblocksAssetId": "USDC_BASE",
-  "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "tokenStandard": "SPL"
 }
 ```
 
@@ -1797,7 +1801,8 @@ _요청 본문_
 | `network` | string | 필수 | 채택한 네트워크 코드 |
 | `symbol` | string | 필수 | 우리 심볼 — 여기서 정하고, 이후 모든 계약에서 이 값을 쓴다 |
 | `fireblocksAssetId` | string | - | 후보 목록에서 선택한 Fireblocks Asset ID. Fireblocks 원천에서는 필수이며 서버가 등록 직전에 Network·주소와 다시 검증한다. Dfns 원천에서는 보내지 않는다(보내면 400).  |
-| `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null. Dfns 원천에서는 이 값과 network가 자산 지정의 전부다 |
+| `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null. Dfns 원천에서는 이 값과 network(Solana는 mint 주소와 `tokenStandard`)가 자산 지정의 전부다  |
+| `tokenStandard` | string | - | Dfns 원천의 Solana 토큰(mint)에서만 필수 — 같은 mint 주소로 Token Program을 구분할 수 없어 운영자가 발행사 자료로 확인해 명시한다. 네이티브 SOL·EVM·Fireblocks 원천에서는 보내지 않는다(보내면 400 `tokenStandardNotApplicable`).  `SPL` `SPL_2022` |
 
 
 _응답_
@@ -1997,7 +2002,8 @@ curl -X POST "https://{baseUrl}/blockchain/manage-api/admin/asset-mappings/bulk"
       "network": "BASE",
       "symbol": "USDC",
       "fireblocksAssetId": "USDC_BASE",
-      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "tokenStandard": "SPL"
     }
   ]
 }'
@@ -2020,7 +2026,8 @@ _요청 본문_
       "network": "BASE",
       "symbol": "USDC",
       "fireblocksAssetId": "USDC_BASE",
-      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "tokenStandard": "SPL"
     }
   ]
 }
@@ -3242,7 +3249,7 @@ Dfns 원천 `{ "fireblocksAssetId": null, "dfnsAssetKey": "EthereumSepolia:Erc20
 | `network` | string | 필수 |  |
 | `symbol` | string | 필수 |  |
 | `fireblocksAssetId` | string \\| null | 필수 | 현재 매핑이 사용하는 Fireblocks 자산 식별자. Fireblocks 원천에서만 채워지고 Dfns 원천은 null |
-| `dfnsAssetKey` | string \\| null | 필수 | 현재 매핑이 사용하는 Dfns 자산 키 `<Network>:Native` 또는 `<Network>:<kind>:<locator>`(ERC-20은 소문자 컨트랙트). Dfns 원천에서만 채워지고 Fireblocks 원천은 null |
+| `dfnsAssetKey` | string \\| null | 필수 | 현재 매핑이 사용하는 Dfns 자산 키 `<Network>:Native` 또는 `<Network>:<kind>:<locator>`(ERC-20은 소문자 컨트랙트, Solana는 `Spl`/`Spl2022`와 mint). Dfns 원천에서만 채워지고 Fireblocks 원천은 null |
 | `contractAddress` | string \\| null | - | 네이티브 자산은 null |
 | `registeredAt` | string | 필수 |  |
 
@@ -3963,7 +3970,8 @@ Dfns 원천 `{ "fireblocksAssetId": null, "dfnsAssetKey": "EthereumSepolia:Erc20
 | `network` | string | 필수 | 채택한 네트워크 코드 |
 | `symbol` | string | 필수 | 우리 심볼 — 여기서 정하고, 이후 모든 계약에서 이 값을 쓴다 |
 | `fireblocksAssetId` | string | - | 후보 목록에서 선택한 Fireblocks Asset ID. Fireblocks 원천에서는 필수이며 서버가 등록 직전에 Network·주소와 다시 검증한다. Dfns 원천에서는 보내지 않는다(보내면 400).  |
-| `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null. Dfns 원천에서는 이 값과 network가 자산 지정의 전부다 |
+| `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null. Dfns 원천에서는 이 값과 network(Solana는 mint 주소와 `tokenStandard`)가 자산 지정의 전부다  |
+| `tokenStandard` | string | - | Dfns 원천의 Solana 토큰(mint)에서만 필수 — 같은 mint 주소로 Token Program을 구분할 수 없어 운영자가 발행사 자료로 확인해 명시한다. 네이티브 SOL·EVM·Fireblocks 원천에서는 보내지 않는다(보내면 400 `tokenStandardNotApplicable`).  `SPL` `SPL_2022` |
 
 
 ### BulkRegisterAssetMappingsRequest

@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.persistence.asset
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
 import com.whatto.bcm.domain.exception.ConflictException
@@ -9,7 +10,7 @@ import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 
-/** bcm_blkc_m SQL 어댑터 — 동기화 스냅샷과 사람의 네트워크 채택을 한 행에 보존한다. */
+/** bcm_blkc_m SQL 어댑터 — 동기화 스냅샷과 사람의 네트워크 채택을 한 행에 보존한다. 계정·자산 모델(`chain_mdl_dvcd`)은 동기화 갱신이 덮지 않는다. */
 @Repository
 class VendorBlockchainCatalogJdbcAdapter(
     private val jdbc: NamedParameterJdbcTemplate,
@@ -25,6 +26,7 @@ class VendorBlockchainCatalogJdbcAdapter(
                 testnet = rs.getString("test_yn") == YES,
                 deprecated = rs.getString("deprc_yn") == YES,
                 syncedAt = rs.getString("sync_dttm"),
+                chainModel = rs.getString("chain_mdl_dvcd")?.let(ChainModel::valueOf),
             )
         }
 
@@ -54,7 +56,7 @@ class VendorBlockchainCatalogJdbcAdapter(
         val where = predicates.takeIf { it.isNotEmpty() }?.joinToString(" AND ", prefix = " WHERE ").orEmpty()
         return jdbc.query(
             """
-            SELECT vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm
+            SELECT vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd
               FROM bcm_blkc_m$where
              ORDER BY dspl_nm, vndr_blkc_id
             """.trimIndent(),
@@ -72,10 +74,10 @@ class VendorBlockchainCatalogJdbcAdapter(
             jdbc.update(
                 """
                 INSERT INTO bcm_blkc_m
-                  (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+                  (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
                 VALUES
-                  (:candidateId, :network, :chainId, :displayName, :testYn, :deprecatedYn, :syncedAt,
+                  (:candidateId, :network, :chainId, :displayName, :testYn, :deprecatedYn, :syncedAt, :chainModel,
                    :empno, :brcd, :empno, :brcd)
                 """.trimIndent(),
                 snapshotParameters(catalog),
@@ -157,7 +159,7 @@ class VendorBlockchainCatalogJdbcAdapter(
         jdbc
             .query(
                 """
-                SELECT vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm
+                SELECT vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd
                   FROM bcm_blkc_m WHERE $predicate
                 """.trimIndent(),
                 mapOf("value" to value),
@@ -173,6 +175,7 @@ class VendorBlockchainCatalogJdbcAdapter(
             "testYn" to yn(catalog.testnet),
             "deprecatedYn" to yn(catalog.deprecated),
             "syncedAt" to catalog.syncedAt,
+            "chainModel" to catalog.chainModel?.name,
             "empno" to SYSTEM_EMPLOYEE,
             "brcd" to SYSTEM_BRANCH,
         )

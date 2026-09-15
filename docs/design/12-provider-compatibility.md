@@ -379,3 +379,18 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **독립 converge 3차(같은 Codex reviewer 세션, 수정 delta 8c8893d..f4e4e38, design-sync→code-reviewer 순차)**: 잔여 Major 2건 해소 확인, 신규 Critical/Major/Minor 없음.
   `inspect == null`을 등록 성공으로 취급하지 않고 이후 `resolveAll`을 수행하는 점, 기존 stub의 object 전환이 assertion 동일임을 확인했다. 검토 기준 commit은 f4e4e38이다.
   실벤더 호출·운영 적용·기동 차단 해제·push는 미수행이다.
+
+## Dfns Solana 자산 모델과 계정·자산 모델 컬럼 검증 (2026-09-16)
+
+- 계약은 [계약13](13-dfns-contracts.md#solana-수신-주소와-자산-모델--구현)·[03 V25](03-bcm-db.md#v25-dfns-계정자산-모델과-자산-키-길이--물리-저장-계약)·07("Dfns 데이터셋의 등록")·09에 먼저 고정했다.
+  V25: `bcm_blkc_m.chain_mdl_dvcd`(EVM/SOLANA, CHECK, Dfns seed만 채움·동기화가 덮지 않음)와 `bcm_vndr_ast_m.vndr_ast_id` VARCHAR(128). 도메인 `ChainModel`·`TokenStandard`(SPL/SPL_2022),
+  `VendorBlockchainCatalog.chainModel`, `ChainAssetLocator.tokenStandard`, 등록 명령·Admin 요청 `tokenStandard`(OpenAPI 0.12.1, 재생성).
+- Dfns 관문은 행의 모델로 분기한다 — 없으면 `assetModelUnsupported`, EVM은 기존 규칙(+표준 지정 시 `tokenStandardNotApplicable`), SOLANA는 네이티브 SOL 또는 mint(base58 32바이트 형식 검사 `mintAddressInvalid`,
+  운영자 명시 표준 필수 `tokenStandardRequired`)로 `<Network>:Spl|Spl2022:<mint>` 키를 만든다. Fireblocks 관문은 표준 지정을 카탈로그 호출 전에 거절한다. Solana 수신 주소는 지갑 owner 주소이며
+  ATA는 계산·저장하지 않고, `account-address-networks` 등록은 Baseline 수용 뒤 운영 결정으로 남겼다(계약13 수용 표 2행 추가).
+- 검증: `DfnsChainAssetResolverTest` 10(Solana 네이티브/SPL/Token-2022 키, 표준 누락·mint 형식·EVM에 표준 거절, 모델 없는 행 거절, base58 32바이트 판정), `VendorBlockchainCatalogPersistenceTest` +1(모델 왕복·동기화가 덮지 않음·CHECK),
+  `VendorAssetMappingPersistenceTest` 길이 결함 경계 65→129(V25 컬럼 확장에 따른 상수 변경, assertion 동일), `VendorAssetMappingServiceTest` +1(Fireblocks 표준 거절),
+  `AdminAssetControllerDfnsOriginTest` +1(tokenStandard 전달·enum 밖 400), `DfnsAccountAssemblyIntegrationTest`(seed에 모델 컬럼, Solana mint Token-2022 등록 성공·표준 누락 거절).
+- 선택 회귀: domain 115 · application 25 · client 35(dfns) · persistence(asset·wallet·account·migration) 73 · API(asset·account 유스케이스·account·AdminAsset·wallet·web·config·Architecture·Bootstrap) 148, 실패 0.
+  전체 모듈 compileKotlin/compileTestKotlin·변경 모듈 ktlintCheck 통과. 실벤더 호출·운영 DB 적용·기동 차단 해제·push는 미수행이다.
+- **후속**: 거래·Sweep·Admin·웹훅의 Dfns 조립(그 뒤 `BCM_PROVIDER=dfns` 기동 차단 해제 결정), 수용 항목(Call Function 응답 형식, 지갑 자산 목록 단위/미보유, Solana owner 주소 수신·비ATA 계정·rent).

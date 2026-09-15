@@ -6,7 +6,8 @@ V23의 VAULT/LOGICAL 계정 모델과 내부 논리 계정·네트워크 지갑 
 V24 보호 원문 저장소와 내부 생성 서비스+실제 PostgreSQL 결합 복구 검증을 구현했다.
 2026-09-15 공식 OpenAPI 1.1018.3 기반 인증(사용자 행위 서명)·지갑 생성/조회 HTTP 어댑터와 Pending/Conflict의 공개 HTTP 매핑을 구현했다.
 공개 계정·주소 API를 `AccountOperations`로 제공자별 조립해 Dfns 논리 계정·네트워크 지갑 주소 발급을 연결했다.
-Dfns 데이터셋의 자산 매핑 등록 관문(`ChainAssetResolver`)과 `GET /wallets/{walletId}/assets` 기반 잔액 계약을 구현했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
+Dfns 데이터셋의 자산 매핑 등록 관문(`ChainAssetResolver`)과 `GET /wallets/{walletId}/assets` 기반 잔액 계약을 구현했다.
+2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델을 구현했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
 [제공자 선택](12-provider-compatibility.md) · [전체 계획](../dfns-compatibility-plan.md) · [현행 API](../api/openapi.yaml)
 
 ## 자료의 적용 범위
@@ -222,13 +223,23 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 항목 | Dfns 계약 |
 |---|---|
 | 벤더 자산 식별 | Dfns에는 벤더 assetId가 없다. 채택 명세 1.1018.3 `GET /wallets/{walletId}/assets`의 자산 `kind`·locator로 **Dfns 자산 키** `<Network>:Native` / `<Network>:<Kind>:<locator>`를 만들어 `bcm_vndr_ast_m.vndr_ast_id`에 저장한다. ERC-20 locator는 소문자 컨트랙트 주소(주소 동일성은 대소문자 무관), Solana는 mint 그대로다. 등록(관문)과 잔액 관찰(어댑터)이 같은 규칙(`DfnsAssetKeys`)으로 만들어 문자열 동일성으로 대조한다 |
-| 네트워크 행 | Dfns 공개 명세에는 블록체인/자산 카탈로그 API가 없어 일 1회 동기화가 없다. Dfns 데이터셋의 `bcm_blkc_m` 행은 DBA가 등록하는 데이터셋 seed다(03) — `vndr_blkc_id` = 채택 명세의 `Network` 값(예 `EthereumSepolia`), `ntwk_cd` = BCM 코드, `chain_id` = EIP-155(EVM만). 관문은 이 값이 실행 설정 `bcm.dfns.networks[ntwk_cd]`와 같아야 등록한다(`networkBindingMismatch`) |
-| 자산 모델 | `chain_id`가 있는 EVM 네트워크만 등록한다 — `contractAddress` null은 `Native`, 값이 있으면 명세 EVM 주소 형식 `^0x[0-9a-fA-F]{40}$`(`contractAddressInvalid`)의 `Erc20`이다. Solana(mint·Token Program·token account)는 자산 locator 모델 확정 전이라 `assetModelUnsupported`로 거절한다 |
+| 네트워크 행 | Dfns 공개 명세에는 블록체인/자산 카탈로그 API가 없어 일 1회 동기화가 없다. Dfns 데이터셋의 `bcm_blkc_m` 행은 DBA가 등록하는 데이터셋 seed다(03) — `vndr_blkc_id` = 채택 명세의 `Network` 값(예 `EthereumSepolia`), `ntwk_cd` = BCM 코드, `chain_id` = EIP-155(EVM만), `chain_mdl_dvcd` = `EVM`/`SOLANA`(V25). 관문은 이 값이 실행 설정 `bcm.dfns.networks[ntwk_cd]`와 같아야 등록한다(`networkBindingMismatch`) |
+| 자산 모델 | 행의 `chain_mdl_dvcd`가 정한다(없으면 `assetModelUnsupported`). **EVM**: `contractAddress` null은 `Native`, 값이 있으면 명세 EVM 주소 형식 `^0x[0-9a-fA-F]{40}$`(`contractAddressInvalid`)의 `Erc20`이다. **SOLANA**: null은 `Native`(SOL), 값은 mint이며 base58 32바이트 공개키(`mintAddressInvalid`)와 운영자가 명시한 `tokenStandard`(`SPL`→`Spl`, `SPL_2022`→`Spl2022`, 없으면 `tokenStandardRequired`)로 키를 만든다 — 같은 mint 주소로 Token Program을 구분할 수 없고 카탈로그 원천도 없어 코드가 추정하지 않는다. 네이티브·EVM에 표준을 붙이면 `tokenStandardNotApplicable`이다 |
 | Fireblocks 필드 | 요청 `fireblocksAssetId`는 Fireblocks 원천에서 필수(`fireblocksAssetIdRequired`), Dfns 원천에서는 있으면 거절(`fireblocksAssetIdNotApplicable`)이다. 응답은 원천의 벤더 이름을 붙인 필드만 채운다 — `fireblocksAssetId`(Fireblocks) / `dfnsAssetKey`(Dfns), 다른 쪽 null(OpenAPI 0.12.0 `AssetMapping`). Dfns 값을 Fireblocks 필드에 채우지 않는다 |
-| 저장 길이 | `vndr_ast_id VARCHAR(64)`(03)를 넘는 키는 자르지 않고 `vendorAssetIdTooLong`으로 거절한다. 초기 EVM 네트워크(`EthereumSepolia:Erc20:`+40자 = 64)는 들어가며 Solana 등록 시 DDL 확장은 03의 후속 결정이다 |
+| 저장 길이 | `vndr_ast_id VARCHAR(128)`(03 V25)를 넘는 키는 자르지 않고 `vendorAssetIdTooLong`으로 거절한다. EVM(`EthereumSepolia:Erc20:`+40자 = 64)·Solana(`SolanaDevnet:Spl2022:`+44자 = 65) 키가 들어간다 |
 | 벤더 재해소 한계 | 채택 명세의 `POST /networks/{network}/call-function`(온체인 read)은 응답 schema가 비어 있어 근거로 고정할 수 없다. 온체인 존재·decimals·발행사 대조는 운영자의 발행사 공식 자료(계획의 등록표)와 아래 수용 항목이며 코드가 추정하지 않는다 |
 
 일괄 등록은 벤더 호출 없이 판정할 수 있는 항목 실패(`inspect` — Fireblocks 필수 assetId 누락, Dfns의 모든 검사)를 index 순서로 먼저 거절한 뒤 네트워크마다 관문을 한 번 부르고(`resolveAll`) 항목별 실패를 index로 표시한다. 해소된 벤더 자산이 요청 안에서 겹치면 저장 전에 `duplicateVendorAsset`이다.
+
+### Solana 수신 주소와 자산 모델 — 구현
+
+| 항목 | 계약 |
+|---|---|
+| 지갑 주소 | Dfns Solana 지갑의 `address`는 owner 공개키다(명세 `Wallet.address`). BCM은 이 값을 EVM과 같이 `bcm_addr_m`의 토큰 수신 주소로 저장한다 — SPL 전송은 수신자 owner 주소로 보내고 보내는 쪽이 mint별 token account(ATA)를 만든다. tag/memo는 없다 |
+| 발급 허용 | 운영자가 `bcm.dfns.account-address-networks`에 Solana 네트워크를 넣을 때만 발급한다. Dfns Baseline이 owner 주소로 들어온 SPL 입금을 지갑 자산으로 관찰하는지는 아래 수용 항목이며 확인 전에는 목록에 넣지 않는다. 코드는 ATA를 계산하지 않는다(ed25519 곡선 검사가 필요한 PDA 도출은 근거 있는 라이브러리 없이 구현하지 않음) |
+| 자산 키 | `<Network>:Spl:<mint>` / `<Network>:Spl2022:<mint>` — 명세 자산 kind `Spl`·`Spl2022`의 `mint`와 같다. mint는 base58 32바이트로 형식만 검사하고 소유 프로그램은 운영자 지정이다 |
+| 잔액 | 지갑 자산 관찰의 `Spl`·`Spl2022` 항목이 owner의 mint별 token account 합계로 보고된다고 가정하며(명세는 항목 단위를 서술하지 않음) 비ATA token account·동결·폐쇄 계정의 반영은 수용 항목이다. 잔액 유스케이스는 EVM과 같다 |
+| 미포함 | SPL 전송·수수료(SOL fee payer·rent)·집금·확정 모델은 Dfns 거래 조립과 계획의 Solana 게이트에서 다룬다. 이 절은 등록·주소·잔액 관찰까지다 |
 
 ### 잔액 계약 — 구현
 
@@ -364,7 +375,8 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위, 429 동작 | 목록/단건 조회 HTTP 어댑터·계약 테스트 완료. 최초 POST 1회·원장/증적 결합 복구는 내부 대역과 HTTP 어댑터 모두로 검증 완료 |
 | 웹훅 원문·서명·retry | 서명된 바이트, timestamp, 실제 retry/이력 응답과 ID 연결 | 공통 수신 순서·보존·선택 구현 회귀 |
 | 조직 Wallet·초기 체인/USDC·KRWK | 지원 조합·자산 locator·소유·정책/가스 권한 | 체인 식별/확정/대납 인터페이스 설계; 추가 체인 실구현은 후속 |
-| 자산 등록의 온체인 대조 | 채택 명세 `POST /networks/{network}/call-function`의 실제 응답 형식(ERC-20 `decimals()`·`symbol()` read), 또는 다른 검증 원천 | Dfns 데이터셋 등록 관문(설정·네트워크 행·EVM 주소 형식·키 길이)은 구현 완료. 온체인 대조는 발행사 공식 자료로 운영자가 수행 |
+| 자산 등록의 온체인 대조 | 채택 명세 `POST /networks/{network}/call-function`의 실제 응답 형식(ERC-20 `decimals()`·`symbol()` read), Solana mint 소유 프로그램 확인 원천 | Dfns 데이터셋 등록 관문(설정·네트워크 행·모델·주소/mint 형식·키 길이)은 구현 완료. 온체인 대조·Token Program은 발행사 공식 자료로 운영자가 확인 |
+| Solana owner 주소 수신 | Baseline이 owner 주소로 받은 SPL/Token-2022 입금을 지갑 자산(`Spl`/`Spl2022`)으로 관찰하는지, 비ATA token account·동결 계정 반영, ATA 생성 rent 부담 주체 | 등록 관문·자산 키·잔액 관찰 구현 완료. `account-address-networks`에 Solana를 넣는 것은 이 확인 뒤 운영 결정 |
 | 지갑 자산 목록의 의미 | `balance`의 단위(BCM 해석: 최소 단위 정수 — 공개 명세·문서에 서술 없음)·`decimals` 출처, 미보유/0 잔액 토큰의 목록 포함 여부, 생성 전 입금 토큰의 관찰 시점 | 잔액 어댑터·유스케이스·계약 테스트 완료. 정수 형식 검사는 정수가 아닌 형식만 거절하고 단위 정확성은 판별하지 못한다. 미보유 자산 `"0"` 규칙은 이 확인 뒤 유지/변경 |
 
 사용자 지정 wiki의 질문은 벤더 확답이 아니다. 자료가 없는 항목을 임의로 채우거나 실벤더 호출로 확인하지 않는다.

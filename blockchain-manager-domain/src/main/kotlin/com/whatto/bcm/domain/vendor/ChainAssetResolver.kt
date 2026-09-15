@@ -1,5 +1,6 @@
 package com.whatto.bcm.domain.vendor
 
+import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.exception.BcmException
 
@@ -30,13 +31,15 @@ interface ChainAssetResolver {
 }
 
 /**
- * 등록 요청의 자산 지정. `contractAddress == null`은 그 네트워크의 네이티브 자산이다.
+ * 등록 요청의 자산 지정. `contractAddress == null`은 그 네트워크의 네이티브 자산이다(Solana에서는 mint 주소 자리).
  * `fireblocksAssetId`는 Fireblocks 후보 목록에서 고른 assetId이며 Fireblocks 원천에서는 필수, 다른 원천에서는 없어야 한다(있으면 거절).
+ * `tokenStandard`는 Solana 토큰의 Token Program 구분이며 EVM·Fireblocks 원천에서는 없어야 한다.
  */
 data class ChainAssetLocator(
     val network: String,
     val fireblocksAssetId: String?,
     val contractAddress: String?,
+    val tokenStandard: TokenStandard? = null,
 )
 
 /** 해소된 물리 자산 — vendorAssetId는 벤더 호출·잔액 관찰의 대조 키이고 contractAddress는 대조한 근거의 사본이다(네이티브는 null). */

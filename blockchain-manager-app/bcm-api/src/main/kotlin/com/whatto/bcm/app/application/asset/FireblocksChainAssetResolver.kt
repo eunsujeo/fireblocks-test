@@ -24,7 +24,13 @@ class FireblocksChainAssetResolver(
     override fun inspect(
         blockchain: VendorBlockchainCatalog,
         locator: ChainAssetLocator,
-    ): BcmException? = if (locator.fireblocksAssetId == null) missingId(locator) else null
+    ): BcmException? =
+        when {
+            locator.fireblocksAssetId == null -> missingId(locator)
+            // Fireblocks 카탈로그가 자산 표준을 소유하므로 운영자 지정 표준은 이 원천에 적용되지 않는다.
+            locator.tokenStandard != null -> InvalidAssetMappingException(locator.network, "tokenStandardNotApplicable")
+            else -> null
+        }
 
     override fun resolveAll(
         blockchain: VendorBlockchainCatalog,
