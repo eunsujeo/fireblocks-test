@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.application.wallet
 
 import com.whatto.bcm.app.application.account.AccountQueryService
+import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.vendor.NetworkWalletObservation
 import com.whatto.bcm.domain.vendor.NetworkWalletProvisioningPort
@@ -44,11 +45,9 @@ class NetworkWalletProvisioningService(
         val claimed =
             repository.claimSubmission(intent.request.scope, intent.revision, CoreDateTimes.now(clock))
                 ?: return checkNotNull(repository.find(intent.request.scope))
-        val response = vendor.create(claimed.request, claimed.submission)
-        val observedAt = CoreDateTimes.now(clock)
-        val stored = capture(claimed, NetworkWalletEvidenceOperation.CREATE, response, observedAt)
+        val observed = observe(claimed, NetworkWalletEvidenceOperation.CREATE) { vendor.create(claimed.request, claimed.submission) }
         val scan = repository.startRecovery(claimed.request.scope, claimed.revision, UUID.randomUUID().toString(), CoreDateTimes.now(clock))
-        return record(scan, listOf(response.value), null, stored, observedAt)
+        return record(scan, listOf(observed.response.value), null, observed.stored, observed.observedAt)
     }
 
     private fun recoverPage(intent: NetworkWalletCreationIntent): NetworkWalletCreationIntent {
@@ -60,25 +59,46 @@ class NetworkWalletProvisioningService(
             }
         val knownId = scan.knownWalletId
         return if (knownId != null && scan.nextCursor == null) {
-            val response = vendor.read(scan.request.scope, knownId)
-            val observedAt = CoreDateTimes.now(clock)
-            val stored = capture(scan, NetworkWalletEvidenceOperation.READ, response, observedAt)
-            record(scan, listOfNotNull(response.value), null, stored, observedAt)
+            val observed = observe(scan, NetworkWalletEvidenceOperation.READ) { vendor.read(scan.request.scope, knownId) }
+            record(scan, listOfNotNull(observed.response.value), null, observed.stored, observed.observedAt)
         } else {
-            val response = vendor.candidates(scan.request, scan.nextCursor)
-            val observedAt = CoreDateTimes.now(clock)
-            val stored = capture(scan, NetworkWalletEvidenceOperation.DISCOVER, response, observedAt)
-            record(scan, response.value.data, response.value.next, stored, observedAt)
+            val observed = observe(scan, NetworkWalletEvidenceOperation.DISCOVER) { vendor.candidates(scan.request, scan.nextCursor) }
+            record(scan, observed.response.value.data, observed.response.value.next, observed.stored, observed.observedAt)
         }
     }
 
-    private fun capture(
+    /**
+     * 벤더 호출과 원문 보관을 묶는다. 성공 응답은 보관 뒤 hash를 대조하고, 실패 응답도 수신 바이트가 있으면 같은 작업 종류로 먼저 보관한 뒤
+     * 오류를 전파한다 — 원장 페이지/cursor는 전진하지 않는다(계약13·03 V24). 응답을 받지 못한 실패(연결·timeout)는 보관할 바이트가 없다.
+     */
+    private fun <T> observe(
         intent: NetworkWalletCreationIntent,
         operation: NetworkWalletEvidenceOperation,
-        response: NetworkWalletResponse<*>,
+        call: () -> NetworkWalletResponse<T>,
+    ): ObservedResponse<T> {
+        val response =
+            try {
+                call()
+            } catch (failure: VendorApiException) {
+                failure.responseBody()?.let { body ->
+                    try {
+                        store(intent, operation, body, CoreDateTimes.now(clock))
+                    } catch (storeFailure: RuntimeException) {
+                        failure.addSuppressed(storeFailure)
+                    }
+                }
+                throw failure
+            }
+        val observedAt = CoreDateTimes.now(clock)
+        return ObservedResponse(response, store(intent, operation, response.bodyBytes(), observedAt), observedAt)
+    }
+
+    private fun store(
+        intent: NetworkWalletCreationIntent,
+        operation: NetworkWalletEvidenceOperation,
+        body: ByteArray,
         observedAt: String,
     ): StoredNetworkWalletEvidence {
-        val body = response.bodyBytes()
         val hash = MessageDigest.getInstance("SHA-256").digest(body).joinToString("") { "%02x".format(it) }
         val context =
             NetworkWalletEvidenceContext(
@@ -95,6 +115,12 @@ class NetworkWalletProvisioningService(
             check(it.hash == hash) { "Stored network wallet evidence hash mismatch: ${intent.intentId}" }
         }
     }
+
+    private class ObservedResponse<T>(
+        val response: NetworkWalletResponse<T>,
+        val stored: StoredNetworkWalletEvidence,
+        val observedAt: String,
+    )
 
     private fun record(
         scan: NetworkWalletCreationIntent,

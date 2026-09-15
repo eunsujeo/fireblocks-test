@@ -415,7 +415,7 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
 
 ### V24 네트워크 지갑 응답 증적 보관 — 물리 저장 계약
 
-`NetworkWalletEvidenceStore`의 실제 저장소다. 생성/조회 포트가 받은 **실제 응답 바이트**를 재직렬화 없이 보관하고,
+`NetworkWalletEvidenceStore`의 실제 저장소다. 생성/조회 포트가 받은 **실제 응답 바이트**를 성공·오류 응답 구분 없이 재직렬화 없이 보관하고,
 길이와 SHA-256은 DB가 계산해 CHECK로 강제한다. 어댑터가 반환하는 hash는 그 CHECK로 본문과 대조된 `body_hash` 컬럼 값이며,
 호출 서비스는 자신이 전달한 바이트의 SHA-256과 대조한 뒤에만 V22 페이지에 참조/hash를 기록한다.
 저장·조회 SQL은 `body` 컬럼을 참조하지 않는다. PostgreSQL은 RETURNING/SELECT에서 참조한 컬럼에도 SELECT 권한을 요구하므로 앱 역할 권한과 SQL이 함께 검증돼야 한다.

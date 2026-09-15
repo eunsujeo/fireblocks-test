@@ -274,7 +274,7 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   수용 테스트: domain 5건, `ApiExceptionHandlerTest` 1건(503·헤더·내부 사유 미노출), `AccountSpecComplianceTest` 1건(항목 `PROVISIONING_PENDING`/`CONFLICT`가 스펙 schema와 일치), `ErrorCodeTest` 갱신.
 - `infra/client`의 `dfns` 패키지: `DfnsProperties`·`DfnsCredentialSigner`·`DfnsUserActionClient`·`DfnsNetworkWalletClient`(+ `DfnsHttp`·`DfnsRestClientFactory`).
   근거는 공식 OpenAPI 1.1018.3과 공식 Credentials data·Signing flows 문서이며 다운로드 해시를 계약13에 기록했다. 어떤 실행 모듈도 조립하지 않으며 `BCM_PROVIDER=dfns` 기동 차단을 유지한다.
-- 계약 테스트 17건(MockRestServiceServer, 실호출 0): clientData 형식·EC/RSA/Ed25519 서명의 공개키 검증, init 본문(`userActionPayload`=실제 본문 바이트·`Api`·경로/메서드),
+- 계약 테스트 20건(MockRestServiceServer, 실호출 0; 리뷰 반영 후 3건 추가): clientData 형식·EC/RSA/Ed25519 서명의 공개키 검증, init 본문(`userActionPayload`=실제 본문 바이트·`Api`·경로/메서드),
   `/auth/action` 본문(kind Key·credId·`algorithm` 미전송)과 서명 검증, `POST /wallets`의 `X-DFNS-USERACTION`·같은 바이트 본문, 원문 바이트 보존, 저장 requestHash 불일치 시 호출 0,
   allowCredentials 불일치·인증 단계 오류/결손 시 생성 호출 0, 생성 4xx 상태 전파, 필수 필드 결손 거절, 단건 조회 404 원문 보존/오류/ID 불일치, 목록 query·externalId 필터·nextPageToken,
   custodial/위임/Vault/status 소유 판정, 목록 오류·items 결손 전파, 다른 원천 거절, 생성 본문 두 필드·externalId 100자 제한.
@@ -282,3 +282,14 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   생성 응답 유실 뒤 목록 페이지 원문 보관과 externalId 필터 후보로 완료, known ID 404 원문 보관과 같은 ID 대기(`NOT_OBSERVED`). 같은 모듈의 두 슬라이스가 한 Dfns 데이터셋을 공유하도록
   `DfnsDatasetTestSupport`로 데이터셋 생성을 JVM당 한 번으로 묶었다(기존 회수 슬라이스 7건은 assertion 변경 없음).
 - 선택 회귀: domain 110 · application 21 · persistence(wallet·account·provider) 58 · client(fireblocks·dfns) 104 · API(wallet·web·account·Bootstrap·Architecture·ProviderStartup) 68 = **361건**, 실패/오류/skip 0. 변경 모듈(domain·client·bcm-api) ktlintCheck 통과. 실벤더 호출·운영 적용·조건부 조립·기동 차단 해제는 미수행이다.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 080e8c1..818b9e5, design-sync→code-reviewer 순차)**:
+  design-sync Major 1(오류 응답 바이트가 V24에 보관되기 전 유실 — 보관 계약 불일치)·Minor 1(계약13의 HTTP 매핑 진행 상태 문구 모순).
+  code-reviewer Critical 3 — ① 2xx 아닌 응답·해석 불가 응답의 수신 바이트가 증적 보관 전에 예외로 사라짐,
+  ② `nextPageToken`이 있어도 문자열이 아니면 next=null이 되어 원장이 조회 완료로 판단, ③ `signingKey` 결손을 위임 없음으로 취급해 ORGANIZATION 승인.
+  Major 3 — ④ 미리 인코딩한 query를 `uri(String)`에 넘겨 페이지 토큰 이중 인코딩(Spring 7.0.9 재현), ⑤ 명세 필수 `allowCredentials.key` 결손 시 검사 생략,
+  ⑥ `exchange(..., false)`로 응답을 닫지 않음. 오류 표/ErrorCode, 공식 문서 해시, 생성물 신선도, 링크 80개, 테스트 개변 없음, 신규 의존성 없음은 정합으로 확인됐다.
+- **반영**: `VendorApiException`에 수신 바이트(`responseBody()`)를 추가하고 서비스가 성공·실패 응답 모두 같은 작업 종류로 먼저 보관한 뒤 오류를 전파한다
+  (원장 페이지/cursor 미전진, 보관 실패는 suppressed로 함께 전파). 어댑터는 필수 `id`·`network`·`signingKey.id`·`status`·`custodial` 형식을 검사하고
+  선택 필드는 없거나 문자열이어야 하며 `nextPageToken`의 다른 형식은 오류다. `allowCredentials.key` 배열이 없으면 서명하지 않는다.
+  URI는 UriBuilder 변수로 한 번만 인코딩하고 `exchange`는 자동 닫기를 사용한다. 계약13(7항·증적 표·정규화 규칙·인증 절), 03 V24 문구, 계약13:222를 갱신했다.
+  재실행: domain 110 · application 23 · persistence 58 · client 107 · API 68 = **366건**, 실패/오류/skip 0. 변경 모듈(domain·application·client·bcm-api) ktlintCheck 통과.

@@ -219,7 +219,9 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 5. 회수는 호출당 한 페이지만 읽어 저장한다. 진행 중 scan은 저장 cursor에서 이어가고, 끝난 대기는 새 scan으로 조회한다.
    새 scan에서 known ID가 있으면 단건 read, 없으면 후보 조회를 사용한다. 진행 중 목록 scan은 known ID를 얻어도 그 cursor를 끝까지 따른다.
    조회 실패·증적 보관 실패에는 cursor를 전진시키지 않는다. 0건/404는 재생성 허가가 아니다.
-6. COMPLETED/CONFLICT는 외부 호출 없이 저장 상태를 반환한다. Pending/Conflict의 공개 HTTP 매핑과 자산 수신 주소 완료는 후속이다.
+6. COMPLETED/CONFLICT는 외부 호출 없이 저장 상태를 반환한다. Pending/Conflict의 공개 HTTP 매핑은 위 [보류·충돌 HTTP 계약](#보류충돌-http-계약--구현)으로 고정했고, 공개 주소 API의 Dfns 연결과 자산 수신 주소 완료는 후속이다.
+7. 벤더 호출이 2xx가 아닌 응답이나 해석 불가한 2xx 응답으로 실패해도 수신 바이트가 있으면 같은 작업 종류로 먼저 보관한 뒤 오류를 전파한다.
+   원장 페이지·cursor·연결은 기록하지 않는다. 응답을 받지 못한 실패(연결·timeout)는 보관할 바이트가 없다. 보관 자체가 실패하면 그 실패를 벤더 오류에 suppressed로 붙여 함께 전파한다.
 
 ### 응답 증적 보관 계약 — 구현
 
@@ -231,6 +233,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 |---|---|---|
 | `CREATE` | `POST /wallets` 200 | `Wallet` 객체(`allOf` Wallet + additionalProperties false). `id`·`network`·`signingKey`·`status`·`dateCreated`·`custodial`·`tags` 필수, `address`·`externalId`는 선택 |
 | `READ` | `GET /wallets/{walletId}` 200 | 같은 `Wallet` 객체. 404/빈 본문도 그대로 보관하며 미관찰로 처리한다 |
+| (오류) | 위 세 작업의 2xx 아닌 응답·해석 불가 응답 | 수신 바이트를 같은 작업 종류로 보관하고 오류를 전파한다. 증적 행의 존재는 성공 관찰이 아니며 상태는 예외·로그에 남는다 |
 | `DISCOVER` | `GET /wallets` 200 | `items[]`(Wallet)와 `nextPageToken`. query는 `limit`·`paginationToken`·`owner`·`ownerId`·`ownerUsername`만 있고 externalId 서버 필터는 없다 |
 
 - 어댑터는 응답을 정규화한 값과 같은 바이트를 서비스에 전달하고 서비스가 SHA-256을 계산한다. DB가 계산해 CHECK로 본문과 대조한 `body_hash`와 일치해야 V22 페이지에 기록한다.
@@ -255,7 +258,8 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 - `DfnsCredentialSigner`: PKCS#8 개인키(EC·RSA·Ed25519)로 위 clientData 바이트를 서명한다. EC는 SHA-256/DER, RSA는 SHA-256 PKCS#1, Ed25519는 순수 서명 —
   예제의 `crypto.sign(undefined, …)` 기본 동작과 같다. `algorithm` 필드는 보내지 않는다(명세: 미지정 시 키로 결정).
 - `DfnsUserActionClient`: init의 `userActionPayload`에는 실제로 보낼 본문 바이트를 그대로 문자열로 넣고 `userActionServerKind=Api`를 보낸다.
-  응답 `allowCredentials.key` 목록이 있으면 설정된 credential ID가 그 안에 있어야 서명한다. 받은 `userAction`은 이어지는 한 요청에만 쓰고 저장·재사용하지 않는다.
+  명세가 필수로 정의한 `allowCredentials.key` 배열에 설정된 credential ID가 있어야 서명한다 — 목록이 없거나 배열이 아니면 진행하지 않는다.
+  받은 `userAction`은 이어지는 한 요청에만 쓰고 저장·재사용하지 않는다. 인증 단계의 오류·결손 응답도 수신 바이트를 예외에 담아 전파한다.
 - `DfnsProperties`(`bcm.dfns.*`): `base-url`(기본값 없음 — Baseline은 고객 환경 배포), `auth-token`, `credential-id`, `credential-private-key-pem|file`,
   timeout, `candidate-page-size`(1..500), `networks`(BCM 코드 → 명세 `network` 값, 값 중복 금지). `VendorExecutionLimits`는 재시도 없는 연결+응답 상한과 생성 흐름 HTTP 3회다.
   어떤 실행 모듈도 아직 이 설정을 바인딩하지 않는다.
@@ -270,19 +274,23 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 
 | 포트 | 명세 호출 | 어댑터 규칙 |
 |---|---|---|
-| `create` | `POST /wallets` + 사용자 행위 서명 | 본문은 `{"network": submission.vendorNetwork, "externalId": correlationId}` 두 필드뿐이다. 본문 SHA-256이 의도에 저장된 `requestHash`와 다르면 HTTP 호출 없이 실패한다(고정 snapshot 계약). 2xx가 아니면 상태를 담아 전파하고 자동 재호출하지 않는다 |
-| `read` | `GET /wallets/{walletId}` | 404는 본문을 보존한 미관찰(null)이다. 응답 `id`가 요청 ID와 다르면 오류다. 그 밖의 오류는 전파한다 |
-| `candidates` | `GET /wallets?limit&paginationToken` | 명세에 externalId 서버 필터가 없으므로 페이지 항목을 `externalId == correlationId`로 좁힌다. `nextPageToken`을 그대로 next로 돌려주고 반복 cursor 거절은 원장이 맡는다. 오류·`items` 결손을 빈 페이지로 바꾸지 않는다 |
+| `create` | `POST /wallets` + 사용자 행위 서명 | 본문은 `{"network": submission.vendorNetwork, "externalId": correlationId}` 두 필드뿐이다. 본문 SHA-256이 의도에 저장된 `requestHash`와 다르면 HTTP 호출 없이 실패한다(고정 snapshot 계약). 2xx가 아니면 상태와 수신 바이트를 담아 전파하고 자동 재호출하지 않는다 |
+| `read` | `GET /wallets/{walletId}` | 404는 본문을 보존한 미관찰(null)이다. 응답 `id`가 요청 ID와 다르면 오류다. 그 밖의 오류는 수신 바이트와 함께 전파한다 |
+| `candidates` | `GET /wallets?limit&paginationToken` | 명세에 externalId 서버 필터가 없으므로 페이지 항목을 `externalId == correlationId`로 좁힌다. `nextPageToken`은 없거나 null이면 조회 끝, 비어 있지 않은 문자열이면 다음 위치이며 그 밖의 형식은 오류다(조회 완료로 오해하지 않는다). 반복 cursor 거절은 원장이 맡는다. 오류·`items` 결손을 빈 페이지로 바꾸지 않는다. 경로·쿼리는 URI 변수로 한 번만 인코딩해 opaque 토큰을 손상시키지 않는다 |
 
 정규화 규칙 — 모두 명세 `Wallet` schema의 필드 설명에 근거한다.
 
-- `vendorWalletId` = `id`, `correlationId` = `externalId`(없으면 null), `address` = `address`(없거나 빈 값이면 null → 주소 대기).
+- 명세 `Wallet`의 필수 `id`·`network`·`signingKey`(객체, `id` 문자열)·`status`·`custodial`(boolean)이 형식대로 있어야 정규화한다. 하나라도 결손·형식 오류면
+  그 지갑을 조직 소유로 승인하지 않고 응답 전체를 오류로 전파한다(수신 바이트는 보관). `dateCreated`·`tags`는 사용하지 않아 검사하지 않는다.
+- `vendorWalletId` = `id`, `correlationId` = `externalId`, `address` = `address`. 선택 필드는 없거나 null이면 null이고, 문자열이 아니거나 빈 문자열이면 형식 오류다 —
+  빈 값을 주소 준비 완료나 상관관계 값으로 받지 않는다.
 - `network`: 설정 `networks`로 BCM 코드로 되돌린다. 매핑에 없는 값은 원문 그대로 둬 회수 판정의 `NETWORK_MISMATCH`로 드러나게 한다.
-- `ownership`: `custodial=true`(명세: 조직 소유)이고 `signingKey.delegatedTo`가 없고 `vaultId`(Vault 통제·읽기 전용 지갑)가 없고 `status=Active`일 때만 `ORGANIZATION`.
-  `custodial`·`status`가 없으면 `UNVERIFIED`, 그 밖은 `OTHER`다. Active가 아닌 지갑은 조직이 사용할 수 있는 자원으로 인정하지 않으며 상태 원문은 증적에 남는다.
-- 다른 원천의 scope는 호출 전에 거절한다. `id`·`network` 결손, JSON 객체가 아닌 본문은 정규화하지 않고 오류다.
+- `ownership`: `custodial=true`(명세: 조직 소유)이고 `signingKey.delegatedTo`가 없고 `vaultId`(Vault 통제·읽기 전용 지갑)가 없고 `status=Active`일 때만 `ORGANIZATION`,
+  그 밖은 `OTHER`다. Active가 아닌 지갑은 조직이 사용할 수 있는 자원으로 인정하지 않으며 상태 원문은 증적에 남는다. 판정 필드 결손은 위 규칙대로 오류이므로
+  `UNVERIFIED`는 이 어댑터가 만들지 않는다.
+- 다른 원천의 scope는 호출 전에 거절한다. JSON 객체가 아닌 본문은 정규화하지 않고 오류다.
 
-계약 테스트(`DfnsCredentialSignerTest`·`DfnsNetworkWalletClientTest`)는 MockRestServiceServer로 헤더·본문·서명 검증·오류 전파를 고정하며
+계약 테스트 20건(`DfnsCredentialSignerTest`·`DfnsNetworkWalletClientTest`)은 MockRestServiceServer로 헤더·본문·서명 검증·오류 전파·토큰 인코딩·필수 필드 검사를 고정하며
 응답 JSON은 명세 schema/예시 필드로 만든 표기다. 실제 서비스+실제 DB 결합은 `DfnsNetworkWalletEvidenceIntegrationTest`가 검증한다.
 검증 결과는 [설계12](12-provider-compatibility.md#dfns-인증지갑-http-어댑터와-보류충돌-계약-검증-2026-09-15)에 기록했다.
 어댑터는 Spring 빈으로 등록하지 않으며 `BCM_PROVIDER=dfns` 기동 차단과 공개 주소 API의 Dfns 연결은 후속이다.

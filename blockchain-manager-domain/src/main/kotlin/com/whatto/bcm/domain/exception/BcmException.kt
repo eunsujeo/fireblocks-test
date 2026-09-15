@@ -101,12 +101,21 @@ class RelayRejectedException(
     cause: Throwable? = null,
 ) : BcmException("relay rejected: reason=$reason", cause)
 
-/** 벤더 API 호출 실패(HTTP 에러·타임아웃·재시도 소진) — infra 가 기술 예외를 변환해 던진다. cause 보존. */
+/**
+ * 벤더 API 호출 실패(HTTP 에러·타임아웃·재시도 소진·해석 불가 응답) — infra 가 기술 예외를 변환해 던진다. cause 보존.
+ * responseBody는 실제로 수신한 응답 바이트가 있을 때만 담는다(증적 보관용). 메시지·로그에는 싣지 않는다.
+ */
 class VendorApiException(
     val operation: String,
     val httpStatus: Int?,
     cause: Throwable? = null,
-) : BcmException("vendor api failure: operation=$operation httpStatus=$httpStatus", cause)
+    responseBody: ByteArray? = null,
+) : BcmException("vendor api failure: operation=$operation httpStatus=$httpStatus", cause) {
+    private val body: ByteArray? = responseBody?.copyOf()
+
+    /** 수신한 응답 바이트의 복사본. 응답을 받지 못한 실패(연결·timeout)는 null이다. */
+    fun responseBody(): ByteArray? = body?.copyOf()
+}
 
 /** 벤더 네트워크별 자산 카탈로그 동기화 중 일부가 실패했다. */
 class VendorAssetCatalogSyncException(
