@@ -5,7 +5,7 @@
 V23의 VAULT/LOGICAL 계정 모델과 내부 논리 계정·네트워크 지갑 생성 유스케이스, 원문 증적 보관 포트를 구현했다.
 V24 보호 원문 저장소와 내부 생성 서비스+실제 PostgreSQL 결합 복구 검증을 구현했다.
 2026-09-15 공식 OpenAPI 1.1018.3 기반 인증(사용자 행위 서명)·지갑 생성/조회 HTTP 어댑터와 Pending/Conflict의 공개 HTTP 매핑을 구현했다.
-어댑터는 실행 빈으로 등록하지 않으며 공개 주소 API의 Dfns 연결·Baseline 수용은 미완료다.
+공개 계정·주소 API를 `AccountOperations`로 제공자별 조립해 Dfns 논리 계정·네트워크 지갑 주소 발급을 연결했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
 [제공자 선택](12-provider-compatibility.md) · [전체 계획](../dfns-compatibility-plan.md) · [현행 API](../api/openapi.yaml)
 
 ## 자료의 적용 범위
@@ -186,6 +186,28 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
   `503 CREATION_RETRY_LATER`·`Retry-After`는 유지하며, Dfns에 Fireblocks 시간 기반 재생성을 허용하는 의미로 재사용하지 않는다.
   별도 API나 가짜 성공 응답은 추가하지 않았다. 공개 주소 API가 실제로 이 매핑을 반환하는 Dfns 연결은 후속이다.
 
+### 계정·주소 API의 Dfns 연결 — 구현
+
+`AccountOperations`가 계정·주소 공개 유스케이스의 경계다. `fireblocks|local`은 기존 `AccountService`(vault/asset wallet), `dfns`는 `DfnsAccountService`
+(논리 계정/네트워크 지갑)만 조립되며 컨트롤러·OpenAPI 계약은 같다. Fireblocks 생성 정책(`WalletProvisioningConfig`)은 Dfns에서 만들지 않는다.
+
+| 공개 계약 | Dfns 구현 |
+|---|---|
+| `POST /accounts` | `LogicalAccountService`로 외부 호출 없이 `(accountType, ref)` 멱등 논리 계정 등록. 기본 체인·wallet ID를 응답에 넣지 않는다 |
+| `POST /accounts/{id}/addresses` | 계정(LOGICAL)·활성 자산 매핑·수신 주소 모델을 **전체 먼저 검증**(미지원이 섞이면 400)한 뒤 네트워크마다 `(origin, accountId, network)` 지갑 의도를 예약해 `NetworkWalletProvisioningService`로 생성/회수한다. 같은 네트워크의 다른 토큰은 같은 의도에 합류한다. 결과는 `requireCompleted`로 항목별 `PROVISIONING_PENDING`(`bcm.dfns.provisioning-retry-after-seconds`)/`CONFLICT`/성공이다 |
+| 수신 주소 | 지갑이 Ready면 원장(`bcm_ntwk_wlt_m`)의 지갑 주소를 그 네트워크 토큰의 `bcm_addr_m` 행으로 저장한다 — `bcm.dfns.account-address-networks`에 등록된(지갑 주소가 곧 토큰 수신 주소인 EVM 계정 모델) 네트워크에서만이다. 등록되지 않은 네트워크는 매핑이 있어도 `ASSET_NOT_SUPPORTED`다. tag/memo 모델 체인의 주소는 코드가 추정하지 않는다 |
+| `GET /accounts/{id}/addresses` | 저장된 매핑 조회(공통) |
+| `GET /accounts/{id}/balances` | Dfns 잔액 계약(VendorBalance 필드 대응) 확정 전 — 벤더를 부르지 않고 `422 UNPROCESSABLE_ENTITY`. 0/빈 배열로 꾸미지 않는다 |
+
+- 생성 의도의 ID와 `correlationId`는 `(originId, accountId, network)`에서 결정적으로 도출한 UUID(name-based)이고 `requestHash`는
+  `DfnsNetworkWalletClient.createWalletBody(vendorNetwork, correlationId)`의 SHA-256, `requestVersion`은 채택 명세 버전(`dfns-openapi-1.1018.3`)이다.
+  원장은 같은 scope에 다른 요청 snapshot이 오면 충돌로 거절하므로 재요청·같은 네트워크의 다른 토큰은 같은 seed로 기존 의도에 합류한다.
+- 주소 저장 경합((계정, 네트워크, 심볼) PK)은 먼저 저장된 값을 돌려준다. 원장 지갑 ID가 완료 ID와 다르거나 주소가 없으면 저장하지 않고 충돌이다.
+- **조립 범위**: `ConditionalOnDfnsProtocol`로 `DfnsClientConfig`(`bcm.dfns.*` 바인딩·서명기·HTTP 어댑터, 자격 누락은 빈 생성에서 실패)와
+  `DfnsAccountConfig`(논리 계정·지갑 생성 서비스)·`DfnsAccountService`를 만든다. 계정·주소 슬라이스만 조립되며 거래·Sweep·Admin·웹훅의 Dfns 조립은 후속이라
+  API 전체 컨텍스트의 `BCM_PROVIDER=dfns` 기동 차단(`ProviderConfiguration`)은 유지한다. 차단 해제는 Baseline 수용 뒤 사용자 결정이다.
+- **후속**: Dfns 데이터셋의 자산 매핑 등록 경로(현행 Admin 등록은 Fireblocks 카탈로그 대조에 의존), 잔액 계약, tag/memo 체인 주소 모델, 웹훅.
+
 ### 보류·충돌 HTTP 계약 — 구현
 
 `NetworkWalletCreationIntent.requireCompleted(retryAfterSeconds)`가 저장 상태를 공개 계약으로 번역한다. 번역 결과는 [OpenAPI](../api/openapi.yaml) 에러 코드 표를 따른다.
@@ -262,8 +284,9 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
   받은 `userAction`은 이어지는 한 요청에만 쓰고 저장·재사용하지 않는다. 인증 단계의 HTTP 오류·결손·형식 오류(서명 입력이 될 수 없는 challenge 포함) 응답도
   수신 바이트를 예외에 담아 전파해 같은 보관 규칙을 따른다.
 - `DfnsProperties`(`bcm.dfns.*`): `base-url`(기본값 없음 — Baseline은 고객 환경 배포), `auth-token`, `credential-id`, `credential-private-key-pem|file`,
-  timeout, `candidate-page-size`(1..500), `networks`(BCM 코드 → 명세 `network` 값, 값 중복 금지). `VendorExecutionLimits`는 재시도 없는 연결+응답 상한과 생성 흐름 HTTP 3회다.
-  어떤 실행 모듈도 아직 이 설정을 바인딩하지 않는다.
+  timeout, `candidate-page-size`(1..500), `networks`(BCM 코드 → 명세 `network` 값, 값 중복 금지), `account-address-networks`(지갑 주소가 토큰 수신 주소인
+  네트워크, `networks` 키의 부분집합), `provisioning-retry-after-seconds`(보류 안내 초, 기본 5). `VendorExecutionLimits`는 재시도 없는 연결+응답 상한과 생성 흐름 HTTP 3회다.
+  `DfnsClientConfig`가 `BCM_PROVIDER=dfns`에서만 바인딩한다(위 "계정·주소 API의 Dfns 연결").
 - **별도 수용:** 두 공식 자료의 clientData 예제가 다르다 — 참조 문서는 `challenge`·`type` 두 필드만 요구하고, 흐름 가이드 예제는 `origin`·`crossOrigin`을 추가한다.
   구현은 참조 문서의 형식을 따르며 실제 Baseline이 두 필드를 요구하는지는 운영 연결 전 수용 항목이다. `userAction` 토큰의 유효기간·재사용 가능 여부,
   429 처리, 실제 서명 원문도 명세에 없으므로 수용에서 확인한다.
@@ -297,7 +320,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 계약 테스트 22건(`DfnsCredentialSignerTest` 4·`DfnsNetworkWalletClientTest` 18)은 MockRestServiceServer로 헤더·본문·서명 검증·오류 전파·토큰 인코딩·필수 필드 검사를 고정하며
 응답 JSON은 명세 schema/예시 필드로 만든 표기다. 실제 서비스+실제 DB 결합은 `DfnsNetworkWalletEvidenceIntegrationTest`가 검증한다.
 검증 결과는 [설계12](12-provider-compatibility.md#dfns-인증지갑-http-어댑터와-보류충돌-계약-검증-2026-09-15)에 기록했다.
-어댑터는 Spring 빈으로 등록하지 않으며 `BCM_PROVIDER=dfns` 기동 차단과 공개 주소 API의 Dfns 연결은 후속이다.
+어댑터는 `DfnsClientConfig`가 `BCM_PROVIDER=dfns`에서만 등록하고 공개 주소 API 연결은 위 "계정·주소 API의 Dfns 연결"을 따른다. API 전체 기동 차단은 유지한다.
 
 ## 다음 구현의 수용 자료
 

@@ -20,6 +20,7 @@ import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.vendor.VendorDepositAddress
 import com.whatto.bcm.domain.vendor.VendorVault
 import com.whatto.bcm.domain.vendor.WalletVendorPort
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.stereotype.Service
 import java.time.Clock
@@ -35,6 +36,7 @@ import java.util.UUID
  * 유형을 뺀 키를 쓰면 서로 다른 두 계정이 벤더 멱등 키를 공유해 **같은 vault 를 나눠 갖는다**.
  */
 @Service
+@ConditionalOnFireblocksProtocol
 class AccountService(
     private val accountRepository: AccountRepository,
     private val depositAddressRepository: DepositAddressRepository,
@@ -43,8 +45,8 @@ class AccountService(
     private val walletVendorPort: WalletVendorPort,
     private val provisioningPolicy: WalletProvisioningPolicy,
     private val clock: Clock,
-) {
-    fun createAccount(
+) : AccountOperations {
+    override fun createAccount(
         accountType: AccountType,
         ref: String,
     ): Account {
@@ -132,7 +134,7 @@ class AccountService(
             ?: throw ConflictException("accountCreationAttempt", intent.accountId)
     }
 
-    fun createDepositAddress(
+    override fun createDepositAddress(
         accountId: String,
         network: String,
         symbol: String,
@@ -272,7 +274,7 @@ class AccountService(
      * 받을 네트워크를 정하는 것은 DAW-CORE 다 — 매니저는 네트워크를 스스로 채우지 않는다.
      * 순차 처리이고 네트워크마다 벤더를 한 번 부르므로 호출 수는 줄지 않는다(상한 20 = 지연의 상한).
      */
-    fun createDepositAddresses(
+    override fun createDepositAddresses(
         accountId: String,
         symbol: String,
         networks: List<String>,
@@ -306,7 +308,7 @@ class AccountService(
      * 조회 대상은 **그 계정에 주소가 발급된 자산**이다. 매니저가 아는 자산 집합이 주소 매핑뿐이라,
      * 주소 없이 vault 에 들어온 자산은 목록에 나오지 않는다. 자산마다 벤더를 한 번 부른다.
      */
-    fun balancesOf(
+    override fun balancesOf(
         accountId: String,
         network: String?,
         symbol: String?,
@@ -329,7 +331,7 @@ class AccountService(
      * 발급된 주소 조회 — 계정 없음(404)과 미발급(빈 배열)을 구분한다. 조회는 주소를 만들지 않는다 (openapi).
      * symbol·network 는 선택 필터다 — 둘 다 없으면 그 계정의 전체.
      */
-    fun depositAddressesOf(
+    override fun depositAddressesOf(
         accountId: String,
         symbol: String?,
         network: String?,

@@ -30,6 +30,13 @@ data class DfnsProperties(
     val candidatePageSize: Int = 100,
     /** BCM 네트워크 코드 → 명세 `network` enum 값. 역방향 변환에도 쓰므로 값이 중복되면 안 된다. */
     val networks: Map<String, String> = emptyMap(),
+    /**
+     * 지갑 주소가 곧 토큰 수신 주소인(EVM 계정 모델·tag/memo 없음) BCM 네트워크 코드. `networks`의 키여야 한다.
+     * 여기 없는 네트워크의 토큰 주소 발급은 지원하지 않는 자산으로 거절한다 — chain별 수신 계정 모델 확인은 운영 결정이며 코드가 추정하지 않는다(계약13).
+     */
+    val accountAddressNetworks: Set<String> = emptySet(),
+    /** 네트워크 지갑 준비가 진행 중일 때 호출자에게 안내하는 재시도 초. BCM 폴링 정책이며 벤더 보장이 아니다. */
+    val provisioningRetryAfterSeconds: Long = 5,
 ) : VendorExecutionLimits {
     init {
         require(credentialPrivateKeyPem.isBlank() || credentialPrivateKeyFile.isBlank()) {
@@ -42,6 +49,8 @@ data class DfnsProperties(
             "networks must not contain blank codes"
         }
         require(networks.values.toSet().size == networks.size) { "networks must map each vendor network to a single BCM code" }
+        require(accountAddressNetworks.all { it in networks.keys }) { "accountAddressNetworks must be a subset of configured networks" }
+        require(provisioningRetryAfterSeconds >= 1) { "provisioningRetryAfterSeconds must be positive" }
     }
 
     /** 실제 호출 직전에만 요구한다 — 설정 클래스 생성만으로 자격을 강제하지 않는다. */

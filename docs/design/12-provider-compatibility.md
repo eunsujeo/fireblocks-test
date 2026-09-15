@@ -68,6 +68,10 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
   누락·빈 값·오타 및 미구현 `dfns`는 일반 빈 생성 전에 실패한다. Dfns 차단 시 Fireblocks 설정 바인딩·키 파일 읽기·클라이언트 생성은 하지 않는다.
 - `ConditionalOnFireblocksProtocol`은 `fireblocks` 또는 `local`에서만 현행 설정·서명기·클라이언트·상태 번역/parser·JWKS 검증기·EVM 조회를 조립한다.
   수수료·웹훅 복구·거래 대사/회수는 같은 선택된 포트를 사용하고 기존 배치 실행 게이트를 유지한다.
+  계정·주소 유스케이스는 `AccountOperations` 경계로 나눠 `fireblocks|local`은 `AccountService`와 `WalletProvisioningConfig`, `dfns`는
+  `ConditionalOnDfnsProtocol`의 `DfnsClientConfig`(`bcm.dfns.*`·서명기·지갑 HTTP 어댑터)·`DfnsAccountConfig`·`DfnsAccountService`만 조립한다
+  ([계약13](13-dfns-contracts.md#계정주소-api의-dfns-연결--구현)). Dfns 조립은 이 슬라이스에 한정되며 거래·Sweep·Admin·웹훅은 후속이라
+  API 전체 컨텍스트의 `dfns` 기동 차단은 그대로다.
 - 선택된 Fireblocks 프로토콜의 API key와 PKCS#8 키(PEM 또는 파일 중 하나)는 기동 시 필수다. 실행 조립부가 키 파싱도 수행한다.
   기존의 자격 없는 부트스트랩은 더 이상 지원하지 않는다. 테스트는 실행 중 생성한 일회성 키를 주입한다.
 - `local`은 API/JWKS 및 설정된 모든 EVM RPC URL을 내부 HTTP(S) 주소로 제한하고 API key marker `bcm-local-stub`를 요구한다.
@@ -304,3 +308,20 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **독립 converge 3차(같은 Codex reviewer 세션, 수정 delta fce8254..07ebbdd, design-sync→code-reviewer 순차)**: 이전 Critical 2건·Major 1건 해소 확인,
   신규 Critical/Major 없음. 문서 Minor 1건(계약13의 계약 테스트 집계 20건 → 실제 22건)만 남아 계약13을 바로잡았다. 검토 기준 commit은 07ebbdd이다.
   실벤더 호출·운영 적용·조건부 조립·`BCM_PROVIDER=dfns` 기동 차단 해제·push는 미수행이다.
+
+## Dfns 계정·주소 API 연결과 조건부 조립 검증 (2026-09-15)
+
+- 계약은 [계약13](13-dfns-contracts.md#계정주소-api의-dfns-연결--구현)에 먼저 고정했다. `AccountOperations`로 제공자별 유스케이스를 나누고
+  `DfnsAccountService`가 논리 계정 등록, 주소 모델·매핑 선검증, `(origin, accountId, network)` 지갑 의도 예약, Ready 지갑 주소의 `bcm_addr_m` 저장,
+  `PROVISIONING_PENDING`/`CONFLICT` 번역, 잔액 조회 422 거절을 구현한다. `bcm.dfns.account-address-networks`·`provisioning-retry-after-seconds`를 추가했다.
+  OpenAPI 0.11.1은 balancesOf에 Dfns 422와 주소 발급 설명을 추가했다(생성물 재생성).
+- 조립: `ConditionalOnDfnsProtocol`, `DfnsClientConfig`(설정 검증은 빈 생성 시점), `DfnsAccountConfig`. `AccountService`·`WalletProvisioningConfig`는
+  `ConditionalOnFireblocksProtocol`로 한정했다. `ProviderConfiguration`의 `dfns` 기동 차단은 유지한다(차단 해제는 Baseline 수용 뒤 사용자 결정).
+- 검증: `DfnsAccountServiceTest` 단위 11건(멱등 논리 계정, 고정 본문 해시/벤더 network 의도, 기존 주소 재사용, 보류/충돌 번역, 미지원 모델·매핑 선거절,
+  VAULT/없는 계정 거절, batch의 전체 400 vs 항목 오류, 같은 네트워크 다른 토큰 합류, 저장 경합·원장 불일치, 잔액 422, 비Dfns 원천 거절).
+  `DfnsAccountAssemblyIntegrationTest` 5건(`bcm.provider=dfns` 슬라이스 컨텍스트 + 실제 PostgreSQL Dfns 데이터셋 + 공식 명세 형태의 로컬 HTTP 서버):
+  Dfns 유스케이스/어댑터만 조립되고 Fireblocks 계정 서비스·생성 정책 빈 없음, 논리 계정 멱등, 첫 발급의 init→action→POST /wallets와 `X-DFNS-USERACTION`,
+  같은 네트워크 다른 토큰·재요청의 외부 호출 0, 주소 미준비 → `ADDRESS_NOT_READY` 보류(설정 재시도 초) → 단건 조회로 완료, 미지원 네트워크 혼합 400, 잔액 422.
+  `BootstrapIntegrationTest`에 fireblocks 컨텍스트의 Dfns 빈 0·`AccountOperations`=`AccountService` 검증을 추가했다.
+- 선택 회귀: domain 110 · application 23 · persistence(wallet·account·provider) 58 · client 109 · API(account 유스케이스·wallet·web·account·config·Bootstrap·Architecture·ProviderStartup·ProviderOriginStartup) 129 = **429건**, 실패/오류/skip 0. 변경 모듈 ktlintCheck 통과. 실벤더 호출·운영 적용·기동 차단 해제·push는 미수행이다.
+- **후속**: Dfns 데이터셋의 자산 매핑 등록 경로(현행 Admin 등록은 Fireblocks 카탈로그 대조), Dfns 잔액 계약, tag/memo 체인 주소 모델, 거래·Sweep·Admin·웹훅 조립.

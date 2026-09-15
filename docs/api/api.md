@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.11.0`
+`v0.11.1`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -365,6 +365,8 @@ _응답_
 - Dfns 원천의 네트워크 지갑은 생성 의도를 먼저 저장하고 최초 POST 한 번 뒤에는 조회로만 회수한다. 생성·회수가 진행 중이면 해당 네트워크의
   `error.code=PROVISIONING_PENDING`과 `error.retryAfterSeconds`이고, 원천·네트워크·상관관계·조직 소유 불일치나 서로 다른 지갑 여러 개는
   `error.code=CONFLICT`다. 어느 쪽도 새 생성이나 키 회전을 뜻하지 않으며, 같은 요청을 그대로 다시 보내면 매니저가 조회를 이어간다.
+  지갑이 준비되면 그 지갑 주소가 같은 네트워크 토큰들의 수신 주소가 된다 — 운영 설정에서 수신 주소 모델(EVM 계정 모델)을 확인한 네트워크에서만이며,
+  확인되지 않은 네트워크는 매핑이 있어도 `400 ASSET_NOT_SUPPORTED`다. 계정은 Dfns에서 네트워크 없는 논리 계정으로 등록되고 지갑은 첫 주소 발급에서 준비한다.
 - 지원하지 않는 네트워크가 **하나라도 섞이면 아무것도 발급하지 않고 `400`** 이다. 발급을 시도했다가 전부 실패한 것(`200`, 모든 항목에 `error`)과 구분된다.
 - **재시도는 같은 요청을 그대로 보낸다** — 이미 발급된 네트워크는 벤더를 부르지 않고 같은 주소가 오고, 실패분만 다시 시도된다. 실패분만 골라 보내도 결과는 같다.
 - 네트워크별 Fireblocks 호출 전에 생성 원장과 당시 vendor assetId를 고정한다. 벤더 성공 뒤 로컬 저장이 실패한 재시도는
@@ -581,6 +583,8 @@ _응답_
 - 매니저에 발급 기록이 있는데 벤더 wallet을 읽을 수 없는 것은 미발급이 아니라 외부 drift다. 빈 배열이나 0으로 숨기지 않고
   공통 `INTERNAL`(500) 계약으로 실패한다.
 - 자산마다 벤더를 한 번 부른다.
+- **Dfns 원천은 잔액 계약(available/pending/locked 대응) 확정 전**이다. 벤더를 부르지 않고 `422 UNPROCESSABLE_ENTITY`로 거절하며
+  0이나 빈 배열로 꾸미지 않는다. 계정이 없으면 여전히 `404`다.
 
 ```bash
 curl "https://{baseUrl}/blockchain/manage-api/accounts/acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890/balances?network=BASE&symbol=USDC"
@@ -649,6 +653,26 @@ _응답_
   "error": {
     "code": "ACCOUNT_NOT_FOUND",
     "message": "account not found"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`422` — source event가 현재 sweep 요청 조건을 충족하지 않음
+
+```json
+{
+  "error": {
+    "code": "UNPROCESSABLE_ENTITY",
+    "message": "request cannot be processed in the current resource state"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"

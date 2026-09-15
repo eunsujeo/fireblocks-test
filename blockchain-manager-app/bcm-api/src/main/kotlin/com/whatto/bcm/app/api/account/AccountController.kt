@@ -4,7 +4,7 @@ import com.whatto.bcm.app.api.web.ApiResponse
 import com.whatto.bcm.app.api.web.DomainExceptionResolver
 import com.whatto.bcm.app.api.web.ErrorResponse
 import com.whatto.bcm.app.api.web.RequestIdFilter
-import com.whatto.bcm.app.application.account.AccountService
+import com.whatto.bcm.app.application.account.AccountOperations
 import com.whatto.bcm.app.application.account.AddressOutcome
 import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.exception.ProvisioningPendingException
@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 class AccountController(
-    private val accountService: AccountService,
+    private val accountService: AccountOperations,
 ) {
     @PostMapping("/accounts")
     @ResponseStatus(HttpStatus.CREATED)
