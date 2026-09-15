@@ -154,7 +154,22 @@ export=json.loads((ROOT/'export-manifest.json').read_text());export['capturedDat
 for f in sorted(ROOT.rglob('*')):
  if f.is_file() and f.name!='export-manifest.json':export['files'][str(f.relative_to(ROOT))]={'bytes':f.stat().st_size,'sha256':hashlib.sha256(f.read_bytes()).hexdigest()}
 (ROOT/'export-manifest.json').write_text(json.dumps(export,ensure_ascii=False,indent=2))
+# Repository navigation can refer to sibling documentation absent from the standalone ZIP.
+archive_overrides={}
+for page in manifest['editorialPages']:
+ f=ROOT/page['path'];doc=BeautifulSoup(f.read_text(),'html.parser')
+ repository_links=doc.select('[data-repository-only]')
+ if repository_links:
+  for node in repository_links:node.decompose()
+  archive_overrides[page['path']]=str(doc).encode('utf-8')
+archive_export=json.loads(json.dumps(export))
+for name,content in archive_overrides.items():
+ archive_export['files'][name]={'bytes':len(content),'sha256':hashlib.sha256(content).hexdigest()}
+archive_overrides['export-manifest.json']=json.dumps(archive_export,ensure_ascii=False,indent=2).encode('utf-8')
 with zipfile.ZipFile(ROOT.with_suffix('.zip'),'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
  for f in sorted(ROOT.rglob('*')):
-  if f.is_file():z.write(f,ROOT.name+'/'+str(f.relative_to(ROOT)))
+  if f.is_file():
+   name=str(f.relative_to(ROOT));destination=ROOT.name+'/'+name
+   if name in archive_overrides:z.writestr(destination,archive_overrides[name])
+   else:z.write(f,destination)
 print(json.dumps({'referencePages':len(converted),'guides':len(manifest['editorialPages']),'zip':str(ROOT.with_suffix('.zip'))},ensure_ascii=False))
