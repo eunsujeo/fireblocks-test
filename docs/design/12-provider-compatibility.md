@@ -400,3 +400,5 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **반영**: `DfnsAssetKeys.of`가 `Spl`/`Spl2022` locator를 등록과 같은 `spl()`(base58 32바이트)로 만들고 형식 오류는 수신 바이트를 담은 `VendorApiException`으로 전파한다(잘못된 base58·33바이트·mint 누락 응답 거절 테스트 3건 추가).
   OpenAPI `RegisterAssetMappingRequest`·`BulkRegisterAssetMappingsRequest`에 원천별 유효 예시 객체를 두고 생성물을 재생성했다. 07·13(지갑 주소·잔액 행)·DfnsProperties 주석을 "명세 사실 / BCM 규칙 / 수용 전 가정"으로 나눠 표현했다.
   재실행: client(dfns) 35 · API(AdminAsset·wallet·account 유스케이스) 72, 실패 0. ktlintCheck 통과.
+- **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta c1b913a..51e4b3c, design-sync→code-reviewer 순차)**: Critical 1·Major 2 해소 확인, Critical/Major 없음. Minor 1 — OpenAPI 설명의 Dfns 예시가 축약 주소라
+  "유효 요청"으로 소개하기에 부정확. **반영**: 설명 예시를 그대로 보낼 수 있는 전체 주소로 바꾸고 생성물을 재생성했다(문서만, 코드 변경 없음).

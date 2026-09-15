@@ -3973,9 +3973,10 @@ Dfns 원천 `{ "fireblocksAssetId": null, "dfnsAssetKey": "EthereumSepolia:Erc20
 
 ### RegisterAssetMappingRequest
 
-원천별 유효 요청 — Fireblocks `{ "network": "BASE", "symbol": "USDC", "fireblocksAssetId": "USDC_BASE", "contractAddress": "0x8335…2913" }`,
-Dfns EVM `{ "network": "ETHEREUM_SEPOLIA", "symbol": "USDC", "contractAddress": "0x1c7D…7238" }`,
-Dfns Solana `{ "network": "SOLANA_DEVNET", "symbol": "USDC", "contractAddress": "4zMM…ncDU", "tokenStandard": "SPL" }`.
+원천별 유효 요청(그대로 보낼 수 있는 값) —
+Fireblocks `{ "network": "BASE", "symbol": "USDC", "fireblocksAssetId": "USDC_BASE", "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" }`,
+Dfns EVM `{ "network": "ETHEREUM_SEPOLIA", "symbol": "USDC", "contractAddress": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" }`,
+Dfns Solana `{ "network": "SOLANA_DEVNET", "symbol": "USDC", "contractAddress": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", "tokenStandard": "SPL" }`.
 `fireblocksAssetId`와 `tokenStandard`는 서로 다른 원천의 필드라 한 요청에 함께 오지 않는다.
 
 | 필드 | 타입 | 필수 | 설명 |
