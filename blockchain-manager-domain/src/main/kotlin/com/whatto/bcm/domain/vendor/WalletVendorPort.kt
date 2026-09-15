@@ -54,12 +54,15 @@ data class VendorDepositAddress(
 
 /**
  * 벤더 잔액 — 전 필드 문자열 (정밀도 — CLAUDE.md 3절 금액 원칙).
- * total = available + pending + lockedAmount + frozen (벤더 스펙 정의).
+ * Fireblocks는 다섯 값을 모두 주며 total = available + pending + lockedAmount + frozen (벤더 스펙 정의)이다.
+ * 제공자가 그 구분을 제공하지 않는 값은 `null`이다 — 모르는 항목을 0으로 채워 호환 완료로 꾸미지 않는다(계약13).
+ * Dfns는 지갑 자산의 온체인 잔액 하나만 주므로 total·available에 그 값을 두고 pending·frozen·lockedAmount는 null이다
+ * (BCM 예약·보류 차감은 Dfns 거래 조립 뒤 별도 계약).
  */
 data class VendorBalance(
-    val total: String,
+    val total: String?,
     val available: String,
-    val pending: String,
-    val frozen: String,
-    val lockedAmount: String,
+    val pending: String?,
+    val frozen: String?,
+    val lockedAmount: String?,
 )

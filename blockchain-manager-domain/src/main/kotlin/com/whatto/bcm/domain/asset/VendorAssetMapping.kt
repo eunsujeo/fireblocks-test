@@ -13,4 +13,12 @@ data class VendorAssetMapping(
     val registeredByEmployeeNo: String,
     val registeredByBranchCode: String,
     val active: Boolean = true,
-)
+) {
+    companion object {
+        /**
+         * `bcm_vndr_ast_m.vndr_ast_id VARCHAR(64)`(03) — 등록 관문(`ChainAssetResolver` 구현)이 이 길이를 넘는 Dfns 자산 키를 자르지 않고 거절한다.
+         * 모델 자체는 길이를 강제하지 않는다 — 저장 길이 결함은 영속성 계층이 데이터 오류로 그대로 드러낸다(충돌로 오분류하지 않음).
+         */
+        const val VENDOR_ASSET_ID_MAX_LENGTH = 64
+    }
+}

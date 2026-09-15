@@ -6,6 +6,7 @@ import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSource
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
+import com.whatto.bcm.domain.provider.ProviderOrigin
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
@@ -105,6 +106,10 @@ data class AssetCandidateSearchData(
     }
 }
 
+/**
+ * 등록 요청 — `fireblocksAssetId`는 Fireblocks 원천의 후보 assetId다(그 원천에서 필수, 없으면 관문이 400).
+ * Dfns 원천은 자산을 network·contractAddress로만 지정하며 이 필드를 보내면 관문이 400으로 거절한다 — Dfns 값을 Fireblocks 필드에 채우지 않는다.
+ */
 data class RegisterAssetMappingRequest(
     @field:NotBlank
     @field:Pattern(regexp = AdminAssetController.NETWORK_PATTERN)
@@ -112,8 +117,7 @@ data class RegisterAssetMappingRequest(
     @field:NotBlank
     @field:Pattern(regexp = AdminAssetController.SYMBOL_PATTERN)
     val symbol: String?,
-    @field:NotBlank
-    @field:Size(max = 64)
+    @field:Pattern(regexp = "\\S{1,64}")
     val fireblocksAssetId: String?,
     @field:Size(max = 128)
     @param:JsonProperty(value = "contractAddress", required = true)
@@ -125,21 +129,32 @@ data class BulkRegisterAssetMappingsRequest(
     val items: List<@jakarta.validation.Valid RegisterAssetMappingRequest>,
 )
 
+/**
+ * 현재 매핑 응답 — 벤더 식별자는 벤더 이름을 붙여서만 노출한다(07). 데이터셋 원천이 Fireblocks면 `fireblocksAssetId`, Dfns면 `dfnsAssetKey`가
+ * 채워지고 다른 쪽은 null이다. Dfns 키를 Fireblocks 필드에 채우지 않는다(계약13).
+ */
 data class AssetMappingData(
     val network: String,
     val symbol: String,
-    val fireblocksAssetId: String,
+    val fireblocksAssetId: String?,
+    val dfnsAssetKey: String?,
     val contractAddress: String?,
     val registeredAt: String,
 ) {
     companion object {
-        fun from(mapping: VendorAssetMapping) =
-            AssetMappingData(
-                mapping.network,
-                mapping.symbol,
-                mapping.vendorAssetId,
-                mapping.contractAddress,
-                mapping.registeredAt,
-            )
+        fun from(
+            mapping: VendorAssetMapping,
+            origin: ProviderOrigin,
+        ) = AssetMappingData(
+            network = mapping.network,
+            symbol = mapping.symbol,
+            fireblocksAssetId = mapping.vendorAssetId.takeIf { origin.protocolProvider == FIREBLOCKS },
+            dfnsAssetKey = mapping.vendorAssetId.takeIf { origin.protocolProvider == DFNS },
+            contractAddress = mapping.contractAddress,
+            registeredAt = mapping.registeredAt,
+        )
+
+        private const val FIREBLOCKS = "fireblocks"
+        private const val DFNS = "dfns"
     }
 }

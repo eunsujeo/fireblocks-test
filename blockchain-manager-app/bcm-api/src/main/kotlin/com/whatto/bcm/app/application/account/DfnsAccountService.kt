@@ -9,11 +9,12 @@ import com.whatto.bcm.domain.account.DepositAddressRepository
 import com.whatto.bcm.domain.exception.AssetNotSupportedException
 import com.whatto.bcm.domain.exception.BcmException
 import com.whatto.bcm.domain.exception.ConflictException
-import com.whatto.bcm.domain.exception.UnprocessableRequestException
 import com.whatto.bcm.domain.provider.ProviderOrigin
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetPort
 import com.whatto.bcm.domain.vendor.NetworkWalletCreationRequest
 import com.whatto.bcm.domain.vendor.NetworkWalletScope
 import com.whatto.bcm.domain.vendor.NetworkWalletSubmissionPort
+import com.whatto.bcm.domain.vendor.VendorBalance
 import com.whatto.bcm.domain.wallet.NetworkWalletAddressPolicy
 import com.whatto.bcm.domain.wallet.NetworkWalletCreationSeed
 import com.whatto.bcm.support.time.CoreDateTimes
@@ -29,7 +30,10 @@ import java.util.UUID
  *   벤더 출력 포트(`NetworkWalletSubmissionPort`)가 만들어 재요청과 같은 네트워크의 다른 토큰 요청이 같은 지갑 의도에 합류한다.
  * - 지갑이 준비되면(Ready) 지갑 피처 서비스가 검증한 지갑 주소를 그 네트워크의 토큰 수신 주소로 저장한다 — 정책에 등록된 EVM 계정 모델
  *   네트워크에서만이며 tag/memo 모델을 가진 체인의 주소는 코드가 추정하지 않고 거절한다. 진행 중/충돌은 지갑 서비스가 공개 오류로 번역한다.
- * - 잔액 조회는 Dfns 잔액 계약(VendorBalance 필드 대응) 확정 전이라 벤더를 부르지 않고 422로 거절한다. 0이나 빈 배열로 꾸미지 않는다.
+ * - 잔액 조회는 주소가 발급된 자산만 대상으로, 네트워크마다 원장의 준비 지갑을 찾아 지갑 자산을 **한 번** 관찰하고(`NetworkWalletAssetPort`)
+ *   매핑의 `vendorAssetId`와 같은 키의 항목을 그 자산의 잔액으로 돌려준다(계약13 "잔액 계약 — 구현"). 관찰된 온체인 잔액은 total·available이고
+ *   pending·frozen·locked는 Dfns가 주지 않으므로 null이다. 목록에 없는 등록 자산은 보유하지 않은 것이라 `"0"`이다.
+ *   발급 기록이 있는데 원장에 준비 지갑이 없거나 응답 지갑·네트워크가 다르면 외부 drift라 빈 배열·0으로 숨기지 않고 실패한다.
  * 도메인 출력 포트만 사용하며 벤더 설정·HTTP 본문 형식은 조립부(DfnsAccountConfig)와 어댑터가 소유한다.
  */
 class DfnsAccountService(
@@ -39,6 +43,7 @@ class DfnsAccountService(
     private val depositAddresses: DepositAddressRepository,
     private val provisioning: NetworkWalletProvisioningService,
     private val submissions: NetworkWalletSubmissionPort,
+    private val walletAssets: NetworkWalletAssetPort,
     private val policy: NetworkWalletAddressPolicy,
     private val origin: ProviderOrigin,
     private val clock: Clock,
@@ -86,8 +91,30 @@ class DfnsAccountService(
         network: String?,
         symbol: String?,
     ): List<AssetBalance> {
-        accounts.requiredAccount(accountId)
-        throw UnprocessableRequestException("dfnsBalanceQuery", accountId)
+        val account = accounts.requiredAccount(accountId)
+        val addresses = depositAddresses.findAll(accountId, symbol, network)
+        if (addresses.isEmpty()) return emptyList()
+        account.requireLogical()
+        val snapshots =
+            addresses.map { it.network }.distinct().associateWith { issuedNetwork ->
+                val scope = NetworkWalletScope(origin, accountId, issuedNetwork)
+                val wallet =
+                    provisioning.readyWallet(scope)
+                        ?: throw IllegalStateException("Issued address without a ready network wallet: $accountId/$issuedNetwork")
+                val snapshot = walletAssets.assets(scope, wallet.vendorWalletId)
+                check(snapshot.vendorWalletId == wallet.vendorWalletId && snapshot.network == issuedNetwork) {
+                    "Network wallet asset snapshot does not match the ledger wallet: $accountId/$issuedNetwork"
+                }
+                snapshot
+            }
+        return addresses.map { address ->
+            // 발급 당시 매핑은 해제돼도 발급 자산이므로 현재 활성 여부와 무관하게 조회한다(Fireblocks 구현과 같은 규칙).
+            val mapping = assetMappings.requiredMapping(address.network, address.symbol)
+            val observed = checkNotNull(snapshots[address.network]).assets.filter { it.vendorAssetId == mapping.vendorAssetId }
+            check(observed.size <= 1) { "Duplicate wallet asset for ${address.network}/${address.symbol}" }
+            val amount = observed.singleOrNull()?.amount() ?: ZERO_BALANCE
+            AssetBalance(address.network, address.symbol, VendorBalance(amount, amount, null, null, null))
+        }
     }
 
     override fun depositAddressesOf(
@@ -135,6 +162,11 @@ class DfnsAccountService(
             // (계정, 네트워크, 심볼) PK 경합 — 먼저 저장된 값을 돌려준다(주소 매핑 멱등).
             depositAddresses.find(account.accountId, asset.network, asset.symbol) ?: throw conflict
         }
+    }
+
+    companion object {
+        /** 지갑 자산 목록에 없는 등록 자산 — 보유하지 않은 자산의 온체인 잔액은 0이다(관찰 목록 의미는 계약13 수용 항목). */
+        private const val ZERO_BALANCE = "0"
     }
 
     private data class ValidatedAsset(

@@ -2,6 +2,9 @@ package com.whatto.bcm.infra.client.dfns
 
 import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.provider.ProviderOrigin
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetBalance
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetPort
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetSnapshot
 import com.whatto.bcm.domain.vendor.NetworkWalletCreationRequest
 import com.whatto.bcm.domain.vendor.NetworkWalletObservation
 import com.whatto.bcm.domain.vendor.NetworkWalletOwnership
@@ -18,7 +21,8 @@ import tools.jackson.databind.ObjectMapper
 import java.security.MessageDigest
 
 /**
- * NetworkWalletProvisioningPort의 Dfns 구현 — 공식 OpenAPI 1.1018.3의 `POST /wallets`·`GET /wallets/{walletId}`·`GET /wallets`.
+ * NetworkWalletProvisioningPort·NetworkWalletAssetPort의 Dfns 구현 — 공식 OpenAPI 1.1018.3의 `POST /wallets`·`GET /wallets/{walletId}`·`GET /wallets`·
+ * `GET /wallets/{walletId}/assets`.
  * 응답은 상태와 무관하게 받은 바이트 그대로 서비스에 넘기고(V24 증적), 정규화 값은 같은 바이트에서 해석한다.
  * 실행 빈으로 등록하지 않는다 — `BCM_PROVIDER=dfns` 기동 차단과 Baseline 수용은 별개다(계약13).
  *
@@ -32,6 +36,9 @@ import java.security.MessageDigest
  *   소유는 `custodial=true`(명세: 조직 소유)·`signingKey.delegatedTo` 없음·`vaultId`(Vault 통제 지갑) 없음·`status=Active`일 때만 ORGANIZATION이고
  *   그 밖은 OTHER다. 판정에 필요한 필드가 결손이면 지갑을 정규화하지 않고 오류다.
  * - 네트워크: 명세 `network` 값을 설정 매핑으로 BCM 코드로 되돌리고, 매핑에 없으면 원문 값을 그대로 둬 판정에서 불일치로 드러나게 한다.
+ * - assets: 명세 응답의 `walletId`·`network`가 요청 지갑·scope와 같아야 하고 항목마다 필수 `kind`·`decimals`·`balance`를 형식대로 검사한다.
+ *   `Native`·`Erc20`·`Spl`·`Spl2022`는 자산 매핑과 같은 규칙의 키(`DfnsAssetKeys`)로 정규화하고 그 밖의 kind는 대조 대상이 아니라 제외한다.
+ *   `balance`는 최소 단위 정수 문자열, `decimals`는 같은 항목의 소수 자릿수로 읽으며 다른 단위로 추정하지 않는다(계약13 수용 항목).
  */
 class DfnsNetworkWalletClient(
     restClientBuilder: RestClient.Builder,
@@ -41,7 +48,8 @@ class DfnsNetworkWalletClient(
     metrics: OperationalMetricsPort,
     restClientFactory: DfnsRestClientFactory,
 ) : NetworkWalletProvisioningPort,
-    NetworkWalletSubmissionPort {
+    NetworkWalletSubmissionPort,
+    NetworkWalletAssetPort {
     private val objectMapper = ObjectMapper()
     private val http = DfnsHttp(restClientFactory.create(restClientBuilder, properties), properties, metrics)
     private val userActions = DfnsUserActionClient(http, signer, objectMapper)
@@ -78,13 +86,7 @@ class DfnsNetworkWalletClient(
         vendorWalletId: String,
     ): NetworkWalletResponse<NetworkWalletObservation?> {
         origin.requireMatch(scope.origin)
-        require(
-            vendorWalletId.isNotBlank() &&
-                vendorWalletId == vendorWalletId.trim() &&
-                vendorWalletId.all { it.isLetterOrDigit() || it == '-' },
-        ) {
-            "Invalid Dfns wallet id"
-        }
+        requireWalletId(vendorWalletId)
         val response = http.call(READ_OPERATION, HttpMethod.GET) { it.path("$WALLETS_PATH/{walletId}").build(vendorWalletId) }
         if (response.status == HTTP_NOT_FOUND) return NetworkWalletResponse(null, response.body)
         val bytes = response.requireSuccess()
@@ -124,6 +126,71 @@ class DfnsNetworkWalletClient(
         return NetworkWalletResponse(VendorPage(matches, nonBlankText(node, "nextPageToken", response)), bytes)
     }
 
+    override fun assets(
+        scope: NetworkWalletScope,
+        vendorWalletId: String,
+    ): NetworkWalletAssetSnapshot {
+        origin.requireMatch(scope.origin)
+        requireWalletId(vendorWalletId)
+        val response =
+            http.call(ASSETS_OPERATION, HttpMethod.GET) { it.path("$WALLETS_PATH/{walletId}/assets").build(vendorWalletId) }
+        response.requireSuccess()
+        val node = parseObject(response)
+        val walletId = requiredText(node, "walletId", response)
+        if (walletId != vendorWalletId) throw response.failure("Dfns wallet id mismatch in assets response")
+        val vendorNetwork = requiredText(node, "network", response)
+        val network = bcmNetwork(vendorNetwork)
+        if (network != scope.network) throw response.failure("Dfns wallet network mismatch in assets response")
+        val items = node.path("assets")
+        if (!items.isArray) throw response.failure("Dfns $ASSETS_OPERATION 응답 결손: assets")
+        val balances =
+            items.mapNotNull { item ->
+                if (!item.isObject) throw response.failure("Dfns $ASSETS_OPERATION 응답 필드 형식 오류: assets[]")
+                val kind = requiredText(item, "kind", response)
+                if (!DfnsAssetKeys.isModeled(kind)) return@mapNotNull null
+                val locator = DfnsAssetKeys.locatorField(kind)?.let { requiredText(item, it, response) }
+                val decimals = item.path("decimals")
+                if (!decimals.isIntegralNumber || !decimals.canConvertToInt()) {
+                    throw response.failure("Dfns $ASSETS_OPERATION 응답 필드 형식 오류: decimals")
+                }
+                val verified = item.path("verified")
+                val verifiedValue =
+                    when {
+                        verified.isMissingNode || verified.isNull -> null
+                        verified.isBoolean -> verified.asBoolean()
+                        else -> throw response.failure("Dfns $ASSETS_OPERATION 응답 필드 형식 오류: verified")
+                    }
+                try {
+                    NetworkWalletAssetBalance(
+                        checkNotNull(DfnsAssetKeys.of(vendorNetwork, kind, locator)),
+                        optionalText(item, "symbol", response),
+                        decimals.asInt(),
+                        requiredText(item, "balance", response),
+                        verifiedValue,
+                    )
+                } catch (exception: IllegalArgumentException) {
+                    throw response.failure("Dfns $ASSETS_OPERATION 응답 필드 형식 오류", exception)
+                }
+            }
+        return NetworkWalletAssetSnapshot(walletId, network, balances)
+    }
+
+    private fun requireWalletId(vendorWalletId: String) {
+        require(
+            vendorWalletId.isNotBlank() &&
+                vendorWalletId == vendorWalletId.trim() &&
+                vendorWalletId.all { it.isLetterOrDigit() || it == '-' },
+        ) {
+            "Invalid Dfns wallet id"
+        }
+    }
+
+    /** 명세 network 값 → BCM 코드. 매핑에 없으면 원문 값을 그대로 둬 판정에서 불일치로 드러나게 한다. */
+    private fun bcmNetwork(vendorNetwork: String): String =
+        properties.networks.entries
+            .firstOrNull { it.value == vendorNetwork }
+            ?.key ?: vendorNetwork
+
     private fun toObservation(
         node: JsonNode,
         response: DfnsHttpResponse,
@@ -147,9 +214,7 @@ class DfnsNetworkWalletClient(
         return try {
             NetworkWalletObservation(
                 origin,
-                properties.networks.entries
-                    .firstOrNull { it.value == vendorNetwork }
-                    ?.key ?: vendorNetwork,
+                bcmNetwork(vendorNetwork),
                 id,
                 optionalText(node, "externalId", response),
                 ownership,
@@ -216,6 +281,7 @@ class DfnsNetworkWalletClient(
         private const val CREATE_OPERATION = "dfnsCreateWallet"
         private const val READ_OPERATION = "dfnsGetWallet"
         private const val DISCOVER_OPERATION = "dfnsListWallets"
+        private const val ASSETS_OPERATION = "dfnsGetWalletAssets"
         private const val ACTIVE_STATUS = "Active"
         private const val HTTP_NOT_FOUND = 404
         private const val EXTERNAL_ID_MAX_LENGTH = 100

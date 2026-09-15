@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.11.1`
+`v0.12.0`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -582,9 +582,10 @@ _응답_
   발급된 자산의 실제 잔액이 0이면 빈 배열이 아니라 그 자산과 문자열 `"0"` 잔액을 돌려준다.
 - 매니저에 발급 기록이 있는데 벤더 wallet을 읽을 수 없는 것은 미발급이 아니라 외부 drift다. 빈 배열이나 0으로 숨기지 않고
   공통 `INTERNAL`(500) 계약으로 실패한다.
-- 자산마다 벤더를 한 번 부른다.
-- **Dfns 원천은 잔액 계약(available/pending/locked 대응) 확정 전**이다. 벤더를 부르지 않고 `422 UNPROCESSABLE_ENTITY`로 거절하며
-  0이나 빈 배열로 꾸미지 않는다. 계정이 없으면 여전히 `404`다.
+- Fireblocks 원천은 자산마다 벤더를 한 번 부르고 `available`·`pending`·`locked`를 모두 채운다.
+- **Dfns 원천**은 발급 네트워크마다 그 계정의 네트워크 지갑 자산 목록을 한 번 읽는다. 지갑의 온체인 잔액이 `available`이고
+  `pending`·`locked`는 Dfns가 그 구분을 주지 않으므로 `null`이다(0으로 채우지 않는다). 지갑 자산 목록에 없는 발급 자산은 `"0"`이다.
+  발급 기록이 있는데 원장에 준비 지갑이 없거나 응답 지갑이 다르면 외부 drift로 `INTERNAL`(500)이다.
 
 ```bash
 curl "https://{baseUrl}/blockchain/manage-api/accounts/acct_018f3d4a-bf70-7c1a-8f2b-3c4d5e6f7890/balances?network=BASE&symbol=USDC"
@@ -653,26 +654,6 @@ _응답_
   "error": {
     "code": "ACCOUNT_NOT_FOUND",
     "message": "account not found"
-  },
-  "meta": {
-    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
-  }
-}
-```
-
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `error` | ErrorBody | 필수 |  |
-| `meta` | Meta | 필수 |  |
-
-
-`422` — source event가 현재 sweep 요청 조건을 충족하지 않음
-
-```json
-{
-  "error": {
-    "code": "UNPROCESSABLE_ENTITY",
-    "message": "request cannot be processed in the current resource state"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -1763,14 +1744,22 @@ _응답_
 
 **자산 매핑 등록**
 
-우리 (네트워크, 토큰) 이 어느 자산인지 후보의 **Fireblocks Asset ID와 컨트랙트 주소로** 지정한다. 등록은 어쩌다 한 번이지만 여기서 틀리면 자금이 엉뚱한 체인으로 가므로 관문 넷을 지난다.
+우리 (네트워크, 토큰) 이 어느 자산인지 지정한다. 등록은 어쩌다 한 번이지만 여기서 틀리면 자금이 엉뚱한 체인으로 가므로 관문 넷을 지난다.
+벤더 재해소 관문은 데이터셋 원천에 따라 다르다.
 
 - **채택한 네트워크만** — 이름을 붙이지 않은 네트워크로는 등록할 수 없다 (`400`).
-- **Asset ID·주소·네트워크가 모두 일치해야 한다** — Fireblocks 최신 조회에서 하나라도 다르면 `400`, 둘 이상이면 `409` 다. 화면의 캐시 값이나 브라우저 입력을 그대로 신뢰하지 않는다.
+- **Fireblocks 원천**: 후보의 **Fireblocks Asset ID와 컨트랙트 주소로** 지정한다. Asset ID·주소·네트워크가 모두 일치해야 한다 —
+  Fireblocks 최신 조회에서 하나라도 다르면 `400`, 둘 이상이면 `409` 다. 화면의 캐시 값이나 브라우저 입력을 그대로 신뢰하지 않는다.
+  `fireblocksAssetId` 가 없으면 `400`(`fireblocksAssetIdRequired`) 이다.
+- **Dfns 원천**: 자산을 **network와 contractAddress로만** 지정한다. `fireblocksAssetId` 를 보내면 `400`(`fireblocksAssetIdNotApplicable`) 이다.
+  서버는 데이터셋 네트워크 행과 실행 설정의 Dfns network 일치(`networkBindingMismatch`), EVM 계정 모델 네트워크(`assetModelUnsupported`),
+  EVM 컨트랙트 주소 형식 `^0x[0-9a-fA-F]{40}$`(`contractAddressInvalid`) 을 검증하고 Dfns 자산 키(`dfnsAssetKey`) 를 만든다.
+  Dfns 공개 명세에는 자산 카탈로그 API 가 없어 온체인 존재·decimals 는 운영자의 발행사 공식 자료로 대조한다.
 - **활성 매핑을 덮어쓰지 않는다** — 이미 활인 (네트워크, 토큰) 매핑은 `409` 다. 논리 해제된 행은 검증을 다시 통과한 뒤 재활성 또는 교체하고 전후 snapshot을 남긴다.
 - **한 자산은 한 매핑** — 다른 (네트워크, 토큰) 이 이미 그 자산이면 `409` 다.
 
 네이티브 자산(ETH 등)은 컨트랙트 주소가 없으므로 `contractAddress` 를 `null` 로 보낸다 — 그 네트워크의 네이티브 자산으로 해석한다.
+응답의 벤더 식별자는 벤더 이름을 붙인 필드로만 노출한다 — Fireblocks 원천은 `fireblocksAssetId`, Dfns 원천은 `dfnsAssetKey` 가 채워지고 다른 쪽은 `null` 이다.
 
 ```bash
 curl -X POST "https://{baseUrl}/blockchain/manage-api/admin/asset-mappings" \
@@ -1806,8 +1795,8 @@ _요청 본문_
 |---|---|---|---|
 | `network` | string | 필수 | 채택한 네트워크 코드 |
 | `symbol` | string | 필수 | 우리 심볼 — 여기서 정하고, 이후 모든 계약에서 이 값을 쓴다 |
-| `fireblocksAssetId` | string | 필수 | 후보 목록에서 선택한 Fireblocks Asset ID. 서버가 등록 직전에 Network·주소와 다시 검증한다 |
-| `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null |
+| `fireblocksAssetId` | string | - | 후보 목록에서 선택한 Fireblocks Asset ID. Fireblocks 원천에서는 필수이며 서버가 등록 직전에 Network·주소와 다시 검증한다. Dfns 원천에서는 보내지 않는다(보내면 400).  |
+| `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null. Dfns 원천에서는 이 값과 network가 자산 지정의 전부다 |
 
 
 _응답_
@@ -1820,6 +1809,7 @@ _응답_
     "network": "BASE",
     "symbol": "USDC",
     "fireblocksAssetId": "USDC_BASE",
+    "dfnsAssetKey": "EthereumSepolia:Erc20:0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
     "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     "registeredAt": "20260806031045"
   },
@@ -1904,6 +1894,7 @@ _응답_
       "network": "BASE",
       "symbol": "USDC",
       "fireblocksAssetId": "USDC_BASE",
+      "dfnsAssetKey": "EthereumSepolia:Erc20:0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
       "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       "registeredAt": "20260806031045"
     }
@@ -1992,8 +1983,8 @@ _응답_
 **자산 매핑 일괄 등록**
 
 검색 결과에서 선택한 자산을 최대 20개까지 한 번에 등록한다. 서버는 기존 매핑, 요청 내 중복,
-Fireblocks 최신 Asset ID·네트워크·컨트랙트 주소를 모두 먼저 검증한 뒤 현재 매핑과 변경 snapshot을
-한 트랜잭션으로 저장한다. 한 항목이라도 실패하면 아무 항목도 저장하지 않는다. 항목 실패 응답의
+원천별 벤더 재해소 관문(단건 등록과 같다 — Fireblocks 최신 Asset ID·네트워크·컨트랙트 주소, Dfns 네트워크 행·자산 모델·주소 형식)을
+모두 먼저 검증한 뒤 현재 매핑과 변경 snapshot을 한 트랜잭션으로 저장한다. 한 항목이라도 실패하면 아무 항목도 저장하지 않는다. 항목 실패 응답의
 `error.details`는 요청 배열의 `index`, `network`, `symbol`, 수정 판단용 `reason`을 포함한다.
 
 ```bash
@@ -2050,6 +2041,7 @@ _응답_
       "network": "BASE",
       "symbol": "USDC",
       "fireblocksAssetId": "USDC_BASE",
+      "dfnsAssetKey": "EthereumSepolia:Erc20:0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
       "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       "registeredAt": "20260806031045"
     }
@@ -3240,13 +3232,14 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 
 ### AssetMapping
 
-등록된 (네트워크, 토큰) 하나.
+등록된 (네트워크, 토큰) 하나. 벤더 식별자는 데이터셋 원천의 벤더 이름을 붙인 필드 하나만 채워진다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `network` | string | 필수 |  |
 | `symbol` | string | 필수 |  |
-| `fireblocksAssetId` | string | 필수 | 현재 매핑이 사용하는 Fireblocks 자산 식별자 |
+| `fireblocksAssetId` | string \\| null | 필수 | 현재 매핑이 사용하는 Fireblocks 자산 식별자. Fireblocks 원천에서만 채워지고 Dfns 원천은 null |
+| `dfnsAssetKey` | string \\| null | 필수 | 현재 매핑이 사용하는 Dfns 자산 키 `<Network>:Native` 또는 `<Network>:<kind>:<locator>`(ERC-20은 소문자 컨트랙트). Dfns 원천에서만 채워지고 Fireblocks 원천은 null |
 | `contractAddress` | string \\| null | - | 네이티브 자산은 null |
 | `registeredAt` | string | 필수 |  |
 
@@ -3966,8 +3959,8 @@ Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 
 |---|---|---|---|
 | `network` | string | 필수 | 채택한 네트워크 코드 |
 | `symbol` | string | 필수 | 우리 심볼 — 여기서 정하고, 이후 모든 계약에서 이 값을 쓴다 |
-| `fireblocksAssetId` | string | 필수 | 후보 목록에서 선택한 Fireblocks Asset ID. 서버가 등록 직전에 Network·주소와 다시 검증한다 |
-| `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null |
+| `fireblocksAssetId` | string | - | 후보 목록에서 선택한 Fireblocks Asset ID. Fireblocks 원천에서는 필수이며 서버가 등록 직전에 Network·주소와 다시 검증한다. Dfns 원천에서는 보내지 않는다(보내면 400).  |
+| `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null. Dfns 원천에서는 이 값과 network가 자산 지정의 전부다 |
 
 
 ### BulkRegisterAssetMappingsRequest
@@ -4284,15 +4277,16 @@ RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값�
 
 ### AssetBalance
 
-자산 하나의 vault 잔액. 세 칸으로 접어 돌려준다.
+자산 하나의 지갑 잔액. 세 칸으로 접어 돌려준다. 제공자가 그 구분을 제공하지 않는 칸은 `null`이다 — 0으로 채워 알 수 없는 값을
+확정값처럼 보이게 하지 않는다. Fireblocks는 세 칸 모두 문자열, Dfns는 `available`만 문자열이고 `pending`·`locked`는 `null`이다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `network` | string | 필수 |  |
 | `symbol` | string | 필수 |  |
-| `available` | string | 필수 | 가용 — 지금 출금에 쓸 수 있는 잔액 |
-| `pending` | string | 필수 | 대기 — 들어왔지만 확정 전 |
-| `locked` | string | 필수 | 잠김 — 나가는 중이거나 정책상 묶인 분 (벤더 lockedAmount + frozen) |
+| `available` | string | 필수 | 가용 — 지금 출금에 쓸 수 있는 잔액. Dfns는 지갑의 온체인 잔액 |
+| `pending` | string \\| null | 필수 | 대기 — 들어왔지만 확정 전. 제공자가 주지 않으면 null (Dfns) |
+| `locked` | string \\| null | 필수 | 잠김 — 나가는 중이거나 정책상 묶인 분 (벤더 lockedAmount + frozen). 둘 중 하나라도 모르면 null (Dfns) |
 
 
 ### AssetBalanceListResponse

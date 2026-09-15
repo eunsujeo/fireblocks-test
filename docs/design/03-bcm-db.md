@@ -337,7 +337,17 @@ Dfns의 논리 계정→네트워크 wallet은 다음 절의 후속 저장 계�
 
 ### 네트워크 지갑 생성 의도와 연결 — 후속 DB 계약
 
-**상태: V22 생성 의도·회수·완료 연결, V23 계정 모델, 내부 생성 유스케이스, V24 응답 증적 보관, 공식 명세 기반 Dfns HTTP 어댑터, 공개 계정·주소 API 연결(논리 계정 등록·EVM 계정 모델 네트워크의 지갑 주소를 기존 `bcm_addr_m`에 저장)을 구현했다. 발급 시점 자산 매핑·지갑 연결 컬럼은 아래 후속 DDL 결정이다.**
+**상태: V22 생성 의도·회수·완료 연결, V23 계정 모델, 내부 생성 유스케이스, V24 응답 증적 보관, 공식 명세 기반 Dfns HTTP 어댑터, 공개 계정·주소 API 연결(논리 계정 등록·EVM 계정 모델 네트워크의 지갑 주소를 기존 `bcm_addr_m`에 저장), Dfns 데이터셋의 자산 매핑 등록·잔액 조회를 구현했다. 발급 시점 자산 매핑·지갑 연결 컬럼은 아래 후속 DDL 결정이다.**
+
+Dfns 데이터셋의 기존 자산 테이블 사용 규칙(DDL 변경 없음, [07](07-asset-master.md#dfns-데이터셋의-등록)·[계약13](13-dfns-contracts.md#dfns-데이터셋의-자산-매핑--구현)):
+
+- `bcm_blkc_m`은 벤더 카탈로그 동기화가 채우지 않는다(Dfns 공개 명세에 카탈로그 API 없음). 행은 `bcm_prvd_bndg_m`처럼 DBA가 등록하는 데이터셋 seed다 —
+  `vndr_blkc_id` = 채택 명세의 Dfns `Network` 값, `ntwk_cd` = BCM 코드, `chain_id` = EIP-155(EVM만), `test_yn`·`dspl_nm`·`sync_dttm`(등록 시각)·감사 4컬럼.
+  등록 관문이 실행 설정 `bcm.dfns.networks`와 대조하므로 seed와 설정이 어긋나면 그 네트워크의 자산 등록이 거절된다.
+- `bcm_vndr_ast_m.vndr_ast_id`(VARCHAR(64))에는 Dfns 자산 키 `<Network>:Native` / `<Network>:Erc20:<소문자 contract>`가 들어간다(UNIQUE 그대로 "한 자산 한 매핑").
+  초기 EVM 네트워크 키는 최대 64자에 들어가며, Solana(`<Network>:Spl2022:<mint>`)처럼 넘는 키는 자르지 않고 등록을 거절한다 — 컬럼 확장은 Solana 자산 모델과 함께 결정하는 **후속 DDL**이다.
+  `cntr_addr`은 운영자가 등록한 주소 그대로(네이티브 NULL), `bcm_vndr_ast_chng_l` snapshot·감사 규칙은 Fireblocks와 같다.
+- 잔액 조회는 DB에 값을 저장하지 않는다(주소별 온체인 잔고 저장은 별도 설계). `bcm_ntwk_wlt_m`의 준비 지갑을 `(orgn_id, acnt_id, ntwk_cd)`로 찾아 벤더 자산 목록을 읽는다.
 [13의 순수 생성·조회 포트와 회수 판정](13-dfns-contracts.md#네트워크-지갑-공통-포트와-회수-판정--구현)을 영속 원장에 연결했다.
 V23에서 vault ID의 필수 여부를 모델별 CHECK로 전환했다. 기존 VAULT 계정과 Fireblocks 생성 의도 두 테이블의 동작은 유지한다.
 

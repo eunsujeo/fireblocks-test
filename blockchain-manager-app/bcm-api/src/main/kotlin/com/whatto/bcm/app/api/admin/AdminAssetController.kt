@@ -6,6 +6,7 @@ import com.whatto.bcm.app.application.asset.AdoptNetworkCommand
 import com.whatto.bcm.app.application.asset.AuditActor
 import com.whatto.bcm.app.application.asset.RegisterVendorAssetMappingCommand
 import com.whatto.bcm.app.application.asset.VendorAssetMappingService
+import com.whatto.bcm.domain.provider.ProviderOrigin
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -24,11 +25,12 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-/** 07-asset-master의 벤더 중립 Admin API. 인증은 배포 환경에서 Admin 백엔드만 접근하도록 망으로 제한한다. */
+/** 07-asset-master의 벤더 중립 Admin API. 인증은 배포 환경에서 Admin 백엔드만 접근하도록 망으로 제한한다. 벤더 식별자 필드는 데이터셋 원천에 따라 채운다. */
 @Validated
 @RestController
 class AdminAssetController(
     private val service: VendorAssetMappingService,
+    private val origin: ProviderOrigin,
 ) {
     @GetMapping("/admin/networks")
     fun networks(
@@ -88,7 +90,7 @@ class AdminAssetController(
         httpRequest: HttpServletRequest,
     ): ApiResponse<List<AssetMappingData>> =
         ApiResponse.of(
-            service.mappings(network, symbol).map(AssetMappingData::from),
+            service.mappings(network, symbol).map { AssetMappingData.from(it, origin) },
             RequestIdFilter.requestIdOf(httpRequest),
         )
 
@@ -105,14 +107,14 @@ class AdminAssetController(
                 RegisterVendorAssetMappingCommand(
                     network = checkNotNull(request.network),
                     symbol = checkNotNull(request.symbol),
-                    fireblocksAssetId = checkNotNull(request.fireblocksAssetId),
+                    fireblocksAssetId = request.fireblocksAssetId,
                     contractAddress = request.contractAddress,
                     employeeNo = employeeNo,
                     branchCode = branchCode,
                     requestId = RequestIdFilter.requestIdOf(httpRequest),
                 ),
             )
-        return ApiResponse.of(AssetMappingData.from(mapping), RequestIdFilter.requestIdOf(httpRequest))
+        return ApiResponse.of(AssetMappingData.from(mapping, origin), RequestIdFilter.requestIdOf(httpRequest))
     }
 
     @PostMapping("/admin/asset-mappings/bulk")
@@ -130,7 +132,7 @@ class AdminAssetController(
                     RegisterVendorAssetMappingCommand(
                         network = checkNotNull(item.network),
                         symbol = checkNotNull(item.symbol),
-                        fireblocksAssetId = checkNotNull(item.fireblocksAssetId),
+                        fireblocksAssetId = item.fireblocksAssetId,
                         contractAddress = item.contractAddress,
                         employeeNo = employeeNo,
                         branchCode = branchCode,
@@ -138,7 +140,7 @@ class AdminAssetController(
                     )
                 },
             )
-        return ApiResponse.of(mappings.map(AssetMappingData::from), requestId)
+        return ApiResponse.of(mappings.map { AssetMappingData.from(it, origin) }, requestId)
     }
 
     @DeleteMapping("/admin/asset-mappings/{network}/{symbol}")

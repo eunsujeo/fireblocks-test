@@ -34,6 +34,7 @@ EVM은 환경/chainId+contract, Solana는 cluster/genesis+Token Program+mint로 
 네트워크 지갑의 생성 의도는 `(origin, accountId, network)`로 공유하고 자산 주소는 기존 `(accountId, network, symbol)`로 구분하는
 [후속 연결 계약](13-dfns-contracts.md#계정주소-api의-후속-연결-계약)을 상세화했다. 현재 계정 모델·지갑 원장·내부 생성/회수 유스케이스까지 구현했으며
 기존 자산 등록/조회 흐름과 DDL은 유지한다. 지갑 준비 완료를 모든 토큰 수신 계정의 준비 완료로 간주하지 않는다.
+Dfns 데이터셋의 등록 경로는 아래 "Dfns 데이터셋의 등록"과 [계약13](13-dfns-contracts.md#dfns-데이터셋의-자산-매핑--구현)을 따른다.
 
 ## 네트워크 코드와 토큰 심볼
 
@@ -244,6 +245,9 @@ sequenceDiagram
 
 **관문 넷**
 
+벤더 재해소 관문은 도메인 출력 포트 `ChainAssetResolver`가 원천별로 맡는다 — Fireblocks/로컬은 아래 카탈로그 대조, Dfns는 "Dfns 데이터셋의 등록"의 검증이다.
+등록 유스케이스는 어느 벤더인지 모르고 해소 결과의 벤더 식별자·컨트랙트 주소만 저장한다.
+
 - **채택한 네트워크만** — FK 가 막는다.
 - **assetId·주소·네트워크가 같은 자산 하나만 잡혀야 한다** — 없으면 400, 둘 이상이면 409. 브라우저가 보낸 assetId를 그대로 신뢰하지 않는다.
 - **중복 등록 차단** — 활성 (network, symbol)이 있으면 409다. 비활성 행은 같은 매핑이면 재활성하고, 다른 매핑이면 다시 검증한 뒤 교체한다.
@@ -253,6 +257,18 @@ sequenceDiagram
 
 사람이 판단하는 지점은 **토큰마다 Fireblocks assetId와 발행사 문서의 컨트랙트 주소를 함께 확인하는 것**이다. 로컬 Fireblocks
 TESTNET의 지원 네트워크 코드는 시작 스크립트의 고정 지원 목록이 연결하며, 자산 등록 화면에서 운영자에게 내부 코드를 입력시키지 않는다.
+
+### Dfns 데이터셋의 등록
+
+Dfns 공개 명세에는 블록체인·자산 카탈로그 API가 없다. 따라서 Dfns 데이터셋(`bcm_prvd_bndg_m`이 `dfns`인 DB)에서는 위 일 1회 동기화와 후보 검색 캐시가 채워지지 않고
+(`sources`는 `NEVER_SYNCED`), 등록은 다음 규칙으로 한다. 계약과 오류 사유는 [계약13](13-dfns-contracts.md#dfns-데이터셋의-자산-매핑--구현)이 정본이다.
+
+- **네트워크 행은 DBA 데이터셋 seed다** — `bcm_blkc_m.vndr_blkc_id`에 채택 명세의 Dfns `Network` 값(예 `EthereumSepolia`), `ntwk_cd`에 우리 코드, `chain_id`에 EIP-155(EVM만)를 넣는다.
+  등록 관문은 이 값이 실행 설정 `bcm.dfns.networks[ntwk_cd]`와 같아야 통과시킨다. 채택/해제 Admin 오퍼레이션은 행에 그대로 동작한다.
+- **자산은 network와 컨트랙트 주소로만 지정한다** — `fireblocksAssetId`를 보내면 400이다. 벤더 assetId 자리는 Dfns 자산 키
+  `<Network>:Native` / `<Network>:Erc20:<소문자 contract>`가 대신하며 `vndr_ast_id`에 저장되고 잔액 관찰에서 같은 규칙으로 대조한다. Admin 응답은 `dfnsAssetKey`로만 노출한다.
+- **EVM 계정 모델 네트워크만** — `chain_id`가 없는 네트워크(Solana)는 mint·Token Program·token account 모델 확정 전이라 등록을 거절한다.
+- **온체인 대조는 운영자 몫이다** — 채택 명세의 read 호출은 응답 형식이 정해져 있지 않아 코드가 컨트랙트 존재·decimals를 확인하지 않는다. 발행사 공식 자료([계획](../dfns-compatibility-plan.md)의 등록표)와 대조한 뒤 등록하며, 벤더 read 대조는 계약13 수용 항목이다.
 
 ## Admin API — 같은 서비스의 `/admin/*` (2026-08-06 확정)
 
@@ -267,7 +283,7 @@ TESTNET의 지원 네트워크 코드는 시작 스크립트의 고정 지원 �
 | `DELETE /admin/networks/{code}` | 채택 논리 해제 — 매핑이 남아 있으면 409 |
 | `GET /admin/asset-candidates` | `q`로 자산 후보를 찾는다 — 심볼·표시명 검색 결과와 네트워크별 카탈로그 동기화 시각이 온다 |
 | `GET /admin/asset-mappings` | 등록된 매핑 목록 |
-| `POST /admin/asset-mappings` | 단건 등록 — 후보에서 고른 `network` · `symbol` · `fireblocksAssetId` · `contractAddress` |
+| `POST /admin/asset-mappings` | 단건 등록 — 후보에서 고른 `network` · `symbol` · `fireblocksAssetId`(Fireblocks 원천 필수, Dfns 원천 금지) · `contractAddress` |
 | `POST /admin/asset-mappings/bulk` | 최대 20개 일괄 등록 — 모든 후보를 먼저 재검증하고 한 트랜잭션으로 저장한다 |
 | `DELETE /admin/asset-mappings/{network}/{symbol}` | 논리 해제 — **그 (네트워크, 토큰)으로 발급된 주소가 하나도 없을 때만** 허용, 있으면 409 |
 
@@ -325,6 +341,7 @@ Origin·JSON 요청을 모두 확인한다. 로컬 Blockchain Manager Admin BFF�
 
 ## 아직 못 정한 것
 
+- **Dfns 온체인 대조 원천과 Solana 자산 모델** — 채택 명세 read 호출의 응답 형식 확인(계약13 수용 항목), Solana mint/Token Program locator와 `vndr_ast_id` 길이 확장은 후속이다.
 - **운영 자산 등록 증적·담당자** — USDC는 발행사 Circle 공식 목록과 노드 원본을 대조하는 전환 계획이다. 실제 등록 주소·검토자·승인 절차는 확정 전이다. KRWK는 발행사·체인별 배포·contract/mint/표준까지 확인해야 한다.
 
 ## 확인한 것

@@ -5,7 +5,8 @@
 V23의 VAULT/LOGICAL 계정 모델과 내부 논리 계정·네트워크 지갑 생성 유스케이스, 원문 증적 보관 포트를 구현했다.
 V24 보호 원문 저장소와 내부 생성 서비스+실제 PostgreSQL 결합 복구 검증을 구현했다.
 2026-09-15 공식 OpenAPI 1.1018.3 기반 인증(사용자 행위 서명)·지갑 생성/조회 HTTP 어댑터와 Pending/Conflict의 공개 HTTP 매핑을 구현했다.
-공개 계정·주소 API를 `AccountOperations`로 제공자별 조립해 Dfns 논리 계정·네트워크 지갑 주소 발급을 연결했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
+공개 계정·주소 API를 `AccountOperations`로 제공자별 조립해 Dfns 논리 계정·네트워크 지갑 주소 발급을 연결했다.
+Dfns 데이터셋의 자산 매핑 등록 관문(`ChainAssetResolver`)과 `GET /wallets/{walletId}/assets` 기반 잔액 계약을 구현했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
 [제공자 선택](12-provider-compatibility.md) · [전체 계획](../dfns-compatibility-plan.md) · [현행 API](../api/openapi.yaml)
 
 ## 자료의 적용 범위
@@ -168,7 +169,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | Account.accountId | BCM 발급 계정 ID로 설명 교정 완료. 논리 계정과 네트워크 wallet의 실행 연결은 아래 후속 계약을 따름 |
 | Transfer.txId = 최초 root 벤더 ID | Dfns request 종류·체인 이동·대체 요청과의 대응, 기존 ID 조회 호환 |
 | fireblocksAssetId / MISSING_IN_FIREBLOCKS | 벤더 중립 필드/상태 추가와 기존 소비자 처리. Dfns 값을 기존 Fireblocks 필드에 채우지 않음 |
-| VendorBalance의 available/pending/frozen/locked | Dfns가 제공하는 값과 BCM 계산값의 구분. 모르는 항목을 0으로 만들어 호환 완료로 처리하지 않음 |
+| VendorBalance의 available/pending/frozen/locked | 확정(아래 [잔액 계약 — 구현](#잔액-계약--구현)): Dfns 온체인 잔액은 total·available, 제공하지 않는 pending/frozen/locked는 `null`(공개 API 0.12.0에서 nullable). 모르는 항목을 0으로 만들지 않음 |
 | 웹훅 수동 재전송·생성 재시도 | 실제 제공하는 복구 방식과 오류/보류 계약, 운영 감사 기록 |
 
 ### 계정·주소 API의 후속 연결 계약
@@ -198,7 +199,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | `POST /accounts/{id}/addresses` | 계정(LOGICAL)·활성 자산 매핑·수신 주소 모델을 **전체 먼저 검증**(미지원이 섞이면 400)한 뒤 네트워크마다 `(origin, accountId, network)` 지갑 의도를 예약해 `NetworkWalletProvisioningService`로 생성/회수한다. 같은 네트워크의 다른 토큰은 같은 의도에 합류한다. 결과는 `requireCompleted`로 항목별 `PROVISIONING_PENDING`(`bcm.dfns.provisioning-retry-after-seconds`)/`CONFLICT`/성공이다 |
 | 수신 주소 | 지갑이 Ready면 원장(`bcm_ntwk_wlt_m`)의 지갑 주소를 그 네트워크 토큰의 `bcm_addr_m` 행으로 저장한다 — `bcm.dfns.account-address-networks`에 등록된(지갑 주소가 곧 토큰 수신 주소인 EVM 계정 모델) 네트워크에서만이다. 등록되지 않은 네트워크는 매핑이 있어도 `ASSET_NOT_SUPPORTED`다. tag/memo 모델 체인의 주소는 코드가 추정하지 않는다 |
 | `GET /accounts/{id}/addresses` | 저장된 매핑 조회(공통) |
-| `GET /accounts/{id}/balances` | Dfns 잔액 계약(VendorBalance 필드 대응) 확정 전 — 벤더를 부르지 않고 `422 UNPROCESSABLE_ENTITY`. 0/빈 배열로 꾸미지 않는다 |
+| `GET /accounts/{id}/balances` | 아래 [잔액 계약 — 구현](#잔액-계약--구현) — 발급 네트워크마다 준비 지갑의 자산 목록을 한 번 읽어 매핑 키와 대조한다 |
 
 - 생성 의도의 ID와 `correlationId`는 `(originId, accountId, network)`에서 결정적으로 도출한 UUID(name-based)다. 제출 snapshot은 도메인 출력 포트
   `NetworkWalletSubmissionPort`가 만들며 Dfns 구현은 `createWalletBody(vendorNetwork, correlationId)`의 SHA-256·채택 명세 버전(`dfns-openapi-1.1018.3`)·벤더 network를 돌려준다.
@@ -210,7 +211,36 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
   `DfnsAccountConfig`(논리 계정·지갑 생성 서비스·주소 정책·`DfnsAccountService`)를 만들고, Fireblocks 쪽은 `FireblocksAccountConfig`·`WalletProvisioningConfig`가
   `ConditionalOnFireblocksProtocol`로 `AccountService`를 만든다. 계정·주소 슬라이스만 조립되며 거래·Sweep·Admin·웹훅의 Dfns 조립은 후속이라
   API 전체 컨텍스트의 `BCM_PROVIDER=dfns` 기동 차단(`ProviderConfiguration`)은 유지한다. 차단 해제는 Baseline 수용 뒤 사용자 결정이다.
-- **후속**: Dfns 데이터셋의 자산 매핑 등록 경로(현행 Admin 등록은 Fireblocks 카탈로그 대조에 의존), 잔액 계약, tag/memo 체인 주소 모델, 웹훅.
+- **후속**: tag/memo 체인 주소 모델, 웹훅. 자산 매핑 등록·잔액은 아래 두 절로 구현했다.
+
+### Dfns 데이터셋의 자산 매핑 — 구현
+
+현행 Admin 등록(07)은 "채택 네트워크 → 벤더 재해소 → 한 자산 한 매핑 → 현재 행+snapshot" 관문이며 벤더 재해소만 Fireblocks 카탈로그에 묶여 있었다.
+재해소를 도메인 출력 포트 `ChainAssetResolver`로 분리해 `VendorAssetMappingService`는 원천을 모르고, 구현은 `fireblocks|local`이 `FireblocksChainAssetResolver`
+(카탈로그 페이징·assetId/주소 대조, 기존 동작 그대로), `dfns`가 `DfnsChainAssetResolver`(`DfnsClientConfig`)다. 유스케이스는 결과의 `vendorAssetId`·`contractAddress`만 저장한다.
+
+| 항목 | Dfns 계약 |
+|---|---|
+| 벤더 자산 식별 | Dfns에는 벤더 assetId가 없다. 채택 명세 1.1018.3 `GET /wallets/{walletId}/assets`의 자산 `kind`·locator로 **Dfns 자산 키** `<Network>:Native` / `<Network>:<Kind>:<locator>`를 만들어 `bcm_vndr_ast_m.vndr_ast_id`에 저장한다. ERC-20 locator는 소문자 컨트랙트 주소(주소 동일성은 대소문자 무관), Solana는 mint 그대로다. 등록(관문)과 잔액 관찰(어댑터)이 같은 규칙(`DfnsAssetKeys`)으로 만들어 문자열 동일성으로 대조한다 |
+| 네트워크 행 | Dfns 공개 명세에는 블록체인/자산 카탈로그 API가 없어 일 1회 동기화가 없다. Dfns 데이터셋의 `bcm_blkc_m` 행은 DBA가 등록하는 데이터셋 seed다(03) — `vndr_blkc_id` = 채택 명세의 `Network` 값(예 `EthereumSepolia`), `ntwk_cd` = BCM 코드, `chain_id` = EIP-155(EVM만). 관문은 이 값이 실행 설정 `bcm.dfns.networks[ntwk_cd]`와 같아야 등록한다(`networkBindingMismatch`) |
+| 자산 모델 | `chain_id`가 있는 EVM 네트워크만 등록한다 — `contractAddress` null은 `Native`, 값이 있으면 명세 EVM 주소 형식 `^0x[0-9a-fA-F]{40}$`(`contractAddressInvalid`)의 `Erc20`이다. Solana(mint·Token Program·token account)는 자산 locator 모델 확정 전이라 `assetModelUnsupported`로 거절한다 |
+| Fireblocks 필드 | 요청 `fireblocksAssetId`는 Fireblocks 원천에서 필수(`fireblocksAssetIdRequired`), Dfns 원천에서는 있으면 거절(`fireblocksAssetIdNotApplicable`)이다. 응답은 원천의 벤더 이름을 붙인 필드만 채운다 — `fireblocksAssetId`(Fireblocks) / `dfnsAssetKey`(Dfns), 다른 쪽 null(OpenAPI 0.12.0 `AssetMapping`). Dfns 값을 Fireblocks 필드에 채우지 않는다 |
+| 저장 길이 | `vndr_ast_id VARCHAR(64)`(03)를 넘는 키는 자르지 않고 `vendorAssetIdTooLong`으로 거절한다. 초기 EVM 네트워크(`EthereumSepolia:Erc20:`+40자 = 64)는 들어가며 Solana 등록 시 DDL 확장은 03의 후속 결정이다 |
+| 벤더 재해소 한계 | 채택 명세의 `POST /networks/{network}/call-function`(온체인 read)은 응답 schema가 비어 있어 근거로 고정할 수 없다. 온체인 존재·decimals·발행사 대조는 운영자의 발행사 공식 자료(계획의 등록표)와 아래 수용 항목이며 코드가 추정하지 않는다 |
+
+일괄 등록은 네트워크마다 관문을 한 번 부르고(`resolveAll`) 항목별 실패는 index로 표시한다. 해소된 벤더 자산이 요청 안에서 겹치면 저장 전에 `duplicateVendorAsset`이다.
+
+### 잔액 계약 — 구현
+
+| 항목 | 계약 |
+|---|---|
+| 원천 | 채택 명세 1.1018.3 `GET /wallets/{walletId}/assets` — 응답 `walletId`·`network`·`assets[]{kind, <locator>, symbol?, decimals, balance, verified?}`. 인증 토큰만 필요하고 사용자 행위 서명은 없다 |
+| 조회 단위 | 주소가 발급된 자산만 대상이다(Fireblocks와 같은 공개 계약). 발급 네트워크마다 원장의 준비 지갑(`NetworkWalletProvisioningService.readyWallet`)을 찾아 자산 목록을 **한 번** 읽고, 매핑의 `vendorAssetId`와 같은 Dfns 자산 키 항목이 그 자산의 잔액이다 |
+| 필드 대응 | `balance`는 최소 단위 정수 문자열, `decimals`는 같은 항목의 소수 자릿수로 읽어 `NetworkWalletAssetBalance.amount()`가 지수 표기 없는 소수 금액을 만든다(값 불변, 뒤따르는 0 제거, 0은 `"0"`). 매핑에 별도 정밀도를 보관하지 않는다. `VendorBalance`는 total·available = 그 금액, pending·frozen·lockedAmount = `null`이다. 공개 `AssetBalance`의 `pending`·`locked`는 0.12.0부터 nullable이며 Fireblocks 응답은 그대로다 |
+| 목록에 없는 자산 | 지갑이 보유하지 않은 등록 자산은 `"0"`이다. BCM이 만든 지갑은 생성 뒤부터 Dfns가 관찰하므로 미보유=0이다(관찰 목록 의미는 아래 수용 항목) |
+| 형식 검사 | `walletId`가 요청 지갑과 다르거나 `network`가 scope와 다르면 실패다. 항목은 객체여야 하고 `kind`·`decimals`(정수)·`balance`(정수 문자열)·`verified`(boolean)의 형식을 검사한다. 모델링한 kind(`Native`·`Erc20`·`Spl`·`Spl2022`)만 키로 정규화하고 그 밖의 kind는 대조 대상이 아니라 제외한다 |
+| drift | 발급 기록이 있는데 준비 지갑이 없거나 응답 지갑·네트워크가 다르거나 같은 키가 둘이면 빈 배열·0으로 숨기지 않고 `INTERNAL`(500)이다. HTTP 오류는 상태·수신 바이트를 담은 `VendorApiException`으로 전파한다 |
+| 미포함 | BCM 예약·컴플라이언스 보류 차감은 Dfns 거래 조립 뒤의 계약이다(계획 "잔액과 자금 통제"). 잔액 응답은 V24 증적 대상이 아니다(생성 의도 작업만 보관) |
 
 ### 보류·충돌 HTTP 계약 — 구현
 
@@ -334,5 +364,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위, 429 동작 | 목록/단건 조회 HTTP 어댑터·계약 테스트 완료. 최초 POST 1회·원장/증적 결합 복구는 내부 대역과 HTTP 어댑터 모두로 검증 완료 |
 | 웹훅 원문·서명·retry | 서명된 바이트, timestamp, 실제 retry/이력 응답과 ID 연결 | 공통 수신 순서·보존·선택 구현 회귀 |
 | 조직 Wallet·초기 체인/USDC·KRWK | 지원 조합·자산 locator·소유·정책/가스 권한 | 체인 식별/확정/대납 인터페이스 설계; 추가 체인 실구현은 후속 |
+| 자산 등록의 온체인 대조 | 채택 명세 `POST /networks/{network}/call-function`의 실제 응답 형식(ERC-20 `decimals()`·`symbol()` read), 또는 다른 검증 원천 | Dfns 데이터셋 등록 관문(설정·네트워크 행·EVM 주소 형식·키 길이)은 구현 완료. 온체인 대조는 발행사 공식 자료로 운영자가 수행 |
+| 지갑 자산 목록의 의미 | `balance`의 단위(최소 단위 정수 가정)·`decimals` 출처, 미보유/0 잔액 토큰의 목록 포함 여부, 생성 전 입금 토큰의 관찰 시점 | 잔액 어댑터·유스케이스·계약 테스트 완료. 미보유 자산 `"0"` 규칙은 이 확인 뒤 유지/변경 |
 
 사용자 지정 wiki의 질문은 벤더 확답이 아니다. 자료가 없는 항목을 임의로 채우거나 실벤더 호출로 확인하지 않는다.

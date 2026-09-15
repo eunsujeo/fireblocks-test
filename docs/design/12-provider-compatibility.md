@@ -25,7 +25,8 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
 
 | 경계 | 유지/분리할 계약 | 벤더 구현이 맡을 일 |
 |---|---|---|
-| `WalletVendorPort` | 계정/주소 생성 의도·회수·잔액 응답 | 현재 vault 중심 메서드는 Fireblocks 계약. Dfns wallet provisioning·논리 계정 매핑은 별도 상세 계약 필요 |
+| `WalletVendorPort` | 계정/주소 생성 의도·회수·잔액 응답 | 현재 vault 중심 메서드는 Fireblocks 계약. Dfns는 `NetworkWalletProvisioningPort`·`NetworkWalletAssetPort`(지갑 자산 잔액)로 분리했고 `VendorBalance`의 제공되지 않는 구분은 null이다(계약13) |
+| `ChainAssetResolver` | Admin 자산 등록의 벤더 재해소 관문 | Fireblocks는 카탈로그 assetId·주소 대조, Dfns는 데이터셋 네트워크 행·자산 모델·주소 형식 대조와 Dfns 자산 키 생성(계약13) |
 | `VendorTransactionPort` | 제출·externalTxId 조회·거래/목록·접수/거절 구분 | 인증·ID·API별 멱등/조회·비용·원시 상태 |
 | `VendorContractCallPort` | 집금 호출 의도·접수/조회 결과 | 승인·대납·최종 서명 내용·방송 경로·수신 증적 |
 | `VendorAssetCatalogPort` | 후보 수집과 채택 자산의 분리 | 벤더 네트워크/자산 ID·페이지·정밀도·온체인 주소 대조 |
@@ -324,7 +325,7 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   같은 네트워크 다른 토큰·재요청의 외부 호출 0, 주소 미준비 → `ADDRESS_NOT_READY` 보류(설정 재시도 초) → 단건 조회로 완료, 미지원 네트워크 혼합 400, 잔액 422.
   `BootstrapIntegrationTest`에 fireblocks 컨텍스트의 Dfns 빈 0·`AccountOperations`=`AccountService` 검증을 추가했다.
 - 선택 회귀: domain 110 · application 23 · persistence(wallet·account·provider) 58 · client 109 · API(account 유스케이스·wallet·web·account·config·Bootstrap·Architecture·ProviderStartup·ProviderOriginStartup) 129 = **429건**, 실패/오류/skip 0. 변경 모듈 ktlintCheck 통과. 실벤더 호출·운영 적용·기동 차단 해제·push는 미수행이다.
-- **후속**: Dfns 데이터셋의 자산 매핑 등록 경로(현행 Admin 등록은 Fireblocks 카탈로그 대조), Dfns 잔액 계약, tag/memo 체인 주소 모델, 거래·Sweep·Admin·웹훅 조립.
+- **후속**: tag/memo 체인 주소 모델, 거래·Sweep·Admin·웹훅 조립. 자산 매핑 등록 경로와 잔액 계약은 아래 절로 구현했다.
 - **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 fd793f2..3458739, design-sync→code-reviewer 순차)**:
   design-sync Major 1(03의 `bcm_addr_m` 자산 매핑 snapshot 연결 요구와 구현의 저장 방식 불일치)·Minor 1(13·03·09·DfnsProperties의 구현 상태 문구 미갱신).
   code-reviewer Critical 2 — ① 유스케이스(`DfnsAccountService`)가 infra 설정(`DfnsProperties`)과 HTTP 어댑터 정적 함수에 직접 의존,
@@ -339,3 +340,24 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta 3458739..d23bef0, design-sync→code-reviewer 순차)**: 이전 Critical 2·Major 1·design-sync Major 1·Minor 1 해소 확인,
   신규 Critical/Major/Minor 없음. 결정적 seed·제출 snapshot·주소 경합·Pending/Conflict·잔액 422·전체 Dfns 기동 차단이 유지되고 기존 테스트 변경은 책임 이동에 따른 재배치임을 확인했다.
   검토 기준 commit은 d23bef0이다. 실벤더 호출·운영 적용·기동 차단 해제·push는 미수행이다.
+
+## Dfns 데이터셋 자산 매핑 등록과 잔액 계약 검증 (2026-09-15)
+
+- 계약은 [계약13](13-dfns-contracts.md#dfns-데이터셋의-자산-매핑--구현)·[잔액 계약](13-dfns-contracts.md#잔액-계약--구현)에 먼저 고정하고 07(Dfns 데이터셋의 등록)·03(기존 자산 테이블 사용 규칙·후속 DDL)·09를 갱신했다.
+  Admin 등록의 벤더 재해소를 도메인 포트 `ChainAssetResolver`로 분리했다 — `FireblocksChainAssetResolver`(기존 카탈로그 페이징·assetId/주소 대조 이동, `FireblocksAssetConfig`)와
+  `DfnsChainAssetResolver`(`DfnsClientConfig`; `bcm.dfns.networks`↔`bcm_blkc_m.vndr_blkc_id` 일치, EVM(`chain_id`) 모델만, 명세 EVM 주소 형식, Dfns 자산 키 `<Network>:Native|Erc20:<소문자 contract>`, 64자 길이).
+  `VendorAssetMappingService`는 원천을 모르며 네트워크마다 관문을 한 번 부르고 항목별 실패를 index로 표시한다. Dfns 공개 명세에 카탈로그 API가 없고 채택 명세 Call Function 응답이 비어 있어
+  온체인 대조는 수용 항목으로 남겼다(운영자의 발행사 공식 자료 대조).
+- 잔액: `NetworkWalletAssetPort`(도메인)·`DfnsNetworkWalletClient.assets`(`GET /wallets/{walletId}/assets`, Bearer만)·`NetworkWalletAssetBalance.amount()`(최소 단위 정수+decimals → 소수 문자열)·
+  `NetworkWalletProvisioningService.readyWallet`(원장 준비 지갑, account 피처가 지갑 Repository를 읽지 않음)·`DfnsAccountService.balancesOf`(발급 네트워크마다 한 번 관찰, 매핑 키 대조, 미보유 `"0"`, drift는 500).
+  `VendorBalance`의 total·pending·frozen·lockedAmount를 nullable로 바꿨고(Fireblocks는 모두 채움) 공개 `AssetBalance.pending/locked`는 nullable이다.
+- OpenAPI 0.12.0: `AssetBalance` pending/locked nullable, balancesOf의 Dfns 설명과 422 제거, `RegisterAssetMappingRequest.fireblocksAssetId` 선택(패턴 `^\S{1,64}$`), `AssetMapping`에 nullable `fireblocksAssetId`·`dfnsAssetKey`,
+  등록 오퍼레이션 설명에 원천별 관문·오류 사유(생성물 재생성). Admin 응답은 `ProviderOrigin`의 프로토콜로 벤더 이름 필드 하나만 채운다.
+- 검증: `DfnsChainAssetResolverTest` 6(키 생성·Fireblocks 필드 거절·binding 불일치·비EVM·주소 형식·길이), `DfnsNetworkWalletClientTest` +3(자산 정규화·kind 제외, 결손/형식 오류 14종, HTTP 오류·ID·원천 거절),
+  `NetworkWalletAssetBalanceTest` 3, `NetworkWalletProvisioningServiceTest` +1(readyWallet), `VendorAssetMappingServiceTest` +2(Fireblocks id 필수, 중립 관문 저장·중복 자산 거절)와 기존 16건은 생성자만 교체,
+  `DfnsAccountServiceTest` 잔액 3(한 번 관찰·미보유 0·빈 배열/404·drift·벤더 오류), `AccountSpecComplianceTest` +1(null pending/locked), `AdminAssetControllerDfnsOriginTest` 2, 기존 Admin 슬라이스에 원천 빈 추가,
+  `DfnsAccountAssemblyIntegrationTest` 실제 PostgreSQL Dfns 데이터셋(seed `vndr_blkc_id=EthereumSepolia`)+로컬 HTTP: 조립(Dfns 관문·자산 포트만, Fireblocks 관문 없음), 잔액 1회 `GET /wallets/{id}/assets`·USDC 1.5/KRWK 0,
+  등록 관문 저장·snapshot 1행·Fireblocks id/비EVM 거절. `ArchitectureTest` 검토 목록에 `VendorAssetMappingService`.
+- 선택 회귀: domain 115 · application 25 · client 118 · persistence(wallet·account·asset) 68 · API(asset·account 유스케이스·account·AdminAsset·wallet·web·config·Architecture·Bootstrap·ProviderStartup) 158 = **484건**, 실패/오류/skip 0.
+  변경 모듈 ktlintCheck 통과. `VendorAssetMapping`에 넣었던 길이 require는 기존 영속성 테스트(길이 결함은 데이터 오류)와 어긋나 제거하고 관문에서만 검사한다. 실벤더 호출·운영 적용·DDL 변경·`BCM_PROVIDER=dfns` 기동 차단 해제·push는 미수행이다.
+- **후속**: tag/memo 체인 주소 모델(Solana 자산 locator·`vndr_ast_id` 확장 DDL), 거래·Sweep·Admin·웹훅의 Dfns 조립, 수용 항목(Call Function 응답 형식, 지갑 자산 목록의 단위/미보유 의미).

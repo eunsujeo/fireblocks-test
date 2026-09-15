@@ -7,6 +7,7 @@ import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.vendor.NetworkWalletObservation
 import com.whatto.bcm.domain.vendor.NetworkWalletProvisioningPort
 import com.whatto.bcm.domain.vendor.NetworkWalletResponse
+import com.whatto.bcm.domain.vendor.NetworkWalletScope
 import com.whatto.bcm.domain.wallet.NetworkWalletCreationIntent
 import com.whatto.bcm.domain.wallet.NetworkWalletCreationSeed
 import com.whatto.bcm.domain.wallet.NetworkWalletCreationStatus
@@ -56,6 +57,15 @@ class NetworkWalletProvisioningService(
         val wallet = repository.findWallet(seed.request.scope) ?: throw ConflictException("networkWallet", intent.intentId)
         if (wallet.vendorWalletId != walletId || wallet.address == null) throw ConflictException("networkWallet", intent.intentId)
         return wallet
+    }
+
+    /**
+     * 원장에 완료 연결된 scope의 지갑 — 주소가 있는 준비 지갑만 돌려주고 없으면 null이다. 벤더를 부르지 않는다.
+     * 잔액 조회처럼 발급 뒤 지갑을 다시 찾는 피처가 지갑 원장 Repository를 직접 읽지 않게 한다.
+     */
+    fun readyWallet(scope: NetworkWalletScope): NetworkWalletObservation? {
+        origin.requireMatch(scope.origin)
+        return repository.findWallet(scope)?.takeIf { it.address != null }
     }
 
     private fun createOnce(intent: NetworkWalletCreationIntent): NetworkWalletCreationIntent {

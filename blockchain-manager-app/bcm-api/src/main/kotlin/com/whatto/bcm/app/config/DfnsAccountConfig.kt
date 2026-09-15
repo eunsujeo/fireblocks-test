@@ -8,6 +8,7 @@ import com.whatto.bcm.app.application.wallet.NetworkWalletProvisioningService
 import com.whatto.bcm.domain.account.DepositAddressRepository
 import com.whatto.bcm.domain.account.LogicalAccountRepository
 import com.whatto.bcm.domain.provider.ProviderOrigin
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetPort
 import com.whatto.bcm.domain.vendor.NetworkWalletProvisioningPort
 import com.whatto.bcm.domain.vendor.NetworkWalletSubmissionPort
 import com.whatto.bcm.domain.wallet.NetworkWalletAddressPolicy
@@ -56,9 +57,21 @@ class DfnsAccountConfig {
         depositAddresses: DepositAddressRepository,
         provisioning: NetworkWalletProvisioningService,
         submissions: NetworkWalletSubmissionPort,
+        walletAssets: NetworkWalletAssetPort,
         policy: NetworkWalletAddressPolicy,
         origin: ProviderOrigin,
         clock: Clock,
     ): DfnsAccountService =
-        DfnsAccountService(logicalAccounts, accounts, assetMappings, depositAddresses, provisioning, submissions, policy, origin, clock)
+        DfnsAccountService(
+            logicalAccounts,
+            accounts,
+            assetMappings,
+            depositAddresses,
+            provisioning,
+            submissions,
+            walletAssets,
+            policy,
+            origin,
+            clock,
+        )
 }

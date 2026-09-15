@@ -12,22 +12,27 @@ import com.whatto.bcm.domain.exception.BulkAssetMappingException
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
-import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.exception.VendorAssetMappingRegistrationConflictException
-import com.whatto.bcm.domain.vendor.VendorAsset
-import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
+import com.whatto.bcm.domain.vendor.ChainAssetLocator
+import com.whatto.bcm.domain.vendor.ChainAssetResolution
+import com.whatto.bcm.domain.vendor.ChainAssetResolver
+import com.whatto.bcm.domain.vendor.ResolvedChainAsset
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.stereotype.Service
 import java.time.Clock
 
-/** 07-asset-master의 벤더 중립 Admin 조회·채택·set-once 등록·안전 삭제 오케스트레이션. */
+/**
+ * 07-asset-master의 벤더 중립 Admin 조회·채택·set-once 등록·안전 삭제 오케스트레이션.
+ * 등록의 벤더 재해소는 제공자별 `ChainAssetResolver`(Fireblocks 카탈로그 대조 / Dfns 데이터셋 네트워크·자산 모델 대조)가 맡고,
+ * 여기서는 채택 네트워크·중복·한 자산 한 매핑 관문과 현재 행+변경 snapshot 저장만 다룬다.
+ */
 @Service
 class VendorAssetMappingService(
     private val mappingRepository: VendorAssetMappingRepository,
     private val blockchainRepository: VendorBlockchainCatalogRepository,
     private val depositAddressQueryService: DepositAddressQueryService,
     private val assetCatalogCache: VendorAssetCatalogCacheRepository,
-    private val vendorCatalog: VendorAssetCatalogPort,
+    private val resolver: ChainAssetResolver,
     private val clock: Clock,
 ) {
     fun networks(
@@ -88,34 +93,12 @@ class VendorAssetMappingService(
             throw ConflictException("assetMapping", "${command.network}:${command.symbol}")
         }
         val blockchain = adoptedBlockchain(command.network)
-        val matches =
-            allVendorAssets(blockchain.candidateId, symbol = null).filter { asset ->
-                asset.blockchainId == blockchain.candidateId &&
-                    asset.id == command.fireblocksAssetId &&
-                    when (command.contractAddress) {
-                        null -> asset.assetClass == NATIVE_ASSET_CLASS
-                        else -> asset.contractAddress?.equals(command.contractAddress, ignoreCase = true) == true
-                    }
+        val resolved =
+            when (val resolution = resolver.resolveAll(blockchain, listOf(command.locator())).single()) {
+                is ChainAssetResolution.Resolved -> resolution.asset
+                is ChainAssetResolution.Rejected -> throw resolution.failure
             }
-        if (matches.isEmpty()) {
-            throw InvalidAssetMappingException(command.network, "assetNotFound")
-        }
-        if (matches.size > 1) {
-            throw ConflictException("assetCandidate", "${command.network}:ambiguous")
-        }
-
-        val vendorAsset = matches.single()
-        val mapping =
-            VendorAssetMapping(
-                network = command.network,
-                symbol = command.symbol,
-                vendorAssetId = vendorAsset.id,
-                contractAddress = command.contractAddress?.let { vendorAsset.contractAddress },
-                registeredAt = CoreDateTimes.now(clock),
-                registeredByEmployeeNo = command.employeeNo,
-                registeredByBranchCode = command.branchCode,
-            )
-        return mappingRepository.save(mapping, command.requestId)
+        return mappingRepository.save(mapping(command, resolved, CoreDateTimes.now(clock)), command.requestId)
     }
 
     /** 최대 건수는 API 경계에서 제한하며, 여기서는 모든 후보를 검증한 뒤 한 번에 저장한다. */
@@ -127,7 +110,12 @@ class VendorAssetMappingService(
             val index = commands.indexOfFirst { it.network == network && it.symbol == symbol }
             throw bulkFailure(index, commands[index], "duplicateAssetMapping", ConflictException("assetMapping", "$network:$symbol"))
         }
-        val duplicateVendorAssets = commands.groupingBy { it.fireblocksAssetId }.eachCount().filterValues { it > 1 }
+        val duplicateVendorAssets =
+            commands
+                .mapNotNull { it.fireblocksAssetId }
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it > 1 }
         if (duplicateVendorAssets.isNotEmpty()) {
             val vendorAssetId = duplicateVendorAssets.keys.first()
             val index = commands.indexOfFirst { it.fireblocksAssetId == vendorAssetId }
@@ -144,50 +132,34 @@ class VendorAssetMappingService(
             }
         }
 
-        val assetsByNetwork =
-            commands
-                .map { it.network }
-                .distinct()
-                .associateWith { network ->
-                    val index = commands.indexOfFirst { it.network == network }
-                    val command = commands[index]
-                    try {
-                        val blockchain = adoptedBlockchain(network)
-                        blockchain to allVendorAssets(blockchain.candidateId, symbol = null)
-                    } catch (exception: BcmException) {
-                        throw bulkFailure(index, command, failureReason(exception), exception)
-                    }
+        // 네트워크마다 한 번 해소한다 — 네트워크 전체 실패(채택 안 함·벤더 조회 실패)는 그 네트워크의 첫 항목에 표시한다.
+        val resolutions = mutableMapOf<Int, ChainAssetResolution>()
+        commands.map { it.network }.distinct().forEach { network ->
+            val indexes = commands.indices.filter { commands[it].network == network }
+            val first = indexes.first()
+            val resolved =
+                try {
+                    resolver.resolveAll(adoptedBlockchain(network), indexes.map { commands[it].locator() })
+                } catch (exception: BcmException) {
+                    throw bulkFailure(first, commands[first], failureReason(exception), exception)
                 }
+            check(resolved.size == indexes.size) { "asset resolver returned ${resolved.size} results for ${indexes.size} locators" }
+            indexes.forEachIndexed { position, index -> resolutions[index] = resolved[position] }
+        }
         val registeredAt = CoreDateTimes.now(clock)
         val mappings =
             commands.mapIndexed { index, command ->
-                try {
-                    val (blockchain, assets) = checkNotNull(assetsByNetwork[command.network])
-                    val matches =
-                        assets.filter { asset ->
-                            asset.blockchainId == blockchain.candidateId &&
-                                asset.id == command.fireblocksAssetId &&
-                                when (command.contractAddress) {
-                                    null -> asset.assetClass == NATIVE_ASSET_CLASS
-                                    else -> asset.contractAddress?.equals(command.contractAddress, ignoreCase = true) == true
-                                }
-                        }
-                    if (matches.isEmpty()) throw InvalidAssetMappingException(command.network, "assetNotFound")
-                    if (matches.size > 1) throw ConflictException("assetCandidate", "${command.network}:ambiguous")
-                    val vendorAsset = matches.single()
-                    VendorAssetMapping(
-                        network = command.network,
-                        symbol = command.symbol,
-                        vendorAssetId = vendorAsset.id,
-                        contractAddress = command.contractAddress?.let { vendorAsset.contractAddress },
-                        registeredAt = registeredAt,
-                        registeredByEmployeeNo = command.employeeNo,
-                        registeredByBranchCode = command.branchCode,
-                    )
-                } catch (exception: BcmException) {
-                    throw bulkFailure(index, command, failureReason(exception), exception)
+                when (val resolution = checkNotNull(resolutions[index])) {
+                    is ChainAssetResolution.Resolved -> mapping(command, resolution.asset, registeredAt)
+                    is ChainAssetResolution.Rejected ->
+                        throw bulkFailure(index, command, failureReason(resolution.failure), resolution.failure)
                 }
             }
+        // 해소된 벤더 자산이 요청 안에서 겹치면(예: 같은 컨트랙트를 두 심볼로) 한 자산 한 매핑 관문에서 미리 거절한다.
+        mappings.groupingBy { it.vendorAssetId }.eachCount().filterValues { it > 1 }.keys.firstOrNull()?.let { vendorAssetId ->
+            val index = mappings.indexOfFirst { it.vendorAssetId == vendorAssetId }
+            throw bulkFailure(index, commands[index], "duplicateVendorAsset", ConflictException("vendorAsset", vendorAssetId))
+        }
         return try {
             mappingRepository.saveAll(mappings, commands.first().requestId)
         } catch (exception: VendorAssetMappingRegistrationConflictException) {
@@ -198,6 +170,20 @@ class VendorAssetMappingService(
             throw bulkFailure(index, commands[index], "concurrentConflict", exception)
         }
     }
+
+    private fun mapping(
+        command: RegisterVendorAssetMappingCommand,
+        resolved: ResolvedChainAsset,
+        registeredAt: String,
+    ) = VendorAssetMapping(
+        network = command.network,
+        symbol = command.symbol,
+        vendorAssetId = resolved.vendorAssetId,
+        contractAddress = resolved.contractAddress,
+        registeredAt = registeredAt,
+        registeredByEmployeeNo = command.employeeNo,
+        registeredByBranchCode = command.branchCode,
+    )
 
     private fun bulkFailure(
         index: Int,
@@ -239,26 +225,7 @@ class VendorAssetMappingService(
         blockchainRepository.findByNetwork(network)
             ?: throw InvalidAssetMappingException(network, "networkNotAdopted")
 
-    private fun allVendorAssets(
-        candidateId: String,
-        symbol: String?,
-    ): List<VendorAsset> {
-        val assets = mutableListOf<VendorAsset>()
-        val seenCursors = mutableSetOf<String>()
-        var cursor: String? = null
-        do {
-            val page = vendorCatalog.assets(candidateId, symbol, cursor)
-            assets += page.data
-            cursor = page.next
-            if (cursor != null && !seenCursors.add(cursor)) {
-                throw VendorApiException("listAssetsPagination", null)
-            }
-        } while (cursor != null)
-        return assets
-    }
-
     companion object {
-        private const val NATIVE_ASSET_CLASS = "NATIVE"
         private const val CATALOG_STALE_HOURS = 48L
         private const val MAX_CANDIDATES = 50
     }
@@ -277,12 +244,15 @@ data class AdoptNetworkCommand(
     val branchCode: String,
 )
 
+/** 등록 명령 — `fireblocksAssetId`는 Fireblocks 원천의 후보 assetId(필수)이고 Dfns 원천에서는 없어야 한다(관문이 거절). */
 data class RegisterVendorAssetMappingCommand(
     val network: String,
     val symbol: String,
-    val fireblocksAssetId: String,
+    val fireblocksAssetId: String?,
     val contractAddress: String?,
     val employeeNo: String,
     val branchCode: String,
     val requestId: String = "UNSPECIFIED",
-)
+) {
+    fun locator() = ChainAssetLocator(network, fireblocksAssetId, contractAddress)
+}

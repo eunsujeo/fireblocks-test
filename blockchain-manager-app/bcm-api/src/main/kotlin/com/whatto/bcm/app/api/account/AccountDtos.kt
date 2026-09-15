@@ -56,24 +56,29 @@ data class DepositAddressResultData(
 
 /**
  * openapi AssetBalance — 어느 자산의 잔액인지까지 담는다. 금액은 문자열(decimal).
- * locked = "나가는 중 출금 예약분 + AML 동결분" = 벤더 lockedAmount + frozen 합산.
+ * locked = "나가는 중 출금 예약분 + AML 동결분" = 벤더 lockedAmount + frozen 합산. 제공자가 그 구분을 주지 않으면(Dfns) `pending`·`locked`는
+ * null이며 0으로 채우지 않는다 — lockedAmount와 frozen 중 하나라도 모르면 합계도 모르는 값이다.
  */
 data class AssetBalanceData(
     val network: String,
     val symbol: String,
     val available: String,
-    val pending: String,
-    val locked: String,
+    val pending: String?,
+    val locked: String?,
 ) {
     companion object {
-        fun from(assetBalance: AssetBalance): AssetBalanceData =
-            AssetBalanceData(
+        fun from(assetBalance: AssetBalance): AssetBalanceData {
+            val balance = assetBalance.balance
+            val lockedAmount = balance.lockedAmount
+            val frozen = balance.frozen
+            return AssetBalanceData(
                 network = assetBalance.network,
                 symbol = assetBalance.symbol,
-                available = assetBalance.balance.available,
-                pending = assetBalance.balance.pending,
-                locked = CoreAmounts.plus(assetBalance.balance.lockedAmount, assetBalance.balance.frozen),
+                available = balance.available,
+                pending = balance.pending,
+                locked = if (lockedAmount != null && frozen != null) CoreAmounts.plus(lockedAmount, frozen) else null,
             )
+        }
     }
 }
 
