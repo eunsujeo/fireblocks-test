@@ -260,5 +260,7 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   runbook과 같은 GRANT만 가진 역할로 저장·메타데이터 조회 성공과 `body` SELECT·UPDATE/DELETE 거절을 검증하는 PostgreSQL 테스트를 추가했다(증적 9건).
   동시 요청 테스트는 예약 직후 barrier로 두 요청이 같은 PREPARED를 읽는 경쟁(create 1회)과, POST 응답 게이트로 대기 중 다른 요청이 조회로 완료한 뒤
   늦은 생성 응답이 CREATE 증적만 남기고 `ConflictException`으로 원장을 덮어쓰지 못하는 경로(계약13 4항)로 나눠 결정적으로 검증한다(결합 7건).
-  재실행: persistence wallet 25건(증적 9·원장 16) · API 18건(결합 7·Bootstrap 11) 실패/오류/skip 0, 변경 모듈 ktlintCheck 통과. 반영 후 재검토는 별도 기록한다.
-  실벤더 호출·운영 DB 적용·배포는 미수행이다.
+  재실행: persistence wallet 25건(증적 9·원장 16) · API 18건(결합 7·Bootstrap 11) 실패/오류/skip 0, 변경 모듈 ktlintCheck 통과.
+- **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta 5624e3b·85816c0, design-sync→code-reviewer 순차)**: 이전 Critical 1건·Major 1건 해소 확인,
+  신규 Critical/Major/Minor 없음. `RETURNING body_hash`가 기존 DB 계산·CHECK 계약을 유지하고, 제한 역할 테스트의 GRANT가 runbook 양식과 같으며,
+  두 동시 요청 테스트가 barrier/게이트로 순서에 의존하지 않음을 확인했다. 검토 기준 commit은 85816c0이다. 실벤더 호출·운영 DB 적용·배포는 미수행이다.
