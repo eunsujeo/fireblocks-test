@@ -533,6 +533,9 @@ class DfnsNetworkWalletClientTest {
             """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","decimals":18,"balance":1}]}""",
             """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","decimals":18,"balance":"1","verified":"yes"}]}""",
             """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Erc20","contract":"0xabc","decimals":6,"balance":"1"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Spl","mint":"0OIl","decimals":6,"balance":"1"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Spl2022","mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v2","decimals":6,"balance":"1"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Spl","decimals":6,"balance":"1"}]}""",
         ).forEach { body ->
             val (client, server) = fixture()
             server.expect(requestTo("$BASE/wallets/wa-1/assets")).andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
