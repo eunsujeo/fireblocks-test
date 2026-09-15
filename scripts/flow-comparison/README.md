@@ -2,6 +2,7 @@
 
 결과물은 `docs/flow-comparison/index.html`이다. 두 구조를 같은 단계의 행에 나란히 배치한다.
 정상 입금, 미확인 입금, 별단입금 집금, 집금 전·후 반환, 회사 입금을 비교한다.
+상단의 `← Wallet SDK로 돌아가기`는 같은 창에서 SDK 첫 화면으로 이동한다. 파일 직접 열기와 JavaScript 없는 환경에서도 동작한다.
 
 - `build.py`: 비교 본문, 근거 링크, HTML 생성. 생성 HTML은 직접 편집하지 않는다.
 - `delivery.py`: SDK가 책임질 Queue 대응 기능과 CORE 수신·처리 경계, 검증 조건.
@@ -11,11 +12,17 @@
 - `sdk_sweep.py`: SDK 집금 원문의 두 도식을 읽어 9개 참여자·30개 호출·4개 주석과 실행 구간을 모두 그린다.
 - `style.css`: 좌우 비교표·시퀀스 모달, 작은 화면 가로 스크롤, 가로 방향 인쇄.
 - `reader.js`: 차이만 보기, 단계 클릭 시 시퀀스 모달, 이전·다음·확대·전체 화면·좌우 이동, SDK 구간·호출 탐색, 포커스 복구와 인쇄.
+- `diagram-zoom.js`: 정상 입금의 자동스윕에서 DAWBC·SDK 각각의 확대 모달. 그림 또는 헤더의 확대 모달 버튼으로 열고, 10~400% 배율·원본 크기·가로 맞춤과 가로·세로 스크롤을 제공한다. 호출 문구 클릭은 기존 탐색·요구사항 동작을 유지한다. 원래 SVG를 잠시 옮겨 표시하며 닫기·Escape·바깥 클릭·인쇄 시 원위치와 비교 화면 상태를 복구한다.
+- `participant-headers.js`: 비교·확대 모달에서 원래 참여자 행이 화면 위로 사라졌을 때만 이름 행을 고정한다. SVG 참여자 좌표·폭·배율·색상에 맞춰 표시하고, 가로 스크롤·단계 변경·모달 이동·창 크기 변경에 동기화한다. 원래 행과 스크롤 공간은 유지하며 인쇄·JavaScript 없는 환경에서는 기존 SVG를 읽는다.
 - `verify.cjs`: 정렬, 필터, 로컬 근거 새 창, 모바일, 인쇄, JavaScript 없는 읽기 검증.
+- `verify_diagram_zoom.cjs`: 양쪽 확대 모달·키보드·배율·SVG 보존·복귀 상태·320/390px 스크롤·인쇄 복구 검증.
+- `verify_participant_headers.cjs`: 고정 행 표시 조건·양쪽 생명선 정렬·가로 스크롤·확대·320/390px·복귀·단계 변경·인쇄 검증.
 
 ```sh
 python3 scripts/flow-comparison/build.py
 node scripts/flow-comparison/verify.cjs
+node scripts/flow-comparison/verify_diagram_zoom.cjs
+node scripts/flow-comparison/verify_participant_headers.cjs
 ```
 
 검증은 기존 Playwright 설치를 사용한다. 필요하면 `PLAYWRIGHT_MODULE`, `CHROME_BIN`을 지정한다.
