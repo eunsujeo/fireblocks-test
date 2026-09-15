@@ -8,7 +8,9 @@ import com.whatto.bcm.app.application.account.DfnsAccountService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.config.ClockConfig
 import com.whatto.bcm.app.config.DfnsAccountConfig
+import com.whatto.bcm.app.config.FireblocksAccountConfig
 import com.whatto.bcm.app.config.ProviderOriginConfiguration
+import com.whatto.bcm.app.config.WalletProvisioningConfig
 import com.whatto.bcm.domain.account.AccountModel
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.exception.AssetNotSupportedException
@@ -55,6 +57,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * `BCM_PROVIDER=dfns` 조건부 조립 + 공개 계정·주소 유스케이스 + 실제 PostgreSQL 원장/증적 + 공식 명세 형태의 가짜 Dfns HTTP(로컬 HttpServer) 결합.
  * 조립 대상은 계정·주소 슬라이스뿐이다 — API 전체 컨텍스트는 `ProviderConfiguration`의 Dfns 기동 차단을 유지하므로 여기서 열지 않는다.
+ * Fireblocks 쪽 조립부(FireblocksAccountConfig·WalletProvisioningConfig)도 함께 등록해 조건부 제외가 실제로 동작하는지 본다.
  * 응답 JSON은 명세 `Wallet` schema 필드로 만든 표기이고 Baseline 실측이 아니다. 실벤더 호출 없음.
  */
 @DataJdbcTest
@@ -65,7 +68,8 @@ import java.util.concurrent.CopyOnWriteArrayList
     ClockConfig::class,
     DfnsClientConfig::class,
     DfnsAccountConfig::class,
-    DfnsAccountService::class,
+    FireblocksAccountConfig::class,
+    WalletProvisioningConfig::class,
     AccountQueryService::class,
     VendorAssetMappingQueryService::class,
     ProviderOriginJdbcAdapter::class,
@@ -138,8 +142,10 @@ class DfnsAccountAssemblyIntegrationTest {
     fun `dfns 선택은 Dfns 계정 유스케이스와 HTTP 어댑터만 조립하고 Fireblocks 계정 서비스·생성 정책은 만들지 않는다`() {
         assertThat(accounts).isInstanceOf(DfnsAccountService::class.java)
         assertThat(context.getBean(NetworkWalletProvisioningPort::class.java)).isInstanceOf(DfnsNetworkWalletClient::class.java)
+        assertThat(context.getBeansOfType(AccountOperations::class.java)).hasSize(1)
         assertThat(context.beanDefinitionNames).noneMatch { it.contains("fireblocks", ignoreCase = true) || it == "accountService" }
         assertThat(context.beanDefinitionNames).noneMatch { it.contains("walletProvisioningPolicy") }
+        assertThat(context.getBeanNamesForType(com.whatto.bcm.app.application.account.AccountService::class.java)).isEmpty()
     }
 
     @Test

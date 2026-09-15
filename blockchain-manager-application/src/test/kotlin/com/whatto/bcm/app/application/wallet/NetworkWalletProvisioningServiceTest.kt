@@ -3,6 +3,7 @@ package com.whatto.bcm.app.application.wallet
 import com.whatto.bcm.app.application.account.AccountQueryService
 import com.whatto.bcm.domain.account.AccountModel
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.ProvisioningPendingException
 import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.vendor.NetworkWalletProvisioningPort
 import com.whatto.bcm.domain.vendor.VendorPage
@@ -195,6 +196,32 @@ class NetworkWalletProvisioningServiceTest {
                 assertThat(it.suppressed).singleElement().isInstanceOf(IllegalStateException::class.java)
             }
         verify(exactly = 0) { repository.recordPage(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `검증된 지갑은 완료 의도의 ID와 원장 연결이 일치하고 주소가 있을 때만 돌려주며 진행 중·충돌은 공개 오류로 번역한다`() {
+        every { repository.reserve(F.seed(), F.NOW) } returns completed
+        every { repository.findWallet(F.seed().request.scope) } returns F.wallet()
+        assertThat(service.provisionedWallet(F.seed(), 5)).isEqualTo(F.wallet())
+
+        every { repository.findWallet(F.seed().request.scope) } returns F.wallet().copy(vendorWalletId = "other-wallet")
+        assertThatThrownBy { service.provisionedWallet(F.seed(), 5) }.isInstanceOf(ConflictException::class.java)
+        every { repository.findWallet(F.seed().request.scope) } returns F.wallet().copy(address = null)
+        assertThatThrownBy { service.provisionedWallet(F.seed(), 5) }.isInstanceOf(ConflictException::class.java)
+        every { repository.findWallet(F.seed().request.scope) } returns null
+        assertThatThrownBy { service.provisionedWallet(F.seed(), 5) }.isInstanceOf(ConflictException::class.java)
+
+        every { repository.reserve(F.seed(), F.NOW) } returns completed.copy(status = NetworkWalletCreationStatus.CONFLICT)
+        assertThatThrownBy { service.provisionedWallet(F.seed(), 5) }.isInstanceOf(ConflictException::class.java)
+        every { repository.reserve(F.seed(), F.NOW) } returns recovering.copy(lastReason = "ADDRESS_NOT_READY")
+        every { vendor.candidates(F.seed().request, null) } returns F.response(VendorPage(emptyList(), null))
+        every { repository.recordPage(any(), any(), any(), any()) } returns recovering.copy(lastReason = "NOT_OBSERVED")
+        assertThatThrownBy { service.provisionedWallet(F.seed(), 5) }
+            .isInstanceOfSatisfying(ProvisioningPendingException::class.java) {
+                assertThat(it.retryAfterSeconds).isEqualTo(5)
+                assertThat(it.reason).isEqualTo("NOT_OBSERVED")
+            }
+        verify(exactly = 0) { vendor.create(any(), any()) }
     }
 
     @Test

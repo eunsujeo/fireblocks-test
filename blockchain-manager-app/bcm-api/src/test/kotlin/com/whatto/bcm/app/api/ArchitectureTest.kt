@@ -87,6 +87,7 @@ class ArchitectureTest {
             "WebhookDecisionTransaction" to "webhook",
             "AllowanceRevocationCommandService" to "admin",
             "SweepBatchExecutionService" to "sweep",
+            "DfnsAccountService" to "account",
         ).forEach { (service, feature) ->
             noClasses()
                 .that()
