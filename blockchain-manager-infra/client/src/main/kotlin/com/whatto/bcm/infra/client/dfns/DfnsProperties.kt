@@ -31,8 +31,9 @@ data class DfnsProperties(
     /** BCM 네트워크 코드 → 명세 `network` enum 값. 역방향 변환에도 쓰므로 값이 중복되면 안 된다. */
     val networks: Map<String, String> = emptyMap(),
     /**
-     * 지갑 주소가 곧 토큰 수신 주소인 BCM 네트워크 코드(EVM 계정 모델, 그리고 owner 주소로 SPL 토큰을 받는 Solana — tag/memo 없음). `networks`의 키여야 한다.
-     * 여기 없는 네트워크의 토큰 주소 발급은 지원하지 않는 자산으로 거절한다 — chain별 수신 주소 모델 확인은 Baseline 수용 뒤 운영 결정이며 코드가 추정하지 않는다(계약13).
+     * 지갑 주소가 곧 토큰 수신 주소라고 운영자가 확인한 BCM 네트워크 코드(EVM 계정 모델·tag/memo 없음). `networks`의 키여야 한다.
+     * Solana는 owner 주소 SPL 수신이 Baseline 수용 항목(계약13)이라 수용 전에는 넣지 않는다 — 넣는 순간 주소 발급 경로가 열린다.
+     * 여기 없는 네트워크의 토큰 주소 발급은 지원하지 않는 자산으로 거절한다 — 수신 주소 모델 확인은 운영 결정이며 코드가 추정하지 않는다.
      */
     val accountAddressNetworks: Set<String> = emptySet(),
     /** 네트워크 지갑 준비가 진행 중일 때 호출자에게 안내하는 재시도 초. BCM 폴링 정책이며 벤더 보장이 아니다. */

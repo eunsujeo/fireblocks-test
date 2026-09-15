@@ -47,7 +47,19 @@ internal object DfnsAssetKeys {
         when {
             kind == NATIVE_KIND -> native(vendorNetwork)
             kind == ERC20_KIND -> erc20(vendorNetwork, requireNotNull(locator) { "Erc20 contract missing" })
-            kind in SPL_KINDS -> "${requireNetwork(vendorNetwork)}:$kind:${requireLocator(locator)}"
+            // 관찰 경로도 등록 경로와 같은 mint 검사(base58 32바이트)를 거친다 — 형식이 깨진 mint를 키로 만들어 미보유 0으로 축소하지 않는다.
+            kind in SPL_KINDS ->
+                spl(
+                    vendorNetwork,
+                    if (kind ==
+                        SPL_KIND
+                    ) {
+                        TokenStandard.SPL
+                    } else {
+                        TokenStandard.SPL_2022
+                    },
+                    requireNotNull(locator) { "mint missing" },
+                )
             else -> null
         }
 
@@ -100,10 +112,5 @@ internal object DfnsAssetKeys {
             vendorNetwork.isNotBlank() && vendorNetwork == vendorNetwork.trim() && !vendorNetwork.contains(':'),
         ) { "Invalid Dfns network" }
         return vendorNetwork
-    }
-
-    private fun requireLocator(locator: String?): String {
-        require(!locator.isNullOrBlank() && locator == locator.trim() && !locator.contains(':')) { "Invalid Dfns asset locator" }
-        return locator
     }
 }

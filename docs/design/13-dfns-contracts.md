@@ -235,10 +235,10 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 
 | 항목 | 계약 |
 |---|---|
-| 지갑 주소 | Dfns Solana 지갑의 `address`는 owner 공개키다(명세 `Wallet.address`). BCM은 이 값을 EVM과 같이 `bcm_addr_m`의 토큰 수신 주소로 저장한다 — SPL 전송은 수신자 owner 주소로 보내고 보내는 쪽이 mint별 token account(ATA)를 만든다. tag/memo는 없다 |
+| 지갑 주소(명세 사실 + BCM 규칙) | 명세 `Wallet.address`는 지갑의 온체인 주소이고 Solana에서는 owner 공개키다(명세는 필드만 두며 SPL 수신 동작을 서술하지 않는다). BCM 규칙: 이 값을 EVM과 같이 `bcm_addr_m`의 토큰 수신 주소로 저장한다. "SPL 전송을 owner 주소로 보내면 보내는 쪽이 mint별 token account(ATA)를 만든다"는 Solana 관행이지 Dfns Baseline 확답이 아니며 아래 수용 항목이다. tag/memo 요구는 없다 |
 | 발급 허용 | 운영자가 `bcm.dfns.account-address-networks`에 Solana 네트워크를 넣을 때만 발급한다. Dfns Baseline이 owner 주소로 들어온 SPL 입금을 지갑 자산으로 관찰하는지는 아래 수용 항목이며 확인 전에는 목록에 넣지 않는다. 코드는 ATA를 계산하지 않는다(ed25519 곡선 검사가 필요한 PDA 도출은 근거 있는 라이브러리 없이 구현하지 않음) |
 | 자산 키 | `<Network>:Spl:<mint>` / `<Network>:Spl2022:<mint>` — 명세 자산 kind `Spl`·`Spl2022`의 `mint`와 같다. mint는 base58 32바이트로 형식만 검사하고 소유 프로그램은 운영자 지정이다 |
-| 잔액 | 지갑 자산 관찰의 `Spl`·`Spl2022` 항목이 owner의 mint별 token account 합계로 보고된다고 가정하며(명세는 항목 단위를 서술하지 않음) 비ATA token account·동결·폐쇄 계정의 반영은 수용 항목이다. 잔액 유스케이스는 EVM과 같다 |
+| 잔액(BCM 해석 규칙 — 수용 전) | 지갑 자산 관찰의 `Spl`·`Spl2022` 항목을 owner의 mint별 token account 합계로 해석한다(명세는 항목 단위를 서술하지 않음). 비ATA token account·동결·폐쇄 계정의 반영은 수용 항목이다. 관찰 경로의 mint도 등록과 같은 base58 32바이트 검사를 거치며 형식이 깨지면 목록 전체를 실패시킨다(미보유 0으로 축소하지 않음). 잔액 유스케이스는 EVM과 같다 |
 | 미포함 | SPL 전송·수수료(SOL fee payer·rent)·집금·확정 모델은 Dfns 거래 조립과 계획의 Solana 게이트에서 다룬다. 이 절은 등록·주소·잔액 관찰까지다 |
 
 ### 잔액 계약 — 구현

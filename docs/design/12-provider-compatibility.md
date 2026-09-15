@@ -394,3 +394,9 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 선택 회귀: domain 115 · application 25 · client 35(dfns) · persistence(asset·wallet·account·migration) 73 · API(asset·account 유스케이스·account·AdminAsset·wallet·web·config·Architecture·Bootstrap) 148, 실패 0.
   전체 모듈 compileKotlin/compileTestKotlin·변경 모듈 ktlintCheck 통과. 실벤더 호출·운영 DB 적용·기동 차단 해제·push는 미수행이다.
 - **후속**: 거래·Sweep·Admin·웹훅의 Dfns 조립(그 뒤 `BCM_PROVIDER=dfns` 기동 차단 해제 결정), 수용 항목(Call Function 응답 형식, 지갑 자산 목록 단위/미보유, Solana owner 주소 수신·비ATA 계정·rent).
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 820223f..c1b913a, design-sync→code-reviewer 순차)**: Critical 1 — 잔액 관찰 경로의 `Spl`/`Spl2022` mint가 등록 경로와 달리
+  base58 32바이트 검사를 거치지 않아 손상된 응답이 유효 등록 키와 불일치하면 미보유 0으로 축소됨(에러 억제). Major 2 — 생성 api.md의 대표 요청이 Fireblocks 예시에 `tokenStandard`를 합쳐 구현이 거절하는 요청,
+  07·13·DfnsProperties가 Solana owner 주소 수신·token account 합계를 확정처럼 서술(같은 정본의 수용 표와 불일치). V25·chainModel 영속·모델별 오류·OpenAPI 필드·테스트 분리는 정합으로 확인됐다.
+- **반영**: `DfnsAssetKeys.of`가 `Spl`/`Spl2022` locator를 등록과 같은 `spl()`(base58 32바이트)로 만들고 형식 오류는 수신 바이트를 담은 `VendorApiException`으로 전파한다(잘못된 base58·33바이트·mint 누락 응답 거절 테스트 3건 추가).
+  OpenAPI `RegisterAssetMappingRequest`·`BulkRegisterAssetMappingsRequest`에 원천별 유효 예시 객체를 두고 생성물을 재생성했다. 07·13(지갑 주소·잔액 행)·DfnsProperties 주석을 "명세 사실 / BCM 규칙 / 수용 전 가정"으로 나눠 표현했다.
+  재실행: client(dfns) 35 · API(AdminAsset·wallet·account 유스케이스) 72, 실패 0. ktlintCheck 통과.

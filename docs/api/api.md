@@ -1771,8 +1771,7 @@ curl -X POST "https://{baseUrl}/blockchain/manage-api/admin/asset-mappings" \
   "network": "BASE",
   "symbol": "USDC",
   "fireblocksAssetId": "USDC_BASE",
-  "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  "tokenStandard": "SPL"
+  "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 }'
 ```
 
@@ -1791,8 +1790,7 @@ _요청 본문_
   "network": "BASE",
   "symbol": "USDC",
   "fireblocksAssetId": "USDC_BASE",
-  "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  "tokenStandard": "SPL"
+  "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 }
 ```
 
@@ -2002,8 +2000,13 @@ curl -X POST "https://{baseUrl}/blockchain/manage-api/admin/asset-mappings/bulk"
       "network": "BASE",
       "symbol": "USDC",
       "fireblocksAssetId": "USDC_BASE",
-      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "tokenStandard": "SPL"
+      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    },
+    {
+      "network": "ETHEREUM",
+      "symbol": "USDC",
+      "fireblocksAssetId": "USDC_ETH",
+      "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
     }
   ]
 }'
@@ -2026,8 +2029,13 @@ _요청 본문_
       "network": "BASE",
       "symbol": "USDC",
       "fireblocksAssetId": "USDC_BASE",
-      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "tokenStandard": "SPL"
+      "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    },
+    {
+      "network": "ETHEREUM",
+      "symbol": "USDC",
+      "fireblocksAssetId": "USDC_ETH",
+      "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
     }
   ]
 }
@@ -3964,6 +3972,11 @@ Dfns 원천 `{ "fireblocksAssetId": null, "dfnsAssetKey": "EthereumSepolia:Erc20
 
 
 ### RegisterAssetMappingRequest
+
+원천별 유효 요청 — Fireblocks `{ "network": "BASE", "symbol": "USDC", "fireblocksAssetId": "USDC_BASE", "contractAddress": "0x8335…2913" }`,
+Dfns EVM `{ "network": "ETHEREUM_SEPOLIA", "symbol": "USDC", "contractAddress": "0x1c7D…7238" }`,
+Dfns Solana `{ "network": "SOLANA_DEVNET", "symbol": "USDC", "contractAddress": "4zMM…ncDU", "tokenStandard": "SPL" }`.
+`fireblocksAssetId`와 `tokenStandard`는 서로 다른 원천의 필드라 한 요청에 함께 오지 않는다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|

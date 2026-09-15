@@ -269,7 +269,8 @@ Dfns 공개 명세에는 블록체인·자산 카탈로그 API가 없다. 따라
 - **자산은 network와 컨트랙트 주소(Solana는 mint)로 지정한다** — `fireblocksAssetId`를 보내면 400이다. 벤더 assetId 자리는 Dfns 자산 키
   `<Network>:Native` / `<Network>:Erc20:<소문자 contract>` / `<Network>:Spl|Spl2022:<mint>`가 대신하며 `vndr_ast_id`에 저장되고 잔액 관찰에서 같은 규칙으로 대조한다. Admin 응답은 `dfnsAssetKey`로만 노출한다.
 - **Solana 토큰은 Token Program을 운영자가 명시한다** — 같은 mint 주소로 SPL Token과 Token-2022를 구분할 수 없으므로 등록 요청 `tokenStandard`(`SPL`/`SPL_2022`)가 필수다.
-  mint는 base58 32바이트 공개키 형식을 검사한다. 네이티브 SOL·EVM 자산에 표준을 붙이면 400이다. Solana 잔액은 지갑 owner의 mint별 token account 합계로 Dfns가 보고한다.
+  mint는 base58 32바이트 공개키 형식을 검사한다. 네이티브 SOL·EVM 자산에 표준을 붙이면 400이다. Solana 잔액은 지갑 자산 관찰의 `Spl`/`Spl2022` 항목으로 읽으며,
+  그 값이 owner의 mint별 token account 합계인지는 계약13의 수용 항목이다(확정 사실 아님).
 - **온체인 대조는 운영자 몫이다** — 채택 명세의 read 호출은 응답 형식이 정해져 있지 않아 코드가 컨트랙트 존재·decimals를 확인하지 않는다. 발행사 공식 자료([계획](../dfns-compatibility-plan.md)의 등록표)와 대조한 뒤 등록하며, 벤더 read 대조는 계약13 수용 항목이다.
 
 ## Admin API — 같은 서비스의 `/admin/*` (2026-08-06 확정)
