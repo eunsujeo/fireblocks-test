@@ -235,3 +235,21 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   전자는 테스트 성공 후 스타일 실패를 포함하며 후자의 성공으로 해당 실패를 해소했다. V1~22와 공개 API 계약은 수정하지 않았다.
 - 내부 서비스는 기본 실행 빈/공개 API에 연결하지 않는다. 증적은 원문 바이트를 전달하고 저장 hash를 확인하는 포트까지만 구현했다.
   실제 보호 원문 저장소·Dfns 어댑터·자산 수신 주소 연결·실벤더 호출·운영 적용·독립 converge는 미수행이며 Dfns 기동 차단을 유지한다.
+
+## 응답 증적 보관과 서비스·DB 결합 검증 (2026-09-15)
+
+- [03의 V24](03-bcm-db.md#v24-네트워크-지갑-응답-증적-보관--물리-저장-계약)에 원문 접근권한·보관/조회·무결성·실패 전파 계약을 먼저 고정했다.
+  `bcm_ntwk_wlt_evdc_l`은 응답 바이트를 BYTEA로 보관하고 길이·SHA-256을 DB가 계산해 CHECK로 강제하며 UPDATE/DELETE를 trigger로 거절한다.
+  `NetworkWalletEvidenceJdbcAdapter`가 저장 포트와 메타데이터 조회(`NetworkWalletEvidenceArchive`)를 구현하고 원문은 반환하지 않는다.
+- 저장 어댑터 부재 컴파일 실패를 확인한 뒤 구현했다. 새 PostgreSQL 테스트 8건은 바이트 그대로 보관·DB 계산 hash 반환·참조 조회,
+  빈 본문, 수정/삭제 거절, 본문과 다른 hash/길이 거절, 다른 scope/원천 거절, 호출자 롤백 뒤 증적 보존, 참조 형식 검사, PK/FK/CHECK/감사 컬럼을 검증한다.
+- 내부 생성 서비스와 실제 원장·증적 저장소·논리 계정 저장소를 별도 Dfns 데이터셋(`ProviderOriginTestDatabase.createDfns`)에서 결합한 슬라이스 6건은
+  최초 생성 1 POST와 CREATE 증적 hash 일치, 응답 유실 뒤 새 인스턴스의 조회 회수(POST 0), 증적 저장 실패 전파와 이후 조회 재개,
+  원장 저장 실패에서 증적 보존·페이지/연결 롤백·재개, 실제 DB 권한 경쟁의 create 1회, 완료 재요청의 외부 호출/증적 추가 0을 검증한다.
+  API 조립 지점 대신 테스트 전용 앵커 설정을 쓰며 기본 실행 빈·공개 API에는 여전히 연결하지 않는다. `BCM_PROVIDER=dfns` 기동 차단은 유지한다.
+- 벤더 포트는 내부 대역이고 응답 바이트는 BCM 내부 표기다. 보관 대상 작업과 응답 schema는 [계약13](13-dfns-contracts.md#응답-증적-보관-계약--구현)에서
+  공식 OpenAPI 1.1018.3으로 기록했으며 실제 Baseline 응답·서명 원문 대조는 운영 연결 전 수용 항목이다.
+- 선택 회귀: domain 105 · application 21 · persistence(wallet·account·provider) 57 · API(Bootstrap·wallet·Architecture·ProviderStartup) 32 = **215건**,
+  실패/오류/skip 0. Bootstrap의 정확한 테이블 목록에 신규 1개만 추가했고 기존 assertion을 완화하지 않았다. 변경 모듈 전체 ktlintCheck 통과.
+- bcm-api 테스트 의존에 Boot 관리 `spring-boot-starter-data-jdbc-test`를 추가했다(persistence가 이미 사용하는 좌표, 별도 커밋·lockfile 갱신).
+  실벤더 호출·운영 DB 적용·배포·독립 converge는 미수행이다.

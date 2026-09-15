@@ -105,6 +105,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             "bcm_ntwk_wlt_obs_l",
             "bcm_ntwk_wlt_obs_item_l",
             "bcm_ntwk_wlt_m",
+            "bcm_ntwk_wlt_evdc_l",
             "bcm_acnt_crtn_l",
             "bcm_acnt_m",
             "bcm_addr_crtn_l",
