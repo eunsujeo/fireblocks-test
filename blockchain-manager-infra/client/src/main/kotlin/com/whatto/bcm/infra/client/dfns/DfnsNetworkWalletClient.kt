@@ -36,7 +36,8 @@ import java.security.MessageDigest
  *   소유는 `custodial=true`(명세: 조직 소유)·`signingKey.delegatedTo` 없음·`vaultId`(Vault 통제 지갑) 없음·`status=Active`일 때만 ORGANIZATION이고
  *   그 밖은 OTHER다. 판정에 필요한 필드가 결손이면 지갑을 정규화하지 않고 오류다.
  * - 네트워크: 명세 `network` 값을 설정 매핑으로 BCM 코드로 되돌리고, 매핑에 없으면 원문 값을 그대로 둬 판정에서 불일치로 드러나게 한다.
- * - assets: 명세 응답의 `walletId`·`network`가 요청 지갑·scope와 같아야 하고 항목마다 필수 `kind`·`decimals`·`balance`를 형식대로 검사한다.
+ * - assets: 명세 응답의 `walletId`가 요청 지갑과, `network` 원문이 scope 네트워크의 설정 매핑값과 같아야 하고(역변환 fallback 없음) 항목마다 필수
+ *   `kind`·`decimals`·`balance`를 형식대로 검사한다.
  *   `Native`·`Erc20`·`Spl`·`Spl2022`는 자산 매핑과 같은 규칙의 키(`DfnsAssetKeys`)로 정규화하고 그 밖의 kind는 대조 대상이 아니라 제외한다.
  *   `balance`는 최소 단위 정수 문자열, `decimals`는 같은 항목의 소수 자릿수로 읽으며 다른 단위로 추정하지 않는다(계약13 수용 항목).
  */
@@ -138,9 +139,9 @@ class DfnsNetworkWalletClient(
         val node = parseObject(response)
         val walletId = requiredText(node, "walletId", response)
         if (walletId != vendorWalletId) throw response.failure("Dfns wallet id mismatch in assets response")
+        // scope의 설정 매핑값과 응답 network 원문을 직접 대조한다 — 매핑 없는 원문을 BCM 코드로 되돌리는 관찰용 fallback을 여기서는 쓰지 않는다.
         val vendorNetwork = requiredText(node, "network", response)
-        val network = bcmNetwork(vendorNetwork)
-        if (network != scope.network) throw response.failure("Dfns wallet network mismatch in assets response")
+        if (vendorNetwork != properties.networks[scope.network]) throw response.failure("Dfns wallet network mismatch in assets response")
         val items = node.path("assets")
         if (!items.isArray) throw response.failure("Dfns $ASSETS_OPERATION 응답 결손: assets")
         val balances =
@@ -172,7 +173,7 @@ class DfnsNetworkWalletClient(
                     throw response.failure("Dfns $ASSETS_OPERATION 응답 필드 형식 오류", exception)
                 }
             }
-        return NetworkWalletAssetSnapshot(walletId, network, balances)
+        return NetworkWalletAssetSnapshot(walletId, scope.network, balances)
     }
 
     private fun requireWalletId(vendorWalletId: String) {

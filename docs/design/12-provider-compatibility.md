@@ -361,3 +361,12 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 선택 회귀: domain 115 · application 25 · client 118 · persistence(wallet·account·asset) 68 · API(asset·account 유스케이스·account·AdminAsset·wallet·web·config·Architecture·Bootstrap·ProviderStartup) 158 = **484건**, 실패/오류/skip 0.
   변경 모듈 ktlintCheck 통과. `VendorAssetMapping`에 넣었던 길이 require는 기존 영속성 테스트(길이 결함은 데이터 오류)와 어긋나 제거하고 관문에서만 검사한다. 실벤더 호출·운영 적용·DDL 변경·`BCM_PROVIDER=dfns` 기동 차단 해제·push는 미수행이다.
 - **후속**: tag/memo 체인 주소 모델(Solana 자산 locator·`vndr_ast_id` 확장 DDL), 거래·Sweep·Admin·웹훅의 Dfns 조립, 수용 항목(Call Function 응답 형식, 지갑 자산 목록의 단위/미보유 의미).
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 bb835d0..072549a, design-sync→code-reviewer 순차)**:
+  design-sync Major 3 — ① 계약13 잔액 절이 최소 단위 변환·미보유 0을 확정으로 쓰는데 수용 표는 가정으로 둠, ② 설계에 없는 `decimals` 0..77 상한, ③ 응답 network를 BCM 코드로 되돌리는 fallback 때문에
+  BCM 코드 문자열이 그대로 오면 불일치 검사를 통과. code-reviewer Critical 2 — C1 = ③(잘못된 network 응답이 0 잔액으로 반환될 수 있음), C2 = 잔액 단위·미보유 의미의 공개 근거 부재(추측 금지 기준);
+  Major 2 — `decimals` 상한이 등록 관문과 어긋나 요청하지 않은 자산 때문에 조회가 실패할 수 있음, Fireblocks 필수 assetId 검사가 카탈로그 호출 뒤에 있고 테스트가 외부 호출 0을 검증하지 않음;
+  Minor 1 — 생성 api.md 예시가 `fireblocksAssetId`·`dfnsAssetKey`를 모두 채움. 자산 키·64자·DBA seed·nullable 응답·조건부 조립·테스트 재배치는 정합으로 확인됐다.
+- **반영**: assets 응답 `network` 원문을 scope의 설정 매핑값과 직접 대조하고 fallback을 쓰지 않는다(BCM 코드·다른 Dfns network 응답 거절 테스트 추가). 공식 문서 페이지(Get Wallet Assets `.md`, 해시 계약13)와 현재 OpenAPI 2.0.54를 재확인해
+  단위·미보유 서술이 없음을 계약13에 기록하고, 잔액 절을 "명세로 확인한 사실"과 "BCM 해석 규칙 — 수용 전"으로 나눠 정수 형식 검사가 해석 오류를 실패로 드러내는 안전장치임을 명시했다(OpenAPI balancesOf 설명도 같게).
+  `decimals` 상한은 모델링한 자산 표준의 uint8/u8(255)로 근거를 두고 경계 테스트(255/256)를 추가했다. Fireblocks 관문은 후보 assetId 누락을 카탈로그 호출 전에 거절하고 테스트가 외부 호출 0을 검증한다.
+  OpenAPI `AssetMapping`에 원천별 예시 객체를 두고 생성물을 재생성했다. 재실행: domain(vendor) 18 · client(dfns) 31 · API(asset·account·AdminAsset·wallet) 107, 실패 0. 변경 모듈 ktlintCheck 통과.

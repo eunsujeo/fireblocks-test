@@ -44,8 +44,11 @@ data class NetworkWalletAssetBalance(
     fun amount(): String = BigDecimal(BigInteger(baseUnits), decimals).stripTrailingZeros().toPlainString()
 
     companion object {
-        /** 관찰 가능한 최대 소수 자릿수 — 벤더 응답 `decimals`(number)의 형식 검사 상한이다. */
-        const val MAX_DECIMALS = 77
+        /**
+         * 소수 자릿수 형식 상한 — 명세는 `decimals: number`만 두므로 BCM 정규화 한계로 둔다. 모델링한 자산(EVM ERC-20 `decimals()` uint8,
+         * Solana SPL mint decimals u8)의 값은 255를 넘을 수 없어 그 밖은 벤더 응답 형식 오류로 취급한다(계약13 잔액 계약).
+         */
+        const val MAX_DECIMALS = 255
         private val BASE_UNITS = Regex("0|[1-9][0-9]*")
     }
 }

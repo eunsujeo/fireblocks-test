@@ -23,19 +23,29 @@ class FireblocksChainAssetResolver(
         blockchain: VendorBlockchainCatalog,
         locators: List<ChainAssetLocator>,
     ): List<ChainAssetResolution> {
-        if (locators.isEmpty()) return emptyList()
+        // 필수값(후보 assetId)은 카탈로그를 읽기 전에 검사한다 — 입력 오류가 외부 호출·카탈로그 장애에 가려지지 않게 한다.
+        if (locators.none { it.fireblocksAssetId != null }) return locators.map { rejectMissingId(it) }
         val assets = allVendorAssets(blockchain.candidateId)
-        return locators.map { resolve(blockchain, assets, it) }
+        return locators.map { locator ->
+            if (locator.fireblocksAssetId ==
+                null
+            ) {
+                rejectMissingId(locator)
+            } else {
+                resolve(blockchain, assets, locator)
+            }
+        }
     }
+
+    private fun rejectMissingId(locator: ChainAssetLocator) =
+        ChainAssetResolution.Rejected(InvalidAssetMappingException(locator.network, "fireblocksAssetIdRequired"))
 
     private fun resolve(
         blockchain: VendorBlockchainCatalog,
         assets: List<VendorAsset>,
         locator: ChainAssetLocator,
     ): ChainAssetResolution {
-        val fireblocksAssetId =
-            locator.fireblocksAssetId
-                ?: return ChainAssetResolution.Rejected(InvalidAssetMappingException(locator.network, "fireblocksAssetIdRequired"))
+        val fireblocksAssetId = checkNotNull(locator.fireblocksAssetId)
         val matches =
             assets.filter { asset ->
                 asset.blockchainId == blockchain.candidateId &&

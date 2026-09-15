@@ -234,11 +234,11 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 
 | 항목 | 계약 |
 |---|---|
-| 원천 | 채택 명세 1.1018.3 `GET /wallets/{walletId}/assets` — 응답 `walletId`·`network`·`assets[]{kind, <locator>, symbol?, decimals, balance, verified?}`. 인증 토큰만 필요하고 사용자 행위 서명은 없다 |
+| 원천(명세로 확인한 사실) | 채택 명세 1.1018.3 `GET /wallets/{walletId}/assets` — 응답 `walletId`·`network`·`assets[]{kind, <locator>, symbol?, decimals(number, 필수), balance(string, 필수), verified?}`. 설명은 "assets owned by the specified wallet"이다. 인증 토큰만 필요하고 사용자 행위 서명은 없다. 현재 OpenAPI 2.0.54와 공식 문서 페이지([Get Wallet Assets](https://docs.dfns.co/api-reference/wallets/get-wallet-assets), `.md` SHA-256 `24acec3a459fcae025a46f7aafd2bb6ae21b31a1da52bf22a28cbb10ada6e774`, 2026-09-15 확인)도 같은 필드만 두며 **`balance`의 단위와 미보유 토큰의 목록 포함 여부는 어디에도 서술되지 않는다** |
 | 조회 단위 | 주소가 발급된 자산만 대상이다(Fireblocks와 같은 공개 계약). 발급 네트워크마다 원장의 준비 지갑(`NetworkWalletProvisioningService.readyWallet`)을 찾아 자산 목록을 **한 번** 읽고, 매핑의 `vendorAssetId`와 같은 Dfns 자산 키 항목이 그 자산의 잔액이다 |
-| 필드 대응 | `balance`는 최소 단위 정수 문자열, `decimals`는 같은 항목의 소수 자릿수로 읽어 `NetworkWalletAssetBalance.amount()`가 지수 표기 없는 소수 금액을 만든다(값 불변, 뒤따르는 0 제거, 0은 `"0"`). 매핑에 별도 정밀도를 보관하지 않는다. `VendorBalance`는 total·available = 그 금액, pending·frozen·lockedAmount = `null`이다. 공개 `AssetBalance`의 `pending`·`locked`는 0.12.0부터 nullable이며 Fireblocks 응답은 그대로다 |
-| 목록에 없는 자산 | 지갑이 보유하지 않은 등록 자산은 `"0"`이다. BCM이 만든 지갑은 생성 뒤부터 Dfns가 관찰하므로 미보유=0이다(관찰 목록 의미는 아래 수용 항목) |
-| 형식 검사 | `walletId`가 요청 지갑과 다르거나 `network`가 scope와 다르면 실패다. 항목은 객체여야 하고 `kind`·`decimals`(정수)·`balance`(정수 문자열)·`verified`(boolean)의 형식을 검사한다. 모델링한 kind(`Native`·`Erc20`·`Spl`·`Spl2022`)만 키로 정규화하고 그 밖의 kind는 대조 대상이 아니라 제외한다 |
+| 필드 대응(BCM 해석 규칙 — 수용 전) | 명세가 `decimals`를 `balance`와 함께 필수로 두므로 BCM은 `balance`를 **최소 단위 정수 문자열**로, `decimals`를 같은 항목의 소수 자릿수로 해석해 `NetworkWalletAssetBalance.amount()`가 지수 표기 없는 소수 금액을 만든다(값 불변, 뒤따르는 0 제거, 0은 `"0"`). 이 해석은 공개 자료로 확정되지 않은 **BCM 규칙**이며 아래 수용 항목이다. 해석이 틀렸을 때 잘못 축척한 값이 나가지 않도록 `balance`가 정수 형식이 아니면(소수점·부호·지수) 0이나 원문으로 바꾸지 않고 실패한다. 매핑에 별도 정밀도를 보관하지 않는다. `VendorBalance`는 total·available = 그 금액, pending·frozen·lockedAmount = `null`이다. 공개 `AssetBalance`의 `pending`·`locked`는 0.12.0부터 nullable이며 Fireblocks 응답은 그대로다 |
+| 목록에 없는 자산(BCM 해석 규칙 — 수용 전) | 명세 설명 "assets owned by the specified wallet"을 근거로 목록에 없는 등록 자산은 미보유로 보고 `"0"`을 돌려준다. 미보유/미관찰의 구분은 응답만으로 할 수 없으므로 이 규칙은 아래 수용 항목이며, 확인 결과에 따라 유지하거나 "관찰 없음" 오류로 바꾼다. BCM이 만든 지갑은 생성 뒤부터 Dfns가 관찰한다는 점은 이 규칙의 전제이지 공개 자료의 확답이 아니다 |
+| 형식 검사 | `walletId`가 요청 지갑과 다르거나 응답 `network` 원문이 scope 네트워크의 설정 매핑값(`bcm.dfns.networks`)과 다르면 실패다 — 매핑 없는 원문을 BCM 코드로 되돌리는 관찰용 fallback은 쓰지 않는다. 항목은 객체여야 하고 `kind`·`decimals`(정수 0..255 — 명세에 상한이 없어 모델링한 자산 표준의 uint8/u8 `decimals`를 BCM 정규화 한계로 둔다)·`balance`(정수 문자열)·`verified`(boolean)의 형식을 검사한다. 모델링한 kind(`Native`·`Erc20`·`Spl`·`Spl2022`)만 키로 정규화하고 그 밖의 kind는 대조 대상이 아니라 제외한다. 형식이 깨진 항목이 있으면 목록 전체를 신뢰하지 않고 실패한다(요청 자산만 골라 답하지 않음) |
 | drift | 발급 기록이 있는데 준비 지갑이 없거나 응답 지갑·네트워크가 다르거나 같은 키가 둘이면 빈 배열·0으로 숨기지 않고 `INTERNAL`(500)이다. HTTP 오류는 상태·수신 바이트를 담은 `VendorApiException`으로 전파한다 |
 | 미포함 | BCM 예약·컴플라이언스 보류 차감은 Dfns 거래 조립 뒤의 계약이다(계획 "잔액과 자금 통제"). 잔액 응답은 V24 증적 대상이 아니다(생성 의도 작업만 보관) |
 
@@ -365,6 +365,6 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 웹훅 원문·서명·retry | 서명된 바이트, timestamp, 실제 retry/이력 응답과 ID 연결 | 공통 수신 순서·보존·선택 구현 회귀 |
 | 조직 Wallet·초기 체인/USDC·KRWK | 지원 조합·자산 locator·소유·정책/가스 권한 | 체인 식별/확정/대납 인터페이스 설계; 추가 체인 실구현은 후속 |
 | 자산 등록의 온체인 대조 | 채택 명세 `POST /networks/{network}/call-function`의 실제 응답 형식(ERC-20 `decimals()`·`symbol()` read), 또는 다른 검증 원천 | Dfns 데이터셋 등록 관문(설정·네트워크 행·EVM 주소 형식·키 길이)은 구현 완료. 온체인 대조는 발행사 공식 자료로 운영자가 수행 |
-| 지갑 자산 목록의 의미 | `balance`의 단위(최소 단위 정수 가정)·`decimals` 출처, 미보유/0 잔액 토큰의 목록 포함 여부, 생성 전 입금 토큰의 관찰 시점 | 잔액 어댑터·유스케이스·계약 테스트 완료. 미보유 자산 `"0"` 규칙은 이 확인 뒤 유지/변경 |
+| 지갑 자산 목록의 의미 | `balance`의 단위(BCM 해석: 최소 단위 정수 — 공개 명세·문서에 서술 없음)·`decimals` 출처, 미보유/0 잔액 토큰의 목록 포함 여부, 생성 전 입금 토큰의 관찰 시점 | 잔액 어댑터·유스케이스·계약 테스트 완료. 정수 형식 검사가 해석 오류를 실패로 드러낸다. 미보유 자산 `"0"` 규칙은 이 확인 뒤 유지/변경 |
 
 사용자 지정 wiki의 질문은 벤더 확답이 아니다. 자료가 없는 항목을 임의로 채우거나 실벤더 호출로 확인하지 않는다.
