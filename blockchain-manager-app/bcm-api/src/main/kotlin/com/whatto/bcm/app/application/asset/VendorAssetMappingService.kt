@@ -93,6 +93,7 @@ class VendorAssetMappingService(
             throw ConflictException("assetMapping", "${command.network}:${command.symbol}")
         }
         val blockchain = adoptedBlockchain(command.network)
+        resolver.inspect(blockchain, command.locator())?.let { throw it }
         val resolved =
             when (val resolution = resolver.resolveAll(blockchain, listOf(command.locator())).single()) {
                 is ChainAssetResolution.Resolved -> resolution.asset
@@ -132,14 +133,29 @@ class VendorAssetMappingService(
             }
         }
 
-        // 네트워크마다 한 번 해소한다 — 네트워크 전체 실패(채택 안 함·벤더 조회 실패)는 그 네트워크의 첫 항목에 표시한다.
+        // 채택 네트워크와 벤더 호출 없이 판정할 수 있는 항목 실패를 index 순서로 먼저 거절한다 — 외부 호출 전에 입력 오류가 드러난다.
+        val blockchains =
+            commands.map { it.network }.distinct().associateWith { network ->
+                val index = commands.indexOfFirst { it.network == network }
+                try {
+                    adoptedBlockchain(network)
+                } catch (exception: BcmException) {
+                    throw bulkFailure(index, commands[index], failureReason(exception), exception)
+                }
+            }
+        commands.forEachIndexed { index, command ->
+            resolver.inspect(checkNotNull(blockchains[command.network]), command.locator())?.let { failure ->
+                throw bulkFailure(index, command, failureReason(failure), failure)
+            }
+        }
+        // 네트워크마다 한 번 해소한다 — 네트워크 전체 실패(벤더 조회 실패)는 그 네트워크의 첫 항목에 표시한다.
         val resolutions = mutableMapOf<Int, ChainAssetResolution>()
         commands.map { it.network }.distinct().forEach { network ->
             val indexes = commands.indices.filter { commands[it].network == network }
             val first = indexes.first()
             val resolved =
                 try {
-                    resolver.resolveAll(adoptedBlockchain(network), indexes.map { commands[it].locator() })
+                    resolver.resolveAll(checkNotNull(blockchains[network]), indexes.map { commands[it].locator() })
                 } catch (exception: BcmException) {
                     throw bulkFailure(first, commands[first], failureReason(exception), exception)
                 }

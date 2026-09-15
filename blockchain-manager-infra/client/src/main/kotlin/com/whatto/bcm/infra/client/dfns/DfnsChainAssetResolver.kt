@@ -2,6 +2,7 @@ package com.whatto.bcm.infra.client.dfns
 
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
+import com.whatto.bcm.domain.exception.BcmException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.vendor.ChainAssetLocator
 import com.whatto.bcm.domain.vendor.ChainAssetResolution
@@ -19,6 +20,12 @@ import com.whatto.bcm.domain.vendor.ResolvedChainAsset
 class DfnsChainAssetResolver(
     private val properties: DfnsProperties,
 ) : ChainAssetResolver {
+    /** 모든 검사가 벤더 호출 없이 끝나므로 inspect와 해소의 판정은 같다. */
+    override fun inspect(
+        blockchain: VendorBlockchainCatalog,
+        locator: ChainAssetLocator,
+    ): BcmException? = (resolve(blockchain, locator) as? ChainAssetResolution.Rejected)?.failure
+
     override fun resolveAll(
         blockchain: VendorBlockchainCatalog,
         locators: List<ChainAssetLocator>,

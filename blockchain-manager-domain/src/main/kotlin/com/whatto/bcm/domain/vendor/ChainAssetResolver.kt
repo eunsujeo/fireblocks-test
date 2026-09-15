@@ -11,8 +11,18 @@ import com.whatto.bcm.domain.exception.BcmException
  * - 한 네트워크의 여러 locator를 한 번에 해소한다. 구현은 벤더 카탈로그를 네트워크마다 한 번만 읽을 수 있다.
  * - 항목별 실패는 예외로 던지지 않고 [ChainAssetResolution.Rejected]로 돌려준다 — 일괄 등록이 실패한 항목의 index를 정확히 표시한다.
  *   네트워크 전체에 해당하는 실패(벤더 조회 실패 등)만 예외로 전파한다.
+ * - 벤더 호출 없이 판정할 수 있는 실패는 [inspect]로 먼저 드러내 필수값 누락이 외부 호출·벤더 장애에 가려지지 않게 한다.
  */
-fun interface ChainAssetResolver {
+interface ChainAssetResolver {
+    /**
+     * 벤더 호출 없이 판정할 수 있는 항목 실패(필수값 누락·형식 오류 등) — 유스케이스가 외부 호출 전에 index 순서대로 먼저 거절한다.
+     * null이면 이 단계에서는 거절 사유가 없다는 뜻이며 해소 결과를 보장하지 않는다.
+     */
+    fun inspect(
+        blockchain: VendorBlockchainCatalog,
+        locator: ChainAssetLocator,
+    ): BcmException? = null
+
     fun resolveAll(
         blockchain: VendorBlockchainCatalog,
         locators: List<ChainAssetLocator>,

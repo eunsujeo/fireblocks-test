@@ -367,6 +367,12 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   Major 2 — `decimals` 상한이 등록 관문과 어긋나 요청하지 않은 자산 때문에 조회가 실패할 수 있음, Fireblocks 필수 assetId 검사가 카탈로그 호출 뒤에 있고 테스트가 외부 호출 0을 검증하지 않음;
   Minor 1 — 생성 api.md 예시가 `fireblocksAssetId`·`dfnsAssetKey`를 모두 채움. 자산 키·64자·DBA seed·nullable 응답·조건부 조립·테스트 재배치는 정합으로 확인됐다.
 - **반영**: assets 응답 `network` 원문을 scope의 설정 매핑값과 직접 대조하고 fallback을 쓰지 않는다(BCM 코드·다른 Dfns network 응답 거절 테스트 추가). 공식 문서 페이지(Get Wallet Assets `.md`, 해시 계약13)와 현재 OpenAPI 2.0.54를 재확인해
-  단위·미보유 서술이 없음을 계약13에 기록하고, 잔액 절을 "명세로 확인한 사실"과 "BCM 해석 규칙 — 수용 전"으로 나눠 정수 형식 검사가 해석 오류를 실패로 드러내는 안전장치임을 명시했다(OpenAPI balancesOf 설명도 같게).
-  `decimals` 상한은 모델링한 자산 표준의 uint8/u8(255)로 근거를 두고 경계 테스트(255/256)를 추가했다. Fireblocks 관문은 후보 assetId 누락을 카탈로그 호출 전에 거절하고 테스트가 외부 호출 0을 검증한다.
+  단위·미보유 서술이 없음을 계약13에 기록하고, 잔액 절을 "명세로 확인한 사실"과 "BCM 해석 규칙 — 수용 전"으로 나눠 정수 형식 검사의 한계(정수가 아닌 형식만 거절, 단위 정확성은 별도 수용)를 명시했다(OpenAPI balancesOf 설명도 같게).
+  `decimals` 상한은 모델링한 자산 표준의 uint8/u8(255)로 근거를 두고 경계 테스트(255/256)를 추가했다. 관문 포트에 벤더 호출 없는 항목 선검사 `inspect`를 두어 단건·일괄(정상 ID와 누락 ID 혼합 포함) 모두 카탈로그 호출 전에 누락 항목의 index로 거절하고 테스트가 외부 호출 0을 검증한다.
   OpenAPI `AssetMapping`에 원천별 예시 객체를 두고 생성물을 재생성했다. 재실행: domain(vendor) 18 · client(dfns) 31 · API(asset·account·AdminAsset·wallet) 107, 실패 0. 변경 모듈 ktlintCheck 통과.
+- **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta 072549a..8c8893d, design-sync→code-reviewer 순차)**: Critical 2·design-sync ③·Minor 해소 확인, Critical 없음. 남은 Major 2 —
+  ① 계약13·설계12가 정수 형식 검사로 단위 해석 오류까지 드러난다고 과장(정수 형식만 거절하며 단위 정확성은 판별 불가), ② Fireblocks 필수 assetId 선검사가 단건·전체 누락만 해당하고
+  정상 ID와 누락 ID가 섞인 일괄 요청은 카탈로그를 호출.
+- **반영**: 계약13·OpenAPI·설계12 문구를 "정수가 아닌 형식만 거절, 단위 정확성은 별도 수용"으로 고쳤다. 관문 포트에 벤더 호출 없는 항목 선검사 `inspect`를 추가해 유스케이스가 단건·일괄 모두
+  카탈로그 호출 전에 index 순서로 거절한다(Fireblocks: assetId 누락, Dfns: 모든 검사). 혼합 일괄 요청이 index 1·`fireblocksAssetIdRequired`로 거절되고 외부 호출 0인 테스트를 추가했다.
+  재실행: domain(vendor) 18 · client(dfns) 31 · API(asset·account·AdminAsset·wallet·Architecture) 119, 실패 0. 변경 모듈 ktlintCheck 통과.
