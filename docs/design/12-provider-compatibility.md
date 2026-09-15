@@ -376,3 +376,6 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **반영**: 계약13·OpenAPI·설계12 문구를 "정수가 아닌 형식만 거절, 단위 정확성은 별도 수용"으로 고쳤다. 관문 포트에 벤더 호출 없는 항목 선검사 `inspect`를 추가해 유스케이스가 단건·일괄 모두
   카탈로그 호출 전에 index 순서로 거절한다(Fireblocks: assetId 누락, Dfns: 모든 검사). 혼합 일괄 요청이 index 1·`fireblocksAssetIdRequired`로 거절되고 외부 호출 0인 테스트를 추가했다.
   재실행: domain(vendor) 18 · client(dfns) 31 · API(asset·account·AdminAsset·wallet·Architecture) 119, 실패 0. 변경 모듈 ktlintCheck 통과.
+- **독립 converge 3차(같은 Codex reviewer 세션, 수정 delta 8c8893d..f4e4e38, design-sync→code-reviewer 순차)**: 잔여 Major 2건 해소 확인, 신규 Critical/Major/Minor 없음.
+  `inspect == null`을 등록 성공으로 취급하지 않고 이후 `resolveAll`을 수행하는 점, 기존 stub의 object 전환이 assertion 동일임을 확인했다. 검토 기준 commit은 f4e4e38이다.
+  실벤더 호출·운영 적용·기동 차단 해제·push는 미수행이다.
