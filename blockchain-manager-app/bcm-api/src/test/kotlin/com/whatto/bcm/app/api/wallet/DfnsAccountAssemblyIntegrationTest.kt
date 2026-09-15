@@ -4,27 +4,38 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import com.whatto.bcm.app.application.account.AccountOperations
 import com.whatto.bcm.app.application.account.AccountQueryService
+import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.account.DfnsAccountService
+import com.whatto.bcm.app.application.asset.FireblocksChainAssetResolver
+import com.whatto.bcm.app.application.asset.RegisterVendorAssetMappingCommand
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
+import com.whatto.bcm.app.application.asset.VendorAssetMappingService
 import com.whatto.bcm.app.config.ClockConfig
 import com.whatto.bcm.app.config.DfnsAccountConfig
 import com.whatto.bcm.app.config.FireblocksAccountConfig
+import com.whatto.bcm.app.config.FireblocksAssetConfig
 import com.whatto.bcm.app.config.ProviderOriginConfiguration
 import com.whatto.bcm.app.config.WalletProvisioningConfig
 import com.whatto.bcm.domain.account.AccountModel
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.exception.AssetNotSupportedException
+import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.ProvisioningPendingException
-import com.whatto.bcm.domain.exception.UnprocessableRequestException
 import com.whatto.bcm.domain.monitoring.NoOpOperationalMetricsPort
 import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
+import com.whatto.bcm.domain.vendor.ChainAssetResolver
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetPort
 import com.whatto.bcm.domain.vendor.NetworkWalletProvisioningPort
+import com.whatto.bcm.domain.vendor.VendorBalance
+import com.whatto.bcm.infra.client.dfns.DfnsChainAssetResolver
 import com.whatto.bcm.infra.client.dfns.DfnsClientConfig
 import com.whatto.bcm.infra.client.dfns.DfnsNetworkWalletClient
 import com.whatto.bcm.infra.persistence.account.AccountJdbcAdapter
 import com.whatto.bcm.infra.persistence.account.DepositAddressJdbcAdapter
 import com.whatto.bcm.infra.persistence.account.LogicalAccountJdbcAdapter
+import com.whatto.bcm.infra.persistence.asset.VendorAssetCatalogCacheJdbcAdapter
 import com.whatto.bcm.infra.persistence.asset.VendorAssetMappingJdbcAdapter
+import com.whatto.bcm.infra.persistence.asset.VendorBlockchainCatalogJdbcAdapter
 import com.whatto.bcm.infra.persistence.provider.ProviderOriginJdbcAdapter
 import com.whatto.bcm.infra.persistence.wallet.NetworkWalletEvidenceJdbcAdapter
 import com.whatto.bcm.infra.persistence.wallet.NetworkWalletProvisioningJdbcAdapter
@@ -56,8 +67,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * `BCM_PROVIDER=dfns` 조건부 조립 + 공개 계정·주소 유스케이스 + 실제 PostgreSQL 원장/증적 + 공식 명세 형태의 가짜 Dfns HTTP(로컬 HttpServer) 결합.
- * 조립 대상은 계정·주소 슬라이스뿐이다 — API 전체 컨텍스트는 `ProviderConfiguration`의 Dfns 기동 차단을 유지하므로 여기서 열지 않는다.
- * Fireblocks 쪽 조립부(FireblocksAccountConfig·WalletProvisioningConfig)도 함께 등록해 조건부 제외가 실제로 동작하는지 본다.
+ * 조립 대상은 계정·주소·잔액 슬라이스와 Admin 자산 등록 유스케이스다 — API 전체 컨텍스트는 `ProviderConfiguration`의 Dfns 기동 차단을 유지하므로 여기서 열지 않는다.
+ * Fireblocks 쪽 조립부(FireblocksAccountConfig·WalletProvisioningConfig·FireblocksAssetConfig)도 함께 등록해 조건부 제외가 실제로 동작하는지 본다.
  * 응답 JSON은 명세 `Wallet` schema 필드로 만든 표기이고 Baseline 실측이 아니다. 실벤더 호출 없음.
  */
 @DataJdbcTest
@@ -70,8 +81,11 @@ import java.util.concurrent.CopyOnWriteArrayList
     DfnsAccountConfig::class,
     FireblocksAccountConfig::class,
     WalletProvisioningConfig::class,
+    FireblocksAssetConfig::class,
     AccountQueryService::class,
+    DepositAddressQueryService::class,
     VendorAssetMappingQueryService::class,
+    VendorAssetMappingService::class,
     ProviderOriginJdbcAdapter::class,
     NetworkWalletProvisioningJdbcAdapter::class,
     NetworkWalletEvidenceJdbcAdapter::class,
@@ -79,6 +93,8 @@ import java.util.concurrent.CopyOnWriteArrayList
     AccountJdbcAdapter::class,
     DepositAddressJdbcAdapter::class,
     VendorAssetMappingJdbcAdapter::class,
+    VendorBlockchainCatalogJdbcAdapter::class,
+    VendorAssetCatalogCacheJdbcAdapter::class,
 )
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class DfnsAccountAssemblyIntegrationTest {
@@ -87,6 +103,8 @@ class DfnsAccountAssemblyIntegrationTest {
     @Autowired lateinit var accounts: AccountOperations
 
     @Autowired lateinit var jdbc: JdbcTemplate
+
+    @Autowired lateinit var assetMappings: VendorAssetMappingService
 
     @Configuration(proxyBeanMethods = false)
     class SliceSupportConfiguration {
@@ -99,27 +117,33 @@ class DfnsAccountAssemblyIntegrationTest {
 
     @BeforeEach
     fun prepareAssets() {
-        // Dfns 데이터셋의 자산 매핑 등록 경로(카탈로그 없는 검증 등록)는 후속이라 시험 행을 직접 준비한다. 네트워크 코드는 시험용이다.
+        // Dfns 데이터셋의 네트워크 행은 DBA 데이터셋 seed다(03) — vndr_blkc_id는 채택 명세의 Dfns network 값이다. 네트워크 코드는 시험용이다.
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
                                     frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('dfns-test-ethereum', 'ETHEREUM_TEST', 11155111, 'Ethereum Sepolia (test)', 'Y', 'N', '20260915000000', 'SYSTEM', '9999', 'SYSTEM', '9999'),
-                   ('dfns-test-solana', 'SOLANA_TEST', NULL, 'Solana Devnet (test)', 'Y', 'N', '20260915000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            VALUES ('EthereumSepolia', 'ETHEREUM_TEST', 11155111, 'Ethereum Sepolia (test)', 'Y', 'N', '20260915000000', 'SYSTEM', '9999', 'SYSTEM', '9999'),
+                   ('SolanaDevnet', 'SOLANA_TEST', NULL, 'Solana Devnet (test)', 'Y', 'N', '20260915000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (vndr_blkc_id) DO NOTHING
             """.trimIndent(),
         )
-        listOf("ETHEREUM_TEST" to "USDC", "ETHEREUM_TEST" to "KRWK", "SOLANA_TEST" to "USDC").forEach { (network, symbol) ->
+        // 사전 등록 매핑 — USDC/KRWK는 Dfns 자산 키 형식(등록 관문과 같은 규칙), SOLANA_TEST는 모델 미확정 네트워크의 시험 행이다.
+        listOf(
+            Triple("ETHEREUM_TEST", "USDC", "EthereumSepolia:Erc20:${FakeDfns.USDC_CONTRACT.lowercase()}"),
+            Triple("ETHEREUM_TEST", "KRWK", "EthereumSepolia:Erc20:${FakeDfns.KRWK_CONTRACT.lowercase()}"),
+            Triple("SOLANA_TEST", "USDC", "dfns-test-SOLANA_TEST-USDC"),
+        ).forEach { (network, symbol, vendorAssetId) ->
             jdbc.update(
                 """
                 INSERT INTO bcm_vndr_ast_m (ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, actv_yn, reg_dttm,
                                             frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-                VALUES (?, ?, ?, '0x0000000000000000000000000000000000000001', 'Y', '20260915000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+                VALUES (?, ?, ?, ?, 'Y', '20260915000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
                 ON CONFLICT (ntwk_cd, tkn_smbl) DO NOTHING
                 """.trimIndent(),
                 network,
                 symbol,
-                "dfns-test-$network-$symbol",
+                vendorAssetId,
+                if (symbol == "KRWK") FakeDfns.KRWK_CONTRACT else FakeDfns.USDC_CONTRACT,
             )
         }
         dfns.reset()
@@ -136,12 +160,19 @@ class DfnsAccountAssemblyIntegrationTest {
         jdbc.update("DELETE FROM bcm_ntwk_wlt_obs_l")
         jdbc.update("DELETE FROM bcm_ntwk_wlt_crtn_l")
         jdbc.update("DELETE FROM bcm_acnt_m WHERE ref LIKE 'assembly-%'")
+        jdbc.execute("ALTER TABLE bcm_vndr_ast_chng_l DISABLE TRIGGER trg_bcm_vndr_ast_chng_no_delete")
+        jdbc.update("DELETE FROM bcm_vndr_ast_chng_l WHERE tkn_smbl LIKE 'ASM%'")
+        jdbc.execute("ALTER TABLE bcm_vndr_ast_chng_l ENABLE TRIGGER trg_bcm_vndr_ast_chng_no_delete")
+        jdbc.update("DELETE FROM bcm_vndr_ast_m WHERE tkn_smbl LIKE 'ASM%'")
     }
 
     @Test
     fun `dfns 선택은 Dfns 계정 유스케이스와 HTTP 어댑터만 조립하고 Fireblocks 계정 서비스·생성 정책은 만들지 않는다`() {
         assertThat(accounts).isInstanceOf(DfnsAccountService::class.java)
         assertThat(context.getBean(NetworkWalletProvisioningPort::class.java)).isInstanceOf(DfnsNetworkWalletClient::class.java)
+        assertThat(context.getBean(NetworkWalletAssetPort::class.java)).isInstanceOf(DfnsNetworkWalletClient::class.java)
+        assertThat(context.getBean(ChainAssetResolver::class.java)).isInstanceOf(DfnsChainAssetResolver::class.java)
+        assertThat(context.getBeanNamesForType(FireblocksChainAssetResolver::class.java)).isEmpty()
         assertThat(context.getBeansOfType(AccountOperations::class.java)).hasSize(1)
         assertThat(context.beanDefinitionNames).noneMatch { it.contains("fireblocks", ignoreCase = true) || it == "accountService" }
         assertThat(context.beanDefinitionNames).noneMatch { it.contains("walletProvisioningPolicy") }
@@ -203,14 +234,57 @@ class DfnsAccountAssemblyIntegrationTest {
     }
 
     @Test
-    fun `수신 주소 모델이 확인되지 않은 네트워크가 섞이면 아무것도 발급하지 않고 잔액 조회는 벤더 호출 없이 거절된다`() {
+    fun `수신 주소 모델이 확인되지 않은 네트워크가 섞이면 아무것도 발급하지 않고 미발급 계정의 잔액은 벤더 호출 없이 빈 배열이다`() {
         val account = accounts.createAccount(AccountType.CUSTOMER, "assembly-${UUID.randomUUID()}")
 
         assertThatThrownBy { accounts.createDepositAddresses(account.accountId, "USDC", listOf("ETHEREUM_TEST", "SOLANA_TEST")) }
             .isInstanceOf(AssetNotSupportedException::class.java)
-        assertThatThrownBy { accounts.balancesOf(account.accountId, null, null) }.isInstanceOf(UnprocessableRequestException::class.java)
+        assertThat(accounts.balancesOf(account.accountId, null, null)).isEmpty()
         assertThat(dfns.requests).isEmpty()
         assertThat(accounts.depositAddressesOf(account.accountId, null, null)).isEmpty()
+    }
+
+    @Test
+    fun `잔액 조회는 발급 네트워크의 지갑 자산을 한 번 읽어 매핑 키가 같은 항목을 돌려주고 목록에 없는 발급 자산은 0이다`() {
+        val account = accounts.createAccount(AccountType.CUSTOMER, "assembly-${UUID.randomUUID()}")
+        accounts.createDepositAddresses(account.accountId, "USDC", listOf("ETHEREUM_TEST"))
+        accounts.createDepositAddress(account.accountId, "ETHEREUM_TEST", "KRWK")
+        dfns.reset()
+
+        val balances = accounts.balancesOf(account.accountId, null, null)
+
+        assertThat(balances.map { it.symbol to it.balance }).containsExactlyInAnyOrder(
+            "USDC" to VendorBalance("1.5", "1.5", null, null, null),
+            "KRWK" to VendorBalance("0", "0", null, null, null),
+        )
+        assertThat(dfns.requests.map { it.first + " " + it.second }).containsExactly("GET /wallets/${FakeDfns.WALLET_ID}/assets")
+        assertThat(dfns.userActionHeaders).isEmpty()
+    }
+
+    @Test
+    fun `Dfns 데이터셋의 자산 등록은 벤더 호출 없이 network·contractAddress로 Dfns 자산 키를 만들어 저장하고 Fireblocks asset id·비EVM 모델은 거절한다`() {
+        val registered =
+            assetMappings.register(
+                RegisterVendorAssetMappingCommand("ETHEREUM_TEST", "ASMDAI", null, FakeDfns.DAI_CONTRACT, "123456", "0001", "req-asm-1"),
+            )
+
+        assertThat(registered.vendorAssetId).isEqualTo("EthereumSepolia:Erc20:${FakeDfns.DAI_CONTRACT.lowercase()}")
+        assertThat(registered.contractAddress).isEqualTo(FakeDfns.DAI_CONTRACT)
+        assertThat(assetMappings.mappings("ETHEREUM_TEST", "ASMDAI").single().vendorAssetId).isEqualTo(registered.vendorAssetId)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_vndr_ast_chng_l WHERE tkn_smbl = 'ASMDAI'", Int::class.java)).isEqualTo(1)
+
+        assertThatThrownBy {
+            assetMappings.register(
+                RegisterVendorAssetMappingCommand("ETHEREUM_TEST", "ASMFB", "USDC_ETH_TEST5", FakeDfns.DAI_CONTRACT, "123456", "0001"),
+            )
+        }.isInstanceOfSatisfying(
+            InvalidAssetMappingException::class.java,
+        ) { assertThat(it.reason).isEqualTo("fireblocksAssetIdNotApplicable") }
+        assertThatThrownBy {
+            assetMappings.register(RegisterVendorAssetMappingCommand("SOLANA_TEST", "ASMSOL", null, null, "123456", "0001"))
+        }.isInstanceOfSatisfying(InvalidAssetMappingException::class.java) { assertThat(it.reason).isEqualTo("assetModelUnsupported") }
+        assertThat(assetMappings.mappings(null, null).map { it.symbol }).doesNotContain("ASMFB", "ASMSOL")
+        assertThat(dfns.requests).isEmpty()
     }
 
     private fun evidenceOperations(): List<String> =
@@ -265,6 +339,7 @@ class DfnsAccountAssemblyIntegrationTest {
                     exchange.requestMethod == "POST" && path == "/auth/action" -> 200 to """{"userAction":"ua-token-1"}"""
                     exchange.requestMethod == "POST" && path == "/wallets" -> 200 to wallet()
                     exchange.requestMethod == "GET" && path == "/wallets/$WALLET_ID" -> 200 to wallet()
+                    exchange.requestMethod == "GET" && path == "/wallets/$WALLET_ID/assets" -> 200 to walletAssets()
                     else -> 404 to """{"error":{"message":"not found"}}"""
                 }
             val bytes = body.toByteArray()
@@ -278,9 +353,22 @@ class DfnsAccountAssemblyIntegrationTest {
                "signingKey":{"id":"key-test0-test0-test0test0test0","scheme":"ECDSA","curve":"secp256k1","publicKey":"00"},
                "status":"Active","dateCreated":"2026-09-15T00:00:00.000Z","custodial":true,"externalId":"$externalId","tags":[]}"""
 
+        /** 명세 Get Wallet Assets 형태 — Native·등록 USDC(대소문자 다른 컨트랙트)·모델 밖 kind. KRWK는 목록에 없다. */
+        private fun walletAssets(): String =
+            """{"walletId":"$WALLET_ID","network":"EthereumSepolia","assets":[
+               {"kind":"Native","symbol":"ETH","decimals":18,"verified":true,"balance":"250000000000000000"},
+               {"kind":"Erc20","contract":"${USDC_CONTRACT.uppercase().replace(
+                "0X",
+                "0x",
+            )}","symbol":"USDC","decimals":6,"verified":true,"balance":"1500000"},
+               {"kind":"Iou","currency":"USD","issuer":"r1","decimals":15,"balance":"1"}]}"""
+
         companion object {
             const val WALLET_ID = "wa-assem-bly00-000000000000000"
             const val ADDRESS = "0x00e3495cf6af59008f22ffaf32d4c92ac33dac47"
+            const val USDC_CONTRACT = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+            const val KRWK_CONTRACT = "0x0000000000000000000000000000000000000002"
+            const val DAI_CONTRACT = "0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357"
         }
     }
 

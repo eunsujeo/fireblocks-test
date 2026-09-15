@@ -12,13 +12,17 @@ import com.whatto.bcm.domain.exception.AccountNotFoundException
 import com.whatto.bcm.domain.exception.AssetNotSupportedException
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.ProvisioningPendingException
-import com.whatto.bcm.domain.exception.UnprocessableRequestException
+import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.provider.ProviderOrigin
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetBalance
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetPort
+import com.whatto.bcm.domain.vendor.NetworkWalletAssetSnapshot
 import com.whatto.bcm.domain.vendor.NetworkWalletCreationRequest
 import com.whatto.bcm.domain.vendor.NetworkWalletObservation
 import com.whatto.bcm.domain.vendor.NetworkWalletOwnership
 import com.whatto.bcm.domain.vendor.NetworkWalletScope
 import com.whatto.bcm.domain.vendor.NetworkWalletSubmissionPort
+import com.whatto.bcm.domain.vendor.VendorBalance
 import com.whatto.bcm.domain.wallet.NetworkWalletAddressPolicy
 import com.whatto.bcm.domain.wallet.NetworkWalletCreationSeed
 import com.whatto.bcm.domain.wallet.NetworkWalletSubmissionSpec
@@ -36,7 +40,7 @@ import java.time.ZoneOffset
 
 /**
  * Dfns 계정·주소 유스케이스 계약(계약13 "계정·주소 API의 Dfns 연결") — 논리 계정 멱등, 주소 모델·매핑 선검증,
- * scope 결정적 seed와 포트가 만든 제출 snapshot으로 지갑 서비스 호출, 검증된 지갑 주소 저장, 보류/충돌 전파, 잔액 조회 거절.
+ * scope 결정적 seed와 포트가 만든 제출 snapshot으로 지갑 서비스 호출, 검증된 지갑 주소 저장, 보류/충돌 전파, 지갑 자산 관찰 기반 잔액 조회.
  * 도메인 포트만 mock하며 벤더 설정·HTTP 형식은 나타나지 않는다.
  */
 class DfnsAccountServiceTest {
@@ -51,10 +55,22 @@ class DfnsAccountServiceTest {
                 NetworkWalletSubmissionSpec(sha256("$vendorNetwork|${request.correlationId}"), "test-v1", vendorNetwork)
             }
         }
+    private val walletAssets = mockk<NetworkWalletAssetPort>()
     private val policy = NetworkWalletAddressPolicy(setOf("ETHEREUM_SEPOLIA", "UNMAPPED_NET"), 7)
     private val clock = Clock.fixed(Instant.parse("2026-09-15T00:00:00Z"), ZoneOffset.UTC)
     private val service =
-        DfnsAccountService(logicalAccounts, accounts, assetMappings, depositAddresses, provisioning, submissions, policy, ORIGIN, clock)
+        DfnsAccountService(
+            logicalAccounts,
+            accounts,
+            assetMappings,
+            depositAddresses,
+            provisioning,
+            submissions,
+            walletAssets,
+            policy,
+            ORIGIN,
+            clock,
+        )
     private val logical = Account("acct_dfns_1", AccountType.CUSTOMER, "ref-1", null, "20260915000000", AccountModel.LOGICAL)
     private val scope = NetworkWalletScope(ORIGIN, logical.accountId, "ETHEREUM_SEPOLIA")
 
@@ -189,11 +205,68 @@ class DfnsAccountServiceTest {
     }
 
     @Test
-    fun `잔액 조회는 계약 확정 전이라 벤더 호출 없이 422로 거절하고 주소 조회는 저장된 매핑만 돌려준다`() {
-        assertThatThrownBy { service.balancesOf(logical.accountId, null, null) }.isInstanceOf(UnprocessableRequestException::class.java)
+    fun `잔액 조회는 발급 자산만 대상으로 네트워크 지갑의 자산을 한 번 관찰해 매핑 키가 같은 항목을 돌려주고 목록에 없는 등록 자산은 0이다`() {
+        every { assetMappings.requiredMapping("ETHEREUM_SEPOLIA", "USDC") } returns mapping("ETHEREUM_SEPOLIA")
+        every { assetMappings.requiredMapping("ETHEREUM_SEPOLIA", "KRWK") } returns mapping("ETHEREUM_SEPOLIA", "KRWK")
+        every { depositAddresses.findAll(logical.accountId, null, null) } returns
+            listOf(
+                DepositAddress(logical.accountId, "ETHEREUM_SEPOLIA", "USDC", "0xabc", "20260915000000"),
+                DepositAddress(logical.accountId, "ETHEREUM_SEPOLIA", "KRWK", "0xabc", "20260915000000"),
+            )
+        every { provisioning.readyWallet(scope) } returns wallet("wa-1", "0xabc")
+        every { walletAssets.assets(scope, "wa-1") } returns
+            NetworkWalletAssetSnapshot(
+                "wa-1",
+                "ETHEREUM_SEPOLIA",
+                listOf(
+                    NetworkWalletAssetBalance("EthereumSepolia:Native", "ETH", 18, "500000000000000000", true),
+                    NetworkWalletAssetBalance("vendor-ETHEREUM_SEPOLIA-USDC", "USDC", 6, "1500000", true),
+                ),
+            )
+
+        val balances = service.balancesOf(logical.accountId, null, null)
+
+        assertThat(balances).containsExactly(
+            AssetBalance("ETHEREUM_SEPOLIA", "USDC", VendorBalance("1.5", "1.5", null, null, null)),
+            AssetBalance("ETHEREUM_SEPOLIA", "KRWK", VendorBalance("0", "0", null, null, null)),
+        )
+        verify(exactly = 1) { walletAssets.assets(any(), any()) }
+    }
+
+    @Test
+    fun `잔액 조회는 미발급이면 벤더 호출 없이 빈 배열이고 없는 계정은 404이며 주소 조회는 저장된 매핑만 돌려준다`() {
+        every { depositAddresses.findAll(logical.accountId, "USDC", "ETHEREUM_SEPOLIA") } returns emptyList()
+        assertThat(service.balancesOf(logical.accountId, "ETHEREUM_SEPOLIA", "USDC")).isEmpty()
         assertThatThrownBy { service.balancesOf("acct_missing", null, null) }.isInstanceOf(AccountNotFoundException::class.java)
+        verify(exactly = 0) { walletAssets.assets(any(), any()) }
+        verify(exactly = 0) { provisioning.readyWallet(any()) }
+
         every { depositAddresses.findAll(logical.accountId, "USDC", null) } returns emptyList()
         assertThat(service.depositAddressesOf(logical.accountId, "USDC", null)).isEmpty()
+    }
+
+    @Test
+    fun `발급 기록이 있는데 준비 지갑이 없거나 관찰 지갑·네트워크가 다르거나 같은 자산이 겹치면 빈 배열이나 0으로 숨기지 않고 실패한다`() {
+        val issued = listOf(DepositAddress(logical.accountId, "ETHEREUM_SEPOLIA", "USDC", "0xabc", "20260915000000"))
+        every { assetMappings.requiredMapping("ETHEREUM_SEPOLIA", "USDC") } returns mapping("ETHEREUM_SEPOLIA")
+        every { depositAddresses.findAll(logical.accountId, null, null) } returns issued
+
+        every { provisioning.readyWallet(scope) } returns null
+        assertThatThrownBy { service.balancesOf(logical.accountId, null, null) }.isInstanceOf(IllegalStateException::class.java)
+
+        every { provisioning.readyWallet(scope) } returns wallet("wa-1", "0xabc")
+        every { walletAssets.assets(scope, "wa-1") } returns NetworkWalletAssetSnapshot("wa-2", "ETHEREUM_SEPOLIA", emptyList())
+        assertThatThrownBy { service.balancesOf(logical.accountId, null, null) }.isInstanceOf(IllegalStateException::class.java)
+
+        every { walletAssets.assets(scope, "wa-1") } returns NetworkWalletAssetSnapshot("wa-1", "BASE_SEPOLIA", emptyList())
+        assertThatThrownBy { service.balancesOf(logical.accountId, null, null) }.isInstanceOf(IllegalStateException::class.java)
+
+        val usdc = NetworkWalletAssetBalance("vendor-ETHEREUM_SEPOLIA-USDC", "USDC", 6, "1", true)
+        every { walletAssets.assets(scope, "wa-1") } returns NetworkWalletAssetSnapshot("wa-1", "ETHEREUM_SEPOLIA", listOf(usdc, usdc))
+        assertThatThrownBy { service.balancesOf(logical.accountId, null, null) }.isInstanceOf(IllegalStateException::class.java)
+
+        every { walletAssets.assets(scope, "wa-1") } throws VendorApiException("dfnsGetWalletAssets", 404)
+        assertThatThrownBy { service.balancesOf(logical.accountId, null, null) }.isInstanceOf(VendorApiException::class.java)
     }
 
     @Test
@@ -207,6 +280,7 @@ class DfnsAccountServiceTest {
                 depositAddresses,
                 provisioning,
                 submissions,
+                walletAssets,
                 policy,
                 fireblocks,
                 clock,

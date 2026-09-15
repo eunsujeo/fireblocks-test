@@ -19,6 +19,7 @@ import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
@@ -30,6 +31,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
 @WebMvcTest(AdminAssetController::class)
+@Import(FireblocksOriginTestConfiguration::class)
 class AdminAssetControllerTest {
     @Autowired
     private lateinit var mockMvc: MockMvc

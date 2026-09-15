@@ -88,6 +88,7 @@ class ArchitectureTest {
             "AllowanceRevocationCommandService" to "admin",
             "SweepBatchExecutionService" to "sweep",
             "DfnsAccountService" to "account",
+            "VendorAssetMappingService" to "asset",
         ).forEach { (service, feature) ->
             noClasses()
                 .that()

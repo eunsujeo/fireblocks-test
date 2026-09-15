@@ -225,6 +225,24 @@ class NetworkWalletProvisioningServiceTest {
     }
 
     @Test
+    fun `준비 지갑 조회는 벤더 호출 없이 원장의 주소 있는 완료 지갑만 돌려주고 다른 원천은 거절한다`() {
+        val scope = F.seed().request.scope
+        every { repository.findWallet(scope) } returns F.wallet()
+        assertThat(service.readyWallet(scope)).isEqualTo(F.wallet())
+
+        every { repository.findWallet(scope) } returns F.wallet().copy(address = null)
+        assertThat(service.readyWallet(scope)).isNull()
+
+        every { repository.findWallet(scope) } returns null
+        assertThat(service.readyWallet(scope)).isNull()
+
+        val foreign = scope.copy(origin = F.origin().copy(originId = "other-origin"))
+        assertThatThrownBy { service.readyWallet(foreign) }.isInstanceOf(IllegalStateException::class.java)
+        verify(exactly = 0) { vendor.read(any(), any()) }
+        verify(exactly = 0) { vendor.candidates(any(), any()) }
+    }
+
+    @Test
     fun `완료 또는 충돌 의도는 외부 호출 없이 반환한다`() {
         every { repository.reserve(F.seed(), F.NOW) } returnsMany
             listOf(completed, completed.copy(status = NetworkWalletCreationStatus.CONFLICT))

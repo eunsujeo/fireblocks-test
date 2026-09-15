@@ -13,6 +13,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -22,6 +23,7 @@ import java.io.File
 import java.nio.file.Files
 
 @WebMvcTest(AdminAssetController::class)
+@Import(FireblocksOriginTestConfiguration::class)
 class AdminAssetSpecComplianceTest {
     @Autowired
     private lateinit var mockMvc: MockMvc

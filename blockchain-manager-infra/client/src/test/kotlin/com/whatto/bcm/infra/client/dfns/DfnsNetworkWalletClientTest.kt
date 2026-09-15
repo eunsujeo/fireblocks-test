@@ -483,8 +483,101 @@ class DfnsNetworkWalletClientTest {
         assertThatThrownBy { DfnsNetworkWalletClient.createWalletBody(" ", "corr-1") }.isInstanceOf(IllegalArgumentException::class.java)
     }
 
+    @Test
+    fun `지갑 자산 조회는 서명 없이 Bearer만 보내고 모델링한 kind를 매핑과 같은 키로 정규화하며 나머지 kind는 대조 대상에서 제외한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("$BASE/wallets/wa-1/assets"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer service-account-token"))
+            .andExpect(headerDoesNotExist("X-DFNS-USERACTION"))
+            .andRespond(withSuccess(WALLET_ASSETS, MediaType.APPLICATION_JSON))
+
+        val snapshot = client.assets(request.scope, "wa-1")
+
+        assertThat(snapshot.vendorWalletId).isEqualTo("wa-1")
+        assertThat(snapshot.network).isEqualTo("ETHEREUM_SEPOLIA")
+        assertThat(snapshot.assets.map { it.vendorAssetId }).containsExactly(
+            "EthereumSepolia:Native",
+            "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "EthereumSepolia:Spl:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        )
+        assertThat(snapshot.assets[0].amount()).isEqualTo("0.5")
+        assertThat(snapshot.assets[1]).satisfies({
+            assertThat(it.symbol).isEqualTo("USDC")
+            assertThat(it.decimals).isEqualTo(6)
+            assertThat(it.baseUnits).isEqualTo("1500000")
+            assertThat(it.verified).isTrue()
+            assertThat(it.amount()).isEqualTo("1.5")
+        })
+        assertThat(snapshot.assets[2].verified).isNull()
+        server.verify()
+    }
+
+    @Test
+    fun `지갑 자산 응답의 지갑 ID·네트워크가 요청과 다르거나 항목 필수 필드가 결손·형식 오류면 정규화하지 않고 실패한다`() {
+        listOf(
+            """{"walletId":"wa-2","network":"EthereumSepolia","assets":[]}""",
+            """{"walletId":"wa-1","network":"BaseSepolia","assets":[]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia"}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":["x"]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"decimals":18,"balance":"1"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Erc20","decimals":6,"balance":"1"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","balance":"1"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","decimals":"18","balance":"1"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","decimals":18.5,"balance":"1"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","decimals":18}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","decimals":18,"balance":"1.5"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","decimals":18,"balance":1}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Native","decimals":18,"balance":"1","verified":"yes"}]}""",
+            """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"kind":"Erc20","contract":"0xabc","decimals":6,"balance":"1"}]}""",
+        ).forEach { body ->
+            val (client, server) = fixture()
+            server.expect(requestTo("$BASE/wallets/wa-1/assets")).andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
+
+            assertThatThrownBy { client.assets(request.scope, "wa-1") }
+                .describedAs(body)
+                .isInstanceOfSatisfying(VendorApiException::class.java) { assertThat(it.responseBody()).isEqualTo(body.toByteArray()) }
+            server.verify()
+        }
+    }
+
+    @Test
+    fun `지갑 자산 조회의 HTTP 오류는 빈 목록으로 바꾸지 않고 상태·수신 바이트와 함께 전파하며 잘못된 지갑 ID와 다른 원천은 호출 전에 거절한다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("$BASE/wallets/wa-1/assets"))
+            .andRespond(
+                withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON).body("""{"error":{"message":"not found"}}"""),
+            )
+
+        assertThatThrownBy { client.assets(request.scope, "wa-1") }
+            .isInstanceOfSatisfying(VendorApiException::class.java) {
+                assertThat(it.httpStatus).isEqualTo(404)
+                assertThat(it.responseBody()).isEqualTo("""{"error":{"message":"not found"}}""".toByteArray())
+            }
+        server.verify()
+
+        val (idle, idleServer) = fixture()
+        assertThatThrownBy { idle.assets(request.scope, "wa 1/../x") }.isInstanceOf(IllegalArgumentException::class.java)
+        val foreign = NetworkWalletScope(ProviderOrigin("other", "dfns", "dfns", "p", "o", "TESTNET"), "acct_dfns_1", "ETHEREUM_SEPOLIA")
+        assertThatThrownBy { idle.assets(foreign, "wa-1") }.isInstanceOf(IllegalStateException::class.java)
+        idleServer.verify()
+    }
+
     companion object {
         private const val BASE = "https://baseline.dfns.internal.test"
+
+        /** 명세 Get Wallet Assets 응답 형태 — Native·Erc20·Spl 항목과 모델 밖 kind(Iou) 하나. 값은 예시이며 Baseline 실측이 아니다. */
+        private val WALLET_ASSETS =
+            """
+            {"walletId":"wa-1","network":"EthereumSepolia","assets":[
+              {"kind":"Native","symbol":"ETH","decimals":18,"verified":true,"balance":"500000000000000000"},
+              {"kind":"Erc20","contract":"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48","symbol":"USDC","decimals":6,"verified":true,"balance":"1500000"},
+              {"kind":"Spl","mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","decimals":6,"balance":"7"},
+              {"kind":"Iou","currency":"USD","issuer":"rhub","decimals":15,"balance":"1"}
+            ]}
+            """.trimIndent()
         private val ORIGIN = ProviderOrigin("test-dfns-origin", "dfns", "dfns", "test-dfns-platform", "test-dfns-organization", "TESTNET")
         private val CHALLENGE =
             """{"challenge":"Y2gtNzloaHQtbXJlb2stOGFwOHFtMmVpZWZ0amxhZw","challengeIdentifier":"eyJ0e.fQNA",

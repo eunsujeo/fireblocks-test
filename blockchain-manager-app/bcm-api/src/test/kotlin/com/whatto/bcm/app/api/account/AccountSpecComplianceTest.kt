@@ -106,6 +106,30 @@ class AccountSpecComplianceTest {
     }
 
     @Test
+    fun `balancesOf 제공자가 주지 않는 pending·locked는 스펙대로 null이고 0으로 채우지 않는다`() {
+        every { accountService.balancesOf("acct_test_01", "ETHEREUM_SEPOLIA", "USDC") } returns
+            listOf(AssetBalance("ETHEREUM_SEPOLIA", "USDC", VendorBalance("1.5", "1.5", null, null, null)))
+
+        mockMvc
+            .perform(get("/accounts/acct_test_01/balances").param("network", "ETHEREUM_SEPOLIA").param("symbol", "USDC"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.data[0].available").value("1.5"))
+            .andExpect(jsonPath("$.data[0].pending").value(nullValue()))
+            .andExpect(jsonPath("$.data[0].locked").value(nullValue()))
+            .andExpect(openApi().isValid(SPEC))
+
+        every { accountService.balancesOf("acct_test_01", "ETHEREUM", "USDC") } returns
+            listOf(AssetBalance("ETHEREUM", "USDC", VendorBalance("11.8", "10.5", "1.0", null, "0.1")))
+
+        mockMvc
+            .perform(get("/accounts/acct_test_01/balances").param("network", "ETHEREUM").param("symbol", "USDC"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.data[0].pending").value("1.0"))
+            .andExpect(jsonPath("$.data[0].locked").value(nullValue()))
+            .andExpect(openApi().isValid(SPEC))
+    }
+
+    @Test
     fun `404 에러 응답이 스펙 ErrorResponse 와 일치한다`() {
         every { accountService.balancesOf("acct_none", null, null) } throws AccountNotFoundException("acct_none")
 

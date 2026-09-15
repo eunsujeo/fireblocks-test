@@ -15,6 +15,9 @@ import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.exception.VendorAssetMappingRegistrationConflictException
+import com.whatto.bcm.domain.vendor.ChainAssetResolution
+import com.whatto.bcm.domain.vendor.ChainAssetResolver
+import com.whatto.bcm.domain.vendor.ResolvedChainAsset
 import com.whatto.bcm.domain.vendor.VendorAsset
 import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.domain.vendor.VendorPage
@@ -38,7 +41,14 @@ class VendorAssetMappingServiceTest {
     private val vendorCatalog = mockk<VendorAssetCatalogPort>()
     private val clock = Clock.fixed(Instant.parse("2026-08-06T12:00:00Z"), ZoneId.of("Asia/Seoul"))
     private val service =
-        VendorAssetMappingService(mappings, blockchains, addressQueryService, assetCatalogCache, vendorCatalog, clock)
+        VendorAssetMappingService(
+            mappings,
+            blockchains,
+            addressQueryService,
+            assetCatalogCache,
+            FireblocksChainAssetResolver(vendorCatalog),
+            clock,
+        )
 
     private val audit = AuditActor("123456", "0001")
     private val command =
@@ -155,6 +165,48 @@ class VendorAssetMappingServiceTest {
 
         assertThat(result.vendorAssetId).isEqualTo("native-id")
         assertThat(result.contractAddress).isNull()
+    }
+
+    @Test
+    fun `등록 — Fireblocks 원천에서 후보 asset id가 없으면 카탈로그를 읽기 전에 400이다`() {
+        every { mappings.find("ETHEREUM", "USDC") } returns null
+        every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
+        every { vendorCatalog.assets("ethereum-id", null, null) } returns VendorPage(emptyList(), null)
+
+        assertThatThrownBy { service.register(command.copy(fireblocksAssetId = null)) }
+            .isInstanceOfSatisfying(
+                InvalidAssetMappingException::class.java,
+            ) { assertThat(it.reason).isEqualTo("fireblocksAssetIdRequired") }
+        verify(exactly = 0) { mappings.save(any(), any()) }
+    }
+
+    @Test
+    fun `등록 — 관문이 해소한 벤더 식별자·컨트랙트 주소를 그대로 저장하고 요청 안에서 같은 자산으로 해소되면 일괄 등록을 거절한다`() {
+        val resolver =
+            ChainAssetResolver { blockchain, locators ->
+                locators.map {
+                    ChainAssetResolution.Resolved(
+                        ResolvedChainAsset("${blockchain.candidateId}:Erc20:${it.contractAddress}", it.contractAddress, null),
+                    )
+                }
+            }
+        val neutral = VendorAssetMappingService(mappings, blockchains, addressQueryService, assetCatalogCache, resolver, clock)
+        val dfnsCommand = command.copy(fireblocksAssetId = null)
+        every { mappings.find(any(), any()) } returns null
+        every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
+        every { mappings.save(any(), "UNSPECIFIED") } answers { firstArg() }
+
+        val saved = neutral.register(dfnsCommand)
+
+        assertThat(saved.vendorAssetId).isEqualTo("ethereum-id:Erc20:0xA0b8")
+        assertThat(saved.contractAddress).isEqualTo("0xA0b8")
+        verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
+
+        val duplicate =
+            assertThrows<BulkAssetMappingException> { neutral.registerAll(listOf(dfnsCommand, dfnsCommand.copy(symbol = "USDC2"))) }
+        assertThat(duplicate.index).isEqualTo(0)
+        assertThat(duplicate.reason).isEqualTo("duplicateVendorAsset")
+        verify(exactly = 0) { mappings.saveAll(any(), any()) }
     }
 
     @Test
