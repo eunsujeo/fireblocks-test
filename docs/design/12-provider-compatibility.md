@@ -336,3 +336,6 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `FireblocksAccountConfig`·`DfnsAccountConfig`가 제공자별로 등록한다. 조립 테스트는 Fireblocks 조립부도 함께 등록해 제외를 검증한다.
   03의 `bcm_addr_m` 행을 "현재 지갑 주소만 저장, wallet FK·발급 시점 locator 컬럼은 후속 DDL 결정"으로 명확히 하고 13·09·DfnsProperties 문구를 갱신했다.
   재실행: domain 112 · application 24 · client 109 · API 129 = **374건**(persistence 58은 변경 없음), 실패/오류/skip 0. 변경 모듈 ktlintCheck 통과.
+- **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta 3458739..d23bef0, design-sync→code-reviewer 순차)**: 이전 Critical 2·Major 1·design-sync Major 1·Minor 1 해소 확인,
+  신규 Critical/Major/Minor 없음. 결정적 seed·제출 snapshot·주소 경합·Pending/Conflict·잔액 422·전체 Dfns 기동 차단이 유지되고 기존 테스트 변경은 책임 이동에 따른 재배치임을 확인했다.
+  검토 기준 commit은 d23bef0이다. 실벤더 호출·운영 적용·기동 차단 해제·push는 미수행이다.
