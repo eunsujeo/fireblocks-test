@@ -7,7 +7,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * Dfns 접속 설정 — 아직 어떤 실행 모듈도 이 설정을 바인딩하지 않는다 (`BCM_PROVIDER=dfns` 기동 차단 유지, 계약13).
+ * Dfns 접속 설정 — `DfnsClientConfig`가 `BCM_PROVIDER=dfns`에서만 바인딩한다. API 전체 컨텍스트의 Dfns 기동 차단은 별개로 유지된다(계약13).
  * 시크릿(authToken·credential 개인키)은 env/시크릿 매니저로만 주입한다 (CLAUDE.md 0절). 기본 URL을 두지 않는다 —
  * Baseline은 고객 환경 배포이므로 공개 SaaS 주소를 기본값으로 호출하지 않는다.
  * 근거: 공식 OpenAPI 1.1018.3의 securitySchemes(authenticationToken Bearer·X-DFNS-USERACTION)와 서버 목록.

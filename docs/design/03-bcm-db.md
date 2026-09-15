@@ -337,7 +337,7 @@ Dfns의 논리 계정→네트워크 wallet은 다음 절의 후속 저장 계�
 
 ### 네트워크 지갑 생성 의도와 연결 — 후속 DB 계약
 
-**상태: V22 생성 의도·회수·완료 연결, V23 계정 모델, 내부 생성 유스케이스, V24 응답 증적 보관 어댑터와 서비스+실제 DB 결합 검증을 구현했다. Dfns HTTP 어댑터·자산 주소/공개 API 연결은 미구현이다.**
+**상태: V22 생성 의도·회수·완료 연결, V23 계정 모델, 내부 생성 유스케이스, V24 응답 증적 보관, 공식 명세 기반 Dfns HTTP 어댑터, 공개 계정·주소 API 연결(논리 계정 등록·EVM 계정 모델 네트워크의 지갑 주소를 기존 `bcm_addr_m`에 저장)을 구현했다. 발급 시점 자산 매핑·지갑 연결 컬럼은 아래 후속 DDL 결정이다.**
 [13의 순수 생성·조회 포트와 회수 판정](13-dfns-contracts.md#네트워크-지갑-공통-포트와-회수-판정--구현)을 영속 원장에 연결했다.
 V23에서 vault ID의 필수 여부를 모델별 CHECK로 전환했다. 기존 VAULT 계정과 Fireblocks 생성 의도 두 테이블의 동작은 유지한다.
 
@@ -347,7 +347,7 @@ V23에서 vault ID의 필수 여부를 모델별 CHECK로 전환했다. 기존 V
 | `bcm_ntwk_wlt_crtn_l` 생성 의도 | 내부 의도 ID, 원천 FK, account FK, BCM network, 고정 correlation ID, 정규화 요청 hash/버전, 실제 제출에 쓸 network 매핑 snapshot, 상태·버전, 최초 POST 준비 시각, known wallet ID, 관찰 결과 참조, 등록/변경 시각·감사 4컬럼 | UNIQUE `(orgn_id, acnt_id, ntwk_cd)`로 모든 토큰/동시 요청이 의도 하나에 합류. UNIQUE `(orgn_id, correlation_id)`로 재사용 차단. 의도/상관관계/hash·snapshot 불변; 같은 scope에 다른 hash는 충돌 |
 | `bcm_ntwk_wlt_m` 준비 완료 연결 | 원천 FK, account FK, BCM network, 벤더 wallet ID, 지갑 주소, 생성 의도 FK, 검증 관찰 참조·시각·감사 4컬럼 | UNIQUE `(orgn_id, acnt_id, ntwk_cd)` 및 `(orgn_id, vndr_wlt_id)`. 동일 wallet을 다른 계정/네트워크에 연결하지 않음. 의도와 scope를 복합 FK/동일 트랜잭션 검증으로 대조. signing key ID·동일 주소는 연결 키가 아님 |
 | `bcm_ntwk_wlt_obs_l` 회수 관찰 | 관찰/조회 실행 ID, 의도 FK, 대상 원천·known ID, cursor·완료 여부, 관찰 시각, 정규화 후보·검증 결과, 실제 응답 증적 참조/hash, 안전한 실패 분류·감사 4컬럼 | 조회 실패·페이지 미완료·미관찰·속성 충돌을 구분해 보존. 응답 원문/주소를 일반 오류 로그에 출력하지 않음. 관찰과 cursor 전진을 같은 트랜잭션으로 기록, 중단 재개 시 동일 페이지를 중복 수용 가능하게 식별 |
-| 기존 `bcm_addr_m` 자산 주소 | `(acnt_id, ntwk_cd, symbol)` 멱등성 유지, 준비한 네트워크 wallet 및 발급 시점의 자산 매핑 snapshot 연결 | 지갑 준비 완료와 자산 수신 주소 완료를 분리. 같은 체인 토큰은 wallet 의도를 공유하지만 token account·tag가 같은 주소라는 가정은 하지 않음 |
+| 기존 `bcm_addr_m` 자산 주소 | `(acnt_id, ntwk_cd, symbol)` 멱등성 유지. **현재 구현**은 준비된 지갑(`bcm_ntwk_wlt_m`)의 주소를 그대로 저장하며 지갑 행은 `(orgn_id, acnt_id, ntwk_cd)`로 역추적한다. 준비한 wallet FK와 발급 시점 자산 매핑 snapshot(locator) 컬럼은 **후속 DDL 결정**이다 | 지갑 준비 완료와 자산 수신 주소 완료를 분리. 지갑 주소를 토큰 수신 주소로 쓰는 것은 운영 설정이 EVM 계정 모델로 확인한 네트워크에서만이며 token account·tag가 같은 주소라는 가정은 하지 않음 |
 
 표는 논리 저장 경계이며 구현 컬럼/제약은 아래 V22·V23 명세를 따른다. BCM/벤더 ID는 기존 VARCHAR(64), network는 VARCHAR(20), 시각은 UTC VARCHAR(16),
 감사 4컬럼은 기존 규약을 따른다. 벤더 원문 ID가 저장 제약에 맞는지는 릴리스 schema로 검증하며 자르거나 대체하지 않는다.

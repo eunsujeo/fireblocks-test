@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.application.wallet
 
 import com.whatto.bcm.app.application.account.AccountQueryService
+import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.vendor.NetworkWalletObservation
@@ -39,6 +40,22 @@ class NetworkWalletProvisioningService(
             NetworkWalletCreationStatus.PREPARED -> createOnce(intent)
             NetworkWalletCreationStatus.SUBMITTING, NetworkWalletCreationStatus.RECOVERING -> recoverPage(intent)
         }
+    }
+
+    /**
+     * 준비 완료된 지갑만 돌려준다 — 진행 중은 `ProvisioningPendingException`, 충돌은 `ConflictException`(계약13 보류·충돌 HTTP 계약).
+     * 완료 의도의 wallet ID와 원장 연결(`findWallet`)이 일치하고 주소가 있어야 하며, 어긋나면 주소를 만들지 않고 충돌이다.
+     * 다른 피처는 지갑 원장을 직접 읽지 않고 이 메서드로 검증된 지갑을 받는다.
+     */
+    fun provisionedWallet(
+        seed: NetworkWalletCreationSeed,
+        retryAfterSeconds: Long,
+    ): NetworkWalletObservation {
+        val intent = provision(seed)
+        val walletId = intent.requireCompleted(retryAfterSeconds)
+        val wallet = repository.findWallet(seed.request.scope) ?: throw ConflictException("networkWallet", intent.intentId)
+        if (wallet.vendorWalletId != walletId || wallet.address == null) throw ConflictException("networkWallet", intent.intentId)
+        return wallet
     }
 
     private fun createOnce(intent: NetworkWalletCreationIntent): NetworkWalletCreationIntent {

@@ -8,6 +8,7 @@ import com.whatto.bcm.domain.vendor.NetworkWalletOwnership
 import com.whatto.bcm.domain.vendor.NetworkWalletProvisioningPort
 import com.whatto.bcm.domain.vendor.NetworkWalletResponse
 import com.whatto.bcm.domain.vendor.NetworkWalletScope
+import com.whatto.bcm.domain.vendor.NetworkWalletSubmissionPort
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.wallet.NetworkWalletSubmissionSpec
 import org.springframework.http.HttpMethod
@@ -39,13 +40,24 @@ class DfnsNetworkWalletClient(
     signer: DfnsCredentialSigner,
     metrics: OperationalMetricsPort,
     restClientFactory: DfnsRestClientFactory,
-) : NetworkWalletProvisioningPort {
+) : NetworkWalletProvisioningPort,
+    NetworkWalletSubmissionPort {
     private val objectMapper = ObjectMapper()
     private val http = DfnsHttp(restClientFactory.create(restClientBuilder, properties), properties, metrics)
     private val userActions = DfnsUserActionClient(http, signer, objectMapper)
 
     init {
         require(origin.protocolProvider == "dfns") { "DfnsNetworkWalletClient requires the Dfns origin" }
+    }
+
+    /** 의도에 고정할 제출 snapshot — 같은 요청에는 같은 값이라 재요청이 기존 의도에 합류한다. 매핑 없는 네트워크는 null이다. */
+    override fun submission(request: NetworkWalletCreationRequest): NetworkWalletSubmissionSpec? {
+        val vendorNetwork = properties.networks[request.scope.network] ?: return null
+        return NetworkWalletSubmissionSpec(
+            requestHash(createWalletBody(vendorNetwork, request.correlationId)),
+            REQUEST_VERSION,
+            vendorNetwork,
+        )
     }
 
     override fun create(
@@ -198,6 +210,9 @@ class DfnsNetworkWalletClient(
 
     companion object {
         const val WALLETS_PATH = "/wallets"
+
+        /** 생성 의도에 저장하는 요청 계약 버전 — 채택한 공식 OpenAPI 버전(계약13). */
+        const val REQUEST_VERSION = "dfns-openapi-1.1018.3"
         private const val CREATE_OPERATION = "dfnsCreateWallet"
         private const val READ_OPERATION = "dfnsGetWallet"
         private const val DISCOVER_OPERATION = "dfnsListWallets"

@@ -179,12 +179,13 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
   기본 체인이나 wallet ID를 응답에 끼워 넣지 않는다. 현재 Fireblocks/로컬은 vault 생성 후 계정 완료라는 동작을 유지한다.
 - 주소 발급은 현행 `(accountId, network, symbol)` 계약을 입구로 유지한다. 원천·계정·활성 자산 매핑 검증 후
   `(origin, accountId, network)` 의도를 예약한다. 같은 네트워크의 서로 다른 토큰 요청도 동일한 지갑 의도에 합류한다.
-  준비된 지갑에 검증한 자산 locator를 연결하며 주소 매핑 멱등성은 기존 `(accountId, network, symbol)`로 유지한다.
+  주소 매핑 멱등성은 기존 `(accountId, network, symbol)`로 유지한다. 발급 시점 자산 locator·지갑 FK를 `bcm_addr_m`에 남기는 컬럼은 03의 후속 DDL 결정이며,
+  현재는 활성 매핑 검증 뒤 지갑 주소만 저장한다.
 - 지갑 회수 `Ready`와 토큰 수신 주소 완료는 별도다. chain별 수신 계정·tag/memo 모델 확인 전 wallet address를 모든 토큰 주소로 복사하지 않는다.
   현행 주소 API의 tag 미지원 과제와 추가 체인 구현은 별도로 남긴다.
 - `Pending`/`Conflict`의 공개 HTTP 매핑은 아래 [보류·충돌 HTTP 계약](#보류충돌-http-계약--구현)으로 고정했다. Fireblocks의 현행
   `503 CREATION_RETRY_LATER`·`Retry-After`는 유지하며, Dfns에 Fireblocks 시간 기반 재생성을 허용하는 의미로 재사용하지 않는다.
-  별도 API나 가짜 성공 응답은 추가하지 않았다. 공개 주소 API가 실제로 이 매핑을 반환하는 Dfns 연결은 후속이다.
+  별도 API나 가짜 성공 응답은 추가하지 않았다. 공개 주소 API의 Dfns 연결은 아래 "계정·주소 API의 Dfns 연결 — 구현"으로 완료했다.
 
 ### 계정·주소 API의 Dfns 연결 — 구현
 
@@ -199,12 +200,15 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | `GET /accounts/{id}/addresses` | 저장된 매핑 조회(공통) |
 | `GET /accounts/{id}/balances` | Dfns 잔액 계약(VendorBalance 필드 대응) 확정 전 — 벤더를 부르지 않고 `422 UNPROCESSABLE_ENTITY`. 0/빈 배열로 꾸미지 않는다 |
 
-- 생성 의도의 ID와 `correlationId`는 `(originId, accountId, network)`에서 결정적으로 도출한 UUID(name-based)이고 `requestHash`는
-  `DfnsNetworkWalletClient.createWalletBody(vendorNetwork, correlationId)`의 SHA-256, `requestVersion`은 채택 명세 버전(`dfns-openapi-1.1018.3`)이다.
+- 생성 의도의 ID와 `correlationId`는 `(originId, accountId, network)`에서 결정적으로 도출한 UUID(name-based)다. 제출 snapshot은 도메인 출력 포트
+  `NetworkWalletSubmissionPort`가 만들며 Dfns 구현은 `createWalletBody(vendorNetwork, correlationId)`의 SHA-256·채택 명세 버전(`dfns-openapi-1.1018.3`)·벤더 network를 돌려준다.
   원장은 같은 scope에 다른 요청 snapshot이 오면 충돌로 거절하므로 재요청·같은 네트워크의 다른 토큰은 같은 seed로 기존 의도에 합류한다.
+- 유스케이스는 도메인 출력 포트만 쓴다 — 벤더 설정 `bcm.dfns.*`는 조립부(`DfnsAccountConfig`)가 `NetworkWalletAddressPolicy`로 옮기고, 완료 지갑의 검증(의도 ID·원장 연결·주소)은
+  지갑 피처 서비스 `NetworkWalletProvisioningService.provisionedWallet`이 담당한다. 계정 피처는 지갑 원장 Repository를 직접 읽지 않는다.
 - 주소 저장 경합((계정, 네트워크, 심볼) PK)은 먼저 저장된 값을 돌려준다. 원장 지갑 ID가 완료 ID와 다르거나 주소가 없으면 저장하지 않고 충돌이다.
 - **조립 범위**: `ConditionalOnDfnsProtocol`로 `DfnsClientConfig`(`bcm.dfns.*` 바인딩·서명기·HTTP 어댑터, 자격 누락은 빈 생성에서 실패)와
-  `DfnsAccountConfig`(논리 계정·지갑 생성 서비스)·`DfnsAccountService`를 만든다. 계정·주소 슬라이스만 조립되며 거래·Sweep·Admin·웹훅의 Dfns 조립은 후속이라
+  `DfnsAccountConfig`(논리 계정·지갑 생성 서비스·주소 정책·`DfnsAccountService`)를 만들고, Fireblocks 쪽은 `FireblocksAccountConfig`·`WalletProvisioningConfig`가
+  `ConditionalOnFireblocksProtocol`로 `AccountService`를 만든다. 계정·주소 슬라이스만 조립되며 거래·Sweep·Admin·웹훅의 Dfns 조립은 후속이라
   API 전체 컨텍스트의 `BCM_PROVIDER=dfns` 기동 차단(`ProviderConfiguration`)은 유지한다. 차단 해제는 Baseline 수용 뒤 사용자 결정이다.
 - **후속**: Dfns 데이터셋의 자산 매핑 등록 경로(현행 Admin 등록은 Fireblocks 카탈로그 대조에 의존), 잔액 계약, tag/memo 체인 주소 모델, 웹훅.
 

@@ -325,3 +325,14 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `BootstrapIntegrationTest`에 fireblocks 컨텍스트의 Dfns 빈 0·`AccountOperations`=`AccountService` 검증을 추가했다.
 - 선택 회귀: domain 110 · application 23 · persistence(wallet·account·provider) 58 · client 109 · API(account 유스케이스·wallet·web·account·config·Bootstrap·Architecture·ProviderStartup·ProviderOriginStartup) 129 = **429건**, 실패/오류/skip 0. 변경 모듈 ktlintCheck 통과. 실벤더 호출·운영 적용·기동 차단 해제·push는 미수행이다.
 - **후속**: Dfns 데이터셋의 자산 매핑 등록 경로(현행 Admin 등록은 Fireblocks 카탈로그 대조), Dfns 잔액 계약, tag/memo 체인 주소 모델, 거래·Sweep·Admin·웹훅 조립.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 fd793f2..3458739, design-sync→code-reviewer 순차)**:
+  design-sync Major 1(03의 `bcm_addr_m` 자산 매핑 snapshot 연결 요구와 구현의 저장 방식 불일치)·Minor 1(13·03·09·DfnsProperties의 구현 상태 문구 미갱신).
+  code-reviewer Critical 2 — ① 유스케이스(`DfnsAccountService`)가 infra 설정(`DfnsProperties`)과 HTTP 어댑터 정적 함수에 직접 의존,
+  ② account 피처가 wallet Repository(`findWallet`)를 직접 조회. Major 1 — 조립 테스트가 Fireblocks 조립부를 등록하지 않아 조건부 제외를 검증하지 못함.
+  결정적 seed·주소 PK 경합 처리·주소 모델 허용 목록·잔액 422·기존 테스트 개변 없음·신규 의존성 없음은 정합으로 확인됐다.
+- **반영**: 도메인 출력 포트 `NetworkWalletSubmissionPort`(제출 snapshot 생성, Dfns 어댑터가 구현)와 도메인 정책 `NetworkWalletAddressPolicy`
+  (조립부가 `bcm.dfns.*`에서 생성)를 두어 유스케이스의 infra 의존을 제거했다. 완료 지갑 검증은 지갑 피처 서비스 `NetworkWalletProvisioningService.provisionedWallet`으로
+  옮겨 account 피처가 지갑 원장을 읽지 않는다(ArchitectureTest 검토 목록에 `DfnsAccountService` 추가). `AccountService`·`DfnsAccountService`는 애노테이션 대신
+  `FireblocksAccountConfig`·`DfnsAccountConfig`가 제공자별로 등록한다. 조립 테스트는 Fireblocks 조립부도 함께 등록해 제외를 검증한다.
+  03의 `bcm_addr_m` 행을 "현재 지갑 주소만 저장, wallet FK·발급 시점 locator 컬럼은 후속 DDL 결정"으로 명확히 하고 13·09·DfnsProperties 문구를 갱신했다.
+  재실행: domain 112 · application 24 · client 109 · API 129 = **374건**(persistence 58은 변경 없음), 실패/오류/skip 0. 변경 모듈 ktlintCheck 통과.

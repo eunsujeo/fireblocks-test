@@ -20,9 +20,7 @@ import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.vendor.VendorDepositAddress
 import com.whatto.bcm.domain.vendor.VendorVault
 import com.whatto.bcm.domain.vendor.WalletVendorPort
-import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import com.whatto.bcm.support.time.CoreDateTimes
-import org.springframework.stereotype.Service
 import java.time.Clock
 import java.util.UUID
 
@@ -32,11 +30,11 @@ import java.util.UUID
  * 40자 이하 벤더 멱등 키를 먼저 커밋하고 벤더 생성 뒤 공개 매핑과 원장을 원자 완료한다. 응답 유실·DB 실패 재시도는
  * 벤더 조회로 유일한 후보만 회수한다(02·03).
  *
+ * Fireblocks/로컬 전용 구현이라 `FireblocksAccountConfig`가 `fireblocks|local`에서만 조립한다(Dfns는 DfnsAccountService).
+ *
  * ★ 계정 키에는 **유형이 반드시 들어간다** — 접두사가 없어 고객·시스템 ref 가 겹칠 수 있으므로,
  * 유형을 뺀 키를 쓰면 서로 다른 두 계정이 벤더 멱등 키를 공유해 **같은 vault 를 나눠 갖는다**.
  */
-@Service
-@ConditionalOnFireblocksProtocol
 class AccountService(
     private val accountRepository: AccountRepository,
     private val depositAddressRepository: DepositAddressRepository,

@@ -37,7 +37,7 @@ PDF의 all sync는 변경 예정 설명이며 전 구간 동기 처리를 요구
 - `CUSTOMER/SYSTEM`은 DAW-CORE 참조 ID의 이름 공간이다. `SYSTEM`에 고객 공동 vault와 회사 vault가 모두 들어갈 수 있으므로 자산 구분이나 용도 대신 쓰지 않는다.
 - 업무 용도 하나에 여러 vault·주소가 대응할 수 있다. 고객 보내는주소 합계에는 옴니버스와 모든 출금 풀의 해당 자산 주소를 한 번씩 포함한다.
 - 현재 vendor 매핑은 `(계정유형, ref) → BCM accountId → vaultId`, 발급 주소는 `(accountId, network, symbol) → address`다. 같은 역할의 vault가 여러 개면 별도 계정으로 식별한다.
-- Dfns 후속 매핑은 `BCM accountId → (origin, network)별 wallet → 자산 수신 주소`로 분리한다([연결 계약](13-dfns-contracts.md#계정주소-api의-후속-연결-계약)). 현재 계정 모델·지갑 원장·내부 생성/회수 유스케이스까지 구현했다. 자산 주소 연결은 후속이며 기존 vault 매핑·업무 용도·직접 집금 과제는 바꾸지 않는다.
+- Dfns 후속 매핑은 `BCM accountId → (origin, network)별 wallet → 자산 수신 주소`로 분리한다([연결 계약](13-dfns-contracts.md#계정주소-api의-후속-연결-계약)). 계정 모델·지갑 원장·생성/회수 유스케이스·공개 계정/주소 API 연결까지 구현했다 — 운영 설정이 EVM 계정 모델로 확인한 네트워크에서 지갑 주소를 `(accountId, network, symbol)` 주소로 저장한다. 발급 시점 자산 locator 컬럼과 tag/memo 체인은 후속이며 기존 vault 매핑·업무 용도·직접 집금 과제는 바꾸지 않는다.
 - 잔고는 `(network, asset, address)` 단위다. 주소 문자열이 같아도 네트워크가 다르면 별개이며, 같은 주소가 여러 자산을 보유할 수 있다. vault 잔액을 모든 주소에 복제해 합산하지 않는다.
 - 같은 주소를 회사·고객에 중복 귀속하지 않는다. 직접 집금안처럼 한 주소가 집금·출금 역할을 함께 맡아도 잔고는 역할별로 중복 합산하지 않는다. 기존 발급 이력과 외부 콜드 주소를 함께 식별하는 DB 관계는 [주소별 온체인 잔고 설계](03-bcm-db.md#주소별-온체인-잔고--구현-대상-설계)를 따른다.
 - Sweep 제출용 operator 계정은 자산 보관처인 옴니버스와 별개다. 위 업무 주소 표를 근거로 operator를 고객 보내는주소로 자동 분류하지 않는다. 운영 계정의 native 수수료 자산 구분은 별도로 관리한다.
