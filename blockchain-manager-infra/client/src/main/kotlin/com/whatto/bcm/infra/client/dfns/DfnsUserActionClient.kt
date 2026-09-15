@@ -62,6 +62,7 @@ internal class DfnsUserActionClient(
         val response = http.call(INIT_OPERATION, HttpMethod.POST, request) { it.path(INIT_PATH).build() }
         val node = parse(response)
         val challenge = requiredText(node, "challenge", response)
+        if (!DfnsCredentialSigner.isChallengeToken(challenge)) throw response.failure("Dfns $INIT_OPERATION 응답 필드 형식 오류: challenge")
         val identifier = requiredText(node, "challengeIdentifier", response)
         val allowedKeys = node.path("allowCredentials").path("key")
         if (!allowedKeys.isArray) throw response.failure("Dfns $INIT_OPERATION 응답 결손: allowCredentials.key")

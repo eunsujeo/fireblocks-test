@@ -25,8 +25,9 @@ import java.security.MessageDigest
  *   `externalId`는 상관관계 값이며 멱등 보장이 아니다. 실패·응답 유실 뒤 자동 재호출은 하지 않는다(서비스 계약).
  * - read: 404는 본문을 보존한 미관찰(null)이다. 그 밖의 오류는 수신 바이트와 함께 전파한다.
  * - candidates: 서버에 externalId 필터가 없으므로 페이지 항목을 `externalId == correlationId`로 좁힌다. 오류를 빈 페이지로 바꾸지 않고,
- *   `nextPageToken`이 있으면 비어 있지 않은 문자열이어야 한다(그 밖의 형식은 조회 완료로 오해하지 않고 오류다).
- * - 정규화: 명세 `Wallet`의 필수 `id`·`network`·`signingKey.id`·`status`·`custodial`이 형식대로 있어야 한다. 선택 필드는 없거나 문자열이어야 한다.
+ *   목록 항목은 필터 전에 객체·`externalId` 형식을 검사하고, `nextPageToken`이 있으면 비어 있지 않은 문자열이어야 한다(그 밖은 오류).
+ * - 정규화: 명세 `Wallet`의 필수 `id`·`network`·`signingKey.id`·`status`·`custodial`이 형식대로 있어야 한다. 선택 문자열은 없거나 문자열이어야 하며
+ *   `address`·`externalId`의 빈 문자열은 null(주소 대기·상관관계 없음), minLength 1인 `delegatedTo`·`vaultId`의 빈 문자열은 오류다.
  *   소유는 `custodial=true`(명세: 조직 소유)·`signingKey.delegatedTo` 없음·`vaultId`(Vault 통제 지갑) 없음·`status=Active`일 때만 ORGANIZATION이고
  *   그 밖은 OTHER다. 판정에 필요한 필드가 결손이면 지갑을 정규화하지 않고 오류다.
  * - 네트워크: 명세 `network` 값을 설정 매핑으로 BCM 코드로 되돌리고, 매핑에 없으면 원문 값을 그대로 둬 판정에서 불일치로 드러나게 한다.
@@ -98,15 +99,17 @@ class DfnsNetworkWalletClient(
         val node = parseObject(response)
         val items = node.path("items")
         if (!items.isArray) throw response.failure("Dfns $DISCOVER_OPERATION 응답 결손: items")
+        // 항목 형식은 필터 전에 검사한다 — 형식이 깨진 항목을 버리고 나머지로 완료 연결하지 않는다(계약13).
+        items.forEach { item ->
+            if (!item.isObject) throw response.failure("Dfns $DISCOVER_OPERATION 응답 필드 형식 오류: items[]")
+            optionalText(item, "externalId", response)
+        }
         val matches =
             items
-                .filter {
-                    it.isObject &&
-                        it.path("externalId").let { value ->
-                            value.isString && value.asString() == request.correlationId
-                        }
-                }.map { toObservation(it, response) }
-        return NetworkWalletResponse(VendorPage(matches, optionalText(node, "nextPageToken", response)), bytes)
+                .filter { optionalText(it, "externalId", response) == request.correlationId }
+                .map { toObservation(it, response) }
+        // 응답 nextPageToken은 재요청 paginationToken(minLength 1)이 되므로 빈 값은 재개할 수 없다 — 조회 끝으로 오해하지 않고 오류다.
+        return NetworkWalletResponse(VendorPage(matches, nonBlankText(node, "nextPageToken", response)), bytes)
     }
 
     private fun toObservation(
@@ -121,8 +124,8 @@ class DfnsNetworkWalletClient(
         val status = requiredText(node, "status", response)
         val custodialNode = node.path("custodial")
         if (!custodialNode.isBoolean) throw response.failure("Dfns ${response.operation} 응답 결손: custodial")
-        val delegatedTo = optionalText(signingKey, "delegatedTo", response)
-        val vaultId = optionalText(node, "vaultId", response)
+        val delegatedTo = nonBlankText(signingKey, "delegatedTo", response)
+        val vaultId = nonBlankText(node, "vaultId", response)
         val ownership =
             if (custodialNode.asBoolean() && delegatedTo == null && vaultId == null && status == ACTIVE_STATUS) {
                 NetworkWalletOwnership.ORGANIZATION
@@ -166,8 +169,23 @@ class DfnsNetworkWalletClient(
         return value.asString()
     }
 
-    /** 없거나 null이면 null, 문자열이면 값. 빈 문자열이나 다른 타입은 형식 오류다 — 주소 미준비·페이지 끝으로 오해하지 않는다. */
+    /**
+     * 선택 문자열(`address`·`externalId` — 명세에 minLength 없음). 없거나 null이거나 빈 문자열이면 null(주소 대기·상관관계 없음),
+     * 문자열이 아니면 형식 오류다.
+     */
     private fun optionalText(
+        node: JsonNode,
+        field: String,
+        response: DfnsHttpResponse,
+    ): String? {
+        val value = node.path(field)
+        if (value.isMissingNode || value.isNull) return null
+        if (!value.isString) throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류: $field")
+        return value.asString().takeIf(String::isNotBlank)
+    }
+
+    /** 명세가 minLength 1을 두는 선택 문자열(`delegatedTo`·`vaultId`)과 재요청 토큰 — 있으면 비어 있지 않은 문자열이어야 한다. */
+    private fun nonBlankText(
         node: JsonNode,
         field: String,
         response: DfnsHttpResponse,

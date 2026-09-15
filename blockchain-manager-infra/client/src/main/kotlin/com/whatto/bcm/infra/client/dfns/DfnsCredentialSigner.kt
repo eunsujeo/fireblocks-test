@@ -26,9 +26,7 @@ class DfnsCredentialSigner(
     }
 
     fun sign(challenge: String): DfnsKeyAssertion {
-        require(challenge.isNotBlank() && challenge.none { it == '"' || it == '\\' || it.isWhitespace() }) {
-            "Dfns challenge must be a base64url token"
-        }
+        require(isChallengeToken(challenge)) { "Dfns challenge must be a base64url token" }
         val clientData = """{"challenge":"$challenge","type":"key.get"}""".toByteArray(Charsets.UTF_8)
         val signature =
             Signature.getInstance(algorithm).run {
@@ -70,6 +68,9 @@ class DfnsCredentialSigner(
 
     companion object {
         private val SUPPORTED_KEY_ALGORITHMS = listOf("EC", "RSA", "Ed25519")
+
+        /** 명세의 challenge는 이미 base64url 문자열이다 — JSON을 깨뜨리는 문자·공백이 있으면 서명 입력으로 쓰지 않는다. */
+        fun isChallengeToken(value: String): Boolean = value.isNotBlank() && value.none { it == '"' || it == '\\' || it.isWhitespace() }
     }
 }
 

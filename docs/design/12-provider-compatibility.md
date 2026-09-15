@@ -274,7 +274,7 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   수용 테스트: domain 5건, `ApiExceptionHandlerTest` 1건(503·헤더·내부 사유 미노출), `AccountSpecComplianceTest` 1건(항목 `PROVISIONING_PENDING`/`CONFLICT`가 스펙 schema와 일치), `ErrorCodeTest` 갱신.
 - `infra/client`의 `dfns` 패키지: `DfnsProperties`·`DfnsCredentialSigner`·`DfnsUserActionClient`·`DfnsNetworkWalletClient`(+ `DfnsHttp`·`DfnsRestClientFactory`).
   근거는 공식 OpenAPI 1.1018.3과 공식 Credentials data·Signing flows 문서이며 다운로드 해시를 계약13에 기록했다. 어떤 실행 모듈도 조립하지 않으며 `BCM_PROVIDER=dfns` 기동 차단을 유지한다.
-- 계약 테스트 20건(MockRestServiceServer, 실호출 0; 리뷰 반영 후 3건 추가): clientData 형식·EC/RSA/Ed25519 서명의 공개키 검증, init 본문(`userActionPayload`=실제 본문 바이트·`Api`·경로/메서드),
+- 계약 테스트 22건(MockRestServiceServer, 실호출 0; 리뷰 반영으로 5건 추가): clientData 형식·EC/RSA/Ed25519 서명의 공개키 검증, init 본문(`userActionPayload`=실제 본문 바이트·`Api`·경로/메서드),
   `/auth/action` 본문(kind Key·credId·`algorithm` 미전송)과 서명 검증, `POST /wallets`의 `X-DFNS-USERACTION`·같은 바이트 본문, 원문 바이트 보존, 저장 requestHash 불일치 시 호출 0,
   allowCredentials 불일치·인증 단계 오류/결손 시 생성 호출 0, 생성 4xx 상태 전파, 필수 필드 결손 거절, 단건 조회 404 원문 보존/오류/ID 불일치, 목록 query·externalId 필터·nextPageToken,
   custodial/위임/Vault/status 소유 판정, 목록 오류·items 결손 전파, 다른 원천 거절, 생성 본문 두 필드·externalId 100자 제한.
@@ -293,3 +293,11 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   선택 필드는 없거나 문자열이어야 하며 `nextPageToken`의 다른 형식은 오류다. `allowCredentials.key` 배열이 없으면 서명하지 않는다.
   URI는 UriBuilder 변수로 한 번만 인코딩하고 `exchange`는 자동 닫기를 사용한다. 계약13(7항·증적 표·정규화 규칙·인증 절), 03 V24 문구, 계약13:222를 갱신했다.
   재실행: domain 110 · application 23 · persistence 58 · client 107 · API 68 = **366건**, 실패/오류/skip 0. 변경 모듈(domain·application·client·bcm-api) ktlintCheck 통과.
+- **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta 818b9e5..fce8254, design-sync→code-reviewer 순차)**: 이전 Critical②·Major④⑤⑥·Minor 해소,
+  Critical①은 부분 해소(challenge 형식 오류가 원문 없는 일반 예외로 전파), Critical③은 해당 경로 해소. 신규 Critical 2 — 목록 항목이 객체가 아니거나 `externalId`가
+  문자열이 아니면 필터에서 버려져 나머지로 완료 연결될 수 있음, 서명 입력이 될 수 없는 challenge 응답이 증적 보관을 건너뜀. Major 1 — 명세에 minLength가 없는
+  `address`·`externalId`의 빈 문자열을 오류로 바꿔 기존 빈 주소→주소 대기 계약이 회귀. design-sync는 같은 세 항목을 계약13과의 불일치(Major 3)로 보고했다.
+- **반영**: 목록 항목은 필터 전에 객체·`externalId` 형식을 검사하고 통과한 항목만 `externalId == correlationId`로 좁힌다. challenge 형식은 원문을 가진 인증 단계에서
+  검사해 수신 바이트를 담은 `VendorApiException`으로 전파한다. 선택 문자열 규칙을 나눠 `address`·`externalId`의 빈 문자열은 null(주소 대기·상관관계 없음),
+  minLength 1인 `delegatedTo`·`vaultId`와 재요청 토큰 `nextPageToken`의 빈 문자열은 오류로 둔다. 계약13의 정규화·인증 절을 같은 규칙으로 갱신했다.
+  재실행: client 109(dfns 22) · API wallet 10 · 변경 모듈 ktlintCheck 통과. domain·application·persistence·API 나머지 코드는 1차 반영 뒤 변경이 없다.

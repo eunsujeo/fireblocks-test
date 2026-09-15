@@ -259,7 +259,8 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
   예제의 `crypto.sign(undefined, …)` 기본 동작과 같다. `algorithm` 필드는 보내지 않는다(명세: 미지정 시 키로 결정).
 - `DfnsUserActionClient`: init의 `userActionPayload`에는 실제로 보낼 본문 바이트를 그대로 문자열로 넣고 `userActionServerKind=Api`를 보낸다.
   명세가 필수로 정의한 `allowCredentials.key` 배열에 설정된 credential ID가 있어야 서명한다 — 목록이 없거나 배열이 아니면 진행하지 않는다.
-  받은 `userAction`은 이어지는 한 요청에만 쓰고 저장·재사용하지 않는다. 인증 단계의 오류·결손 응답도 수신 바이트를 예외에 담아 전파한다.
+  받은 `userAction`은 이어지는 한 요청에만 쓰고 저장·재사용하지 않는다. 인증 단계의 HTTP 오류·결손·형식 오류(서명 입력이 될 수 없는 challenge 포함) 응답도
+  수신 바이트를 예외에 담아 전파해 같은 보관 규칙을 따른다.
 - `DfnsProperties`(`bcm.dfns.*`): `base-url`(기본값 없음 — Baseline은 고객 환경 배포), `auth-token`, `credential-id`, `credential-private-key-pem|file`,
   timeout, `candidate-page-size`(1..500), `networks`(BCM 코드 → 명세 `network` 값, 값 중복 금지). `VendorExecutionLimits`는 재시도 없는 연결+응답 상한과 생성 흐름 HTTP 3회다.
   어떤 실행 모듈도 아직 이 설정을 바인딩하지 않는다.
@@ -282,8 +283,11 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 
 - 명세 `Wallet`의 필수 `id`·`network`·`signingKey`(객체, `id` 문자열)·`status`·`custodial`(boolean)이 형식대로 있어야 정규화한다. 하나라도 결손·형식 오류면
   그 지갑을 조직 소유로 승인하지 않고 응답 전체를 오류로 전파한다(수신 바이트는 보관). `dateCreated`·`tags`는 사용하지 않아 검사하지 않는다.
-- `vendorWalletId` = `id`, `correlationId` = `externalId`, `address` = `address`. 선택 필드는 없거나 null이면 null이고, 문자열이 아니거나 빈 문자열이면 형식 오류다 —
-  빈 값을 주소 준비 완료나 상관관계 값으로 받지 않는다.
+- `vendorWalletId` = `id`, `correlationId` = `externalId`, `address` = `address`. 선택 문자열은 없거나 null이면 null이고 문자열이 아니면 형식 오류다.
+  명세에 minLength가 없는 `address`·`externalId`의 빈 문자열은 null로 둔다(주소 대기·상관관계 없음 — 빈 값을 준비 완료나 상관관계 값으로 받지 않는다).
+  minLength 1인 `signingKey.delegatedTo`·`vaultId`의 빈 문자열은 형식 오류다.
+- 목록 응답은 필터 전에 모든 항목이 객체이고 `externalId`가 없거나 문자열인지 검사한다. 형식이 깨진 항목을 버리고 나머지로 완료 연결하지 않는다.
+  검사를 통과한 항목만 `externalId == correlationId`로 좁힌다. `nextPageToken`은 재요청 `paginationToken`(minLength 1)이 되므로 빈 문자열은 재개 불가 → 오류다.
 - `network`: 설정 `networks`로 BCM 코드로 되돌린다. 매핑에 없는 값은 원문 그대로 둬 회수 판정의 `NETWORK_MISMATCH`로 드러나게 한다.
 - `ownership`: `custodial=true`(명세: 조직 소유)이고 `signingKey.delegatedTo`가 없고 `vaultId`(Vault 통제·읽기 전용 지갑)가 없고 `status=Active`일 때만 `ORGANIZATION`,
   그 밖은 `OTHER`다. Active가 아닌 지갑은 조직이 사용할 수 있는 자원으로 인정하지 않으며 상태 원문은 증적에 남는다. 판정 필드 결손은 위 규칙대로 오류이므로
