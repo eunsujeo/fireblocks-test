@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.persistence.asset
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.exception.ConflictException
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.context.annotation.Import
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 
 @DataJdbcTest
@@ -34,6 +36,22 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
         assertThat(catalogs.findAll(adopted = true)).containsExactly(ethereum)
         assertThat(catalogs.findAll(adopted = false, testnet = true)).containsExactly(sepolia)
         assertThat(catalogs.findAll(query = "HERE", chainId = 1)).containsExactly(ethereum)
+    }
+
+    @Test
+    fun `계정·자산 모델은 seed 행이 채우고 동기화 갱신이 덮지 않으며 허용 값 밖은 CHECK가 막는다`() {
+        val solana = catalogs.insert(catalog("SolanaDevnet", "SOLANA_DEVNET").copy(chainId = null, chainModel = ChainModel.SOLANA))
+        assertThat(catalogs.findByNetwork("SOLANA_DEVNET")).isEqualTo(solana)
+        assertThat(catalogs.findByCandidateId("SolanaDevnet")?.chainModel).isEqualTo(ChainModel.SOLANA)
+
+        val synced = catalogs.updateSnapshot(solana.copy(displayName = "Solana Devnet (synced)", chainModel = null))
+        assertThat(synced.chainModel).isEqualTo(ChainModel.SOLANA)
+        assertThat(synced.displayName).isEqualTo("Solana Devnet (synced)")
+        assertThat(catalogs.insert(catalog("ethereum-id", "ETHEREUM")).chainModel).isNull()
+
+        assertThatThrownBy {
+            jdbc.update("UPDATE bcm_blkc_m SET chain_mdl_dvcd = 'TRON' WHERE vndr_blkc_id = 'SolanaDevnet'")
+        }.isInstanceOf(DataIntegrityViolationException::class.java)
     }
 
     @Test

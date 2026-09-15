@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.application.asset
 
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheRepository
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheState
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
@@ -179,6 +180,12 @@ class VendorAssetMappingServiceTest {
             ) { assertThat(it.reason).isEqualTo("fireblocksAssetIdRequired") }
         verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
         verify(exactly = 0) { mappings.save(any(), any()) }
+
+        // 운영자 지정 토큰 표준은 Fireblocks 원천에 적용되지 않아 카탈로그를 읽기 전에 거절한다.
+        assertThatThrownBy { service.register(command.copy(tokenStandard = TokenStandard.SPL)) }
+            .isInstanceOfSatisfying(
+                InvalidAssetMappingException::class.java,
+            ) { assertThat(it.reason).isEqualTo("tokenStandardNotApplicable") }
 
         // 정상 ID와 누락 ID가 섞인 일괄 요청도 카탈로그를 읽기 전에 누락 항목의 index로 거절한다.
         every { mappings.find("ETHEREUM", "DAI") } returns null

@@ -121,7 +121,7 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
     @Test
     fun `길이 초과 데이터 결함은 ConflictException으로 오분류하지 않는다`() {
         assertThatThrownBy {
-            mappings.insert(mapping(vendorAssetId = "A".repeat(65)))
+            mappings.insert(mapping(vendorAssetId = "A".repeat(129)))
         }.isInstanceOf(DataIntegrityViolationException::class.java)
             .isNotInstanceOf(ConflictException::class.java)
     }

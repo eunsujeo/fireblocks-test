@@ -3,6 +3,7 @@ package com.whatto.bcm.app.api.admin
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers.openApi
 import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.app.application.asset.VendorAssetMappingService
+import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import io.mockk.every
@@ -69,6 +70,41 @@ class AdminAssetControllerDfnsOriginTest {
     }
 
     @Test
+    fun `Solana mint 등록은 tokenStandard를 명령으로 넘기고 허용 값 밖은 역직렬화 400이다`() {
+        val solana = mapping.copy(network = "SOLANA_DEVNET", vendorAssetId = "SolanaDevnet:Spl2022:$MINT", contractAddress = MINT)
+        every {
+            service.register(
+                match {
+                    it.network == "SOLANA_DEVNET" &&
+                        it.tokenStandard == TokenStandard.SPL_2022 &&
+                        it.contractAddress == MINT
+                },
+            )
+        } returns solana
+
+        mockMvc
+            .perform(
+                post("/admin/asset-mappings")
+                    .header("X-Employee-No", "123456")
+                    .header("X-Branch-Code", "0001")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"network":"SOLANA_DEVNET","symbol":"USDC","contractAddress":"$MINT","tokenStandard":"SPL_2022"}"""),
+            ).andExpect(status().isCreated)
+            .andExpect(jsonPath("$.data.dfnsAssetKey").value(solana.vendorAssetId))
+            .andExpect(openApi().isValid(SPEC))
+
+        mockMvc
+            .perform(
+                post("/admin/asset-mappings")
+                    .header("X-Employee-No", "123456")
+                    .header("X-Branch-Code", "0001")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"network":"SOLANA_DEVNET","symbol":"USDC","contractAddress":"$MINT","tokenStandard":"ERC20"}"""),
+            ).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+    }
+
+    @Test
     fun `Dfns 원천에 Fireblocks asset id를 실으면 관문의 400 사유를 그대로 돌려주고 빈 문자열은 검증에서 400이다`() {
         every { service.register(match { it.fireblocksAssetId == "USDC_ETH_TEST5" }) } throws
             InvalidAssetMappingException("ETHEREUM_SEPOLIA", "fireblocksAssetIdNotApplicable")
@@ -98,6 +134,7 @@ class AdminAssetControllerDfnsOriginTest {
     }
 
     companion object {
+        private const val MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
         private val SPEC: String = File("../../docs/api/openapi.yaml").absolutePath
     }
 }

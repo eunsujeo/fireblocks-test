@@ -18,6 +18,7 @@ import com.whatto.bcm.app.config.ProviderOriginConfiguration
 import com.whatto.bcm.app.config.WalletProvisioningConfig
 import com.whatto.bcm.domain.account.AccountModel
 import com.whatto.bcm.domain.account.AccountType
+import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.exception.AssetNotSupportedException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.ProvisioningPendingException
@@ -120,10 +121,10 @@ class DfnsAccountAssemblyIntegrationTest {
         // Dfns 데이터셋의 네트워크 행은 DBA 데이터셋 seed다(03) — vndr_blkc_id는 채택 명세의 Dfns network 값이다. 네트워크 코드는 시험용이다.
         jdbc.update(
             """
-            INSERT INTO bcm_blkc_m (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+            INSERT INTO bcm_blkc_m (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                                     frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('EthereumSepolia', 'ETHEREUM_TEST', 11155111, 'Ethereum Sepolia (test)', 'Y', 'N', '20260915000000', 'SYSTEM', '9999', 'SYSTEM', '9999'),
-                   ('SolanaDevnet', 'SOLANA_TEST', NULL, 'Solana Devnet (test)', 'Y', 'N', '20260915000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            VALUES ('EthereumSepolia', 'ETHEREUM_TEST', 11155111, 'Ethereum Sepolia (test)', 'Y', 'N', '20260915000000', 'EVM', 'SYSTEM', '9999', 'SYSTEM', '9999'),
+                   ('SolanaDevnet', 'SOLANA_TEST', NULL, 'Solana Devnet (test)', 'Y', 'N', '20260915000000', 'SOLANA', 'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (vndr_blkc_id) DO NOTHING
             """.trimIndent(),
         )
@@ -131,7 +132,7 @@ class DfnsAccountAssemblyIntegrationTest {
         listOf(
             Triple("ETHEREUM_TEST", "USDC", "EthereumSepolia:Erc20:${FakeDfns.USDC_CONTRACT.lowercase()}"),
             Triple("ETHEREUM_TEST", "KRWK", "EthereumSepolia:Erc20:${FakeDfns.KRWK_CONTRACT.lowercase()}"),
-            Triple("SOLANA_TEST", "USDC", "dfns-test-SOLANA_TEST-USDC"),
+            Triple("SOLANA_TEST", "USDC", "SolanaDevnet:Spl:${FakeDfns.SOLANA_USDC_MINT}"),
         ).forEach { (network, symbol, vendorAssetId) ->
             jdbc.update(
                 """
@@ -143,7 +144,11 @@ class DfnsAccountAssemblyIntegrationTest {
                 network,
                 symbol,
                 vendorAssetId,
-                if (symbol == "KRWK") FakeDfns.KRWK_CONTRACT else FakeDfns.USDC_CONTRACT,
+                when {
+                    network == "SOLANA_TEST" -> FakeDfns.SOLANA_USDC_MINT
+                    symbol == "KRWK" -> FakeDfns.KRWK_CONTRACT
+                    else -> FakeDfns.USDC_CONTRACT
+                },
             )
         }
         dfns.reset()
@@ -280,10 +285,26 @@ class DfnsAccountAssemblyIntegrationTest {
         }.isInstanceOfSatisfying(
             InvalidAssetMappingException::class.java,
         ) { assertThat(it.reason).isEqualTo("fireblocksAssetIdNotApplicable") }
+        // Solana 모델 행 — mint는 운영자가 명시한 토큰 표준과 함께 Spl 키로, 표준이 없으면 거절이다(V25 chain_mdl_dvcd).
+        val sol =
+            assetMappings.register(
+                RegisterVendorAssetMappingCommand(
+                    "SOLANA_TEST",
+                    "ASMSOL",
+                    null,
+                    FakeDfns.SOLANA_KRWK_MINT,
+                    "123456",
+                    "0001",
+                    tokenStandard = TokenStandard.SPL_2022,
+                ),
+            )
+        assertThat(sol.vendorAssetId).isEqualTo("SolanaDevnet:Spl2022:${FakeDfns.SOLANA_KRWK_MINT}")
         assertThatThrownBy {
-            assetMappings.register(RegisterVendorAssetMappingCommand("SOLANA_TEST", "ASMSOL", null, null, "123456", "0001"))
-        }.isInstanceOfSatisfying(InvalidAssetMappingException::class.java) { assertThat(it.reason).isEqualTo("assetModelUnsupported") }
-        assertThat(assetMappings.mappings(null, null).map { it.symbol }).doesNotContain("ASMFB", "ASMSOL")
+            assetMappings.register(
+                RegisterVendorAssetMappingCommand("SOLANA_TEST", "ASMNOSTD", null, FakeDfns.SOLANA_KRWK_MINT, "123456", "0001"),
+            )
+        }.isInstanceOfSatisfying(InvalidAssetMappingException::class.java) { assertThat(it.reason).isEqualTo("tokenStandardRequired") }
+        assertThat(assetMappings.mappings(null, null).map { it.symbol }).doesNotContain("ASMFB", "ASMNOSTD")
         assertThat(dfns.requests).isEmpty()
     }
 
@@ -369,6 +390,10 @@ class DfnsAccountAssemblyIntegrationTest {
             const val USDC_CONTRACT = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
             const val KRWK_CONTRACT = "0x0000000000000000000000000000000000000002"
             const val DAI_CONTRACT = "0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357"
+
+            /** base58 32바이트 형식의 시험용 mint 값 — 실제 발행 자산을 가리키지 않는다. */
+            const val SOLANA_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+            const val SOLANA_KRWK_MINT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
         }
     }
 
