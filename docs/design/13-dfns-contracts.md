@@ -215,7 +215,8 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | `READ` | `GET /wallets/{walletId}` 200 | 같은 `Wallet` 객체. 404/빈 본문도 그대로 보관하며 미관찰로 처리한다 |
 | `DISCOVER` | `GET /wallets` 200 | `items[]`(Wallet)와 `nextPageToken`. query는 `limit`·`paginationToken`·`owner`·`ownerId`·`ownerUsername`만 있고 externalId 서버 필터는 없다 |
 
-- 어댑터는 응답을 정규화한 값과 같은 바이트를 서비스에 전달하고 서비스가 SHA-256을 계산한다. 저장소가 저장 컬럼에서 다시 계산한 hash와 일치해야 V22 페이지에 기록한다.
+- 어댑터는 응답을 정규화한 값과 같은 바이트를 서비스에 전달하고 서비스가 SHA-256을 계산한다. DB가 계산해 CHECK로 본문과 대조한 `body_hash`와 일치해야 V22 페이지에 기록한다.
+  저장소 SQL은 `body` 컬럼을 읽지 않으며 runbook의 앱 역할 권한으로 실행 가능해야 한다.
 - 증적 행의 존재는 지갑 준비 완료나 Dfns 수용이 아니다. `address` 부재는 주소 대기이며 `status`·`custodial`의 의미 해석은 HTTP 어댑터 연결 시 고정한다.
 - **별도 수용:** 실제 Baseline 릴리스가 위 schema와 같은지, 서명/인증 원문, 실제 지연·장애 동작. 현재 결합 테스트의 바이트는 BCM 내부 표기이며 Dfns payload가 아니다.
   이 저장소가 있다는 사실로 `BCM_PROVIDER=dfns` 기동 차단을 해제하지 않는다.

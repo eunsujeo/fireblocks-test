@@ -16,9 +16,10 @@ import java.util.UUID
 
 /**
  * bcm_ntwk_wlt_evdc_l — 생성/조회 응답 원문의 보호 보관소.
- * 원문 바이트를 그대로 저장하고 길이·SHA-256은 DB가 계산해 CHECK로 강제한다. 반환 hash는 저장된 컬럼에서 다시 계산한 값이다.
+ * 원문 바이트를 그대로 저장하고 길이·SHA-256은 DB가 계산해 CHECK로 본문과 대조한다. 반환 hash는 그 CHECK를 통과한 body_hash 컬럼 값이다.
+ * 저장·조회 SQL은 body 컬럼을 읽지 않는다 — 앱 역할에는 body SELECT 권한이 없으므로 RETURNING/SELECT에서 body를 참조하면 저장이 거절된다.
  * 보관은 호출자 트랜잭션과 독립적으로 커밋한다 — 뒤따르는 원장 저장이 실패해도 이미 받은 응답 증적은 남는다.
- * 원문은 이 어댑터로 읽지 않는다. 앱 역할에는 body SELECT 권한을 주지 않는다(03·runbook).
+ * 원문은 이 어댑터로 읽지 않는다. 앱 역할 권한 절차는 03·원천 runbook을 따른다.
  */
 @Repository
 @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -42,7 +43,7 @@ class NetworkWalletEvidenceJdbcAdapter(
                 VALUES (:id, :intentId, :originId, :accountId, :network, :correlationId, :requestHash, :operation, :cursor, :knownWalletId,
                         :body, octet_length(:body), encode(sha256(:body), 'hex'), :observedAt,
                         :employeeNo, :branchCode, :employeeNo, :branchCode)
-                RETURNING encode(sha256(body), 'hex')
+                RETURNING body_hash
                 """.trimIndent(),
                 mapOf(
                     "id" to id,
