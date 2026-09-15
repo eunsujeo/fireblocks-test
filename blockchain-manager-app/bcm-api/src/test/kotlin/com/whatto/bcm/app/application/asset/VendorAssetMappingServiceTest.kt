@@ -171,12 +171,12 @@ class VendorAssetMappingServiceTest {
     fun `등록 — Fireblocks 원천에서 후보 asset id가 없으면 카탈로그를 읽기 전에 400이다`() {
         every { mappings.find("ETHEREUM", "USDC") } returns null
         every { blockchains.findByNetwork("ETHEREUM") } returns blockchain()
-        every { vendorCatalog.assets("ethereum-id", null, null) } returns VendorPage(emptyList(), null)
 
         assertThatThrownBy { service.register(command.copy(fireblocksAssetId = null)) }
             .isInstanceOfSatisfying(
                 InvalidAssetMappingException::class.java,
             ) { assertThat(it.reason).isEqualTo("fireblocksAssetIdRequired") }
+        verify(exactly = 0) { vendorCatalog.assets(any(), any(), any()) }
         verify(exactly = 0) { mappings.save(any(), any()) }
     }
 

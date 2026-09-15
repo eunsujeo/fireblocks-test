@@ -519,6 +519,8 @@ class DfnsNetworkWalletClientTest {
         listOf(
             """{"walletId":"wa-2","network":"EthereumSepolia","assets":[]}""",
             """{"walletId":"wa-1","network":"BaseSepolia","assets":[]}""",
+            """{"walletId":"wa-1","network":"ETHEREUM_SEPOLIA","assets":[]}""",
+            """{"walletId":"wa-1","network":"Ethereum","assets":[]}""",
             """{"walletId":"wa-1","network":"EthereumSepolia"}""",
             """{"walletId":"wa-1","network":"EthereumSepolia","assets":["x"]}""",
             """{"walletId":"wa-1","network":"EthereumSepolia","assets":[{"decimals":18,"balance":"1"}]}""",

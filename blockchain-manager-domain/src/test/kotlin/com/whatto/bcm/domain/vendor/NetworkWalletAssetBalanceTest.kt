@@ -27,7 +27,8 @@ class NetworkWalletAssetBalanceTest {
             assertThatThrownBy { balance(units, 6) }.describedAs(units).isInstanceOf(IllegalArgumentException::class.java)
         }
         assertThatThrownBy { balance("1", -1) }.isInstanceOf(IllegalArgumentException::class.java)
-        assertThatThrownBy { balance("1", NetworkWalletAssetBalance.MAX_DECIMALS + 1) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(balance("1", 255).decimals).isEqualTo(NetworkWalletAssetBalance.MAX_DECIMALS)
+        assertThatThrownBy { balance("1", 256) }.isInstanceOf(IllegalArgumentException::class.java)
         assertThatThrownBy { NetworkWalletAssetBalance(" ", "USDC", 6, "1", null) }.isInstanceOf(IllegalArgumentException::class.java)
     }
 
