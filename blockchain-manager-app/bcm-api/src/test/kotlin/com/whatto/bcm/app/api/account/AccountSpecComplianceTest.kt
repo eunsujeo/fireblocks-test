@@ -9,9 +9,14 @@ import com.whatto.bcm.app.application.account.fixture.AccountFixture
 import com.whatto.bcm.app.application.account.fixture.DepositAddressFixture
 import com.whatto.bcm.domain.account.AccountType
 import com.whatto.bcm.domain.exception.AccountNotFoundException
+import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.CreationRetryLaterException
+import com.whatto.bcm.domain.exception.ProvisioningPendingException
 import com.whatto.bcm.domain.vendor.VendorBalance
 import io.mockk.every
+import org.hamcrest.Matchers.containsString
+import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -155,6 +160,39 @@ class AccountSpecComplianceTest {
             .andExpect(jsonPath("$.data[0].token").doesNotExist())
             .andExpect(jsonPath("$.data[1].error.code").value("CREATION_RETRY_LATER"))
             .andExpect(jsonPath("$.data[1].error.retryAfterSeconds").value(82_800))
+            .andExpect(openApi().isValid(SPEC))
+    }
+
+    @Test
+    fun `createDepositAddresses 네트워크 지갑 보류·충돌 항목이 스펙 PROVISIONING_PENDING·CONFLICT 계약과 일치한다`() {
+        every { accountService.createDepositAddresses("acct_test_01", "USDC", listOf("ETHEREUM", "BASE")) } returns
+            listOf(
+                AddressOutcome(
+                    network = "ETHEREUM",
+                    symbol = "USDC",
+                    depositAddress = null,
+                    failure = ProvisioningPendingException("intent-eth", "INCOMPLETE_SCAN", 5),
+                ),
+                AddressOutcome(
+                    network = "BASE",
+                    symbol = "USDC",
+                    depositAddress = null,
+                    failure = ConflictException("networkWallet", "intent-base"),
+                ),
+            )
+
+        mockMvc
+            .perform(
+                post("/accounts/acct_test_01/addresses")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"symbol":"USDC","networks":["ETHEREUM","BASE"]}"""),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.data[0].address").value(nullValue()))
+            .andExpect(jsonPath("$.data[0].error.code").value("PROVISIONING_PENDING"))
+            .andExpect(jsonPath("$.data[0].error.retryAfterSeconds").value(5))
+            .andExpect(jsonPath("$.data[0].error.message").value(not(containsString("INCOMPLETE_SCAN"))))
+            .andExpect(jsonPath("$.data[1].error.code").value("CONFLICT"))
+            .andExpect(jsonPath("$.data[1].error.retryAfterSeconds").doesNotExist())
             .andExpect(openApi().isValid(SPEC))
     }
 

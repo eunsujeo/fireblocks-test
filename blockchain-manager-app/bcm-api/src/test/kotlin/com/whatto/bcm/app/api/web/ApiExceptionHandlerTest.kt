@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
 /**
- * 에러 응답 계약 — error.code 10종 · HTTP status · envelope (OpenAPI 에러 표 · error-handling.md).
+ * 에러 응답 계약 — error.code 11종 · HTTP status · envelope (OpenAPI 에러 표 · error-handling.md).
  */
 @WebMvcTest(EnvelopeTestController::class)
 class ApiExceptionHandlerTest {
@@ -82,6 +82,17 @@ class ApiExceptionHandlerTest {
             .andExpect(jsonPath("$.error.code").value("CREATION_RETRY_LATER"))
             .andExpect(jsonPath("$.error.retryAfterSeconds").value(82_800))
             .andExpect(header().string("Retry-After", "82800"))
+    }
+
+    @Test
+    fun `네트워크 지갑 준비 진행 중 — 503 PROVISIONING_PENDING과 재시도 시간, 내부 사유는 노출하지 않는다`() {
+        mockMvc
+            .perform(get("/test-envelope/provisioning-pending"))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.error.code").value("PROVISIONING_PENDING"))
+            .andExpect(jsonPath("$.error.retryAfterSeconds").value(5))
+            .andExpect(header().string("Retry-After", "5"))
+            .andExpect(content().string(not(org.hamcrest.Matchers.containsString("INCOMPLETE_SCAN"))))
     }
 
     @Test

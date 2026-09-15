@@ -20,8 +20,6 @@ import com.whatto.bcm.infra.persistence.account.LogicalAccountJdbcAdapter
 import com.whatto.bcm.infra.persistence.provider.ProviderOriginJdbcAdapter
 import com.whatto.bcm.infra.persistence.wallet.NetworkWalletEvidenceJdbcAdapter
 import com.whatto.bcm.infra.persistence.wallet.NetworkWalletProvisioningJdbcAdapter
-import com.whatto.bcm.testsupport.database.ProviderOriginTestDatabase
-import com.whatto.bcm.testsupport.integration.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
@@ -303,23 +301,8 @@ class NetworkWalletProvisioningRecoveryIntegrationTest {
     companion object {
         private val ORIGIN = ProviderOrigin("test-dfns-origin", "dfns", "dfns", "test-dfns-platform", "test-dfns-organization", "TESTNET")
 
-        /** 공용 컨테이너 안의 별도 Dfns 데이터셋 — Fireblocks 데이터셋과 섞지 않는다. */
-        private val dfnsJdbcUrl: String by lazy {
-            ProviderOriginTestDatabase.createDfns(
-                IntegrationTestSupport.postgres.jdbcUrl,
-                IntegrationTestSupport.postgres.username,
-                IntegrationTestSupport.postgres.password,
-            )
-        }
-
         @JvmStatic
         @DynamicPropertySource
-        fun dataset(registry: DynamicPropertyRegistry) {
-            registry.add("spring.datasource.url") { dfnsJdbcUrl }
-            registry.add("spring.datasource.username") { IntegrationTestSupport.postgres.username }
-            registry.add("spring.datasource.password") { IntegrationTestSupport.postgres.password }
-            registry.add("spring.datasource.hikari.maximum-pool-size") { 3 }
-            registry.add("spring.datasource.hikari.minimum-idle") { 0 }
-        }
+        fun dataset(registry: DynamicPropertyRegistry) = DfnsDatasetTestSupport.register(registry)
     }
 }
