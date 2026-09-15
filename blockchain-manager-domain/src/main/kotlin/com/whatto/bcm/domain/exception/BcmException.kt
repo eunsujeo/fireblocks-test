@@ -39,6 +39,20 @@ class CreationRetryLaterException(
     val retryAfterSeconds: Long,
 ) : BcmException("vendor resource creation must be retried later: resourceKey=$resourceKey retryAfterSeconds=$retryAfterSeconds")
 
+/**
+ * 네트워크 지갑 생성·회수가 아직 진행 중이다 — 오류가 아니라 지연이며 새 생성이나 키 회전을 허가하지 않는다 (openapi PROVISIONING_PENDING).
+ * reason은 저장된 대기 사유(INCOMPLETE_SCAN 등) 또는 의도 상태이고 PII가 아니다.
+ */
+class ProvisioningPendingException(
+    val resourceKey: String,
+    val reason: String,
+    val retryAfterSeconds: Long,
+) : BcmException("network wallet provisioning is pending: resourceKey=$resourceKey reason=$reason retryAfterSeconds=$retryAfterSeconds") {
+    init {
+        require(retryAfterSeconds >= 1) { "retryAfterSeconds must be positive" }
+    }
+}
+
 /** 등록되지 않은 (network, symbol) — 형식 오류와 구분해 호출자가 지원 자산 여부를 판별한다. */
 class AssetNotSupportedException(
     val network: String,

@@ -1,6 +1,6 @@
 # 실행 제공자 선택·호환 계약
 
-상태: DF0 코드/API 목록 대조·DF1 공통 경계 설계·DF3 Fireblocks/로컬 조립과 DB 원천 대조 구현. 전체 Dfns 호환 완료가 아니다.
+상태: DF0 코드/API 목록 대조·DF1 공통 경계 설계·DF3 Fireblocks/로컬 조립·DB 원천 대조·네트워크 지갑 원장/증적·공식 명세 기반 Dfns HTTP 어댑터 구현. 전체 Dfns 호환 완료가 아니다.
 [전체 계획](../dfns-compatibility-plan.md) · [코드/API 인벤토리](evidence/92-provider-compatibility-inventory.md)
 
 ## 범위와 실행 선택
@@ -264,3 +264,21 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta 5624e3b·85816c0, design-sync→code-reviewer 순차)**: 이전 Critical 1건·Major 1건 해소 확인,
   신규 Critical/Major/Minor 없음. `RETURNING body_hash`가 기존 DB 계산·CHECK 계약을 유지하고, 제한 역할 테스트의 GRANT가 runbook 양식과 같으며,
   두 동시 요청 테스트가 barrier/게이트로 순서에 의존하지 않음을 확인했다. 검토 기준 commit은 85816c0이다. 실벤더 호출·운영 DB 적용·배포는 미수행이다.
+
+## Dfns 인증·지갑 HTTP 어댑터와 보류·충돌 계약 검증 (2026-09-15)
+
+- 계약은 [계약13](13-dfns-contracts.md#보류충돌-http-계약--구현)에 먼저 고정했다. Pending은 새 `PROVISIONING_PENDING`(503, `Retry-After`/`retryAfterSeconds`),
+  Conflict는 기존 `CONFLICT`다. `CREATION_RETRY_LATER`는 Fireblocks 시간 기반 재생성 대기라 재사용하지 않았다. OpenAPI 0.11.0의 에러 표·주소 batch 설명·
+  `retryAfterSeconds` 설명을 갱신하고 생성물(spec.js·api.md·api.html)을 재생성했다. 별도 endpoint·가짜 성공 응답은 추가하지 않았다.
+- domain `NetworkWalletCreationIntent.requireCompleted`·`ProvisioningPendingException`, API `ErrorCode`(11종)·resolver·handler·주소 batch 항목 `retryAfterSeconds`를 구현했다.
+  수용 테스트: domain 5건, `ApiExceptionHandlerTest` 1건(503·헤더·내부 사유 미노출), `AccountSpecComplianceTest` 1건(항목 `PROVISIONING_PENDING`/`CONFLICT`가 스펙 schema와 일치), `ErrorCodeTest` 갱신.
+- `infra/client`의 `dfns` 패키지: `DfnsProperties`·`DfnsCredentialSigner`·`DfnsUserActionClient`·`DfnsNetworkWalletClient`(+ `DfnsHttp`·`DfnsRestClientFactory`).
+  근거는 공식 OpenAPI 1.1018.3과 공식 Credentials data·Signing flows 문서이며 다운로드 해시를 계약13에 기록했다. 어떤 실행 모듈도 조립하지 않으며 `BCM_PROVIDER=dfns` 기동 차단을 유지한다.
+- 계약 테스트 17건(MockRestServiceServer, 실호출 0): clientData 형식·EC/RSA/Ed25519 서명의 공개키 검증, init 본문(`userActionPayload`=실제 본문 바이트·`Api`·경로/메서드),
+  `/auth/action` 본문(kind Key·credId·`algorithm` 미전송)과 서명 검증, `POST /wallets`의 `X-DFNS-USERACTION`·같은 바이트 본문, 원문 바이트 보존, 저장 requestHash 불일치 시 호출 0,
+  allowCredentials 불일치·인증 단계 오류/결손 시 생성 호출 0, 생성 4xx 상태 전파, 필수 필드 결손 거절, 단건 조회 404 원문 보존/오류/ID 불일치, 목록 query·externalId 필터·nextPageToken,
+  custodial/위임/Vault/status 소유 판정, 목록 오류·items 결손 전파, 다른 원천 거절, 생성 본문 두 필드·externalId 100자 제한.
+- 결합 슬라이스 `DfnsNetworkWalletEvidenceIntegrationTest` 3건(HTTP mock + 실제 PostgreSQL 원장·V24): 생성 응답 바이트가 그대로 보관되고 DB 계산 해시=원장 페이지 해시,
+  생성 응답 유실 뒤 목록 페이지 원문 보관과 externalId 필터 후보로 완료, known ID 404 원문 보관과 같은 ID 대기(`NOT_OBSERVED`). 같은 모듈의 두 슬라이스가 한 Dfns 데이터셋을 공유하도록
+  `DfnsDatasetTestSupport`로 데이터셋 생성을 JVM당 한 번으로 묶었다(기존 회수 슬라이스 7건은 assertion 변경 없음).
+- 선택 회귀: domain 110 · application 21 · persistence(wallet·account·provider) 58 · client(fireblocks·dfns) 104 · API(wallet·web·account·Bootstrap·Architecture·ProviderStartup) 68 = **361건**, 실패/오류/skip 0. 변경 모듈(domain·client·bcm-api) ktlintCheck 통과. 실벤더 호출·운영 적용·조건부 조립·기동 차단 해제는 미수행이다.

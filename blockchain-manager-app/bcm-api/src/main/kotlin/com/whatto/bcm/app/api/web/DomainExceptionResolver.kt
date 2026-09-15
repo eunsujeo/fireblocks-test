@@ -8,6 +8,7 @@ import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.CreationRetryLaterException
 import com.whatto.bcm.domain.exception.InvalidAssetMappingException
 import com.whatto.bcm.domain.exception.InvalidRequestException
+import com.whatto.bcm.domain.exception.ProvisioningPendingException
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
@@ -28,6 +29,7 @@ object DomainExceptionResolver {
             is ConflictException -> ErrorCode.CONFLICT
             is SubmissionInProgressException -> ErrorCode.SUBMIT_IN_PROGRESS
             is CreationRetryLaterException -> ErrorCode.CREATION_RETRY_LATER
+            is ProvisioningPendingException -> ErrorCode.PROVISIONING_PENDING
             is InvalidAssetMappingException -> ErrorCode.VALIDATION_FAILED
             is VendorAssetMappingRegistrationConflictException -> ErrorCode.CONFLICT
             is InvalidRequestException -> ErrorCode.VALIDATION_FAILED

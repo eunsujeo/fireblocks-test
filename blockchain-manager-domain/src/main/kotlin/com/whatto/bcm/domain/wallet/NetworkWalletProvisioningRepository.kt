@@ -1,6 +1,7 @@
 package com.whatto.bcm.domain.wallet
 
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.ProvisioningPendingException
 import com.whatto.bcm.domain.vendor.NetworkWalletCreationRequest
 import com.whatto.bcm.domain.vendor.NetworkWalletObservation
 import com.whatto.bcm.domain.vendor.NetworkWalletRecoveryDecision
@@ -79,6 +80,21 @@ data class NetworkWalletCreationIntent(
     val lastChangedAt: String,
 ) {
     fun canClaimSubmission(expectedRevision: Long): Boolean = status == NetworkWalletCreationStatus.PREPARED && revision == expectedRevision
+
+    /**
+     * 공개 계약으로 번역하기 직전의 판정 — 완료면 연결된 wallet ID를 돌려주고, 진행 중이면 보류, 충돌이면 확정 오류를 던진다.
+     * 보류는 재생성·키 회전 허가가 아니라 같은 요청의 조회 재개 신호다. retryAfterSeconds는 호출자 정책이며 벤더 보장이 아니다.
+     */
+    fun requireCompleted(retryAfterSeconds: Long): String =
+        when (status) {
+            NetworkWalletCreationStatus.COMPLETED ->
+                checkNotNull(
+                    knownWalletId,
+                ) { "Completed network wallet intent without wallet id: $intentId" }
+            NetworkWalletCreationStatus.CONFLICT -> throw ConflictException("networkWallet", intentId)
+            NetworkWalletCreationStatus.PREPARED, NetworkWalletCreationStatus.SUBMITTING, NetworkWalletCreationStatus.RECOVERING ->
+                throw ProvisioningPendingException(intentId, lastReason ?: status.name, retryAfterSeconds)
+        }
 
     fun requireRecovery(expectedRevision: Long) {
         if (revision != expectedRevision ||

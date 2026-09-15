@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Blockchain Manager API
-  version: "0.10.3"
+  version: "0.11.0"
   x-curl: true
   description: |
     블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
@@ -108,11 +108,16 @@ info:
     | `UNPROCESSABLE_ENTITY` | 422 | 요청 형식은 맞지만 source event가 FINALIZED/완료 조건을 충족하지 않음 |
     | `SUBMIT_IN_PROGRESS` | 503 | 같은 `externalTxId` 의 앞선 제출이 처리 중이다 — **오류가 아니라 지연**이다. `Retry-After` 뒤에 같은 요청을 그대로 다시 보낸다 |
     | `CREATION_RETRY_LATER` | 503 | vault·wallet 생성의 새 키 호출을 보수적으로 미룬다. `retryAfterSeconds` 뒤 같은 업무 요청을 다시 보낸다 |
+    | `PROVISIONING_PENDING` | 503 | 네트워크 지갑의 생성·조회 회수가 아직 진행 중이다 — **오류가 아니라 지연**이다. 매니저는 새 생성이나 키 회전 없이 조회만 재개하므로 `retryAfterSeconds` 뒤 같은 업무 요청을 그대로 다시 보낸다 |
     | `RELAY_REJECTED` | 502 | 대납 relay 가 전송을 못 대거나 거절 |
     | `INTERNAL` | 500 | 서버 내부 오류 |
 
     표의 HTTP는 단건·요청 전체 오류의 최상위 status다. 주소 batch는 부분 성공 계약이라 최상위 HTTP 200을 유지하고,
-    네트워크별 `error`에 `CONFLICT` 또는 `CREATION_RETRY_LATER`를 담는다. 후자는 `retryAfterSeconds`도 함께 준다.
+    네트워크별 `error`에 `CONFLICT`, `CREATION_RETRY_LATER` 또는 `PROVISIONING_PENDING`을 담는다. 뒤의 둘은 `retryAfterSeconds`도 함께 준다.
+
+    `PROVISIONING_PENDING` 과 `CREATION_RETRY_LATER` 를 나눈 이유 — 후자는 Fireblocks 생성 키의 시간 기반 교체 대기라 기다린 뒤 **새 생성 호출**이 이어진다.
+    전자는 원천이 보장하지 않는 재생성을 하지 않고 이미 낸 생성 의도를 **조회로만 회수**하는 대기다. 식별·소유 불일치나 서로 다른 지갑 여러 개처럼
+    자동 연결이 불가능한 결과는 `CONFLICT` 로 확정되며 운영 해소 전에는 재시도해도 같은 답이 온다.
 
     `SUBMIT_IN_PROGRESS` 를 `CONFLICT` 와 나눈 이유 — `CONFLICT` 는 "키를 잘못 썼다"는 확정 오류라 재시도해도 같은 답이 온다.
     `SUBMIT_IN_PROGRESS` 는 잠시 뒤 성공할 상황이다. 둘을 한 코드로 묶으면 호출 쪽이 사고와 지연을 구분할 수 없다.
@@ -301,6 +306,9 @@ paths:
         - 결과는 항목마다 `address` 또는 `error` 로 온다 — **둘 중 하나만** 채워진다. HTTP 는 항목 결과와 무관하게 `200` 이고, 응답은 요청과 같은 순서다.
         - 생성 회수 후보 복수·cursor 반복은 해당 네트워크의 `error.code=CONFLICT`다. 24시간 키 교체 cooldown은
           `error.code=CREATION_RETRY_LATER`와 `error.retryAfterSeconds`로 반환해 재시도 가능한 지연임을 구분한다.
+        - Dfns 원천의 네트워크 지갑은 생성 의도를 먼저 저장하고 최초 POST 한 번 뒤에는 조회로만 회수한다. 생성·회수가 진행 중이면 해당 네트워크의
+          `error.code=PROVISIONING_PENDING`과 `error.retryAfterSeconds`이고, 원천·네트워크·상관관계·조직 소유 불일치나 서로 다른 지갑 여러 개는
+          `error.code=CONFLICT`다. 어느 쪽도 새 생성이나 키 회전을 뜻하지 않으며, 같은 요청을 그대로 다시 보내면 매니저가 조회를 이어간다.
         - 지원하지 않는 네트워크가 **하나라도 섞이면 아무것도 발급하지 않고 `400`** 이다. 발급을 시도했다가 전부 실패한 것(`200`, 모든 항목에 `error`)과 구분된다.
         - **재시도는 같은 요청을 그대로 보낸다** — 이미 발급된 네트워크는 벤더를 부르지 않고 같은 주소가 오고, 실패분만 다시 시도된다. 실패분만 골라 보내도 결과는 같다.
         - 네트워크별 Fireblocks 호출 전에 생성 원장과 당시 vendor assetId를 고정한다. 벤더 성공 뒤 로컬 저장이 실패한 재시도는
@@ -2152,7 +2160,7 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: 재시도 가능한 일시 지연에서 같은 업무 요청을 다시 보내기까지 기다릴 초
+          description: 재시도 가능한 일시 지연(`SUBMIT_IN_PROGRESS`·`CREATION_RETRY_LATER`·`PROVISIONING_PENDING`)에서 같은 업무 요청을 다시 보내기까지 기다릴 초
         details:
           $ref: '#/components/schemas/ErrorDetails'
       required: [code, message]

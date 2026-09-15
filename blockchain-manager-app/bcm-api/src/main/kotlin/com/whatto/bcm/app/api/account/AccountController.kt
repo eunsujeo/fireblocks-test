@@ -7,6 +7,7 @@ import com.whatto.bcm.app.api.web.RequestIdFilter
 import com.whatto.bcm.app.application.account.AccountService
 import com.whatto.bcm.app.application.account.AddressOutcome
 import com.whatto.bcm.domain.exception.CreationRetryLaterException
+import com.whatto.bcm.domain.exception.ProvisioningPendingException
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Pattern
@@ -68,7 +69,12 @@ class AccountController(
                 ErrorResponse.ErrorBody(
                     code = errorCode.code,
                     message = errorCode.message,
-                    retryAfterSeconds = (it as? CreationRetryLaterException)?.retryAfterSeconds,
+                    retryAfterSeconds =
+                        when (it) {
+                            is CreationRetryLaterException -> it.retryAfterSeconds
+                            is ProvisioningPendingException -> it.retryAfterSeconds
+                            else -> null
+                        },
                 )
             }
         return DepositAddressResultData(

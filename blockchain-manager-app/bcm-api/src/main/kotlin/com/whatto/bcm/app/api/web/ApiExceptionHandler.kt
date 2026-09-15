@@ -3,6 +3,7 @@ package com.whatto.bcm.app.api.web
 import com.whatto.bcm.domain.exception.BcmException
 import com.whatto.bcm.domain.exception.BulkAssetMappingException
 import com.whatto.bcm.domain.exception.CreationRetryLaterException
+import com.whatto.bcm.domain.exception.ProvisioningPendingException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import com.whatto.bcm.domain.exception.VendorApiException
 import jakarta.servlet.http.HttpServletRequest
@@ -38,6 +39,7 @@ class ApiExceptionHandler {
             when (exception) {
                 is SubmissionInProgressException -> exception.retryAfterSeconds
                 is CreationRetryLaterException -> exception.retryAfterSeconds
+                is ProvisioningPendingException -> exception.retryAfterSeconds
                 else -> null
             }
         if (exception is VendorApiException) {
