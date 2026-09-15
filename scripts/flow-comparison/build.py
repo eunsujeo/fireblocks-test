@@ -185,7 +185,8 @@ def sequence_template(ident, title, sequences, refs, case='', stage=0):
     for side, backend, seq in zip(['daw', 'sdk'], [BC, SDK], sequences):
         heading = ('자동스윕 · BCM 배치 실행' if case=='normal' and stage==4 else 'DAW 원문') if side=='daw' else 'SDK 교체 검토'
         basis = f'원문 전체 · {len(seq["messages"])}개 호출' if seq.get('detailed') else ('연동 검토·확인 필요' if seq['review'] else '문서 흐름 요약')
-        cards.append(f'<article class="sequence-card {side}"><header><h3>{E(heading)}</h3><span>{basis}</span></header><div class="sequence-figure">'+svg(seq, backend, ident+'-'+side)+f'</div><p class="sequence-note">{E(seq["note"])}</p></article>')
+        enlarge = f'<button type="button" data-diagram-open aria-haspopup="dialog" aria-controls="diagram-zoom-dialog" aria-label="{E(heading)} 다이어그램 확대 모달">확대 모달 ↗</button>' if case=='normal' and stage==4 else ''
+        cards.append(f'<article class="sequence-card {side}"><header><h3>{E(heading)}</h3><span>{basis}</span>{enlarge}</header><div class="sequence-figure">'+svg(seq, backend, ident+'-'+side)+f'</div><p class="sequence-note">{E(seq["note"])}</p></article>')
     detailed = any(seq.get('detailed') for seq in sequences)
     dimensions = ' data-left-width="690" data-right-width="1980"' if detailed else ''
     delta = DIFFERENCES[case][stage-1]
@@ -213,7 +214,7 @@ def sequence_template(ident, title, sequences, refs, case='', stage=0):
 
 
 body='''<a class="skip" href="#main">본문으로</a>
-<header class="site-header"><a class="brand" href="#top">DAW <span>/</span> 자금 흐름 비교</a><div><span class="confidential">Strictly Confidential</span><button id="print" class="js-only">인쇄</button></div></header>
+<header class="site-header"><a class="sdk-return" href="../wallet-sdk/index.html">← Wallet SDK로 돌아가기</a><a class="brand" href="#top">DAW <span>/</span> 자금 흐름 비교</a><div><span class="confidential">Strictly Confidential</span><button id="print" class="js-only">인쇄</button></div></header>
 <main id="main"><section class="hero" id="top"><p class="eyebrow">DAW 원장 v0.1.4 · Wallet SDK 문서 비교</p><h1>DAWBC에서 Wallet SDK로</h1><p class="lead">입금부터 반환까지, DAW-CORE의 흐름은 어디서 달라지는가.</p><p class="scope">왼쪽은 설계자 원문, 오른쪽은 SDK로 교체할 때의 흐름입니다. 자동스윕 단계에는 BCM의 배치 요청부터 결과 반영까지 함께 담았습니다. 같은 단계의 요청·상태·원장 반영을 나란히 배치했습니다.</p><div class="architectures">'''
 body+=architecture('01 · DAW 원문 구조','DAWBC','daw')+architecture('02 · SDK 교체 검토','WALLET-SDK','sdk')
 body+='''</div><p class="caption">요청 방향을 단순화한 구조입니다. 온체인 이벤트는 반대 방향으로 전달됩니다. 자동스윕의 SDK 도식은 정책 엔진·저장소·이벤트 스트림·서명 인프라·뒷단 플랫폼의 전체 호출을 표시합니다.</p></section>
@@ -327,8 +328,20 @@ body+='''<dialog id="event-details-dialog" aria-labelledby="event-details-title"
 <header class="event-details-toolbar"><h2 id="event-details-title">eventId 요구사항</h2>
 <button data-event-details-close aria-label="eventId 상세 닫기">닫기 ×</button></header>
 <div id="event-details-content"></div></dialog>'''
+body+='''<dialog id="diagram-zoom-dialog" aria-labelledby="diagram-zoom-title">
+<header class="diagram-zoom-toolbar"><h2 id="diagram-zoom-title">다이어그램 확대</h2>
+<button type="button" data-diagram-close aria-label="확대 다이어그램 닫기">닫기 ×</button></header>
+<div class="diagram-zoom-controls" role="group" aria-label="다이어그램 배율">
+<button type="button" data-diagram-zoom="-" aria-label="다이어그램 축소">−</button>
+<output id="diagram-zoom-level" aria-live="polite">100%</output>
+<button type="button" data-diagram-zoom="+" aria-label="다이어그램 확대">＋</button>
+<button type="button" data-diagram-zoom="actual">원본 크기</button>
+<button type="button" data-diagram-zoom="fit">가로 맞춤</button>
+<p>확대 후 가로·세로로 스크롤할 수 있습니다. 닫으면 비교 화면으로 돌아갑니다.</p></div>
+<div id="diagram-zoom-viewport" tabindex="0" role="region" aria-label="확대 다이어그램, 가로·세로 스크롤 가능"><div id="diagram-zoom-content" inert></div></div>
+</dialog>'''
 css=(HERE/'style.css').read_text()
-js=(HERE/'reader.js').read_text()+'\n'+(HERE/'tooltips.js').read_text()
+js=(HERE/'reader.js').read_text()+'\n'+(HERE/'tooltips.js').read_text()+'\n'+(HERE/'diagram-zoom.js').read_text()+'\n'+(HERE/'participant-headers.js').read_text()
 outbox_tip = '거래 상태와 전송할 이벤트를 같은 DB 트랜잭션에 저장하고, 별도 작업이 발송하는 구조입니다.'
 outbox_link = '<a href="#bcm-outbox" class="term-tooltip" aria-haspopup="dialog" aria-controls="outbox-dialog" title="'+E(outbox_tip)+'">Outbox <span aria-hidden="true">ⓘ</span></a>'
 # Replace visible text only; term definitions and other attributes stay plain text.

@@ -190,7 +190,7 @@ def svg(sequence, backend, ident):
     for actor in actors:
         actor_label = sequence.get('backendLabel', backend) if actor==backend else actor
         x=xs[actor]
-        out+=f'<line x1="{x}" x2="{x}" y1="62" y2="{height-15}" stroke="#c6d2cc" stroke-dasharray="5 5"/><rect x="{x-57}" y="18" width="114" height="42" rx="4" fill="{color if actor==backend else "#f2f5f3"}" stroke="#d4dfd8"/><text x="{x}" y="44" text-anchor="middle" fill="{"white" if actor==backend else "#35453e"}" font-size="12" font-weight="600">{esc(actor_label)}</text>'
+        out+=f'<g data-actor="{esc(actor)}"><line x1="{x}" x2="{x}" y1="62" y2="{height-15}" stroke="#c6d2cc" stroke-dasharray="5 5"/><rect x="{x-57}" y="18" width="114" height="42" rx="4" fill="{color if actor==backend else "#f2f5f3"}" stroke="#d4dfd8"/><text x="{x}" y="44" text-anchor="middle" fill="{"white" if actor==backend else "#35453e"}" font-size="12" font-weight="600">{esc(actor_label)}</text></g>'
     for num,(yy,a,b,wrapped,kind) in enumerate(positions,1):
         details = ' data-event-details tabindex="0" role="button" aria-haspopup="dialog" aria-controls="event-details-dialog" aria-label="eventId 요구 사유와 발급 규칙 보기"' if backend==SDK and 'eventId' in ''.join(wrapped) else ''
         if backend==SDK and '전달 보장' in ''.join(wrapped):
