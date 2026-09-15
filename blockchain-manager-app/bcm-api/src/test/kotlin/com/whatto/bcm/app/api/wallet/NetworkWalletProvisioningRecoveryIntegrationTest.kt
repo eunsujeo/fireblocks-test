@@ -5,6 +5,7 @@ import com.whatto.bcm.app.application.account.AccountQueryService
 import com.whatto.bcm.app.application.account.LogicalAccountService
 import com.whatto.bcm.app.application.wallet.NetworkWalletProvisioningService
 import com.whatto.bcm.domain.account.AccountType
+import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.vendor.NetworkWalletCreationRequest
 import com.whatto.bcm.domain.vendor.NetworkWalletScope
@@ -12,6 +13,7 @@ import com.whatto.bcm.domain.wallet.NetworkWalletCreationIntent
 import com.whatto.bcm.domain.wallet.NetworkWalletCreationSeed
 import com.whatto.bcm.domain.wallet.NetworkWalletCreationStatus
 import com.whatto.bcm.domain.wallet.NetworkWalletEvidenceOperation
+import com.whatto.bcm.domain.wallet.NetworkWalletProvisioningRepository
 import com.whatto.bcm.domain.wallet.NetworkWalletSubmissionSpec
 import com.whatto.bcm.infra.persistence.account.AccountJdbcAdapter
 import com.whatto.bcm.infra.persistence.account.LogicalAccountJdbcAdapter
@@ -40,6 +42,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -205,28 +208,61 @@ class NetworkWalletProvisioningRecoveryIntegrationTest {
     }
 
     @Test
-    fun `동시 요청은 실제 DB 권한 경쟁으로 create를 한 번만 호출한다`() {
-        vendor.createLatencyMillis = 300
-        val start = CountDownLatch(1)
+    fun `같은 PREPARED 의도를 읽은 두 요청 중 하나만 최초 제출 권한을 얻어 create를 호출한다`() {
+        // 두 요청이 모두 PREPARED를 읽은 뒤에만 claim으로 진행하도록 예약 직후를 동기화한다 — 실행 순서에 의존하지 않는다.
+        val bothReserved = CyclicBarrier(2)
+        val ledgerAfterBarrier =
+            object : NetworkWalletProvisioningRepository by ledger {
+                override fun reserve(
+                    seed: NetworkWalletCreationSeed,
+                    now: String,
+                ) = ledger.reserve(seed, now).also { bothReserved.await(5, TimeUnit.SECONDS) }
+            }
         val results =
             Executors.newFixedThreadPool(2).use { executor ->
-                val futures =
-                    (1..2).map {
-                        executor.submit<NetworkWalletCreationIntent> {
-                            check(start.await(5, TimeUnit.SECONDS))
-                            service().provision(seed)
-                        }
-                    }
-                start.countDown()
-                futures.map { it.get(15, TimeUnit.SECONDS) }
+                (1..2)
+                    .map { executor.submit<NetworkWalletCreationIntent> { service(ledgerAfterBarrier).provision(seed) } }
+                    .map { it.get(15, TimeUnit.SECONDS) }
             }
 
         assertThat(vendor.createCalls.get()).isEqualTo(1)
-        assertThat(results.map { it.status }).contains(NetworkWalletCreationStatus.COMPLETED)
         assertThat(results.map { it.intentId }.toSet()).hasSize(1)
+        assertThat(results.map { it.status }).contains(NetworkWalletCreationStatus.COMPLETED)
+        assertThat(evidenceOperations()).containsExactly(NetworkWalletEvidenceOperation.CREATE)
         assertThat(service().provision(seed).status).isEqualTo(NetworkWalletCreationStatus.COMPLETED)
         assertThat(vendor.createCalls.get()).isEqualTo(1)
-        assertThat(evidenceCount()).isEqualTo(1)
+        assertThat(vendor.candidateCalls.get()).isZero()
+    }
+
+    @Test
+    fun `POST 응답 대기 중 다른 요청이 조회로 완료하면 늦은 생성 응답은 증적만 남기고 원장을 덮어쓰지 못한다`() {
+        vendor.createResponseGate = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val slowPost = executor.submit<NetworkWalletCreationIntent> { service().provision(seed) }
+            check(vendor.createEntered.await(5, TimeUnit.SECONDS))
+            assertThat(ledger.find(seed.request.scope)?.status).isEqualTo(NetworkWalletCreationStatus.SUBMITTING)
+
+            val recovered = service().provision(seed)
+
+            assertThat(recovered.status).isEqualTo(NetworkWalletCreationStatus.COMPLETED)
+            assertThat(vendor.candidateCalls.get()).isEqualTo(1)
+            checkNotNull(vendor.createResponseGate).countDown()
+            assertThatThrownBy { slowPost.get(10, TimeUnit.SECONDS) }.hasCauseInstanceOf(ConflictException::class.java)
+        } finally {
+            executor.shutdownNow()
+        }
+
+        assertThat(vendor.createCalls.get()).isEqualTo(1)
+        assertThat(evidenceOperations())
+            .containsExactlyInAnyOrder(NetworkWalletEvidenceOperation.CREATE, NetworkWalletEvidenceOperation.DISCOVER)
+        assertThat(storedPages()).hasSize(1)
+        assertThat(singleStoredEvidence().operation).isEqualTo(NetworkWalletEvidenceOperation.DISCOVER)
+        val stored = requireNotNull(ledger.find(seed.request.scope))
+        assertThat(stored.status).isEqualTo(NetworkWalletCreationStatus.COMPLETED)
+        assertThat(ledger.findWallet(seed.request.scope)?.vendorWalletId).isEqualTo(stored.knownWalletId)
+        assertThat(service().provision(seed)).isEqualTo(stored)
+        assertThat(vendor.createCalls.get()).isEqualTo(1)
     }
 
     @Test
@@ -242,7 +278,8 @@ class NetworkWalletProvisioningRecoveryIntegrationTest {
     }
 
     /** 새 인스턴스는 프로세스 재시작을 뜻한다 — 상태는 DB에만 있다. */
-    private fun service() = NetworkWalletProvisioningService(ledger, vendor, evidence, AccountQueryService(accounts), ORIGIN, clock)
+    private fun service(repository: NetworkWalletProvisioningRepository = ledger) =
+        NetworkWalletProvisioningService(repository, vendor, evidence, AccountQueryService(accounts), ORIGIN, clock)
 
     private fun storedPages(): List<StoredPage> =
         jdbc.query("SELECT evdc_ref, evdc_hash FROM bcm_ntwk_wlt_obs_l ORDER BY page_no") { row, _ ->

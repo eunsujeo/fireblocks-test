@@ -252,4 +252,13 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 선택 회귀: domain 105 · application 21 · persistence(wallet·account·provider) 57 · API(Bootstrap·wallet·Architecture·ProviderStartup) 32 = **215건**,
   실패/오류/skip 0. Bootstrap의 정확한 테이블 목록에 신규 1개만 추가했고 기존 assertion을 완화하지 않았다. 변경 모듈 전체 ktlintCheck 통과.
 - bcm-api 테스트 의존에 Boot 관리 `spring-boot-starter-data-jdbc-test`를 추가했다(persistence가 이미 사용하는 좌표, 별도 커밋·lockfile 갱신).
-  실벤더 호출·운영 DB 적용·배포·독립 converge는 미수행이다.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 bd0066f..ed7fe82, design-sync→code-reviewer 순차)**:
+  Critical 1건 — 저장 SQL의 `RETURNING encode(sha256(body), 'hex')`가 runbook의 앱 역할(body SELECT 없음)에서는 실행되지 않아 증적 저장이 거절된다.
+  Major 1건 — 동시 요청 테스트가 실행 순서에 의존한다(한 요청이 POST 대기 중 다른 요청이 조회 복구로 revision을 올리면 첫 요청이 충돌로 끝난다).
+  그 외 V24 SQL↔03, 계약13↔어댑터, 공식 OpenAPI 버전/해시, 내부 링크 120개, OpenAPI 생성물 3개, Bootstrap 변경 사유, 의존성 실존·분리는 정합으로 확인됐다.
+- **반영**: RETURNING을 CHECK로 본문과 대조된 `body_hash` 컬럼으로 바꿔 저장·조회 SQL이 `body`를 참조하지 않게 했다.
+  runbook과 같은 GRANT만 가진 역할로 저장·메타데이터 조회 성공과 `body` SELECT·UPDATE/DELETE 거절을 검증하는 PostgreSQL 테스트를 추가했다(증적 9건).
+  동시 요청 테스트는 예약 직후 barrier로 두 요청이 같은 PREPARED를 읽는 경쟁(create 1회)과, POST 응답 게이트로 대기 중 다른 요청이 조회로 완료한 뒤
+  늦은 생성 응답이 CREATE 증적만 남기고 `ConflictException`으로 원장을 덮어쓰지 못하는 경로(계약13 4항)로 나눠 결정적으로 검증한다(결합 7건).
+  재실행: persistence wallet 25건(증적 9·원장 16) · API 18건(결합 7·Bootstrap 11) 실패/오류/skip 0, 변경 모듈 ktlintCheck 통과. 반영 후 재검토는 별도 기록한다.
+  실벤더 호출·운영 DB 적용·배포는 미수행이다.

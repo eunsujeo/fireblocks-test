@@ -17,6 +17,8 @@ import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.context.annotation.Import
 import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
+import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -93,6 +95,52 @@ class NetworkWalletEvidencePersistenceTest : PersistenceTestSupport() {
         assertThat(record.observedAt).isEqualTo(NOW)
         // 감사 역할의 원문 열람에 해당하는 직접 조회 — 앱 어댑터는 body를 반환하지 않는다.
         assertThat(jdbc.queryForObject("SELECT body FROM bcm_ntwk_wlt_evdc_l", ByteArray::class.java)).isEqualTo(body)
+    }
+
+    @Test
+    fun `runbook의 앱 역할 권한으로 저장과 메타데이터 조회는 되고 원문 열람과 변경은 거절된다`() {
+        val role = "bcm_evdc_app_test"
+        jdbc.execute("CREATE ROLE $role LOGIN PASSWORD '${postgres.password}'")
+        try {
+            // docs/runbooks/provider-origin.md의 V24 권한 양식과 같은 GRANT만 부여한다.
+            jdbc.execute("GRANT SELECT ON bcm_prvd_bndg_m TO $role")
+            jdbc.execute("GRANT INSERT ON bcm_ntwk_wlt_evdc_l TO $role")
+            jdbc.execute(
+                """
+                GRANT SELECT (evdc_id, crtn_id, orgn_id, acnt_id, ntwk_cd, corr_id, req_hash, oprtn_dvcd, qry_crsr, vndr_wlt_id,
+                              body_len, body_hash, obs_dttm, frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+                  ON bcm_ntwk_wlt_evdc_l TO $role
+                """.trimIndent(),
+            )
+            val restricted = NamedParameterJdbcTemplate(DriverManagerDataSource(postgres.jdbcUrl, role, postgres.password))
+            val appAdapter = NetworkWalletEvidenceJdbcAdapter(restricted, ProviderOriginJdbcAdapter(restricted.jdbcTemplate))
+            val body = NetworkWalletLedgerFixture.body()
+
+            val stored = appAdapter.store(NetworkWalletLedgerFixture.context(intent), body)
+
+            assertThat(stored.hash).isEqualTo(NetworkWalletLedgerFixture.sha256(body))
+            assertThat(requireNotNull(appAdapter.find(stored.reference)).length).isEqualTo(body.size)
+            assertThatThrownBy { restricted.jdbcTemplate.queryForObject("SELECT body FROM bcm_ntwk_wlt_evdc_l", ByteArray::class.java) }
+                .isInstanceOf(DataAccessException::class.java)
+            assertThatThrownBy { restricted.jdbcTemplate.update("UPDATE bcm_ntwk_wlt_evdc_l SET obs_dttm = '20270101000000'") }
+                .isInstanceOf(DataAccessException::class.java)
+            assertThatThrownBy { restricted.jdbcTemplate.update("DELETE FROM bcm_ntwk_wlt_evdc_l") }
+                .isInstanceOf(DataAccessException::class.java)
+            assertThat(
+                jdbc.queryForObject("SELECT has_column_privilege(?, 'bcm_ntwk_wlt_evdc_l', 'body', 'SELECT')", Boolean::class.java, role),
+            ).isFalse()
+            assertThat(
+                jdbc.queryForObject(
+                    "SELECT has_table_privilege(?, 'bcm_ntwk_wlt_evdc_l', 'UPDATE,DELETE,TRUNCATE')",
+                    Boolean::class.java,
+                    role,
+                ),
+            ).isFalse()
+            assertThat(jdbc.queryForObject("SELECT body FROM bcm_ntwk_wlt_evdc_l", ByteArray::class.java)).isEqualTo(body)
+        } finally {
+            jdbc.execute("DROP OWNED BY $role")
+            jdbc.execute("DROP ROLE $role")
+        }
     }
 
     @Test
