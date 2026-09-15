@@ -163,18 +163,21 @@ class DfnsNetworkWalletEvidenceIntegrationTest {
     }
 
     @Test
-    fun `생성 응답 유실 뒤 재시작 조회는 목록 페이지 원문을 보관하고 필터된 후보로 완료한다`() {
+    fun `생성 오류 응답도 원문을 보관하고 재시작 조회는 목록 페이지 원문을 보관한 뒤 필터된 후보로 완료한다`() {
+        val timeout = """{"error":{"message":"timeout"}}"""
         expectUserActionSigning()
         server
             .expect(requestTo("$BASE/wallets"))
-            .andRespond(
-                withStatus(HttpStatus.GATEWAY_TIMEOUT).contentType(MediaType.APPLICATION_JSON).body("""{"error":{"message":"timeout"}}"""),
-            )
+            .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT).contentType(MediaType.APPLICATION_JSON).body(timeout))
         assertThatThrownBy { service().provision(seed) }.isInstanceOf(VendorApiException::class.java)
         server.verify()
         server.reset()
         assertThat(ledger.find(seed.request.scope)?.status).isEqualTo(NetworkWalletCreationStatus.SUBMITTING)
-        assertThat(evidenceCount()).isZero()
+        val failed = singleStoredEvidence()
+        assertThat(failed.operation).isEqualTo(NetworkWalletEvidenceOperation.CREATE)
+        assertThat(failed.body).isEqualTo(timeout.toByteArray())
+        assertThat(failed.hash).isEqualTo(sha256(timeout.toByteArray()))
+        assertThat(storedPageHashes()).isEmpty()
 
         val page =
             """{"items":[${walletJson("wa-other-00000000000000000", "corr-someone-else")},
@@ -189,10 +192,13 @@ class DfnsNetworkWalletEvidenceIntegrationTest {
         server.verify()
         assertThat(recovered.status).isEqualTo(NetworkWalletCreationStatus.COMPLETED)
         assertThat(recovered.knownWalletId).isEqualTo("wa-recovered-000000000000")
-        val stored = singleStoredEvidence()
-        assertThat(stored.operation).isEqualTo(NetworkWalletEvidenceOperation.DISCOVER)
-        assertThat(stored.body).isEqualTo(page.toByteArray())
-        assertThat(stored.hash).isEqualTo(sha256(page.toByteArray()))
+        val records = storedEvidence()
+        assertThat(
+            records.map { it.operation },
+        ).containsExactly(NetworkWalletEvidenceOperation.CREATE, NetworkWalletEvidenceOperation.DISCOVER)
+        assertThat(records.last().body).isEqualTo(page.toByteArray())
+        assertThat(records.last().hash).isEqualTo(sha256(page.toByteArray()))
+        assertThat(storedPageHashes()).containsExactly(records.last().hash)
     }
 
     @Test
@@ -255,8 +261,6 @@ class DfnsNetworkWalletEvidenceIntegrationTest {
 
     private fun storedPageHashes(): List<String> =
         jdbc.queryForList("SELECT evdc_hash FROM bcm_ntwk_wlt_obs_l ORDER BY page_no", String::class.java).map { checkNotNull(it) }
-
-    private fun evidenceCount(): Int = checkNotNull(jdbc.queryForObject("SELECT count(*) FROM bcm_ntwk_wlt_evdc_l", Int::class.java))
 
     private fun singleStoredEvidence(): StoredEvidence = storedEvidence().single()
 

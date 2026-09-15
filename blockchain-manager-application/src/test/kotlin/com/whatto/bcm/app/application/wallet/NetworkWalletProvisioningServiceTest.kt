@@ -3,6 +3,7 @@ package com.whatto.bcm.app.application.wallet
 import com.whatto.bcm.app.application.account.AccountQueryService
 import com.whatto.bcm.domain.account.AccountModel
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.vendor.NetworkWalletProvisioningPort
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.wallet.NetworkWalletCreationIntent
@@ -154,6 +155,46 @@ class NetworkWalletProvisioningServiceTest {
         assertThatThrownBy { service.provision(F.seed()) }.isInstanceOf(IllegalStateException::class.java)
         verify(exactly = 0) { repository.recordPage(any(), any(), any(), any()) }
         verify(exactly = 0) { vendor.create(any(), any()) }
+    }
+
+    @Test
+    fun `벤더 오류 응답의 수신 바이트는 같은 작업 종류로 먼저 보관하고 오류를 전파하며 cursor를 기록하지 않는다`() {
+        val errorBody = """{"error":{"message":"gateway timeout"}}""".toByteArray()
+        every { vendor.create(any(), any()) } throws VendorApiException("dfnsCreateWallet", 504, null, errorBody)
+        every { evidence.store(any(), any()) } returns F.evidence().copy(hash = F.sha256(errorBody))
+        assertThatThrownBy { service.provision(F.seed()) }
+            .isInstanceOfSatisfying(VendorApiException::class.java) { assertThat(it.httpStatus).isEqualTo(504) }
+        verify(exactly = 1) {
+            evidence.store(
+                match { it.operation == NetworkWalletEvidenceOperation.CREATE && it.intentId == F.seed().intentId },
+                match { it.contentEquals(errorBody) },
+            )
+        }
+        verify(exactly = 0) { repository.startRecovery(any(), any(), any(), any()) }
+        verify(exactly = 0) { repository.recordPage(any(), any(), any(), any()) }
+
+        every { repository.reserve(F.seed(), F.NOW) } returns recovering
+        every { vendor.candidates(any(), any()) } throws VendorApiException("dfnsListWallets", 500, null, errorBody)
+        assertThatThrownBy { service.provision(F.seed()) }.isInstanceOf(VendorApiException::class.java)
+        verify(exactly = 1) { evidence.store(match { it.operation == NetworkWalletEvidenceOperation.DISCOVER }, any()) }
+        verify(exactly = 0) { repository.recordPage(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `응답 바이트 없는 벤더 실패와 오류 본문 보관 실패는 억제 없이 함께 전파된다`() {
+        every { vendor.create(any(), any()) } throws VendorApiException("dfnsCreateWallet", null)
+        assertThatThrownBy { service.provision(F.seed()) }.isInstanceOf(VendorApiException::class.java)
+        verify(exactly = 0) { evidence.store(any(), any()) }
+
+        val errorBody = byteArrayOf(1, 2, 3)
+        every { repository.reserve(F.seed(), F.NOW) } returns prepared
+        every { vendor.create(any(), any()) } throws VendorApiException("dfnsCreateWallet", 503, null, errorBody)
+        every { evidence.store(any(), any()) } throws IllegalStateException("simulated archive failure")
+        assertThatThrownBy { service.provision(F.seed()) }
+            .isInstanceOfSatisfying(VendorApiException::class.java) {
+                assertThat(it.suppressed).singleElement().isInstanceOf(IllegalStateException::class.java)
+            }
+        verify(exactly = 0) { repository.recordPage(any(), any(), any(), any()) }
     }
 
     @Test

@@ -141,32 +141,38 @@ class DfnsNetworkWalletClientTest {
     }
 
     @Test
-    fun `챌린지가 설정된 credential을 허용하지 않으면 서명·생성 호출 없이 실패한다`() {
-        val (client, server) = fixture()
-        server
-            .expect(requestTo("$BASE/auth/action/init"))
-            .andRespond(
-                withSuccess(
-                    """{"challenge":"c","challengeIdentifier":"i","allowCredentials":{"key":[{"type":"public-key","id":"cr-other-other-otherotherother0"}]}}""",
-                    MediaType.APPLICATION_JSON,
-                ),
-            )
+    fun `챌린지가 설정된 credential을 허용하지 않거나 필수 허용 키 목록이 없으면 서명·생성 호출 없이 실패한다`() {
+        listOf(
+            """{"challenge":"c","challengeIdentifier":"i","allowCredentials":{"key":[{"type":"public-key","id":"cr-other-other-otherotherother0"}]}}""",
+            """{"challenge":"c","challengeIdentifier":"i"}""",
+            """{"challenge":"c","challengeIdentifier":"i","allowCredentials":{"webauthn":[]}}""",
+            """{"challenge":"c","challengeIdentifier":"i","allowCredentials":{"key":"${DfnsTestKeyFixture.CREDENTIAL_ID}"}}""",
+        ).forEach { init ->
+            val (client, server) = fixture()
+            server.expect(requestTo("$BASE/auth/action/init")).andRespond(withSuccess(init, MediaType.APPLICATION_JSON))
 
-        assertThatThrownBy { client.create(request, submission) }.isInstanceOf(VendorApiException::class.java)
-        server.verify()
+            assertThatThrownBy { client.create(request, submission) }.describedAs(init).isInstanceOf(VendorApiException::class.java)
+            server.verify()
+        }
     }
 
     @Test
     fun `챌린지·서명 단계의 HTTP 오류와 결손 응답은 지갑 생성 호출 없이 전파된다`() {
         listOf(
-            withStatus(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_JSON).body("""{"error":{"message":"invalid token"}}"""),
-            withSuccess("""{"challengeIdentifier":"i"}""", MediaType.APPLICATION_JSON),
-            withSuccess("not json", MediaType.APPLICATION_JSON),
-        ).forEach { initResponse ->
+            """{"error":{"message":"invalid token"}}""" to HttpStatus.UNAUTHORIZED,
+            """{"challengeIdentifier":"i"}""" to HttpStatus.OK,
+            "not json" to HttpStatus.OK,
+        ).forEach { (initBody, status) ->
             val (client, server) = fixture()
-            server.expect(requestTo("$BASE/auth/action/init")).andRespond(initResponse)
+            server
+                .expect(requestTo("$BASE/auth/action/init"))
+                .andRespond(withStatus(status).contentType(MediaType.APPLICATION_JSON).body(initBody))
 
-            assertThatThrownBy { client.create(request, submission) }.isInstanceOf(VendorApiException::class.java)
+            assertThatThrownBy { client.create(request, submission) }
+                .isInstanceOfSatisfying(VendorApiException::class.java) {
+                    assertThat(it.httpStatus).isEqualTo(status.value())
+                    assertThat(it.responseBody()).isEqualTo(initBody.toByteArray())
+                }
             server.verify()
         }
         val (client, server) = fixture()
@@ -189,15 +195,24 @@ class DfnsNetworkWalletClientTest {
             )
 
         assertThatThrownBy { client.create(request, submission) }
-            .isInstanceOfSatisfying(VendorApiException::class.java) { assertThat(it.httpStatus).isEqualTo(403) }
+            .isInstanceOfSatisfying(VendorApiException::class.java) {
+                assertThat(it.httpStatus).isEqualTo(403)
+                assertThat(it.responseBody()).isEqualTo("""{"error":{"message":"forbidden"}}""".toByteArray())
+                assertThat(it.message).doesNotContain("forbidden")
+            }
         server.verify()
     }
 
     @Test
-    fun `생성 응답에 필수 id·network가 없으면 정규화하지 않고 실패한다`() {
+    fun `생성 응답에 필수 id·network·signingKey·status·custodial이 없거나 형식이 다르면 정규화하지 않고 실패한다`() {
         listOf(
-            """{"network":"EthereumSepolia","status":"Active","custodial":true}""",
-            """{"id":"wa-1","status":"Active","custodial":true}""",
+            """{"network":"EthereumSepolia","status":"Active","custodial":true,"signingKey":{"id":"key-1"}}""",
+            """{"id":"wa-1","status":"Active","custodial":true,"signingKey":{"id":"key-1"}}""",
+            """{"id":"wa-1","network":"EthereumSepolia","status":"Active","custodial":true}""",
+            """{"id":"wa-1","network":"EthereumSepolia","status":"Active","signingKey":{"id":"key-1"}}""",
+            """{"id":"wa-1","network":"EthereumSepolia","custodial":true,"signingKey":{"id":"key-1"}}""",
+            """{"id":"wa-1","network":"EthereumSepolia","status":"Active","custodial":"true","signingKey":{"id":"key-1"}}""",
+            """{"id":"wa-1","network":"EthereumSepolia","status":"Active","custodial":true,"signingKey":{"id":"key-1"},"address":123}""",
             "[]",
         ).forEach { created ->
             val (client, server) = fixture()
@@ -205,7 +220,9 @@ class DfnsNetworkWalletClientTest {
             server.expect(requestTo("$BASE/auth/action")).andRespond(withSuccess(USER_ACTION, MediaType.APPLICATION_JSON))
             server.expect(requestTo("$BASE/wallets")).andRespond(withSuccess(created, MediaType.APPLICATION_JSON))
 
-            assertThatThrownBy { client.create(request, submission) }.isInstanceOf(VendorApiException::class.java)
+            assertThatThrownBy { client.create(request, submission) }
+                .describedAs(created)
+                .isInstanceOfSatisfying(VendorApiException::class.java) { assertThat(it.responseBody()).isEqualTo(created.toByteArray()) }
             server.verify()
         }
     }
@@ -293,6 +310,37 @@ class DfnsNetworkWalletClientTest {
     }
 
     @Test
+    fun `예약 문자를 포함한 페이지 토큰은 한 번만 인코딩해 보낸다`() {
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("$BASE/wallets?limit=100&paginationToken=a%2Fb%3D%3D%2Bc%20d"))
+            .andRespond(withSuccess("""{"items":[],"nextPageToken":"e/f=="}""", MediaType.APPLICATION_JSON))
+
+        val response = client.candidates(request, "a/b==+c d")
+
+        server.verify()
+        assertThat(response.value.next).isEqualTo("e/f==")
+        assertThatThrownBy { client.candidates(request, " ") }.isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test
+    fun `nextPageToken이 있는데 비어 있지 않은 문자열이 아니면 조회 완료로 바꾸지 않고 실패한다`() {
+        listOf("""{"items":[],"nextPageToken":123}""", """{"items":[],"nextPageToken":""}""", """{"items":[],"nextPageToken":{"a":1}}""")
+            .forEach { page ->
+                val (client, server) = fixture()
+                server.expect(requestTo("$BASE/wallets?limit=100")).andRespond(withSuccess(page, MediaType.APPLICATION_JSON))
+
+                assertThatThrownBy { client.candidates(request, null) }.describedAs(page).isInstanceOf(VendorApiException::class.java)
+                server.verify()
+            }
+        val (client, server) = fixture()
+        server
+            .expect(requestTo("$BASE/wallets?limit=100"))
+            .andRespond(withSuccess("""{"items":[],"nextPageToken":null}""", MediaType.APPLICATION_JSON))
+        assertThat(client.candidates(request, null).value.next).isNull()
+    }
+
+    @Test
     fun `소유 판정 — custodial·위임·Vault 통제·상태로 조직 사용 가능 자원만 ORGANIZATION이다`() {
         val (client, server) = fixture()
         val page =
@@ -302,8 +350,7 @@ class DfnsNetworkWalletClientTest {
               {"id":"wa-2","network":"EthereumSepolia","status":"Active","custodial":false,"externalId":"corr-1","tags":[],"signingKey":{"id":"k","scheme":"ECDSA","curve":"secp256k1","publicKey":"00"}},
               {"id":"wa-3","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"corr-1","tags":[],"signingKey":{"id":"k","scheme":"ECDSA","curve":"secp256k1","publicKey":"00","delegatedTo":"us-6b58p-r53sr-rlrd3l5cj3uc4ome"}},
               {"id":"wa-4","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"corr-1","tags":[],"vaultId":"vlt-5vbsp-u62g1-ostmunqgds5o9tc2","signingKey":{"id":"k","scheme":"ECDSA","curve":"secp256k1","publicKey":"00"}},
-              {"id":"wa-5","network":"EthereumSepolia","status":"Archived","custodial":true,"externalId":"corr-1","tags":[],"signingKey":{"id":"k","scheme":"ECDSA","curve":"secp256k1","publicKey":"00"}},
-              {"id":"wa-6","network":"EthereumSepolia","externalId":"corr-1","tags":[],"signingKey":{"id":"k","scheme":"ECDSA","curve":"secp256k1","publicKey":"00"}}
+              {"id":"wa-5","network":"EthereumSepolia","status":"Archived","custodial":true,"externalId":"corr-1","tags":[],"signingKey":{"id":"k","scheme":"ECDSA","curve":"secp256k1","publicKey":"00"}}
             ]}
             """.trimIndent()
         server.expect(requestTo("$BASE/wallets?limit=100")).andRespond(withSuccess(page, MediaType.APPLICATION_JSON))
@@ -321,13 +368,32 @@ class DfnsNetworkWalletClientTest {
                 "wa-3" to NetworkWalletOwnership.OTHER,
                 "wa-4" to NetworkWalletOwnership.OTHER,
                 "wa-5" to NetworkWalletOwnership.OTHER,
-                "wa-6" to NetworkWalletOwnership.UNVERIFIED,
             ),
         )
     }
 
     @Test
-    fun `후보 조회의 HTTP 오류·items 결손은 빈 페이지로 바꾸지 않고 전파한다`() {
+    fun `소유 판정에 필요한 필드가 빠지거나 형식이 다른 후보는 조직 소유로 승인하지 않고 페이지 해석을 거절한다`() {
+        listOf(
+            """{"id":"wa-6","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"corr-1","tags":[]}""",
+            """{"id":"wa-7","network":"EthereumSepolia","status":"Active","externalId":"corr-1","tags":[],"signingKey":{"id":"k"}}""",
+            """{"id":"wa-8","network":"EthereumSepolia","custodial":true,"externalId":"corr-1","tags":[],"signingKey":{"id":"k"}}""",
+            """{"id":"wa-9","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"corr-1","tags":[],"signingKey":{"id":"k","delegatedTo":7}}""",
+            """{"id":"wa-10","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"corr-1","tags":[],"vaultId":"","signingKey":{"id":"k"}}""",
+        ).forEach { wallet ->
+            val (client, server) = fixture()
+            server
+                .expect(
+                    requestTo("$BASE/wallets?limit=100"),
+                ).andRespond(withSuccess("""{"items":[$wallet]}""", MediaType.APPLICATION_JSON))
+
+            assertThatThrownBy { client.candidates(request, null) }.describedAs(wallet).isInstanceOf(VendorApiException::class.java)
+            server.verify()
+        }
+    }
+
+    @Test
+    fun `후보 조회의 HTTP 오류·items 결손은 빈 페이지로 바꾸지 않고 수신 바이트와 함께 전파한다`() {
         val (client, server) = fixture()
         server
             .expect(requestTo("$BASE/wallets?limit=100"))
@@ -335,8 +401,15 @@ class DfnsNetworkWalletClientTest {
         server.expect(requestTo("$BASE/wallets?limit=100")).andRespond(withSuccess("""{"nextPageToken":"x"}""", MediaType.APPLICATION_JSON))
 
         assertThatThrownBy { client.candidates(request, null) }
-            .isInstanceOfSatisfying(VendorApiException::class.java) { assertThat(it.httpStatus).isEqualTo(429) }
-        assertThatThrownBy { client.candidates(request, null) }.isInstanceOf(VendorApiException::class.java)
+            .isInstanceOfSatisfying(VendorApiException::class.java) {
+                assertThat(it.httpStatus).isEqualTo(429)
+                assertThat(it.responseBody()).isEqualTo("{}".toByteArray())
+            }
+        assertThatThrownBy { client.candidates(request, null) }
+            .isInstanceOfSatisfying(VendorApiException::class.java) {
+                assertThat(it.httpStatus).isEqualTo(200)
+                assertThat(it.responseBody()).isEqualTo("""{"nextPageToken":"x"}""".toByteArray())
+            }
         server.verify()
     }
 
