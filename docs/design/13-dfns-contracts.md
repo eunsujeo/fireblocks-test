@@ -294,7 +294,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
   `UNVERIFIED`는 이 어댑터가 만들지 않는다.
 - 다른 원천의 scope는 호출 전에 거절한다. JSON 객체가 아닌 본문은 정규화하지 않고 오류다.
 
-계약 테스트 20건(`DfnsCredentialSignerTest`·`DfnsNetworkWalletClientTest`)은 MockRestServiceServer로 헤더·본문·서명 검증·오류 전파·토큰 인코딩·필수 필드 검사를 고정하며
+계약 테스트 22건(`DfnsCredentialSignerTest` 4·`DfnsNetworkWalletClientTest` 18)은 MockRestServiceServer로 헤더·본문·서명 검증·오류 전파·토큰 인코딩·필수 필드 검사를 고정하며
 응답 JSON은 명세 schema/예시 필드로 만든 표기다. 실제 서비스+실제 DB 결합은 `DfnsNetworkWalletEvidenceIntegrationTest`가 검증한다.
 검증 결과는 [설계12](12-provider-compatibility.md#dfns-인증지갑-http-어댑터와-보류충돌-계약-검증-2026-09-15)에 기록했다.
 어댑터는 Spring 빈으로 등록하지 않으며 `BCM_PROVIDER=dfns` 기동 차단과 공개 주소 API의 Dfns 연결은 후속이다.

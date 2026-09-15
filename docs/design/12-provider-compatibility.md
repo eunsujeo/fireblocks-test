@@ -301,3 +301,6 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   검사해 수신 바이트를 담은 `VendorApiException`으로 전파한다. 선택 문자열 규칙을 나눠 `address`·`externalId`의 빈 문자열은 null(주소 대기·상관관계 없음),
   minLength 1인 `delegatedTo`·`vaultId`와 재요청 토큰 `nextPageToken`의 빈 문자열은 오류로 둔다. 계약13의 정규화·인증 절을 같은 규칙으로 갱신했다.
   재실행: client 109(dfns 22) · API wallet 10 · 변경 모듈 ktlintCheck 통과. domain·application·persistence·API 나머지 코드는 1차 반영 뒤 변경이 없다.
+- **독립 converge 3차(같은 Codex reviewer 세션, 수정 delta fce8254..07ebbdd, design-sync→code-reviewer 순차)**: 이전 Critical 2건·Major 1건 해소 확인,
+  신규 Critical/Major 없음. 문서 Minor 1건(계약13의 계약 테스트 집계 20건 → 실제 22건)만 남아 계약13을 바로잡았다. 검토 기준 commit은 07ebbdd이다.
+  실벤더 호출·운영 적용·조건부 조립·`BCM_PROVIDER=dfns` 기동 차단 해제·push는 미수행이다.
