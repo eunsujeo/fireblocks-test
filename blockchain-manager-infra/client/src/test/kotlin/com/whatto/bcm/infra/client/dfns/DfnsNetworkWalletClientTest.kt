@@ -162,6 +162,7 @@ class DfnsNetworkWalletClientTest {
             """{"error":{"message":"invalid token"}}""" to HttpStatus.UNAUTHORIZED,
             """{"challengeIdentifier":"i"}""" to HttpStatus.OK,
             "not json" to HttpStatus.OK,
+            BAD_CHALLENGE to HttpStatus.OK,
         ).forEach { (initBody, status) ->
             val (client, server) = fixture()
             server
@@ -341,6 +342,54 @@ class DfnsNetworkWalletClientTest {
     }
 
     @Test
+    fun `목록 항목이 객체가 아니거나 externalId가 문자열이 아니면 버리지 않고 페이지 해석을 거절한다`() {
+        val good =
+            """{"id":"wa-a","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"corr-1","tags":[],"signingKey":{"id":"k"}}"""
+        listOf(
+            """{"items":[$good, 123]}""",
+            """{"items":[$good, {"id":"wa-b","externalId":123}]}""",
+            """{"items":[[]]}""",
+        ).forEach { page ->
+            val (client, server) = fixture()
+            server.expect(requestTo("$BASE/wallets?limit=100")).andRespond(withSuccess(page, MediaType.APPLICATION_JSON))
+
+            assertThatThrownBy { client.candidates(request, null) }.describedAs(page).isInstanceOf(VendorApiException::class.java)
+            server.verify()
+        }
+    }
+
+    @Test
+    fun `빈 address는 주소 대기(null)이고 빈 externalId는 상관관계 없음(null)이며 minLength 1인 delegatedTo·vaultId의 빈 값은 오류다`() {
+        val (client, server) = fixture()
+        val page =
+            """{"items":[
+              {"id":"wa-a","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"corr-1","address":"","tags":[],"signingKey":{"id":"k"}},
+              {"id":"wa-b","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"","tags":[],"signingKey":{"id":"k"}}
+            ]}"""
+        server.expect(requestTo("$BASE/wallets?limit=100")).andRespond(withSuccess(page, MediaType.APPLICATION_JSON))
+
+        val response = client.candidates(request, null)
+
+        server.verify()
+        assertThat(response.value.data.map { it.vendorWalletId }).containsExactly("wa-a")
+        assertThat(
+            response.value.data
+                .single()
+                .address,
+        ).isNull()
+        val (client2, server2) = fixture()
+        server2
+            .expect(requestTo("$BASE/wallets/wa-b"))
+            .andRespond(
+                withSuccess(
+                    """{"id":"wa-b","network":"EthereumSepolia","status":"Active","custodial":true,"externalId":"","tags":[],"signingKey":{"id":"k"}}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        assertThat(client2.read(request.scope, "wa-b").value?.correlationId).isNull()
+    }
+
+    @Test
     fun `소유 판정 — custodial·위임·Vault 통제·상태로 조직 사용 가능 자원만 ORGANIZATION이다`() {
         val (client, server) = fixture()
         val page =
@@ -441,6 +490,11 @@ class DfnsNetworkWalletClientTest {
             """{"challenge":"Y2gtNzloaHQtbXJlb2stOGFwOHFtMmVpZWZ0amxhZw","challengeIdentifier":"eyJ0e.fQNA",
                "allowCredentials":{"key":[{"type":"public-key","id":"${DfnsTestKeyFixture.CREDENTIAL_ID}"}]}}"""
         private const val USER_ACTION = """{"userAction":"eyJ0eX.bzrQakA"}"""
+
+        /** 허용 credential은 맞지만 challenge가 서명 입력이 될 수 없는 형식(공백 포함)인 init 응답. */
+        private val BAD_CHALLENGE =
+            """{"challenge":"bad challenge","challengeIdentifier":"i",
+               "allowCredentials":{"key":[{"type":"public-key","id":"${DfnsTestKeyFixture.CREDENTIAL_ID}"}]}}"""
 
         /** 명세 Wallet schema 예시 필드 + externalId. 공백·줄바꿈을 포함한 바이트가 그대로 보존되는지 본다. */
         private val CREATED_WALLET =
