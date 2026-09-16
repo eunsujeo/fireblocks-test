@@ -438,7 +438,7 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **조립하지 않는다** — 실행 빈으로 등록하지 않는 내부 대역이며 제출 원장(`bcm_sbmt_l`)·출금/내부이체 유스케이스·Sweep·정책 승인(`Pending`) 흐름·대체 제출·전송 응답 증적은 후속이다.
   `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
 - 검증: `NetworkTransferContractTest` 4(상태 원어 대응·종결/제출 집합, 제출 키 50자·금액 형식, 식별자 공백, 충돌 바이트 사본),
-  `DfnsNetworkTransferClientTest` 6(서명 경로·본문 필드 정확 일치·정규화, Solana `Spl2022`/네이티브 본문, 409 충돌·duplicate ID, 409 본문 결손과 403 전파, 응답 불일치·결손 12종, 조회 404/ID 불일치, 호출 전 거절 6종).
+  `DfnsNetworkTransferClientTest` 6(서명 경로·본문 필드 정확 일치·정규화, Solana `Spl2022`/네이티브 본문, 409 충돌·duplicate ID, 멱등 표식 없는 409·403 전파, 응답 불일치·결손 25종, 조회 404/ID 불일치, 호출 전 거절 6종).
 - 선택 회귀: domain 119 · client 138, 실패 0. 전체 모듈 compileKotlin/compileTestKotlin·변경 모듈 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용·push는 미수행이다.
 - **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 0ee8725..cd8f32e, design-sync→code-reviewer 순차)**: Critical 4 — ① 제출 성공 응답이 목적지·금액·제출 키와 결속되지 않고
   명세 필수 필드(`requester`·`metadata`·`id` 형식)를 검사하지 않음, ② `FAILED.broadcast=false`가 "시스템 실패 또는 **온체인 실행 실패**"라는 공식 의미와 충돌, ③ 근거 없이 모든 409를 멱등 충돌로 확정,
@@ -452,3 +452,6 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `dateRequested`를 비어 있지 않은 문자열로만 검사해 명세의 UTC ISO 8601 계약을 지키지 않음(Critical 1). Minor 2 — 어댑터 KDoc과 설계12 구현 요약이 이전 409 판정·좁은 대조 범위를 설명.
 - **반영**: `dateRequested`를 `OffsetDateTime`으로 파싱하고 UTC 오프셋만 받는다(형식 오류·비UTC·공백 포함 값 거절 테스트 4종 추가). 어댑터 KDoc과 설계12 요약을 현재 판정·대조 범위로 갱신했다.
   재실행: domain 119 · client 138, 실패 0, ktlintCheck 통과.
+- **독립 converge 3차(같은 Codex reviewer 세션, 수정 delta fb80e51..4be1251, design-sync→code-reviewer 순차)**: 잔여 Critical·Minor 해소 확인, 신규 Critical/Major 없음.
+  Minor 1(검증 기록의 응답 결손 사례 수 12종 → 실제 25종)만 남아 위 검증 줄을 바로잡았다. 검토 기준 commit은 4be1251이다.
+  실벤더 호출·운영 적용·실행 조립·기동 차단 해제·push는 미수행이다.
