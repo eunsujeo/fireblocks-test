@@ -38,6 +38,13 @@ data class DfnsProperties(
     val accountAddressNetworks: Set<String> = emptySet(),
     /** 네트워크 지갑 준비가 진행 중일 때 호출자에게 안내하는 재시도 초. BCM 폴링 정책이며 벤더 보장이 아니다. */
     val provisioningRetryAfterSeconds: Long = 5,
+    /**
+     * 웹훅 HMAC secret(Create Webhook 응답에서 한 번만 제공). 회전 중 둘 이상을 순서대로 대조한다. env/시크릿 매니저로만 주입하며
+     * Webhook 앱에서만 필수다 — `requireWebhookSecrets`는 Webhook 검증기 조립 시점에 검사한다(계약13).
+     */
+    val webhookSecrets: List<String> = emptyList(),
+    /** `timestampSent` 허용 오차(초) — 공식 가이드 예제의 5분을 기본값으로 둔 BCM 재전송 방어 정책. */
+    val webhookReplayToleranceSeconds: Long = 300,
 ) : VendorExecutionLimits {
     init {
         require(credentialPrivateKeyPem.isBlank() || credentialPrivateKeyFile.isBlank()) {
@@ -52,6 +59,14 @@ data class DfnsProperties(
         require(networks.values.toSet().size == networks.size) { "networks must map each vendor network to a single BCM code" }
         require(accountAddressNetworks.all { it in networks.keys }) { "accountAddressNetworks must be a subset of configured networks" }
         require(provisioningRetryAfterSeconds >= 1) { "provisioningRetryAfterSeconds must be positive" }
+        require(webhookSecrets.all { it.isNotBlank() && it == it.trim() }) { "webhookSecrets must not contain blank values" }
+        require(webhookReplayToleranceSeconds >= 1) { "webhookReplayToleranceSeconds must be positive" }
+    }
+
+    /** Webhook 수신 앱에서만 요구한다 — API/BAT 조립은 웹훅 secret 없이 가능하다. */
+    fun requireWebhookSecrets(): List<String> {
+        check(webhookSecrets.isNotEmpty()) { "bcm.dfns.webhook-secrets is required for webhook ingestion" }
+        return webhookSecrets
     }
 
     /** 실제 호출 직전에만 요구한다 — 설정 클래스 생성만으로 자격을 강제하지 않는다. */

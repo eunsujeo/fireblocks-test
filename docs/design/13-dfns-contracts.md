@@ -7,7 +7,7 @@ V24 보호 원문 저장소와 내부 생성 서비스+실제 PostgreSQL 결합 
 2026-09-15 공식 OpenAPI 1.1018.3 기반 인증(사용자 행위 서명)·지갑 생성/조회 HTTP 어댑터와 Pending/Conflict의 공개 HTTP 매핑을 구현했다.
 공개 계정·주소 API를 `AccountOperations`로 제공자별 조립해 Dfns 논리 계정·네트워크 지갑 주소 발급을 연결했다.
 Dfns 데이터셋의 자산 매핑 등록 관문(`ChainAssetResolver`)과 `GET /wallets/{walletId}/assets` 기반 잔액 계약을 구현했다.
-2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델을 구현했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
+2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델, Dfns 웹훅 수신 프로토콜(HMAC 검증·envelope)을 구현했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
 [제공자 선택](12-provider-compatibility.md) · [전체 계획](../dfns-compatibility-plan.md) · [현행 API](../api/openapi.yaml)
 
 ## 자료의 적용 범위
@@ -162,6 +162,23 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
   복구 출처·조회 범위·원문 증적·영속 cursor·겹치는 구간 재처리·동시 worker 통제의 저장 계약을 먼저 마련한다.
 - 문서의 “오류여도 200 응답” 예제를 BCM에 적용하지 않는다. BCM은 durable inbox 수용 후에만 성공을 응답한다.
   장기 복구는 벤더 이력 보존 기간을 넘는 별도 관찰/보관 책임과 함께 정한다.
+
+### Dfns 웹훅 수신 프로토콜 — 구현
+
+근거: 공식 가이드 [Webhooks](https://docs.dfns.co/guides/developers/webhooks)(`.md` SHA-256 `db4a394386c5b8e14dc715768973e75098954e83fc28e7537cb090ac8624be78`, 2026-09-16 확인)와
+채택 명세 1.1018.3 `WebhookEvent`(필수 `id`·`date`·`kind`·`data`·`status`·`timestampSent`(Unix 초, 양수))·`WebhookWithSecret.secret`(생성 응답에서만 제공).
+구현은 `DfnsWebhookSignatureVerifier`·`DfnsWebhookProtocol`(infra/client)이며 `DfnsClientConfig`가 `WebhookProtocol`은 모든 앱에, HMAC 검증기는 `bcm.webhook.ingestion.enabled=true`인 Webhook 앱에만 만든다.
+
+| 항목 | 명세·가이드로 확인한 사실 | BCM 규칙 |
+|---|---|---|
+| 서명 헤더 | `X-DFNS-WEBHOOK-SIGNATURE: sha256=<hex>` — payload의 HMAC-SHA256, 키는 webhook secret | 접두사·64자 hex 형식이 아니면 거절. 헤더 없음·중복은 공통 경계가 401 |
+| 서명 입력 | 가이드 예제는 **파싱한 payload를 다시 직렬화**(`JSON.stringify` / compact `json.dumps`)해 서명한다. 실제 발송 바이트와의 관계는 서술이 없다 | **수신 바이트 그대로** HMAC을 계산한다(CLAUDE.md 3절). 재직렬화하지 않고, 실패해도 다른 입력으로 재시도하지 않는다. 발송 바이트≠재직렬화 결과인 경우는 아래 수용 항목이다 |
+| secret | 생성 응답에서 한 번만 제공, 회전은 새 webhook 생성 후 옛 것 삭제 | `bcm.dfns.webhook-secrets`(env, 1개 이상, 순서대로 대조)로만 주입하고 DB·로그에 남기지 않는다. 어느 secret이 맞았는지의 증적은 후속(인박스에 키 식별 컬럼 없음) |
+| 재전송 방어 | 가이드 예제: `|now − timestampSent| < 5분` | `timestampSent`가 정수가 아니거나 없거나 `bcm.dfns.webhook-replay-tolerance-seconds`(기본 300) 밖이면 서명이 맞아도 거절. 비교는 상수 시간 |
+| envelope | `id`(WebhookEvent ID)·`kind`(사건 종류)는 필수 문자열. `data`는 형식 미정의 객체 | `notificationId=id`, `eventType=kind`, **`vendorTransactionId=null`** — 형식 근거가 없는 `data`에서 request/tx ID를 추정하지 않는다. 인박스 dedup 키는 `id`이며 재전달은 ID가 다르면 별도 수신이다 |
+| 판단 | — | Dfns `kind`의 업무 상태 번역·`WebhookTransactionParser`·`VendorStatusTranslator`는 미구현이라 Webhook 앱의 Dfns 판단 워커는 조립되지 않는다. `BCM_PROVIDER=dfns` 전체 기동 차단은 유지한다 |
+
+수용 항목: 실제 Baseline이 보낸 서명 원문(바이트)과 위 원문 검증의 일치, `timestampSent` 단위·허용 오차 적정성, kind별 `data` 형식(문서화된 예시 확보), 재전달 시도의 ID/`retryOf` 의미.
 
 ## 공개 API에서 선행할 변경
 
@@ -373,7 +390,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 |---|---|---|
 | 실제 Baseline 릴리스와 공개 schema의 일치 | 릴리스/이미지와 채택 명세 버전의 연결, 배포 지원 범위, clientData의 `origin` 요구 여부, `userAction` 유효기간 | 공식 버전별 OpenAPI에 근거한 인증/HTTP 어댑터·계약 테스트는 구현 완료. 남은 것은 공개 주소 API 연결과 조건부 조립 |
 | createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위, 429 동작 | 목록/단건 조회 HTTP 어댑터·계약 테스트 완료. 최초 POST 1회·원장/증적 결합 복구는 내부 대역과 HTTP 어댑터 모두로 검증 완료 |
-| 웹훅 원문·서명·retry | 서명된 바이트, timestamp, 실제 retry/이력 응답과 ID 연결 | 공통 수신 순서·보존·선택 구현 회귀 |
+| 웹훅 원문·서명·retry | 서명된 바이트(재직렬화 없이 수신 바이트로 검증되는지), timestamp 단위·오차, kind별 `data` 형식, 실제 retry/이력 응답과 ID 연결 | Dfns HMAC 검증기·envelope 해석·Webhook 앱 조립 조건 구현 완료(위 "Dfns 웹훅 수신 프로토콜 — 구현"). 판단 워커·이력 복구는 후속 |
 | 조직 Wallet·초기 체인/USDC·KRWK | 지원 조합·자산 locator·소유·정책/가스 권한 | 체인 식별/확정/대납 인터페이스 설계; 추가 체인 실구현은 후속 |
 | 자산 등록의 온체인 대조 | 채택 명세 `POST /networks/{network}/call-function`의 실제 응답 형식(ERC-20 `decimals()`·`symbol()` read), Solana mint 소유 프로그램 확인 원천 | Dfns 데이터셋 등록 관문(설정·네트워크 행·모델·주소/mint 형식·키 길이)은 구현 완료. 온체인 대조·Token Program은 발행사 공식 자료로 운영자가 확인 |
 | Solana owner 주소 수신 | Baseline이 owner 주소로 받은 SPL/Token-2022 입금을 지갑 자산(`Spl`/`Spl2022`)으로 관찰하는지, 비ATA token account·동결 계정 반영, ATA 생성 rent 부담 주체 | 등록 관문·자산 키·잔액 관찰 구현 완료. `account-address-networks`에 Solana를 넣는 것은 이 확인 뒤 운영 결정 |

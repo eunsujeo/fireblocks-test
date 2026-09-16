@@ -101,7 +101,7 @@ Service는 서명 검증→선택된 protocol의 envelope 파싱→동일 byte[]
 
 `FireblocksWebhookProtocol`은 기존 `id`/`eventType`/`data.id` 해석을 infra/client로 옮긴 구현이며,
 Fireblocks/로컬에서만 조립된다. 기존 parser·RS512 검증·worker·outbox·DB/공개 API 계약을 유지한다.
-Dfns HMAC·timestamp·`kind`·이력 복구 구현은 별도 수용 계약을 갖추기 전 등록하지 않는다.
+Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립하며(검증기는 Webhook 앱 한정), 판단 워커·이력 복구는 후속이다.
 
 ## 저장·API 변경 선행 조건
 
@@ -404,3 +404,14 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   "유효 요청"으로 소개하기에 부정확. **반영**: 설명 예시를 그대로 보낼 수 있는 전체 주소로 바꾸고 생성물을 재생성했다(문서만, 코드 변경 없음).
 - **독립 converge 3차(같은 Codex reviewer 세션, 문서 delta 51e4b3c..151f3e1)**: 이전 Minor 해소 확인, 신규 Critical/Major/Minor 없음. 검토 기준 commit은 151f3e1이다.
   실벤더 호출·운영 DB 적용·기동 차단 해제·push는 미수행이다.
+
+## Dfns 웹훅 수신 프로토콜 검증 (2026-09-16)
+
+- 계약은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)에 먼저 고정했다(공식 가이드 Webhooks `.md` 해시·명세 `WebhookEvent`). `DfnsWebhookSignatureVerifier`는 `sha256=<hex>` HMAC-SHA256을
+  **수신 바이트**로 계산해 상수 시간 비교하고 `bcm.dfns.webhook-secrets`(env, 회전용 복수)를 순서대로 대조하며 `timestampSent`(정수 필수)가 `webhook-replay-tolerance-seconds`(기본 300) 밖이면 거절한다.
+  가이드 예제의 재직렬화 서명과 원문 검증의 관계는 수용 항목으로 남겼고 실패 시 다른 입력으로 재시도하지 않는다. `DfnsWebhookProtocol`은 `id`·`kind`만 envelope로 읽고 형식 미정의 `data`에서 거래 ID를 추정하지 않는다(`vendorTransactionId=null`).
+- 조립: `DfnsClientConfig`가 `WebhookProtocol`은 모든 앱에, HMAC 검증기는 `bcm.webhook.ingestion.enabled=true`(bcm-webhook application.yaml 고정)에서만 만들고 secret 누락은 조립에서 실패한다. API/BAT는 secret 없이 기동한다.
+  Dfns `kind` 상태 번역·`WebhookTransactionParser`·`VendorStatusTranslator`는 미구현이라 Webhook 앱의 Dfns 판단 워커는 조립되지 않으며 `BCM_PROVIDER=dfns` 전체 기동 차단은 유지한다.
+- 검증: `DfnsWebhookSignatureVerifierTest` 5(현재/이전 secret·대소문자 hex, 다른 secret·변조·재직렬화 사본 거절, 헤더 형식 7종, timestampSent 결손/형식/경계 ±300, 생성자 요구),
+  `DfnsWebhookProtocolTest` 2, `DfnsClientConfigTest` 2(API 조립엔 검증기 없음, 수신 조립은 secret 필수), `DfnsWebhookIngestionTest`(bcm-webhook) 2(실제 검증기·envelope + 공통 컨트롤러/서비스: 200 적재 원문·해시·서명 보존, 헤더 없음/중복/변조/오래된 timestamp 401).
+- 선택 회귀: client(dfns·config) 63 · webhook(Dfns 수신·경계·수신 서비스·ProviderStartup) 16, 실패 0. 변경 모듈 ktlintCheck 통과. 실벤더 호출·실제 서명 원문 수용·기동 차단 해제·push는 미수행이다.
