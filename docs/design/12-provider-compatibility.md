@@ -558,3 +558,9 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 검증: `DfnsStatusTranslatorTest` 6(제출 3종, 실패·거절, 온체인 관찰 둘의 임계 경계 8종과 벤더 확인 없이도 확정·깊이 모를 때 미확정, 네트워크별 임계 조회와 불필요한 조회 없음, 목록 밖 원어 7종·음수 컨펌 거절, 대사 판정 7종 null),
   `BlockDepthFinalityTest`에 관찰 컨펌 수 상한 축소 4종 추가.
 - 선택 회귀: domain 130 · client 167, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 f93cb0a..134f1e3, design-sync 먼저)**: Major 1 — `Included`를 깊이와 무관하게 `CONFIRMED`로 두면,
+  벤더의 `Confirmed` 알림이 늦거나 유실될 때 RPC로 충분한 깊이를 관찰해도 확정이 영영 나오지 않는다. 확정을 앞당기지는 않지만 확정과 잔액 반영을 막는다.
+  design-sync 실패로 code-reviewer는 수행하지 않았다. `Broadcasted`→`SUBMITTED`·`Rejected`→`REJECTED`·대사 판정 null·`Int` 포화·전송 경로 공백 표기는 정합으로 확인됐다.
+- **반영**: 온체인 관찰 둘(`Included`·`Confirmed`)에 **같은 깊이 판정**을 적용한다 — 벤더의 확인 표기는 확정의 근거도 추가 관문도 아니다. 계약13 상태 번역 표·설계12·PLAN·KDoc을
+  같은 문구로 고치고, 두 원어의 임계 경계와 `Included`+충분한 깊이 → `FINALIZED`를 테스트에 넣었다. 재실행: domain 130 · client 167, 실패 0, 전체 ktlintCheck 통과.
+- **독립 converge 2차(Codex, 범위 134f1e3..3ef3012, design-sync→code-reviewer 순차)**: 이전 Major 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 3ef3012).
