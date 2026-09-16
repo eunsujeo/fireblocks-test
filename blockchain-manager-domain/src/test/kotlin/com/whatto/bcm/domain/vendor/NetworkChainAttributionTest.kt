@@ -11,7 +11,7 @@ class NetworkChainAttributionTest {
         val result = NetworkChainAttribution.attribute(transfer(), ledger())
 
         assertThat(result).isEqualTo(
-            NetworkChainAttributionResult.Deposit(transfer(), ACCOUNT_ID, NETWORK, "USDC"),
+            NetworkChainAttributionResult.Deposit(transfer(), ACCOUNT_ID, NETWORK, "USDC", 6),
         )
     }
 
@@ -51,9 +51,17 @@ class NetworkChainAttributionTest {
     }
 
     @Test
+    fun `등록 정밀도는 판정 결과에 함께 실리고 값이 없는 매핑도 귀속은 된다`() {
+        // 정밀도가 없으면 이벤트 금액을 만들 수 없지만 그 판단은 워커의 몫이다 — 귀속 자체는 성립한다.
+        val result = NetworkChainAttribution.attribute(transfer(), ledger(asset = LedgerAsset(NETWORK, "USDC", null)))
+
+        assertThat((result as NetworkChainAttributionResult.Deposit).decimals).isNull()
+    }
+
+    @Test
     fun `등록 매핑의 네트워크가 관찰과 어긋나면 데이터 결함으로 중단한다`() {
         assertThatThrownBy {
-            NetworkChainAttribution.attribute(transfer(), ledger(asset = LedgerAsset("BASE_SEPOLIA", "USDC")))
+            NetworkChainAttribution.attribute(transfer(), ledger(asset = LedgerAsset("BASE_SEPOLIA", "USDC", 6)))
         }.isInstanceOf(IllegalStateException::class.java)
             .hasMessageContaining("drift")
     }
@@ -63,7 +71,7 @@ class NetworkChainAttributionTest {
         val asked = mutableListOf<Triple<String, String, String>>()
         val ledger =
             object : NetworkChainLedgerLookup {
-                override fun assetOf(vendorAssetId: String) = LedgerAsset(NETWORK, "USDC")
+                override fun assetOf(vendorAssetId: String) = LedgerAsset(NETWORK, "USDC", 6)
 
                 override fun accountOfDepositAddress(
                     address: String,
@@ -81,7 +89,7 @@ class NetworkChainAttributionTest {
     }
 
     private fun ledger(
-        asset: LedgerAsset? = LedgerAsset(NETWORK, "USDC"),
+        asset: LedgerAsset? = LedgerAsset(NETWORK, "USDC", 6),
         accountId: String? = ACCOUNT_ID,
     ) = object : NetworkChainLedgerLookup {
         override fun assetOf(vendorAssetId: String) = asset
