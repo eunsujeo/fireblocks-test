@@ -689,3 +689,16 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **독립 converge 2차(Codex gpt-5.6-luna medium — 1차 중 rate limit로 모델이 바뀌었다, design-sync 범위 a5496c8..HEAD·code-reviewer 범위 e747427..HEAD 순차)**:
   이전 Major 2건 해소 확인, 신규 Critical/Major 0. Minor 1 — 조립 검증이 `ApplicationContextRunner`라 실제 앱 컨텍스트의 워커·경보 어댑터 연결까지는 보지 못한다.
   이는 `BCM_PROVIDER=dfns` 전체 기동이 아직 차단돼 전체 컨텍스트를 띄울 수 없기 때문이며, **기동 차단 해제와 함께 processor를 포함한 조립 검증을 추가한다**(후속).
+
+## Dfns 출금 제출 계약 확정 (2026-09-17)
+
+- **코드 변경이 없는 계약 슬라이스다.** 제출 유스케이스를 쓰기 전에 02의 회수 절차가 Dfns에서 성립하지 않는다는 사실을 확인해 계약을 먼저 고정했다.
+- 확인한 사실: 채택 명세의 `GET /wallets/{walletId}/transfers` query는 **`limit`·`paginationToken`뿐**이다 — `externalId` 필터가 없다.
+  그래서 02의 "응답 유실·소유권 만료 뒤 `externalTxId` 조회로 확인"을 Dfns에서 그대로 할 수 없다.
+- 대체 수단: 공식 Idempotency 계약이 "같은 url·같은 본문(같은 `externalId`) 재제출 → 처음 만들어진 엔티티를 `200`" 을 보장하므로
+  **같은 본문 재제출이 회수 수단**이다. 종결 상태 뒤에도 `externalId`가 영구 결속돼 새 거래를 만들지 않으며, 본문이 다르면 `409`라는 점이 안전장치다.
+  실패한 전송의 재시도는 **새 제출 키**가 필요하고 그 발급 규칙은 출금 유스케이스에서 정한다.
+- 02에 "제공자별 회수 절차" 절을 더해 Fireblocks 단건 조회와 Dfns 멱등 재제출을 나란히 적었다. 선기록·소유권·`FAILED` 판정 기준은 그대로다.
+- **공개 API 영향**: 벤더 `externalId`는 1~50자다. 공개 `externalTxId`(03에서 VARCHAR(64))가 50자를 넘으면 Dfns 경로에서 제출할 수 없다 —
+  자르지 않고 거절하며 **DAW-CORE와 확인이 필요한 항목**이다.
+- 계약은 [계약13](13-dfns-contracts.md#출금-제출-계약--확정)에 있다. 제출 유스케이스·발신 이동 대조·새 제출 키 발급은 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다.
