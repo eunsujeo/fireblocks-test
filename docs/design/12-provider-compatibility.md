@@ -623,3 +623,13 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 검증: `AssetDecimalsTest` 4(상한, 환산 6종, 잘못된 표기·범위 7종, 등록 매핑 불변식), `DfnsChainAssetResolverTest`에 정밀도 필수·범위·보존 검증 추가,
   `VendorAssetMappingPersistenceTest`에 실제 PostgreSQL 왕복과 등록·교체 snapshot의 before/after 정밀도 검증 추가, 조립 테스트에 `decimalsRequired` 거절 추가.
 - 전체 회귀: 11개 모듈 **1,266건, 실패 0**(domain 146 · application 25 · support 37 · test-support 51 · client 168 · messaging 3 · persistence 235 · API 308 · Admin 59 · Webhook 75 · BAT 159). 전체 ktlintCheck 통과.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 11777d9..fc66615, design-sync 먼저)**: Major 3 — ① 07의 현재 매핑 DDL 블록이 물리 스키마와 어긋났다
+  (`dcml_cnt` 없음, `vndr_ast_id`가 V25 이전 폭, snapshot 필드 목록에 정밀도 없음), ② OpenAPI 0.13.0이 DAW-ADMIN BFF 생성 타입에 반영되지 않아 `generate.py --check`가 stale을 알렸고
+  생성 타입이 `dfnsAssetKey`·`decimals`를 갖지 않았다(DF3.11·DF3.12부터 밀려 있던 부채), ③ 계약13 잔액 절과 `NetworkWalletAssetPort` KDoc의 "매핑에 별도 정밀도를 보관하지 않는다"가
+  V27과 충돌한다. Minor 1 — OpenAPI의 Dfns 예시에 필수 `decimals`가 없어 그대로 보내면 거절된다. design-sync 실패로 code-reviewer는 수행하지 않았다.
+  V27 SQL의 추가 전용 성격·NULL 허용·snapshot의 `CAST(... AS INT)` 보존은 정합으로 확인됐다.
+- **반영**: 07 DDL을 실제 스키마에 맞추고 BFF 타입을 재생성했으며(테스트 7곳을 이름 인자로 전환), 정밀도의 두 출처 경계를 계약13·KDoc에 적었다 —
+  **잔액 조회는 응답의 `decimals`**(응답이 금액과 정밀도를 함께 준다), **등록 매핑의 정밀도는 정밀도가 따라오지 않는 입금 사건 환산**에 쓰며 두 값의 일치 보장은 없어 어긋남 감시는 후속이다.
+  OpenAPI 예시에 `decimals`를 넣고 문서를 재생성했다.
+- **독립 converge 2차(범위 fc66615..07a37cc)**: Major 1 — 07 DDL에 컬럼은 더했으나 실제 named CHECK(`ck_bcm_vndr_ast_dcml`)가 제약 목록에 없어 부분 해소였다. → 제약을 그대로 적었다.
+- **독립 converge 3차(design-sync 범위 07a37cc..b69288a, code-reviewer 범위 11777d9..b69288a 순차)**: 이전 지적 모두 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 b69288a).
