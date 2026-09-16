@@ -13,7 +13,10 @@ fun interface ChainHeadPort {
 
 /** 관측 블록의 깊이로 확정을 판정하는 순수 규칙. 벤더 상태 원어를 보지 않는다. */
 object BlockDepthFinality {
-    /** 블록 자체가 1컨펌이다. head가 아직 사건 블록에 못 미치면(관측 지연·재구성) 0으로 본다 — 음수를 만들지 않는다. */
+    /**
+     * 블록 자체가 1컨펌이다. head가 아직 사건 블록에 못 미치면(관측 지연·재구성) 0으로 본다 — 음수를 만들지 않는다.
+     * 산식이 `Long` 범위를 넘으면 값을 지어내지 않고 실패한다(확정 보류) — 넘침을 음수나 포화값으로 바꾸면 확정을 잘못 낸다.
+     */
     fun confirmations(
         headBlockNumber: Long,
         blockNumber: Long,
@@ -21,7 +24,7 @@ object BlockDepthFinality {
         require(headBlockNumber >= 0) { "headBlockNumber must not be negative" }
         require(blockNumber >= 0) { "blockNumber must not be negative" }
         if (headBlockNumber < blockNumber) return 0
-        return headBlockNumber - blockNumber + 1
+        return Math.incrementExact(headBlockNumber - blockNumber)
     }
 
     fun finalized(

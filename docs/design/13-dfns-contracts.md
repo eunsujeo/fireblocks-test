@@ -243,7 +243,7 @@ Dfns는 **컨펌 수를 주지 않고** `Included`/`Confirmed`와 `blockNumber`�
 | 항목 | 근거 | BCM 규칙 |
 |---|---|---|
 | 확정 근거 | 벤더의 `Confirmed`는 reorg로 뒤집힐 수 있다(사용자 확정) | **벤더 상태 표기를 `FINALIZED`의 근거로 쓰지 않는다.** 사건의 `blockNumber`와 체인 head의 깊이를 직접 계산한다 |
-| 깊이 산식 | — | 블록 자체가 1컨펌이다(`head − blockNumber + 1`). head가 사건 블록보다 낮게 보이면(관측 지연·재구성) **0**으로 본다 — 음수 컨펌을 만들지 않는다 |
+| 깊이 산식 | — | 블록 자체가 1컨펌이다(`head − blockNumber + 1`). head가 사건 블록보다 낮게 보이면(관측 지연·재구성) **0**으로 본다 — 음수 컨펌을 만들지 않는다. 산식이 `Long` 범위를 넘으면 값을 지어내지 않고 실패해 확정을 보류한다 — 넘침을 음수나 포화값으로 바꾸면 확정을 잘못 낸다 |
 | 임계 | 기존 `bcm.finality-confirmations.<network>`(02 DCCP 임계와 같은 설정) | 같은 설정을 그대로 쓴다 — 제공자마다 확정 임계 설정을 따로 두지 않는다. 값이 없거나 0 이하면 기존 `FinalityPolicyConfigurationException` 경로로 중단한다 |
 | head 출처 | 위탁 RPC(`bcm.evm-rpc.networks.<network>.url`, EVM `eth_blockNumber`) | 설정에 없는 네트워크는 임의 endpoint를 고르지 않고 중단한다. RPC 오류·결손·형식 오류·범위 밖 값은 head로 받지 않는다 |
 | 조회 실패 | — | 확정을 **보류**하고 재시도한다 — 실패를 감추지 않고 예외로 올린다. **모름을 "아직 미확정"으로 바꾸지 않는다**(바꾸면 늦은 확정이 영영 오지 않는다) |

@@ -528,11 +528,11 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 사용자 확정(2026-09-16): 벤더의 `Confirmed`는 reorg로 뒤집힐 수 있으므로 Dfns 경로의 `FINALIZED`는 **블록 깊이로 직접 계산**한다. 결정은 [CLAUDE.md 3절](../../CLAUDE.md)과
   [02](02-bcm-flow.md#dfns-경로의-확정-근거-2026-09-16-사용자-확정)에, 계약은 [계약13](13-dfns-contracts.md#확정-판정--구현)에 고정했다.
 - 도메인: `ChainHeadPort`(네트워크 → head 블록 번호)와 순수 규칙 `BlockDepthFinality`를 추가했다. 블록 자체가 1컨펌이고, head가 사건 블록보다 낮게 보이면 0으로 본다(음수 금지).
-  임계는 제공자별로 나누지 않고 기존 `bcm.finality-confirmations.<network>`(`FinalityPolicy`)를 그대로 쓴다.
+  깊이 계산이 `Long` 범위를 넘으면 값을 지어내지 않고 실패해 확정을 보류한다. 임계는 제공자별로 나누지 않고 기존 `bcm.finality-confirmations.<network>`(`FinalityPolicy`)를 그대로 쓴다.
 - 어댑터: `EvmChainHeadClient`가 위탁 RPC(`bcm.evm-rpc.networks.<network>.url`)에 `eth_blockNumber`를 보낸다. 미설정 네트워크는 임의 endpoint를 고르지 않고,
   RPC 오류·결손·비16진수·부호 있는 64비트 범위 밖 값은 head로 받지 않는다. 실패는 감추지 않고 올려 **확정을 보류**한다 — 모름을 "아직 미확정"으로 바꾸지 않는다.
 - **조립하지 않는다** — 실행 빈으로 등록하지 않는 내부 대역이다. `VendorStatusTranslator`의 Dfns 구현·판단 워커 조립·head 캐시/조회 주기·Solana 확정 모델·
   reorg 무효화 관찰 경로는 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다. Fireblocks 경로의 `numOfConfirmations` 비교는 바뀌지 않았다.
-- 검증: `BlockDepthFinalityTest` 3(깊이 산식과 head 미달 0, 임계 이상만 확정, 음수 블록·0 이하 임계 거절 4종),
+- 검증: `BlockDepthFinalityTest` 4(깊이 산식과 head 미달 0, 임계 이상만 확정, `Long` 범위 넘침의 실패와 경계값, 음수 블록·0 이하 임계 거절 4종),
   `EvmChainHeadClientTest` 4(`eth_blockNumber` 요청·결과 해석, 미설정 네트워크 중단, RPC 오류·결손·형식·범위 6종, HTTP 실패 전파).
-- 선택 회귀: domain 128 · client 161, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+- 선택 회귀: domain 129 · client 161, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
