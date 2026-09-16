@@ -27,6 +27,15 @@ object BlockDepthFinality {
         return Math.incrementExact(headBlockNumber - blockNumber)
     }
 
+    /**
+     * 관찰값([com.whatto.bcm.domain.vendor.VendorStatusObservation])에 담을 컨펌 수.
+     * `Int` 상한을 넘는 깊이는 상한으로 줄인다 — 어떤 임계보다도 크므로 확정 판정이 달라지지 않는다.
+     */
+    fun confirmationCount(
+        headBlockNumber: Long,
+        blockNumber: Long,
+    ): Int = confirmations(headBlockNumber, blockNumber).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+
     fun finalized(
         headBlockNumber: Long,
         blockNumber: Long,

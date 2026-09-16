@@ -252,6 +252,31 @@ Dfns는 **컨펌 수를 주지 않고** `Included`/`Confirmed`와 `blockNumber`�
 수용 항목: 위탁 RPC endpoint의 운영 소유·가용성과 head 조회 주기·캐시 정책, 네트워크별 임계값(Dfns 문서의 확인 지연과 BCM 임계의 관계),
 Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블록이 사라졌을 때의 관찰 경로(벤더가 무효화 알림을 보내는지).
 
+### 상태 번역 — 구현
+
+근거: [02의 TxStatus 다섯과 전이 표](02-bcm-flow.md#상태-enum), [CLAUDE.md 3절의 확정 결정](../../CLAUDE.md), 그리고 위
+[전송 상태](#전송-제출조회-계약--구현)·[온체인 이동 상태](#웹훅-온체인-이동-사건-관찰--구현) 표의 명세 사실.
+구현은 `DfnsStatusTranslator`(infra/client)이며 기존 도메인 포트 `VendorStatusTranslator`를 그대로 구현한다. **내부 대역이며 실행 빈 미등록·판단 워커 미연결이다.**
+
+| 벤더 원어 | TxStatus | 근거 |
+|---|---|---|
+| `Pending`(지갑 정책 승인 대기) · `Executing`(승인 후 실행 중) · `Broadcasted`(mempool 기록) | `SUBMITTED` | 02의 `SUBMITTED`는 "서명·전파 준비 중, 체인 미등장"이다. mempool은 블록에 들어가기 전이다 |
+| `Included`(블록 포함, 벤더 확인 전) | `CONFIRMED` | 02의 `CONFIRMED`는 "체인에 등장, 컨펌 누적 중 — 미확정" |
+| `Confirmed`(벤더 인덱싱 확인) | 깊이 ≥ 임계면 `FINALIZED`, 아니면 `CONFIRMED` | **벤더 표기만으로 확정하지 않는다**(reorg). 관찰의 컨펌 수(블록 깊이)를 `bcm.finality-confirmations.<network>`와 비교한다 |
+| `Failed`(시스템 실패 또는 온체인 실행 실패) | `FAILED` | 02의 `FAILED`는 영구 실패 |
+| `Rejected`(정책 승인 거절) | `REJECTED` | 02의 `REJECTED`는 거부·차단이며 출금은 벤더 기준 종결 |
+| 그 밖의 원어 | — | 임의 상태로 바꾸지 않고 `WebhookPayloadException`으로 거절한다 |
+
+- **전송 응답만으로는 확정이 나오지 않는다** — `TransferRequest`에는 `blockNumber`가 없어 깊이를 계산할 수 없다. 그래서 전송 경로의 `Confirmed`는 `CONFIRMED`에 머물고,
+  출금의 확정도 같은 거래의 **온체인 이동 사건**(`direction: Out`)에서 판정한다. 깊이를 모르는 관찰의 컨펌 수는 0이다.
+- 관찰값에 담을 컨펌 수는 domain `BlockDepthFinality.confirmationCount`가 만든다 — `Int` 상한을 넘는 깊이는 상한으로 줄인다(어떤 임계보다도 커서 판정이 달라지지 않는다).
+- **대사 종결 판정(`terminalStatusForReconciliation`)은 만들지 않는다**(항상 null) — Dfns 대사 경로(`VendorTransactionPort` 목록 조회)가 없고,
+  `Confirmed`를 종결로 돌려주면 블록 깊이 확정 결정을 우회하게 된다. 포트 계약의 "대상 밖은 null"을 그대로 쓴다.
+- Fireblocks의 동결 subStatus(`AUTO_FREEZE` 등)에 해당하는 개념은 Dfns 문서에 없다 — 없는 것을 만들지 않는다. `FINALIZED → REJECTED`(확정 후 동결) 전이의 Dfns 관찰 경로는 수용 항목이다.
+
+수용 항목: 확정 후 동결·무효화에 해당하는 Dfns 관찰이 있는지(있다면 `REJECTED`·`FAILED` 역전이의 입구), `Rejected`가 정책 거절 외에도 쓰이는지,
+`Broadcasted` 없이 `Confirmed`만 오는 경우가 있는지(02의 감지 이벤트 합성 규칙 적용 범위), 대사 경로를 만들 때의 Dfns 목록 조회 계약.
+
 ## 공개 API에서 선행할 변경
 
 | 현행 공개 계약 | Dfns 연결 전 필요한 결정 |
