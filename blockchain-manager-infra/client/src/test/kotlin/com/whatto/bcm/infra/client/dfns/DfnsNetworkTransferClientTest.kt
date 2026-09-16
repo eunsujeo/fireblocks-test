@@ -43,7 +43,7 @@ class DfnsNetworkTransferClientTest {
         val properties =
             DfnsProperties(
                 baseUrl = BASE,
-                authToken = "service-account-token",
+                authToken = AUTH_TOKEN,
                 credentialId = DfnsTestKeyFixture.CREDENTIAL_ID,
                 credentialPrivateKeyPem = DfnsTestKeyFixture.pem(keyPair),
                 networks = mapOf("ETHEREUM_SEPOLIA" to "EthereumSepolia", "SOLANA_DEVNET" to "SolanaDevnet"),
@@ -81,8 +81,8 @@ class DfnsNetworkTransferClientTest {
         server
             .expect(requestTo("$BASE/wallets/$WALLET_ID/transfers"))
             .andExpect(method(HttpMethod.POST))
-            .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer service-account-token"))
-            .andExpect(header("X-DFNS-USERACTION", "eyJ0eX.bzrQakA"))
+            .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer $AUTH_TOKEN"))
+            .andExpect(header("X-DFNS-USERACTION", USER_ACTION_TOKEN))
             .andExpect(
                 content().json(
                     """{"kind":"Erc20","contract":"$CONTRACT","to":"$DESTINATION","amount":"1500000","externalId":"wd-ext-1"}""",
@@ -98,6 +98,8 @@ class DfnsNetworkTransferClientTest {
             assertThat(accepted.observation.vendorWalletId).isEqualTo(WALLET_ID)
             assertThat(accepted.observation.vendorAssetId).isEqualTo("EthereumSepolia:Erc20:$CONTRACT")
             assertThat(accepted.observation.status).isEqualTo(NetworkTransferStatus.BROADCASTED)
+            assertThat(accepted.observation.destinationAddress).isEqualTo(DESTINATION)
+            assertThat(accepted.observation.amountBaseUnits).isEqualTo("1500000")
             assertThat(accepted.observation.externalId).isEqualTo("wd-ext-1")
             assertThat(accepted.observation.transactionHash).isEqualTo(TX_HASH)
             assertThat(accepted.observation.failureReason).isNull()
@@ -119,6 +121,7 @@ class DfnsNetworkTransferClientTest {
                         "Pending",
                         network = "SolanaDevnet",
                         requestBody = """{"kind":"Spl2022","mint":"$MINT","to":"$MINT","amount":"7"}""",
+                        externalId = "wd-ext-2",
                     ),
                     MediaType.APPLICATION_JSON,
                 ),
@@ -136,7 +139,11 @@ class DfnsNetworkTransferClientTest {
             .andExpect(content().json("""{"kind":"Native","to":"$DESTINATION","amount":"10","externalId":"wd-ext-3"}""", true))
             .andRespond(
                 withSuccess(
-                    transferResponse("Confirmed", requestBody = """{"kind":"Native","to":"$DESTINATION","amount":"10"}"""),
+                    transferResponse(
+                        "Confirmed",
+                        requestBody = """{"kind":"Native","to":"$DESTINATION","amount":"10"}""",
+                        externalId = "wd-ext-3",
+                    ),
                     MediaType.APPLICATION_JSON,
                 ),
             )
@@ -168,15 +175,40 @@ class DfnsNetworkTransferClientTest {
     }
 
     @Test
-    fun `409 본문이 없거나 duplicate ID가 없어도 충돌 판정은 유지하고 그 밖의 오류는 상태·수신 바이트로 전파한다`() {
+    fun `멱등 표식이 없는 409는 원인을 단정하지 않고 일반 벤더 오류로 전파하며 표식만 있고 ID가 없으면 충돌로 남는다`() {
         val (client, server) = fixture()
         expectUserAction(server, "/wallets/$WALLET_ID/transfers")
         server
             .expect(requestTo("$BASE/wallets/$WALLET_ID/transfers"))
-            .andRespond(withStatus(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON).body("not json"))
+            .andRespond(
+                withStatus(HttpStatus.CONFLICT)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("""{"error":{"message":"Conflicting transfer with same externalId","details":{"duplicate":{}}}}"""),
+            )
 
         assertThat((client.submit(request) as NetworkTransferSubmission.Conflict).duplicateTransferId).isNull()
         server.verify()
+
+        listOf(
+            "not json",
+            """{"error":{"message":"wallet is archived"}}""",
+            """{"error":{"details":{"duplicate":"xfr-1"}}}""",
+            "[]",
+        ).forEach { body ->
+            val (other, otherServer) = fixture()
+            expectUserAction(otherServer, "/wallets/$WALLET_ID/transfers")
+            otherServer
+                .expect(requestTo("$BASE/wallets/$WALLET_ID/transfers"))
+                .andRespond(withStatus(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON).body(body))
+
+            assertThatThrownBy { other.submit(request) }
+                .describedAs(body)
+                .isInstanceOfSatisfying(VendorApiException::class.java) {
+                    assertThat(it.httpStatus).isEqualTo(409)
+                    assertThat(it.responseBody()).isEqualTo(body.toByteArray())
+                }
+            otherServer.verify()
+        }
 
         val (failing, failingServer) = fixture()
         expectUserAction(failingServer, "/wallets/$WALLET_ID/transfers")
@@ -206,6 +238,21 @@ class DfnsNetworkTransferClientTest {
                 requestBody = """{"kind":"Erc20","contract":"0xdead","to":"$DESTINATION","amount":"1500000"}""",
             ),
             transferResponse("Broadcasted", requestBody = """{"to":"$DESTINATION","amount":"1500000"}"""),
+            transferResponse(
+                "Broadcasted",
+                requestBody = """{"kind":"Erc20","contract":"$CONTRACT","to":"$OTHER_ADDRESS","amount":"1500000"}""",
+            ),
+            transferResponse(
+                "Broadcasted",
+                requestBody = """{"kind":"Erc20","contract":"$CONTRACT","to":"$DESTINATION","amount":"1500001"}""",
+            ),
+            transferResponse("Broadcasted", requestBody = """{"kind":"Erc20","contract":"$CONTRACT","to":"$DESTINATION"}"""),
+            transferResponse("Broadcasted", externalId = "wd-ext-other"),
+            transferResponse("Broadcasted", externalId = null),
+            transferResponse("Broadcasted", requester = null),
+            transferResponse("Broadcasted", requester = """{"tokenId":"to-1"}"""),
+            transferResponse("Broadcasted", metadata = null),
+            transferResponse("Broadcasted", id = "xfr-short"),
             transferResponse("Completed"),
             transferResponse(status = null),
             transferResponse("Broadcasted", id = null),
@@ -231,7 +278,7 @@ class DfnsNetworkTransferClientTest {
         server
             .expect(requestTo("$BASE/wallets/$WALLET_ID/transfers/$TRANSFER_ID"))
             .andExpect(method(HttpMethod.GET))
-            .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer service-account-token"))
+            .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer $AUTH_TOKEN"))
             .andExpect(headerDoesNotExist("X-DFNS-USERACTION"))
             .andRespond(withSuccess(transferResponse("Failed", reason = "insufficient funds"), MediaType.APPLICATION_JSON))
 
@@ -288,11 +335,16 @@ class DfnsNetworkTransferClientTest {
         requestBody: String = """{"kind":"Erc20","contract":"$CONTRACT","to":"$DESTINATION","amount":"1500000"}""",
         dateRequested: String? = "2026-09-16T00:00:00.000Z",
         reason: String? = null,
+        externalId: String? = "wd-ext-1",
+        requester: String? = """{"userId":"us-1"}""",
+        metadata: String? = """{"asset":{"symbol":"USDC","decimals":6}}""",
     ): String =
         buildString {
-            append("""{"walletId":"$walletId","network":"$network","requester":{"userId":"us-1"},""")
-            append(""""requestBody":$requestBody,"metadata":{"asset":{"symbol":"USDC","decimals":6}},""")
-            append(""""txHash":"$TX_HASH","externalId":"wd-ext-1","fee":"21000"""")
+            append("""{"walletId":"$walletId","network":"$network",""")
+            append(""""requestBody":$requestBody,"txHash":"$TX_HASH","fee":"21000"""")
+            requester?.let { append(""","requester":$it""") }
+            metadata?.let { append(""","metadata":$it""") }
+            externalId?.let { append(""","externalId":"$it"""") }
             id?.let { append(""","id":"$it"""") }
             status?.let { append(""","status":"$it"""") }
             dateRequested?.let { append(""","dateRequested":"$it"""") }
@@ -306,9 +358,20 @@ class DfnsNetworkTransferClientTest {
         const val TRANSFER_ID = "xfr-20g4k-nsdpo-mg6arrifgvid4orn"
         const val CONTRACT = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
         const val DESTINATION = "0x00e3495cf6af59008f22ffaf32d4c92ac33dac47"
+        const val OTHER_ADDRESS = "0x1111111111111111111111111111111111111111"
         const val MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
         const val TX_HASH = "0x5f2b1c0e2b0a4d3c8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5"
-        const val USER_ACTION = """{"userAction":"eyJ0eX.bzrQakA"}"""
+
+        /** 시험용 자격값 — 실행마다 생성해 소스에 고정 토큰을 두지 않는다. */
+        private fun randomToken(): String =
+            java.util.Base64
+                .getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(java.security.SecureRandom().generateSeed(24))
+
+        val AUTH_TOKEN: String = randomToken()
+        val USER_ACTION_TOKEN: String = randomToken()
+        val USER_ACTION = """{"userAction":"$USER_ACTION_TOKEN"}"""
         val ORIGIN = ProviderOrigin("test-dfns-origin", "dfns", "dfns", "test-dfns-platform", "test-dfns-organization", "TESTNET")
         val CHALLENGE =
             """{"challenge":"Y2gtNzloaHQtbXJlb2stOGFwOHFtMmVpZWZ0amxhZw","challengeIdentifier":"eyJ0e.fQNA",

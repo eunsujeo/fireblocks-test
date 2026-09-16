@@ -24,8 +24,12 @@ class NetworkTransferContractTest {
         // 공식 Idempotency 문서가 externalId 영구 결속으로 규정한 종결 셋.
         assertThat(NetworkTransferStatus.entries.filter { it.terminal })
             .containsExactly(NetworkTransferStatus.CONFIRMED, NetworkTransferStatus.FAILED, NetworkTransferStatus.REJECTED)
-        assertThat(NetworkTransferStatus.entries.filter { it.broadcast })
+        assertThat(NetworkTransferStatus.entries.filter { it.onChainSubmitted == true })
             .containsExactly(NetworkTransferStatus.BROADCASTED, NetworkTransferStatus.CONFIRMED)
+        assertThat(NetworkTransferStatus.entries.filter { it.onChainSubmitted == false })
+            .containsExactly(NetworkTransferStatus.PENDING, NetworkTransferStatus.EXECUTING, NetworkTransferStatus.REJECTED)
+        // Failed는 시스템 실패와 온체인 실행 실패를 함께 뜻해 상태만으로 제출 여부를 확정하지 않는다(공식 문서).
+        assertThat(NetworkTransferStatus.FAILED.onChainSubmitted).isNull()
     }
 
     @Test
