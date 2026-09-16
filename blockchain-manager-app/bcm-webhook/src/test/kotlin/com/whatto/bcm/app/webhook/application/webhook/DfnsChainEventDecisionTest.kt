@@ -138,7 +138,9 @@ class DfnsChainEventDecisionTest {
 
         val unattributed = transfer()
         assertThat(decision(event = event(unattributed), accountId = null).decide(NOTIFICATION_ID, PAYLOAD))
-            .isEqualTo(DfnsChainDecisionOutcome.Unattributed(unattributed, NetworkChainAttributionMiss.UNKNOWN_ADDRESS))
+            .isEqualTo(
+                DfnsChainDecisionOutcome.Unattributed(unattributed, NetworkChainAttributionMiss.UNKNOWN_ADDRESS, NETWORK, "USDC"),
+            )
 
         // 온체인 이동 사건이 아닌 알림은 이 판단의 대상이 아니다.
         assertThat(decision(event = null).decide(NOTIFICATION_ID, PAYLOAD)).isEqualTo(DfnsChainDecisionOutcome.NotChainEvent)

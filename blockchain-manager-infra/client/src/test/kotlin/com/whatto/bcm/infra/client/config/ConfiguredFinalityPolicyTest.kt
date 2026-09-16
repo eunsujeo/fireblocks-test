@@ -1,4 +1,4 @@
-package com.whatto.bcm.infra.client.fireblocks
+package com.whatto.bcm.infra.client.config
 
 import com.whatto.bcm.domain.tx.FinalityPolicyConfigurationException
 import org.assertj.core.api.Assertions.assertThat

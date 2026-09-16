@@ -40,13 +40,18 @@ class NetworkChainAttributionTest {
         val noDestination = transfer(to = null)
         assertThat(NetworkChainAttribution.attribute(noDestination, ledger()))
             .isEqualTo(
-                NetworkChainAttributionResult.Unattributed(noDestination, NetworkChainAttributionMiss.MISSING_DESTINATION),
+                NetworkChainAttributionResult.Unattributed(
+                    noDestination,
+                    NetworkChainAttributionMiss.MISSING_DESTINATION,
+                    NETWORK,
+                    "USDC",
+                ),
             )
 
         val unknown = transfer()
         assertThat(NetworkChainAttribution.attribute(unknown, ledger(accountId = null)))
             .isEqualTo(
-                NetworkChainAttributionResult.Unattributed(unknown, NetworkChainAttributionMiss.UNKNOWN_ADDRESS),
+                NetworkChainAttributionResult.Unattributed(unknown, NetworkChainAttributionMiss.UNKNOWN_ADDRESS, NETWORK, "USDC"),
             )
     }
 
