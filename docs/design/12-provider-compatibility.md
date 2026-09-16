@@ -536,3 +536,9 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 검증: `BlockDepthFinalityTest` 4(깊이 산식과 head 미달 0, 임계 이상만 확정, `Long` 범위 넘침의 실패와 경계값, 음수 블록·0 이하 임계 거절 4종),
   `EvmChainHeadClientTest` 4(`eth_blockNumber` 요청·결과 해석, 미설정 네트워크 중단, RPC 오류·결손·형식·범위 6종, HTTP 실패 전파).
 - 선택 회귀: domain 129 · client 161, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 a3fdd8c..620850d, design-sync 먼저)**: Major 1 — `head − blockNumber + 1`이 head가 `Long` 최대이고 사건 블록이 0일 때
+  넘쳐 음수 컨펌이 되고, `finalized`가 그 값을 예외 없이 false로 돌려 "실패를 확정 전 상태로 치환하지 않는다"는 원칙과 어긋난다. design-sync 실패로 code-reviewer는 수행하지 않았다.
+  블록 자체 1컨펌 산식·head 미달 0 처리의 안전 방향·두 제공자의 임계 설정 공유·Solana 범위 밖 표기·Fireblocks 경로 무변경은 정합으로 확인됐다.
+- **반영**: `Math.incrementExact`로 유일한 넘침 지점을 예외로 올려 확정을 보류한다(뺄셈은 `head >= blockNumber` 보장 뒤라 넘치지 않는다). 넘침을 음수·포화값으로 바꾸지 않는다는 규칙을
+  계약13 깊이 산식 행과 설계12에 적고, `Long.MAX_VALUE` 넘침과 양쪽 경계값을 테스트에 넣었다. 재실행: domain 129 · client 161, 실패 0, 전체 ktlintCheck 통과.
+- **독립 converge 2차(Codex, 범위 620850d..17ecb24, design-sync→code-reviewer 순차)**: 이전 Major 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 17ecb24).
