@@ -7,7 +7,7 @@ V24 보호 원문 저장소와 내부 생성 서비스+실제 PostgreSQL 결합 
 2026-09-15 공식 OpenAPI 1.1018.3 기반 인증(사용자 행위 서명)·지갑 생성/조회 HTTP 어댑터와 Pending/Conflict의 공개 HTTP 매핑을 구현했다.
 공개 계정·주소 API를 `AccountOperations`로 제공자별 조립해 Dfns 논리 계정·네트워크 지갑 주소 발급을 연결했다.
 Dfns 데이터셋의 자산 매핑 등록 관문(`ChainAssetResolver`)과 `GET /wallets/{walletId}/assets` 기반 잔액 계약을 구현했다.
-2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델, Dfns 웹훅 수신 프로토콜(HMAC 검증·envelope)을 구현했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
+2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델, Dfns 웹훅 수신 프로토콜(HMAC 검증·envelope), 전송 제출·조회 어댑터(내부 대역)를 구현했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
 [제공자 선택](12-provider-compatibility.md) · [전체 계획](../dfns-compatibility-plan.md) · [현행 API](../api/openapi.yaml)
 
 ## 자료의 적용 범위
@@ -269,6 +269,24 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 형식 검사 | `walletId`가 요청 지갑과 다르거나 응답 `network` 원문이 scope 네트워크의 설정 매핑값(`bcm.dfns.networks`)과 다르면 실패다 — 매핑 없는 원문을 BCM 코드로 되돌리는 관찰용 fallback은 쓰지 않는다. 항목은 객체여야 하고 `kind`·`decimals`(정수 0..255 — 명세에 상한이 없어 모델링한 자산 표준의 uint8/u8 `decimals`를 BCM 정규화 한계로 둔다)·`balance`(정수 문자열)·`verified`(boolean)의 형식을 검사한다. 모델링한 kind(`Native`·`Erc20`·`Spl`·`Spl2022`)만 키로 정규화하고 그 밖의 kind는 대조 대상이 아니라 제외한다. 형식이 깨진 항목이 있으면 목록 전체를 신뢰하지 않고 실패한다(요청 자산만 골라 답하지 않음) |
 | drift | 발급 기록이 있는데 준비 지갑이 없거나 응답 지갑·네트워크가 다르거나 같은 키가 둘이면 빈 배열·0으로 숨기지 않고 `INTERNAL`(500)이다. HTTP 오류는 상태·수신 바이트를 담은 `VendorApiException`으로 전파한다 |
 | 미포함 | BCM 예약·컴플라이언스 보류 차감은 Dfns 거래 조립 뒤의 계약이다(계획 "잔액과 자금 통제"). 잔액 응답은 V24 증적 대상이 아니다(생성 의도 작업만 보관) |
+
+### 전송 제출·조회 계약 — 구현
+
+근거: 채택 명세 1.1018.3 `POST /wallets/{walletId}/transfers`(Transfer Asset)·`GET /wallets/{walletId}/transfers/{transferId}`(Get Transfer)와
+공식 [Idempotency](https://docs.dfns.co/api-reference/idempotency)(`.md` SHA-256 `6de82575a0cb361689df4221ad6f6e8d195ed3927d5fbb5e23c79e7fe0817507`, 2026-09-16 확인).
+구현은 도메인 출력 포트 `NetworkTransferPort`와 `DfnsNetworkTransferClient`(infra/client)다. **내부 대역이며 제출 원장·출금/Sweep 유스케이스에 연결하지 않았다.**
+
+| 항목 | 명세·문서로 확인한 사실 | BCM 규칙 |
+|---|---|---|
+| 요청 본문 | `kind`별 oneOf. EVM `Erc20{contract,to,amount}`, Solana `Spl`/`Spl2022{mint,to,amount}`, `Native{to,amount}`. `amount`는 최소 단위 정수 문자열(`^\d+$`), `externalId`는 1~50자 | 등록 자산 키(`<Network>:<Kind>:<locator>`)를 되돌려 `kind`·locator를 만든다 — 모델링한 네 kind만 전송하고 그 밖은 거절한다. 키의 network가 scope와 다르면 호출 전에 거절한다. 선택 필드(`priority`·`memo`·`feeSponsorId`·`travelRule`·`createDestinationAccount`·`useDurableNonce`)는 **보내지 않는다**(각각 수수료·대납·Travel Rule 계약이 따로 필요) |
+| 멱등 | 같은 URL·본문·`externalId` 재요청은 기존 엔티티와 `200`. 같은 `externalId`로 **다른 본문/지갑**이면 `409`(`details.duplicate`). 종결(`Confirmed`/`Failed`/`Rejected`) 뒤에는 `externalId`가 그 엔티티에 영구 결속되고 재제출도 기존 엔티티를 돌려준다. 재시도는 **새 `externalId`**가 필요하다 | 제출 키(`bcm_sbmt_l.ext_tx_id`)를 `externalId`로 쓰되 50자를 넘으면 자르지 않고 거절한다(03의 키는 VARCHAR(64)). `409`는 조회 없이 "같은 키 다른 내용"으로 판정해 `Conflict` 결과(수신 바이트·`details.duplicate.id` 포함)로 돌려주고 자동 재제출하지 않는다. 실패한 전송의 재시도를 같은 키로 만들지 않는다 |
+| 사용자 행위 서명 | Transfer Asset은 `Wallets:Transfers:Create` 권한과 사용자 행위 서명을 요구한다 | 지갑 생성과 같은 `/auth/action/init`→`/auth/action`→`X-DFNS-USERACTION` 흐름을 쓰고, 서명 경로는 지갑 ID가 들어간 실제 경로다. 응답을 받지 못한 실패 뒤 자동 재호출은 없다 |
+| 응답 상태 | `Pending`(지갑 정책 승인 대기) · `Executing`(승인 후 실행 중, 짧은 구간) · `Broadcasted`(mempool 기록) · `Confirmed`(Dfns 인덱싱 파이프라인이 온체인 확인) · `Failed`(시스템 실패 또는 **온체인 실행 실패**, 문서상 재시도 없음) · `Rejected`(정책 승인에서 거절) | 도메인 `NetworkTransferStatus`로 옮기고 종결 여부(`Confirmed`/`Failed`/`Rejected`)·체인 제출 여부만 판단한다. **`Confirmed`를 BCM `FINALIZED`로 번역하지 않는다** — DCCP 임계는 별개이며 `TxStatus` 번역은 웹훅 판단 워커와 함께 정한다 |
+| 응답 정규화 | 필수 `id`(`xfr-…`)·`walletId`·`network`·`requester`·`requestBody`·`metadata`·`status`·`dateRequested`. 선택 `txHash`·`externalId`·`fee`·`reason`·`approvalId`·`replacementId` | 필수 필드 형식을 검사하고 `walletId`·`network`가 요청 scope와, 응답 `requestBody`의 `kind`·locator가 보낸 값과 같아야 한다. 다르면 수신 바이트를 담아 실패한다. 조회 `404`는 미관찰(null)이다 |
+| 범위 밖 | — | 제출 원장(`bcm_sbmt_l`) 연결·출금/내부이체 유스케이스, 정책 승인(`Pending`) 운영 흐름, 대체 제출(cancel/speed-up)·boost, fee sponsor·Travel Rule, Sweep 컨트랙트 호출, 전송 응답의 원문 증적 보관(V24는 지갑 생성 의도 FK 전용이라 별도 원장이 필요하다) |
+
+수용 항목: 실제 `409` 본문 형식과 `details.duplicate`, `Pending` 정책 승인의 운영 흐름·타임아웃, `Broadcasted`→`Confirmed` 지연과 재조회 주기,
+`fee`·`priority`의 실제 동작, Solana `createDestinationAccount`(ATA rent 부담)와 EVM 대납의 필요 여부.
 
 ### 보류·충돌 HTTP 계약 — 구현
 

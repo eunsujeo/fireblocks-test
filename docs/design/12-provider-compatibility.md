@@ -27,7 +27,7 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
 |---|---|---|
 | `WalletVendorPort` | 계정/주소 생성 의도·회수·잔액 응답 | 현재 vault 중심 메서드는 Fireblocks 계약. Dfns는 `NetworkWalletProvisioningPort`·`NetworkWalletAssetPort`(지갑 자산 잔액)로 분리했고 `VendorBalance`의 제공되지 않는 구분은 null이다(계약13) |
 | `ChainAssetResolver` | Admin 자산 등록의 벤더 재해소 관문 | Fireblocks는 카탈로그 assetId·주소 대조, Dfns는 데이터셋 네트워크 행·자산 모델·주소 형식 대조와 Dfns 자산 키 생성(계약13) |
-| `VendorTransactionPort` | 제출·externalTxId 조회·거래/목록·접수/거절 구분 | 인증·ID·API별 멱등/조회·비용·원시 상태 |
+| `VendorTransactionPort` | 제출·externalTxId 조회·거래/목록·접수/거절 구분 | 현재 vault 중심 메서드는 Fireblocks 계약. Dfns 지갑 전송은 `NetworkTransferPort`로 분리했다(계약13) |
 | `VendorContractCallPort` | 집금 호출 의도·접수/조회 결과 | 승인·대납·최종 서명 내용·방송 경로·수신 증적 |
 | `VendorAssetCatalogPort` | 후보 수집과 채택 자산의 분리 | 벤더 네트워크/자산 ID·페이지·정밀도·온체인 주소 대조 |
 | `VendorStatusTranslator` | 원시 관찰→업무 상태와 종결 대사 범위 | 실제 상태 의미. confirmationCount 중심 계약은 멀티체인 확장 전에 타입 분리 |
@@ -424,3 +424,17 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `SecureRandom`으로 생성해 소스에 고정값을 두지 않는다. 설계12 기동 계약 절을 "차단 상태에서 구현·조립된 슬라이스"와 "외부 기동 가능 범위"로 나눠 갱신했다. 재실행: client 63 · webhook 16, 실패 0, ktlintCheck 통과.
 - **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta b3fdf58..1d20198, design-sync→code-reviewer 순차)**: 이전 Critical 2·Major 1·Minor 1 해소 확인, 신규 Critical/Major/Minor 없음. 검토 기준 commit은 1d20198이다.
   실벤더 호출·실제 서명 원문 수용·기동 차단 해제·push는 미수행이다.
+
+## Dfns 전송 제출·조회 어댑터 검증 (2026-09-16)
+
+- 계약은 [계약13](13-dfns-contracts.md#전송-제출조회-계약--구현)에 먼저 고정했다(채택 명세 `POST/GET /wallets/{id}/transfers`와 공식 Idempotency 문서 해시).
+  도메인 포트 `NetworkTransferPort`·`NetworkTransferRequest`(제출 키 ≤50자·금액 최소 단위 정수)·`NetworkTransferStatus`(명세 여섯 값, 종결/체인 제출 여부만 판단)·
+  `NetworkTransferSubmission`(Accepted/Conflict)를 추가하고 `DfnsNetworkTransferClient`가 구현한다. Fireblocks의 vault 중심 `VendorTransactionPort`는 그대로 둔다.
+- 어댑터: 등록 자산 키를 되돌려(`DfnsAssetKeys.parse`, 생성 규칙과 같은 검사) `kind`·locator를 만들고 `to`·`amount`·`externalId`만 보낸다. 수수료·대납·Travel Rule·memo는 보내지 않는다.
+  제출은 지갑 ID가 들어간 실제 경로로 사용자 행위 서명을 거치고, 409는 조회 없이 `Conflict`(수신 바이트·`details.duplicate.id`)로 돌려주며 자동 재제출하지 않는다.
+  응답은 `walletId`·`network`가 요청과, `requestBody`의 `kind`·locator가 보낸 값과 같아야 정규화하고 조회 404는 미관찰(null)이다. `Confirmed`를 `FINALIZED`로 번역하지 않는다.
+- **조립하지 않는다** — 실행 빈으로 등록하지 않는 내부 대역이며 제출 원장(`bcm_sbmt_l`)·출금/내부이체 유스케이스·Sweep·정책 승인(`Pending`) 흐름·대체 제출·전송 응답 증적은 후속이다.
+  `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
+- 검증: `NetworkTransferContractTest` 4(상태 원어 대응·종결/제출 집합, 제출 키 50자·금액 형식, 식별자 공백, 충돌 바이트 사본),
+  `DfnsNetworkTransferClientTest` 6(서명 경로·본문 필드 정확 일치·정규화, Solana `Spl2022`/네이티브 본문, 409 충돌·duplicate ID, 409 본문 결손과 403 전파, 응답 불일치·결손 12종, 조회 404/ID 불일치, 호출 전 거절 6종).
+- 선택 회귀: domain 119 · client 138, 실패 0. 전체 모듈 compileKotlin/compileTestKotlin·변경 모듈 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용·push는 미수행이다.

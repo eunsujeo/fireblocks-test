@@ -107,6 +107,24 @@ internal object DfnsAssetKeys {
     private const val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     private val BASE58_RADIX = java.math.BigInteger.valueOf(58)
 
+    /**
+     * 등록된 자산 키를 벤더 network·kind·locator로 되돌린다(전송 본문 구성용). 모델링한 kind가 아니거나 형식이 다르면 null이다 —
+     * 키를 만든 규칙과 같은 검사(EVM 주소 형식·Solana base58 32바이트)를 다시 적용해 저장된 값이 손상됐으면 전송하지 않는다.
+     */
+    fun parse(vendorAssetId: String): DfnsAssetKey? {
+        val segments = vendorAssetId.split(':')
+        val network = segments.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return null
+        val kind = segments.getOrNull(1) ?: return null
+        val locator = segments.getOrNull(2)
+        if (segments.size > 3) return null
+        if (!isModeled(kind)) return null
+        val expectedLocatorField = locatorField(kind)
+        if ((expectedLocatorField == null) != (locator == null)) return null
+        val rebuilt = runCatching { of(network, kind, locator) }.getOrNull() ?: return null
+        if (rebuilt != vendorAssetId) return null
+        return DfnsAssetKey(network, kind, expectedLocatorField, locator)
+    }
+
     private fun requireNetwork(vendorNetwork: String): String {
         require(
             vendorNetwork.isNotBlank() && vendorNetwork == vendorNetwork.trim() && !vendorNetwork.contains(':'),
@@ -114,3 +132,11 @@ internal object DfnsAssetKeys {
         return vendorNetwork
     }
 }
+
+/** 자산 키의 구성 요소 — `locatorField`가 null이면 네이티브(추가 필드 없음)다. */
+internal data class DfnsAssetKey(
+    val vendorNetwork: String,
+    val kind: String,
+    val locatorField: String?,
+    val locator: String?,
+)
