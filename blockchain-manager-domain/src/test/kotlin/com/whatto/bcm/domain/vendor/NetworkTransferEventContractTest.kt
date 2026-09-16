@@ -38,8 +38,7 @@ class NetworkTransferEventContractTest {
     }
 
     @Test
-    fun `전달 시도는 결손이면 null이고 알림 메타의 빈 값·0 이하 시도는 사건으로 받지 않는다`() {
-        assertThat(event(deliveryAttempt = null).deliveryAttempt).isNull()
+    fun `알림 메타의 빈 값·0 이하 전달 시도는 사건으로 받지 않는다`() {
         assertThat(event(deliveryAttempt = 3, retryOf = "whe-1").retryOfNotificationId).isEqualTo("whe-1")
 
         listOf<Pair<String, () -> NetworkTransferEvent>>(
@@ -60,7 +59,7 @@ class NetworkTransferEventContractTest {
         status: NetworkTransferStatus = NetworkTransferStatus.CONFIRMED,
         notificationId: String = "whe-544ul-uqgad-jkgltj5p6fvd04cj",
         occurredAt: String = "2026-09-16T00:00:00.000Z",
-        deliveryAttempt: Int? = 1,
+        deliveryAttempt: Int = 1,
         retryOf: String? = null,
     ) = NetworkTransferEvent(
         notificationId = notificationId,

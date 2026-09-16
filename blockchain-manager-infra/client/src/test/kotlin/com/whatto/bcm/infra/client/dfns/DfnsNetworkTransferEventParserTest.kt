@@ -116,14 +116,22 @@ class DfnsNetworkTransferEventParserTest {
             event(deliveryAttempt = "0") to "deliveryAttempt",
             event(deliveryAttempt = """"1"""") to "deliveryAttempt",
             event(deliveryAttempt = "1.5") to "deliveryAttempt",
+            // 명세가 필수로 정의한 전달 시도 — 결손을 기본값 1로 지어내지 않는다.
+            event(deliveryAttempt = null) to "deliveryAttempt",
+            // 수신 envelope의 알림 ID는 `whe-…` 형식이다(조회 모델 WebhookEvent에는 없는 제약).
+            event(id = """"wh-1"""") to "id",
+            event(id = """"whe-544ul-uqgad-short"""") to "id",
+            // 선택 필드지만 있으면 명세 형식이어야 한다 — 빈 값·형식 오류를 결손으로 축소하지 않는다.
             event(retryOf = "7") to "retryOf",
+            event(retryOf = """""""") to "retryOf",
+            event(retryOf = """"whe-bad"""") to "retryOf",
         ).forEach { (body, field) ->
             assertThatThrownBy { parser.parse(body.toByteArray()) }
                 .describedAs(body)
                 .isInstanceOf(WebhookPayloadException::class.java)
                 .hasMessageContaining(field)
         }
-        assertThat(parser.parse(event(deliveryAttempt = null).toByteArray())?.deliveryAttempt).isNull()
+        assertThat(parser.parse(event(retryOf = null).toByteArray())?.retryOfNotificationId).isNull()
     }
 
     @Test
