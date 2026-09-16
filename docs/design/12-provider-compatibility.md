@@ -596,3 +596,12 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 검증: `NetworkChainTransactionIdTest` 6(결정성·길이·원문 미노출, network/hash/순번 구분, 순번 없는 이동 거절, 입력 경계 합쳐짐 방지, EVM 대소문자 정규화와 base58 미정규화, 빈 입력 거절),
   `V26TransactionHashLookupPersistenceTest` 1(**업그레이드 경로** — V25까지 적용해 거래 1,500건을 쌓은 뒤 V26을 적용하고, index 정의의 부분 조건과 유효 상태(`indisvalid`)·hash 조회의 index 사용·같은 hash 중복 저장 허용을 확인).
 - 선택 회귀: domain 142 · persistence 234, 실패 0. 전체 ktlintCheck 통과. 공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 a19f372..5085f1b, design-sync 먼저)**: Critical 1 — 명세에서 선택 필드인 `index`의 결손을 빈 값으로 해시해,
+  한 트랜잭션의 여러 이동이 순번 없이 오면 같은 `vndr_tx_id`가 되고 상태 머신이 뒤 관찰로 계정·자산을 덮어써 서로 다른 고객의 자금이 한 논리 거래로 합쳐진다.
+  Major 2 — ① 비고유 `tx_hash`만으로 발신 거래를 찾는 계약이 복수 후보 처리를 정의하지 않았다, ② 일반 `CREATE INDEX`가 큰 원장에서 생성 동안 쓰기를 막아 Fireblocks 경로까지 멈춘다.
+  Minor 1 — 마이그레이션 테스트가 기존 데이터 위 업그레이드 경로와 실제 partial predicate를 검증하지 않았다. design-sync 실패로 code-reviewer는 수행하지 않았다.
+  52자 절단의 충돌 위험·길이 접두 직렬화·EVM 소문자 정규화와 기존 컬럼 무변경은 정합으로 확인됐다.
+- **반영**: 순번을 파생 ID의 **필수 입력**으로 바꿔 공백·결손이면 ID를 만들지 않고 실패시킨다(처리 보류). 계약13에 "순번" 행을 따로 두어 명세상 선택이라는 사실과 BCM 규칙을 분리하고
+  수용 항목에 남겼다. 발신 사건 대조를 `(ntwk_cd, tx_hash)` 단일 후보 + 제출 원장 대응으로 좁히고 그 밖은 중단한다. V26을 V18과 같은 온라인 생성으로 바꿨다.
+  마이그레이션 테스트를 업그레이드 경로로 다시 써 index 정의의 부분 조건과 `indisvalid`를 직접 확인한다. 재실행: domain 142 · persistence 234, 실패 0, 전체 ktlintCheck 통과.
+- **독립 converge 2차(Codex, 범위 5085f1b..1aaf76a, design-sync→code-reviewer 순차)**: 이전 4건 모두 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 1aaf76a).
