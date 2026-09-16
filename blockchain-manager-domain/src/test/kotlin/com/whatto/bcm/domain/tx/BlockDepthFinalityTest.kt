@@ -26,6 +26,18 @@ class BlockDepthFinalityTest {
     }
 
     @Test
+    fun `깊이 계산이 Long 범위를 넘으면 값을 지어내지 않고 실패한다`() {
+        // head가 Long 최대이고 사건 블록이 0이면 +1이 넘친다 — 음수 컨펌이나 포화값으로 바꾸면 확정을 잘못 낸다.
+        assertThatThrownBy { BlockDepthFinality.confirmations(headBlockNumber = Long.MAX_VALUE, blockNumber = 0) }
+            .isInstanceOf(ArithmeticException::class.java)
+        assertThatThrownBy { BlockDepthFinality.finalized(Long.MAX_VALUE, 0, requiredConfirmations = 1) }
+            .isInstanceOf(ArithmeticException::class.java)
+        // 한 칸 안쪽은 정상으로 계산된다.
+        assertThat(BlockDepthFinality.confirmations(headBlockNumber = Long.MAX_VALUE, blockNumber = 1)).isEqualTo(Long.MAX_VALUE)
+        assertThat(BlockDepthFinality.confirmations(headBlockNumber = Long.MAX_VALUE, blockNumber = Long.MAX_VALUE)).isEqualTo(1)
+    }
+
+    @Test
     fun `음수 블록과 0 이하 임계는 판정 입력으로 받지 않는다`() {
         listOf<Pair<String, () -> Any>>(
             "headBlockNumber" to { BlockDepthFinality.confirmations(headBlockNumber = -1, blockNumber = 0) },
