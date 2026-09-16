@@ -59,6 +59,7 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.client.RestClient
+import tools.jackson.databind.ObjectMapper
 import java.net.InetSocketAddress
 import java.security.KeyPairGenerator
 import java.security.spec.ECGenParameterSpec
@@ -114,6 +115,10 @@ class DfnsAccountAssemblyIntegrationTest {
 
         @Bean
         fun operationalMetricsPort(): OperationalMetricsPort = NoOpOperationalMetricsPort
+
+        /** 슬라이스 컨텍스트에는 Jackson 자동 구성이 없다 — 실행 앱과 같은 조립을 재현하려면 여기서 제공한다. */
+        @Bean
+        fun objectMapper(): ObjectMapper = ObjectMapper()
     }
 
     @BeforeEach
@@ -270,17 +275,37 @@ class DfnsAccountAssemblyIntegrationTest {
     fun `Dfns 데이터셋의 자산 등록은 벤더 호출 없이 network·contractAddress로 Dfns 자산 키를 만들어 저장하고 Fireblocks asset id·비EVM 모델은 거절한다`() {
         val registered =
             assetMappings.register(
-                RegisterVendorAssetMappingCommand("ETHEREUM_TEST", "ASMDAI", null, FakeDfns.DAI_CONTRACT, "123456", "0001", "req-asm-1"),
+                RegisterVendorAssetMappingCommand(
+                    "ETHEREUM_TEST",
+                    "ASMDAI",
+                    null,
+                    FakeDfns.DAI_CONTRACT,
+                    "123456",
+                    "0001",
+                    "req-asm-1",
+                    decimals = 18,
+                ),
             )
 
         assertThat(registered.vendorAssetId).isEqualTo("EthereumSepolia:Erc20:${FakeDfns.DAI_CONTRACT.lowercase()}")
         assertThat(registered.contractAddress).isEqualTo(FakeDfns.DAI_CONTRACT)
+        // 정밀도는 등록값으로 보존한다 — Dfns에는 카탈로그가 없어 해소로 얻을 값이 없다(03 V27).
+        assertThat(registered.decimals).isEqualTo(18)
+        assertThat(assetMappings.mappings("ETHEREUM_TEST", "ASMDAI").single().decimals).isEqualTo(18)
         assertThat(assetMappings.mappings("ETHEREUM_TEST", "ASMDAI").single().vendorAssetId).isEqualTo(registered.vendorAssetId)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_vndr_ast_chng_l WHERE tkn_smbl = 'ASMDAI'", Int::class.java)).isEqualTo(1)
 
         assertThatThrownBy {
             assetMappings.register(
-                RegisterVendorAssetMappingCommand("ETHEREUM_TEST", "ASMFB", "USDC_ETH_TEST5", FakeDfns.DAI_CONTRACT, "123456", "0001"),
+                RegisterVendorAssetMappingCommand(
+                    "ETHEREUM_TEST",
+                    "ASMFB",
+                    "USDC_ETH_TEST5",
+                    FakeDfns.DAI_CONTRACT,
+                    "123456",
+                    "0001",
+                    decimals = 18,
+                ),
             )
         }.isInstanceOfSatisfying(
             InvalidAssetMappingException::class.java,
@@ -296,15 +321,30 @@ class DfnsAccountAssemblyIntegrationTest {
                     "123456",
                     "0001",
                     tokenStandard = TokenStandard.SPL_2022,
+                    decimals = 6,
                 ),
             )
         assertThat(sol.vendorAssetId).isEqualTo("SolanaDevnet:Spl2022:${FakeDfns.SOLANA_KRWK_MINT}")
         assertThatThrownBy {
             assetMappings.register(
-                RegisterVendorAssetMappingCommand("SOLANA_TEST", "ASMNOSTD", null, FakeDfns.SOLANA_KRWK_MINT, "123456", "0001"),
+                RegisterVendorAssetMappingCommand(
+                    "SOLANA_TEST",
+                    "ASMNOSTD",
+                    null,
+                    FakeDfns.SOLANA_KRWK_MINT,
+                    "123456",
+                    "0001",
+                    decimals = 6,
+                ),
             )
         }.isInstanceOfSatisfying(InvalidAssetMappingException::class.java) { assertThat(it.reason).isEqualTo("tokenStandardRequired") }
-        assertThat(assetMappings.mappings(null, null).map { it.symbol }).doesNotContain("ASMFB", "ASMNOSTD")
+        // 정밀도가 없으면 Dfns 원천은 등록을 거절한다 — 등록 뒤에 금액 환산이 막히지 않게 관문에서 먼저 막는다.
+        assertThatThrownBy {
+            assetMappings.register(
+                RegisterVendorAssetMappingCommand("ETHEREUM_TEST", "ASMNODEC", null, FakeDfns.DAI_CONTRACT, "123456", "0001"),
+            )
+        }.isInstanceOfSatisfying(InvalidAssetMappingException::class.java) { assertThat(it.reason).isEqualTo("decimalsRequired") }
+        assertThat(assetMappings.mappings(null, null).map { it.symbol }).doesNotContain("ASMFB", "ASMNOSTD", "ASMNODEC")
         assertThat(dfns.requests).isEmpty()
     }
 

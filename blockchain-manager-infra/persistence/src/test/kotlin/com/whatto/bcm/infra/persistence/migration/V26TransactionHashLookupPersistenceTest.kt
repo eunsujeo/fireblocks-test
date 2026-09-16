@@ -24,14 +24,14 @@ class V26TransactionHashLookupPersistenceTest : PersistenceTestSupport() {
                 connection.schema = schema
                 // 업그레이드 경로 — V25까지 적용해 기존 거래를 쌓은 뒤 V26을 적용한다.
                 val all = migrations()
-                val upgrade = all.last()
-                assertThat(upgrade).isEqualTo(MIGRATION)
-                all.dropLast(1).forEach { applyMigration(connection, it) }
+                val upgradeIndex = all.indexOf(MIGRATION)
+                assertThat(upgradeIndex).describedAs("manifest must list %s", MIGRATION).isNotNegative()
+                all.take(upgradeIndex).forEach { applyMigration(connection, it) }
                 val jdbc = JdbcTemplate(SingleConnectionDataSource(connection, true))
                 seedTransactions(jdbc)
                 assertThat(indexNames(jdbc)).doesNotContain(INDEX)
 
-                applyMigration(connection, upgrade)
+                applyMigration(connection, MIGRATION)
 
                 assertThat(indexNames(jdbc)).contains(INDEX)
                 // 실제 index 정의에 부분 조건이 들어 있는지 확인한다 — 행 수 집계로는 predicate를 증명하지 못한다.

@@ -38,14 +38,16 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
         network: String = "ETHEREUM",
         symbol: String = "USDC",
         vendorAssetId: String = "USDC_ERC20",
+        decimals: Int? = 6,
     ) = VendorAssetMapping(
-        network,
-        symbol,
-        vendorAssetId,
-        "0xA0B8$network",
-        "20260806120000",
-        "123456",
-        "0001",
+        network = network,
+        symbol = symbol,
+        vendorAssetId = vendorAssetId,
+        contractAddress = "0xA0B8$network",
+        registeredAt = "20260806120000",
+        registeredByEmployeeNo = "123456",
+        registeredByBranchCode = "0001",
+        decimals = decimals,
     )
 
     @BeforeEach
@@ -64,6 +66,31 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
         assertThat(mappings.findAll(network = "BASE")).containsExactly(base)
         assertThat(mappings.findAll(symbol = "USDC")).containsExactly(base, ethereum)
         assertThat(mappings.existsByNetwork("BASE")).isTrue()
+        assertThat(mappings.find("ETHEREUM", "USDC")?.decimals).isEqualTo(6)
+    }
+
+    @Test
+    fun `정밀도는 등록·교체 snapshot과 함께 왕복하고 값이 없는 매핑도 저장된다`() {
+        val registered = mappings.insert(mapping(decimals = 18))
+        assertThat(mappings.find("ETHEREUM", "USDC")?.decimals).isEqualTo(18)
+        assertThat(mappings.findByVendorAssetId(registered.vendorAssetId)?.decimals).isEqualTo(18)
+
+        // 정밀도를 저장하기 전에 등록된 매핑은 값이 없다 — 추가 전용 컬럼이라 NULL을 그대로 받는다.
+        val legacy = mappings.insert(mapping("BASE", vendorAssetId = "USDC_BASE", decimals = null))
+        assertThat(mappings.find("BASE", "USDC")?.decimals).isNull()
+        assertThat(legacy.decimals).isNull()
+
+        // 교체 등록은 새 정밀도로 갱신하고 변경 snapshot이 before/after를 모두 남긴다.
+        mappings.deactivate("ETHEREUM", "USDC", "123456", "0001", "req-dcml", "20260806130000")
+        mappings.save(mapping(vendorAssetId = "USDC_ERC20_V2", decimals = 8), "req-dcml-2")
+        assertThat(mappings.find("ETHEREUM", "USDC")?.decimals).isEqualTo(8)
+        val snapshots =
+            jdbc.queryForList(
+                "SELECT before_snps ->> 'decimals' AS before_dcml, after_snps ->> 'decimals' AS after_dcml " +
+                    "FROM bcm_vndr_ast_chng_l WHERE tkn_smbl = 'USDC' AND ntwk_cd = 'ETHEREUM' ORDER BY chng_dttm, chng_id",
+            )
+        assertThat(snapshots.map { it["after_dcml"] }).contains("18", "8")
+        assertThat(snapshots.any { it["before_dcml"] == "18" }).isTrue()
     }
 
     @Test

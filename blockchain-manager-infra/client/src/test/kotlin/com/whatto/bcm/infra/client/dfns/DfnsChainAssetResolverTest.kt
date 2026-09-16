@@ -51,12 +51,15 @@ class DfnsChainAssetResolverTest {
         val results =
             resolver.resolveAll(
                 sepolia,
-                listOf(ChainAssetLocator("ETHEREUM_SEPOLIA", null, contract), ChainAssetLocator("ETHEREUM_SEPOLIA", null, null)),
+                listOf(
+                    ChainAssetLocator("ETHEREUM_SEPOLIA", null, contract, decimals = 6),
+                    ChainAssetLocator("ETHEREUM_SEPOLIA", null, null, decimals = 18),
+                ),
             )
 
         assertThat(results).containsExactly(
-            ChainAssetResolution.Resolved(ResolvedChainAsset("EthereumSepolia:Erc20:${contract.lowercase()}", contract, null)),
-            ChainAssetResolution.Resolved(ResolvedChainAsset("EthereumSepolia:Native", null, null)),
+            ChainAssetResolution.Resolved(ResolvedChainAsset("EthereumSepolia:Erc20:${contract.lowercase()}", contract, 6)),
+            ChainAssetResolution.Resolved(ResolvedChainAsset("EthereumSepolia:Native", null, 18)),
         )
     }
 
@@ -66,16 +69,16 @@ class DfnsChainAssetResolverTest {
             resolver.resolveAll(
                 solana,
                 listOf(
-                    ChainAssetLocator("SOLANA_DEVNET", null, null),
-                    ChainAssetLocator("SOLANA_DEVNET", null, mint, TokenStandard.SPL),
-                    ChainAssetLocator("SOLANA_DEVNET", null, mint, TokenStandard.SPL_2022),
+                    ChainAssetLocator("SOLANA_DEVNET", null, null, decimals = 9),
+                    ChainAssetLocator("SOLANA_DEVNET", null, mint, TokenStandard.SPL, decimals = 6),
+                    ChainAssetLocator("SOLANA_DEVNET", null, mint, TokenStandard.SPL_2022, decimals = 6),
                 ),
             )
 
         assertThat(results).containsExactly(
-            ChainAssetResolution.Resolved(ResolvedChainAsset("SolanaDevnet:Native", null, null)),
-            ChainAssetResolution.Resolved(ResolvedChainAsset("SolanaDevnet:Spl:$mint", mint, null)),
-            ChainAssetResolution.Resolved(ResolvedChainAsset("SolanaDevnet:Spl2022:$mint", mint, null)),
+            ChainAssetResolution.Resolved(ResolvedChainAsset("SolanaDevnet:Native", null, 9)),
+            ChainAssetResolution.Resolved(ResolvedChainAsset("SolanaDevnet:Spl:$mint", mint, 6)),
+            ChainAssetResolution.Resolved(ResolvedChainAsset("SolanaDevnet:Spl2022:$mint", mint, 6)),
         )
     }
 
@@ -171,6 +174,25 @@ class DfnsChainAssetResolverTest {
         assertThat(DfnsAssetKeys.isSolanaPublicKey("0" + mint.drop(1))).isFalse()
         assertThat(DfnsAssetKeys.isSolanaPublicKey("${mint}2")).isFalse()
         assertThat(DfnsAssetKeys.isSolanaPublicKey(mint.dropLast(1))).describedAs("43자도 32바이트면 형식상 공개키다").isTrue()
+    }
+
+    @Test
+    fun `정밀도는 Dfns 원천에서 필수이고 범위 밖 값은 거절한다`() {
+        // Dfns에는 자산 카탈로그가 없어 해소로 얻을 값이 없다 — 운영자가 발행사 자료와 대조해 등록해야 한다(03 V27).
+        assertThat(reason(sepolia, ChainAssetLocator("ETHEREUM_SEPOLIA", null, contract))).isEqualTo("decimalsRequired")
+        assertThat(reason(sepolia, ChainAssetLocator("ETHEREUM_SEPOLIA", null, null))).isEqualTo("decimalsRequired")
+        listOf(-1, 256, 1_000).forEach { decimals ->
+            assertThat(reason(sepolia, ChainAssetLocator("ETHEREUM_SEPOLIA", null, contract, decimals = decimals)))
+                .describedAs("$decimals")
+                .isEqualTo("decimalsOutOfRange")
+        }
+        listOf(0, 6, 255).forEach { decimals ->
+            val resolved =
+                resolver
+                    .resolveAll(sepolia, listOf(ChainAssetLocator("ETHEREUM_SEPOLIA", null, contract, decimals = decimals)))
+                    .single()
+            assertThat((resolved as ChainAssetResolution.Resolved).asset.decimals).describedAs("$decimals").isEqualTo(decimals)
+        }
     }
 
     private fun reason(
