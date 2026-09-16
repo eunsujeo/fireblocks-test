@@ -27,17 +27,21 @@ object NetworkChainTransactionId {
      * [network]는 BCM 네트워크 코드, [transactionHash]·[eventIndex]는 관찰한 값 그대로다.
      * EVM hash만 소문자로 정규화한다 — 16진수라 대소문자에 정보가 없고, 표기가 흔들려도 같은 이동이 같은 ID가 되어야 한다.
      * 그 밖의 형식(예: Solana base58 서명)은 대소문자가 값의 일부이므로 건드리지 않는다.
+     *
+     * [eventIndex]는 **필수**다. 명세에서는 선택 필드지만, 한 트랜잭션이 여러 이동을 담을 때 순번이 없으면
+     * 서로 다른 이동이 같은 원장 PK로 합쳐져 서로 다른 계정·자산의 자금이 한 논리 거래가 된다.
+     * 순번 없는 사건은 고유 키를 만들 수 없으므로 ID를 지어내지 않고 실패한다 — 호출자는 그 사건을 처리 보류로 남긴다.
      */
     fun of(
         network: String,
         transactionHash: String,
-        eventIndex: String?,
+        eventIndex: String,
     ): String {
         require(network.isNotBlank()) { "network must not be blank" }
         require(transactionHash.isNotBlank()) { "transactionHash must not be blank" }
-        require(eventIndex == null || eventIndex.isNotBlank()) { "eventIndex must not be blank" }
+        require(eventIndex.isNotBlank()) { "eventIndex must not be blank" }
         val hash = if (EVM_TRANSACTION_HASH.matches(transactionHash)) transactionHash.lowercase() else transactionHash
-        val digest = sha256Hex(canonical(network, hash, eventIndex.orEmpty()))
+        val digest = sha256Hex(canonical(network, hash, eventIndex))
         return (PREFIX + digest.take(DIGEST_HEX_LENGTH)).also { check(it.length <= MAX_LENGTH) { "id must fit vndr_tx_id" } }
     }
 

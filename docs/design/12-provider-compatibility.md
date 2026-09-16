@@ -588,11 +588,11 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   계약은 [03 V26](03-bcm-db.md#v26-dfns-논리-거래-식별자와-온체인-hash-조회--물리-저장-계약)과 [계약13](13-dfns-contracts.md#논리-거래-식별자--구현)에 고정했다.
 - 근거: Fireblocks는 입금에도 벤더 거래 ID를 주지만 Dfns 이동 사건에는 ID 필드가 없다. `0x` 뺀 EVM hash가 이미 64자라 읽을 수 있는 형태로는 접두사·순번을 넣을 자리가 없고,
   PK를 넓히면 참조 테이블·인덱스와 기존 Fireblocks 데이터 마이그레이션이 함께 필요하다.
-- 도메인: `NetworkChainTransactionId`가 `dfns-` + SHA-256(network·hash·순번) 요약 52자(합 57자)를 만든다. 입력은 길이를 앞에 붙여 이어 붙여 경계가 흔들리지 않게 하고,
+- 도메인: `NetworkChainTransactionId`가 `dfns-` + SHA-256(network·hash·순번) 요약 52자(합 57자)를 만든다. 순번은 명세상 선택이지만 **파생 ID의 필수 입력**이다 — 없으면 한 트랜잭션의 여러 이동이 같은 PK가 되므로 ID를 지어내지 않고 실패시켜 처리 보류로 남긴다. 입력은 길이를 앞에 붙여 이어 붙여 경계가 흔들리지 않게 하고,
   EVM hash만 소문자로 정규화한다(base58 서명은 대소문자가 값의 일부라 건드리지 않는다). 출금은 벤더가 준 `xfr-…`를 그대로 쓴다.
-- DDL: V26 `idx_bcm_tx_hash`(`bcm_tx_l (tx_hash) WHERE tx_hash IS NOT NULL`) **추가 전용** 마이그레이션. 컬럼·PK·제약을 바꾸지 않는다.
+- DDL: V26 `idx_bcm_tx_hash`(`bcm_tx_l (tx_hash) WHERE tx_hash IS NOT NULL`) **추가 전용** 마이그레이션. 컬럼·PK·제약을 바꾸지 않으며 V18과 같은 온라인 생성(`CREATE INDEX CONCURRENTLY`)을 써서 생성 중 쓰기를 막지 않는다.
   hash는 RBF 계열·재관찰로 중복될 수 있어 UNIQUE로 두지 않는다. 운영 적용은 기존 규칙대로 DBA가 먼저 수행한다.
 - **조립하지 않는다** — 원장 쓰기·`tx_hash` 조회 Repository·판단 워커 조립은 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다. Fireblocks 식별자 경로는 바뀌지 않았다.
-- 검증: `NetworkChainTransactionIdTest` 5(결정성·길이·원문 미노출, network/hash/순번 구분, 입력 경계 합쳐짐 방지, EVM 대소문자 정규화와 base58 미정규화, 빈 입력 거절),
-  `V26TransactionHashLookupPersistenceTest` 1(실제 PostgreSQL에 전체 마이그레이션 적용 후 hash 조회가 전용 index를 쓰는지, 부분 index가 hash 없는 거래를 색인하지 않는지, 같은 hash 중복 저장 허용).
-- 선택 회귀: domain 141 · persistence 234, 실패 0. 전체 ktlintCheck 통과. 공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+- 검증: `NetworkChainTransactionIdTest` 6(결정성·길이·원문 미노출, network/hash/순번 구분, 순번 없는 이동 거절, 입력 경계 합쳐짐 방지, EVM 대소문자 정규화와 base58 미정규화, 빈 입력 거절),
+  `V26TransactionHashLookupPersistenceTest` 1(**업그레이드 경로** — V25까지 적용해 거래 1,500건을 쌓은 뒤 V26을 적용하고, index 정의의 부분 조건과 유효 상태(`indisvalid`)·hash 조회의 index 사용·같은 hash 중복 저장 허용을 확인).
+- 선택 회귀: domain 142 · persistence 234, 실패 0. 전체 ktlintCheck 통과. 공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
