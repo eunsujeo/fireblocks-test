@@ -498,13 +498,15 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 도메인: 출력 포트 `NetworkChainEventParser`와 `NetworkChainEvent`·`NetworkChainEventKind`(지갑 대상 둘)·`NetworkChainTransfer`·`NetworkChainDirection`(In/Out)·
   `NetworkChainTransferStatus`(Included/Confirmed)를 추가했다. 알림 메타는 전송 사건과 공통인 `VendorWebhookDelivery`로 뽑아 두 사건이 같은 값을 쓴다.
 - 어댑터: `DfnsNetworkChainEventParser`가 이동 종류(`Erc20Transfer` 등)를 **목록으로** 자산 kind에 대응시켜 등록·잔액·전송과 같은 키 규칙으로 `vendorAssetId`를 만든다.
-  모델 밖 이동 종류는 키와 금액을 만들지 않고 원어만 남긴 채 **사건은 보존**한다 — 등록할 수 없는 자산이라도 이동 사실을 버리지 않는다.
-  `data.wallet.id`가 사건의 `walletId`와 같아야 하고, 설정 밖 네트워크·필수 필드 결손·형식 오류는 `WebhookPayloadException`으로 거절한다.
+  문서화된 미지원 이동 종류는 키와 금액을 만들지 않고 원어만 남긴 채 **사건은 보존**하고, 문서에 없는 종류는 어느 변형도 만족하지 않으므로 거절한다.
+  필수 필드는 변형별로 다르므로 모든 변형의 공통 필수 아홉과 모델 대상 변형의 추가 필수(`symbol`·`decimals`·`from`·`to`·locator·`value`)를 함께 검사한다 —
+  관찰값에 담지 않는 필드도 결손이면 명세를 만족하지 않는다. `data.wallet`의 `id`·`network`가 사건과 같아야 하고, 설정 밖 네트워크·형식 오류는 `WebhookPayloadException`으로 거절한다.
 - 판단하지 않는 것: `Confirmed`를 BCM 확정으로 번역하지 않고, 종류와 상태가 고정 대응한다고 보지 않으며, 정밀도·심볼은 관찰값에 담지 않는다(등록 매핑에서 읽는다).
   `timestamp`는 형식 서술이 없어 파싱하지 않고 원문 그대로 둔다. `value`의 최소 단위 해석은 BCM 규칙이며 수용 항목이다.
 - **조립하지 않는다** — 파서는 실행 빈으로 등록하지 않는 내부 대역이다. 입금 귀속(`bcm_addr_m` 대조)·논리 사건/outbox·미등록 자산 입금 경보·감시 주소 기능·
   `WebhookTransactionParser`/`VendorStatusTranslator`의 Dfns 구현·판단 워커 조립은 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다.
 - 검증: `NetworkChainEventContractTest` 3(지갑 대상 두 종류와 유사 종류 4종 거절·방향/상태 원어 대응, 모델 밖 종류의 키·금액 없음, 금액 형식 5종과 음수 블록·빈 식별자 7종),
-  `DfnsNetworkChainEventParserTest` 9(토큰 입금 해석, 두 종류와 상태 독립, 네이티브/Solana mint 키, 모델 밖 종류 4종 보존, 이동 아닌 종류 4종 null,
-  본문·지갑 결손과 지갑 ID 불일치·설정 밖 네트워크 5종, 필수 필드·형식 오류 14종, 값 범위 3종과 알림 메타 4종, 비JSON 4종).
-- 선택 회귀: domain 125 · client 156 · webhook 75, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+  `DfnsNetworkChainEventParserTest` 10(토큰 입금 해석, 두 종류와 상태 독립, 네이티브/Solana mint 키, 문서화된 미지원 종류 5종 보존과 미문서 종류 4종 거절,
+  변형별 추가 필수 8종과 Solana 변형의 선택 필드, 이동 아닌 종류 4종 null, 본문·지갑 결손과 지갑 ID/network 불일치·설정 밖 네트워크 6종,
+  공통 필수·형식 오류 14종, 값 범위 3종과 알림 메타 4종, 비JSON 4종).
+- 선택 회귀: domain 125 · client 157 · webhook 75, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.

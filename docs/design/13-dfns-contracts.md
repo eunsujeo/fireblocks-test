@@ -218,16 +218,17 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 항목 | 명세로 확인한 사실 | BCM 규칙 |
 |---|---|---|
 | 사건 종류 | 지갑 대상은 위 둘이다. `address_watch.blockchain_event.transfer.confirmed`는 **감시 주소**(키를 갖지 않는 등록 주소) 대상이고 `wallet.transaction.*`는 임의 트랜잭션이다 | 지갑 대상 둘만 `NetworkChainEventKind`로 옮긴다. 감시 주소 사건은 등록 주소 기능(`/address-watches`)을 쓰기로 정한 뒤에 다룬다 — 지갑 이동으로 합치지 않는다 |
-| 이동 종류 | `WalletHistoryEvent`는 `kind`별 oneOf다. 모델 대상은 `NativeTransfer`·`Erc20Transfer`(locator `contract`)·`SplTransfer`/`Spl2022Transfer`(locator `mint`)이고, 그 밖에 NFT·UTXO·다른 체인 표준 등 20종 이상이 있다 | 이동 종류를 **목록으로** 자산 kind에 대응시킨다(`Erc20Transfer`→`Erc20`) — 이름이 다르므로 접미사를 잘라 추정하지 않는다. 모델 밖 종류는 대조 키(`vendorAssetId`)와 금액을 만들지 않고 **원어(`vendorAssetKind`)만 남긴 채 사건은 보존한다** — 등록할 수 없는 자산이라도 이동 사실을 버리지 않는다(미지원 자산 판단은 판단 워커의 몫) |
+| 이동 종류 | `WalletHistoryEvent`는 `kind`별 oneOf이고 문서화된 종류는 **28개**다. 모델 대상은 `NativeTransfer`·`Erc20Transfer`(locator `contract`)·`SplTransfer`/`Spl2022Transfer`(locator `mint`)이고 나머지는 NFT·UTXO·다른 체인 표준이다 | 이동 종류를 **목록으로** 자산 kind에 대응시킨다(`Erc20Transfer`→`Erc20`) — 이름이 다르므로 접미사를 잘라 추정하지 않는다. **문서화된** 미지원 종류는 대조 키(`vendorAssetId`)와 금액을 만들지 않고 원어(`vendorAssetKind`)만 남긴 채 사건을 보존한다 — 등록할 수 없는 자산이라도 이동 사실을 버리지 않는다(미지원 자산 판단은 판단 워커의 몫). **문서에 없는 종류는 어느 변형도 만족하지 않는 본문이므로 미지원으로 받아들이지 않고 거절한다** |
 | 자산 키 | 모델 대상 변형의 locator 필드는 자산 조회·전송과 같은 이름이다 | 등록·잔액·전송과 **같은 키 규칙**(EVM 주소 형식·Solana base58 32바이트)으로 만든다. locator 형식이 깨졌으면 키를 만들지 않고 실패한다 |
-| 지갑 결속 | 사건의 `walletId`와 함께 `data.wallet`(필수)이 온다. `Wallet.address`는 **선택**이다 | `data.wallet.id`가 사건의 `walletId`와 같아야 한다 — 다르면 어느 지갑의 이동인지 증명하지 못하므로 거절한다. 지갑 주소는 있으면 담고 없으면 null이다(주소 대조·입금 귀속은 판단 워커) |
+| 필수 필드 | 변형마다 required가 다르다. 모든 변형의 교집합은 `walletId`·`direction`·`network`·`blockNumber`·`txHash`·`timestamp`·`status`·`metadata`·`kind` 아홉이다. 변형별로는 `NativeTransfer`가 `value`·`symbol`·`decimals`, `Erc20Transfer`가 `contract`·`from`·`to`·`value`·`decimals`, `SplTransfer`/`Spl2022Transfer`가 `mint`·`value`를 더 요구한다(Solana 변형은 `from`·`to`를 요구하지 않는다) | 공통 필수 아홉은 모든 종류에서 검사하고, 모델 대상은 그 변형이 요구하는 필드까지 검사한다. **관찰값에 담지 않는 필드도 결손이면 명세를 만족하지 않으므로 거절한다** — `symbol`·`decimals`처럼 폐기 예정 표기가 붙었어도 required 목록에 남아 있는 동안은 요구한다(아래 수용 항목). 문서화된 미지원 종류는 공통 필수만 검사한다 — 그 변형의 locator를 대조에 쓰지 않으므로 형식을 판단하지 않는다 |
+| 지갑 결속 | 사건의 `walletId`와 함께 `data.wallet`(필수)이 온다. `Wallet`의 `id`·`network`는 필수이고 `address`는 **선택**이다 | `data.wallet`의 `id`·`network`가 사건의 `walletId`·`network`와 각각 같아야 한다 — 다르면 어느 지갑의 어느 네트워크 이동인지 증명하지 못하므로 거절한다. 지갑 주소는 있으면 담고 없으면 null이다(주소 대조·입금 귀속은 판단 워커) |
 | 방향·상태 | `direction`은 `In`/`Out`, `status`는 `Included`/`Confirmed`이며 `Confirmed`는 "confirmed on chain by our indexing pipeline"이다 | 원어 그대로 옮기고 그 밖의 값은 거절한다. **`Confirmed`를 BCM 확정(DCCP)으로 번역하지 않는다** — 종류와 상태가 고정 대응한다는 서술도 없으므로 상태는 사건 본문에서 읽는다 |
 | 금액 | `value`는 문자열이고 모델 대상 변형에서 필수다. **단위를 서술한 곳이 없다** | 전송 요청과 같은 규칙으로 **최소 단위 정수**(선행 0 금지)로 읽는다. 이는 BCM 해석이며 정수 검사는 비정수만 걸러낼 뿐 단위를 증명하지 못한다(아래 수용 항목) |
-| 정밀도·심볼 | `metadata.asset`은 필수지만 그 안의 `symbol`·`decimals`·`verified`는 필수가 아니다. 최상위 동명 필드는 `@deprecated`이면서 일부 변형의 required 목록에 남아 있다 | 관찰값에 **담지 않는다** — 정밀도·심볼은 BCM이 등록한 자산 매핑에서 읽고, 선택이자 폐기 예정인 벤더 필드에 업무 판단을 걸지 않는다 |
+| 정밀도·심볼 | `metadata.asset`은 필수지만 그 안의 `symbol`·`decimals`·`verified`는 필수가 아니다. 최상위 동명 필드는 `@deprecated`이면서 일부 변형의 required 목록에 남아 있다 | 관찰값에 **담지 않는다** — 정밀도·심볼은 BCM이 등록한 자산 매핑에서 읽고, 선택이자 폐기 예정인 벤더 필드에 업무 판단을 걸지 않는다. 담지 않는 것과 명세 필수 필드의 존재를 검사하는 것은 별개다(위 필수 필드 행) |
 | 체인 좌표 | 필수 `blockNumber`(number)·`txHash`·`timestamp`(문자열, 형식 서술 없음), 선택 `index`(문자열) | `blockNumber`는 정수·음수 아님만 받는다. `timestamp`는 **파싱하지 않고 원문 그대로** 둔다 — `date`·`dateRequested`와 달리 형식·시간대 서술이 없다. `index`는 있으면 원문으로 담는다 |
 | 범위 밖 | — | 입금 귀속(`bcm_addr_m` 대조)·`WebhookTransactionParser`/`VendorStatusTranslator`의 Dfns 구현·논리 사건 생성과 outbox·미등록 자산 입금 경보·감시 주소 기능·이력 복구·판단 워커 조립 |
 
-수용 항목: `value`의 단위(최소 단위인지)와 `timestamp`의 형식·시간대, 모델 밖 이동 종류가 실제로 얼마나 오는지,
+수용 항목: `value`의 단위(최소 단위인지)와 `timestamp`의 형식·시간대, 폐기 예정 표기가 붙은 `symbol`·`decimals`를 실제 Baseline이 계속 보내는지(required에서 빠지면 위 검사도 함께 푼다), 문서화된 미지원 이동 종류가 실제로 얼마나 오는지,
 `Included`→`Confirmed` 재알림의 순서·중복과 두 종류가 같은 이동에 모두 오는지, Solana의 ATA 수신에서 `to`가 owner 주소인지 ATA 주소인지,
 `Wallet.address`가 실제로 항상 오는지, 조직 웹훅이 BCM 미관리 네트워크의 이동 사건도 보내는지.
 
