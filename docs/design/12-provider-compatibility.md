@@ -432,8 +432,9 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   도메인 포트 `NetworkTransferPort`·`NetworkTransferRequest`(제출 키 ≤50자·금액 최소 단위 정수)·`NetworkTransferStatus`(명세 여섯 값, 종결/체인 제출 여부만 판단)·
   `NetworkTransferSubmission`(Accepted/Conflict)를 추가하고 `DfnsNetworkTransferClient`가 구현한다. Fireblocks의 vault 중심 `VendorTransactionPort`는 그대로 둔다.
 - 어댑터: 등록 자산 키를 되돌려(`DfnsAssetKeys.parse`, 생성 규칙과 같은 검사) `kind`·locator를 만들고 `to`·`amount`·`externalId`만 보낸다. 수수료·대납·Travel Rule·memo는 보내지 않는다.
-  제출은 지갑 ID가 들어간 실제 경로로 사용자 행위 서명을 거치고, 409는 조회 없이 `Conflict`(수신 바이트·`details.duplicate.id`)로 돌려주며 자동 재제출하지 않는다.
-  응답은 `walletId`·`network`가 요청과, `requestBody`의 `kind`·locator가 보낸 값과 같아야 정규화하고 조회 404는 미관찰(null)이다. `Confirmed`를 `FINALIZED`로 번역하지 않는다.
+  제출은 지갑 ID가 들어간 실제 경로로 사용자 행위 서명을 거치고, 공식 표식(`error.details.duplicate`)이 있는 409만 조회 없이 `Conflict`(수신 바이트·duplicate ID)로 돌려주며 자동 재제출하지 않는다.
+  표식 없는 409는 원인을 단정하지 않고 벤더 오류로 전파한다. 응답은 명세 필수 필드(`id` 형식·`requester.userId`·`metadata`·`requestBody.to`/`amount`·UTC `dateRequested`)를 검사하고
+  제출 응답은 `walletId`·`network`·자산 키·목적지·금액·되돌아온 `externalId`가 모두 요청과 같아야 정규화한다. 조회 404는 미관찰(null)이고 `Confirmed`를 `FINALIZED`로 번역하지 않는다.
 - **조립하지 않는다** — 실행 빈으로 등록하지 않는 내부 대역이며 제출 원장(`bcm_sbmt_l`)·출금/내부이체 유스케이스·Sweep·정책 승인(`Pending`) 흐름·대체 제출·전송 응답 증적은 후속이다.
   `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
 - 검증: `NetworkTransferContractTest` 4(상태 원어 대응·종결/제출 집합, 제출 키 50자·금액 형식, 식별자 공백, 충돌 바이트 사본),
@@ -446,4 +447,8 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **반영**: 제출 응답을 요청과 대조한다 — 자산 키·`to`·`amount`·`externalId`가 모두 같아야 하고 `id`는 명세 형식, `requester.userId`·`metadata`는 필수다. 관찰에 `destinationAddress`·`amountBaseUnits`를 넣어
   호출자도 사후 대조할 수 있게 했다. 상태의 제출 여부를 `onChainSubmitted: Boolean?`로 바꿔 `FAILED`는 `null`(상태만으로 판별 불가)이다. 409는 공식 문서가 규정한 `error.details.duplicate` 표식이 있을 때만
   충돌로 판정하고 나머지는 수신 바이트를 담은 벤더 오류로 전파한다. 테스트 자격값은 실행마다 생성한다. 금액의 선행 0 금지를 계약13에 BCM 정규화 규칙으로 적었고 설계12 도입부를 고쳤다.
+  재실행: domain 119 · client 138, 실패 0, ktlintCheck 통과.
+- **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta cd8f32e..fb80e51, design-sync→code-reviewer 순차)**: 이전 Critical ②③④와 Minor 2건 해소 확인. Critical①은 부분 해소 —
+  `dateRequested`를 비어 있지 않은 문자열로만 검사해 명세의 UTC ISO 8601 계약을 지키지 않음(Critical 1). Minor 2 — 어댑터 KDoc과 설계12 구현 요약이 이전 409 판정·좁은 대조 범위를 설명.
+- **반영**: `dateRequested`를 `OffsetDateTime`으로 파싱하고 UTC 오프셋만 받는다(형식 오류·비UTC·공백 포함 값 거절 테스트 4종 추가). 어댑터 KDoc과 설계12 요약을 현재 판정·대조 범위로 갱신했다.
   재실행: domain 119 · client 138, 실패 0, ktlintCheck 통과.

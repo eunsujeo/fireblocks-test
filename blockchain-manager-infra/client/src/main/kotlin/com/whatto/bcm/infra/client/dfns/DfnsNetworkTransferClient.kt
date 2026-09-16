@@ -12,6 +12,7 @@ import org.springframework.http.HttpMethod
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
+import java.time.OffsetDateTime
 
 /**
  * NetworkTransferPort의 Dfns 구현 — 채택 명세 1.1018.3의 `POST /wallets/{walletId}/transfers`·`GET /wallets/{walletId}/transfers/{transferId}`
@@ -20,9 +21,10 @@ import tools.jackson.databind.ObjectMapper
  * - 본문은 등록 자산 키에서 `kind`·locator를 되돌려 만들고 `to`·`amount`(최소 단위 정수)·`externalId`만 담는다.
  *   수수료·대납·Travel Rule·memo 같은 선택 필드는 각각 별도 계약 전이라 보내지 않는다.
  * - 제출은 지갑 생성과 같은 사용자 행위 서명을 거치며 서명 경로는 지갑 ID가 들어간 실제 경로다.
- * - 409는 "같은 `externalId` 다른 본문/지갑"이라는 벤더 멱등 계약이라 조회 없이 `Conflict`로 돌려주고 자동 재제출하지 않는다.
- *   그 밖의 오류는 상태·수신 바이트를 담아 전파한다.
- * - 응답은 `walletId`·`network`가 요청 scope와, `requestBody`의 `kind`·locator가 보낸 값과 같아야 정규화한다.
+ * - 409는 공식 문서가 규정한 표식(`error.details.duplicate`)이 있을 때만 멱등 충돌로 보고 조회 없이 `Conflict`로 돌려주며 자동 재제출하지 않는다.
+ *   표식 없는 409와 그 밖의 오류는 원인을 단정하지 않고 상태·수신 바이트를 담아 전파한다.
+ * - 응답은 명세 필수 필드(`id` 형식·`requester.userId`·`metadata`·`requestBody.to`/`amount`·UTC `dateRequested`)를 검사하고,
+ *   제출 응답은 `walletId`·`network`·자산 키·목적지·금액·되돌아온 `externalId`가 모두 보낸 요청과 같아야 정규화한다.
  */
 class DfnsNetworkTransferClient(
     restClientBuilder: RestClient.Builder,
@@ -170,7 +172,7 @@ class DfnsNetworkTransferClient(
                 status = status,
                 externalId = optionalText(node, "externalId", response),
                 transactionHash = optionalText(node, "txHash", response),
-                requestedAt = requiredText(node, "dateRequested", response),
+                requestedAt = requireUtcTimestamp(node, "dateRequested", response),
                 failureReason = optionalText(node, "reason", response),
             )
         } catch (exception: IllegalArgumentException) {
@@ -197,6 +199,20 @@ class DfnsNetworkTransferClient(
         val value = node.path(field)
         if (!value.isString || value.asString().isBlank()) throw response.failure("Dfns ${response.operation} 응답 결손: $field")
         return value.asString()
+    }
+
+    /** 명세가 UTC ISO 8601로 정의한 시각 — 형식이 다르거나 UTC가 아니면 감사 시각으로 받지 않는다. */
+    private fun requireUtcTimestamp(
+        node: JsonNode,
+        field: String,
+        response: DfnsHttpResponse,
+    ): String {
+        val value = requiredText(node, field, response)
+        val parsed =
+            runCatching { OffsetDateTime.parse(value) }.getOrNull()
+                ?: throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류: $field")
+        if (parsed.offset.totalSeconds != 0) throw response.failure("Dfns ${response.operation} 응답 시각이 UTC가 아니다: $field")
+        return value
     }
 
     private fun optionalText(
