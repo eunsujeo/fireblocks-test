@@ -97,9 +97,27 @@ class AdminReadServiceTest {
             listOf(network(code = "ETHEREUM"), network(code = "BASE"))
         every { gateway.assetMappings(null, null) } returns
             listOf(
-                AdminAssetMapping("ETHEREUM", "USDC", "USDC_ETH_LOCAL", "0x01", "20260821000000"),
-                AdminAssetMapping("ETHEREUM", "KRWK", "KRWK_ETH_LOCAL", "0x02", "20260821000000"),
-                AdminAssetMapping("BASE", "USDC", "USDC_BASE_LOCAL", "0x03", "20260821000000"),
+                AdminAssetMapping(
+                    network = "ETHEREUM",
+                    symbol = "USDC",
+                    fireblocksAssetId = "USDC_ETH_LOCAL",
+                    contractAddress = "0x01",
+                    registeredAt = "20260821000000",
+                ),
+                AdminAssetMapping(
+                    network = "ETHEREUM",
+                    symbol = "KRWK",
+                    fireblocksAssetId = "KRWK_ETH_LOCAL",
+                    contractAddress = "0x02",
+                    registeredAt = "20260821000000",
+                ),
+                AdminAssetMapping(
+                    network = "BASE",
+                    symbol = "USDC",
+                    fireblocksAssetId = "USDC_BASE_LOCAL",
+                    contractAddress = "0x03",
+                    registeredAt = "20260821000000",
+                ),
             )
         every { gateway.runtimeReadiness() } returns runtimeReadiness("NEVER_RECEIVED")
         every { webhookHealthGateway.isReady() } returns true
@@ -152,8 +170,20 @@ class AdminReadServiceTest {
     fun `자산 매핑 검색은 네트워크 필터 안에서 심볼과 컨트랙트 주소를 부분 검색한다`() {
         every { gateway.assetMappings("BASE", null) } returns
             listOf(
-                AdminAssetMapping("BASE", "USDC", "USDC_BASE", "0x8335aBcD", "20260817080000"),
-                AdminAssetMapping("BASE", "KRWK", "KRWK_BASE", "0x1234", "20260817080100"),
+                AdminAssetMapping(
+                    network = "BASE",
+                    symbol = "USDC",
+                    fireblocksAssetId = "USDC_BASE",
+                    contractAddress = "0x8335aBcD",
+                    registeredAt = "20260817080000",
+                ),
+                AdminAssetMapping(
+                    network = "BASE",
+                    symbol = "KRWK",
+                    fireblocksAssetId = "KRWK_BASE",
+                    contractAddress = "0x1234",
+                    registeredAt = "20260817080100",
+                ),
             )
 
         val byAddress = service.assets(AssetFilters(network = "BASE", q = "8335ab"))
@@ -169,7 +199,15 @@ class AdminReadServiceTest {
         every { gateway.sweepRequestInvestigation("base") } throws SourceFailure("sweepRequest", 404, "not found")
         every { gateway.networks("base", null, null, null) } returns listOf(network(code = "BASE"))
         every { gateway.assetMappings(null, null) } returns
-            listOf(AdminAssetMapping("BASE", "USDC", "USDC_BASE", "0x8335", "20260817080000"))
+            listOf(
+                AdminAssetMapping(
+                    network = "BASE",
+                    symbol = "USDC",
+                    fireblocksAssetId = "USDC_BASE",
+                    contractAddress = "0x8335",
+                    registeredAt = "20260817080000",
+                ),
+            )
 
         val result = service.search("base")
 
@@ -186,7 +224,15 @@ class AdminReadServiceTest {
         every { gateway.sweepRequestInvestigation("0x8335") } throws SourceFailure("sweepRequest", 404, "not found")
         every { gateway.networks("0x8335", null, null, null) } returns emptyList()
         every { gateway.assetMappings(null, null) } returns
-            listOf(AdminAssetMapping("BASE", "USDC", "USDC_BASE", "0x8335aBcD", "20260817080000"))
+            listOf(
+                AdminAssetMapping(
+                    network = "BASE",
+                    symbol = "USDC",
+                    fireblocksAssetId = "USDC_BASE",
+                    contractAddress = "0x8335aBcD",
+                    registeredAt = "20260817080000",
+                ),
+            )
 
         val result = service.search("0x8335")
         val asset = result.data.single()

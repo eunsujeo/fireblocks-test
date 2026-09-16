@@ -26,7 +26,8 @@ data class NetworkWalletAssetSnapshot(
 
 /**
  * 자산 하나의 관찰 — `baseUnits`는 벤더가 준 최소 단위 정수 문자열, `decimals`는 같은 응답의 소수 자릿수다.
- * 금액 변환은 이 두 값만 사용하며 매핑에 별도 정밀도를 보관하지 않는다(07). 잔액이 아닌 값(음수·소수·빈 문자열)은 만들 수 없다.
+ * 금액 변환은 **이 응답의 두 값만** 사용한다 — 응답이 정밀도를 함께 주기 때문이다. 등록 매핑의 정밀도(03 V27)는 정밀도가 따라오지 않는 경로
+ * (최소 단위만 오는 입금 사건)의 환산에 쓴다. 잔액이 아닌 값(음수·소수·빈 문자열)은 만들 수 없다.
  */
 data class NetworkWalletAssetBalance(
     val vendorAssetId: String,

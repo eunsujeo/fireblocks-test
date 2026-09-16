@@ -18,8 +18,10 @@ data class AdminNetwork(
 data class AdminAssetMapping(
     val network: String,
     val symbol: String,
-    val fireblocksAssetId: String,
+    val fireblocksAssetId: String? = null,
+    val dfnsAssetKey: String? = null,
     val contractAddress: String? = null,
+    val decimals: Int? = null,
     val registeredAt: String,
 )
 

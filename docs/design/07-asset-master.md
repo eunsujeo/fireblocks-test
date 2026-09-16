@@ -108,8 +108,9 @@ CREATE INDEX idx_bcm_vndr_ast_ctlg_search
 CREATE TABLE bcm_vndr_ast_m (
   ntwk_cd       VARCHAR(20)  NOT NULL,   -- 우리 네트워크 코드
   tkn_smbl      VARCHAR(16)  NOT NULL,   -- 토큰 심볼 (표시용)
-  vndr_ast_id   VARCHAR(64)  NOT NULL,   -- 벤더 assetId — 벤더 호출에만 쓴다
+  vndr_ast_id   VARCHAR(128) NOT NULL,  -- 벤더 assetId(Fireblocks) 또는 Dfns 자산 키 — 벤더 호출·대조에만 쓴다 (V25에서 128자)
   cntr_addr     VARCHAR(128) NULL,       -- 등록 때 대조한 컨트랙트 주소 (네이티브는 NULL)
+  dcml_cnt      SMALLINT     NULL,       -- 등록 시점에 확정한 소수 자릿수 (V27, 0~255 CHECK. 정밀도 저장 전 등록 행은 NULL)
   actv_yn       VARCHAR(1)   NOT NULL,   -- 현재 지원 여부 Y/N
   reg_dttm      VARCHAR(16)  NOT NULL,
   -- 감사 4컬럼
@@ -147,7 +148,7 @@ CREATE TABLE bcm_vndr_ast_chng_l (
 
 `bcm_vndr_ast_m`은 (네트워크, 토큰)별 현재값 하나만 보관한다. `actv_yn=Y`인 행만 "이 자산은 벤더로 보낼 수 있다"는 뜻이며 일반 조회와 업무 요청도 활성 매핑만 사용한다. 등록·해제·재활성·교체 때는 현재 행 변경과 `bcm_vndr_ast_chng_l` 추가를 한 DB 트랜잭션으로 묶는다.
 
-snapshot에는 `network`·`symbol`·`vendorAssetId`·`contractAddress`·`activeYn`을 담는다. 최초 등록은 `before_snps=NULL`, 해제는 변경 전후 값을 모두 남긴다. snapshot은 감사와 장애 대조용이지 현재값을 읽는 테이블이 아니다.
+snapshot에는 `network`·`symbol`·`vendorAssetId`·`contractAddress`·`decimals`(V27)·`activeYn`을 담는다. 최초 등록은 `before_snps=NULL`, 해제는 변경 전후 값을 모두 남긴다. snapshot은 감사와 장애 대조용이지 현재값을 읽는 테이블이 아니다.
 
 ## 동기화 — 하루 한 번, 네트워크와 자산 카탈로그
 

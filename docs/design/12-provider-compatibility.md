@@ -622,4 +622,4 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `ObjectMapper` 없이 뜨지 못했다. 그때 bcm-api 테스트를 돌리지 않아 놓친 회귀이며 슬라이스 설정에 Jackson 빈을 제공해 복구했다.
 - 검증: `AssetDecimalsTest` 4(상한, 환산 6종, 잘못된 표기·범위 7종, 등록 매핑 불변식), `DfnsChainAssetResolverTest`에 정밀도 필수·범위·보존 검증 추가,
   `VendorAssetMappingPersistenceTest`에 실제 PostgreSQL 왕복과 등록·교체 snapshot의 before/after 정밀도 검증 추가, 조립 테스트에 `decimalsRequired` 거절 추가.
-- 전체 회귀: domain 146 · application 25 · client 168 · persistence 235 · API 308 · Webhook 75 · BAT 159 = **1,116건, 실패 0**. 전체 ktlintCheck 통과.
+- 전체 회귀: 11개 모듈 **1,266건, 실패 0**(domain 146 · application 25 · support 37 · test-support 51 · client 168 · messaging 3 · persistence 235 · API 308 · Admin 59 · Webhook 75 · BAT 159). 전체 ktlintCheck 통과.

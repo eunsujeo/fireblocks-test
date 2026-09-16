@@ -5326,7 +5326,7 @@ window.OPENAPI = {
       },
       "RegisterAssetMappingRequest": {
         "type": "object",
-        "description": "원천별 유효 요청(그대로 보낼 수 있는 값) —\nFireblocks `{ \"network\": \"BASE\", \"symbol\": \"USDC\", \"fireblocksAssetId\": \"USDC_BASE\", \"contractAddress\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }`,\nDfns EVM `{ \"network\": \"ETHEREUM_SEPOLIA\", \"symbol\": \"USDC\", \"contractAddress\": \"0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238\" }`,\nDfns Solana `{ \"network\": \"SOLANA_DEVNET\", \"symbol\": \"USDC\", \"contractAddress\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"tokenStandard\": \"SPL\" }`.\n`fireblocksAssetId`와 `tokenStandard`는 서로 다른 원천의 필드라 한 요청에 함께 오지 않는다.\n`decimals` 는 Dfns 원천에서만 보낸다 — Fireblocks 는 카탈로그가 정밀도를 소유한다.\n",
+        "description": "원천별 유효 요청(그대로 보낼 수 있는 값) —\nFireblocks `{ \"network\": \"BASE\", \"symbol\": \"USDC\", \"fireblocksAssetId\": \"USDC_BASE\", \"contractAddress\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }`,\nDfns EVM `{ \"network\": \"ETHEREUM_SEPOLIA\", \"symbol\": \"USDC\", \"contractAddress\": \"0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238\", \"decimals\": 6 }`,\nDfns Solana `{ \"network\": \"SOLANA_DEVNET\", \"symbol\": \"USDC\", \"contractAddress\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"tokenStandard\": \"SPL\", \"decimals\": 6 }`.\n`fireblocksAssetId`와 `tokenStandard`는 서로 다른 원천의 필드라 한 요청에 함께 오지 않는다.\n`decimals` 는 Dfns 원천에서만 보낸다 — Fireblocks 는 카탈로그가 정밀도를 소유한다.\n",
         "required": [
           "network",
           "symbol",
