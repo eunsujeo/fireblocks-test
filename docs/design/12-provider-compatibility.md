@@ -479,3 +479,12 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `DfnsNetworkTransferEventParserTest` 8(정상 해석·알림 메타, 다섯 종류와 종류≠상태, 전송 아닌 종류 5종 null, Solana `Spl2022`와 깨진 mint, 전송 정보 결손·설정 밖 네트워크 4종,
   알림 메타 결손·형식 오류 15종, 전송 필수 필드 13종, 비JSON 4종), `DfnsWebhookProtocolTest` 3(전송 ID 결속, 추정 금지 7종, 결손 거절).
 - 선택 회귀: domain 122 · client 147 · webhook 75, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 6d99ee7..37e2dec, design-sync 먼저)**: Major 2 — ① **채택 명세 1.1018.3에도 `webhooks` 항목의 `wallet.transfer.*`와
+  `WebhookEnvelopeBase`·`TransferRequest`가 있다**. 조회 모델 `WebhookEvent.data`만 보고 "판 차이"를 단정한 기록이 사실과 다르다. ② 그 잘못된 전제로 채택 명세의 필수 필드를 완화했다 —
+  `deliveryAttempt`는 `WebhookEnvelopeBase`의 필수 필드이고 `retryOf`도 제공되면 `minLength 1`·ID 형식을 요구한다. design-sync 실패로 code-reviewer는 수행하지 않았다.
+  공통 정규화 추출·종류가 아닌 `status`에서 상태를 읽는 판단·설정 밖 네트워크의 BCM 정책 분리·수신/판단의 느슨·엄격 경계·실행 빈 미등록은 정합으로 확인됐다.
+- **반영**: 기록된 해시와 같은 1.1018.3 파일에서 `webhooks` 항목(전송 다섯·입금 감지 둘)과 `WebhookEnvelopeBase`(필수 `id`·`date`·`timestampSent`·`deliveryAttempt`)를 직접 확인하고
+  계약13·설계12·PLAN·PROGRESS를 채택 명세 근거로 고쳤다. 수신 envelope와 조회 모델이 다른 schema라는 구분을 계약13의 DF3.13 행에도 적었다. `NetworkTransferEvent.deliveryAttempt`를
+  `Int?`→`Int`로 되돌리고 파서가 결손·비정수·0 이하를 거절하며, 알림 ID는 `whe-…` 형식을, `retryOf`는 있으면 같은 형식을 요구한다(빈 값을 결손으로 축소하지 않는다).
+  `timestampSent`를 파서가 재검사하지 않는 이유(서명 검증기가 이미 필수 검사)를 계약13·설계12·KDoc에 적었다. 재실행: domain 122 · client 147 · webhook 75, 실패 0, 전체 ktlintCheck 통과.
+- **독립 converge 2차(Codex, 범위 37e2dec..3b5af8a, design-sync→code-reviewer 순차)**: 이전 Major 2건 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 3b5af8a).
