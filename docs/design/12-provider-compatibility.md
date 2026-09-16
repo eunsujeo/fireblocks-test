@@ -578,3 +578,6 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **조립하지 않는다** — 판단 워커·경보·논리 사건/outbox·제출 원장 대조는 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다. Fireblocks 귀속 경로는 바뀌지 않았다.
 - 검증: `NetworkChainAttributionTest` 6(관리 입금, 발신 우선 판정, 미지원·미등록 자산, 목적지 없음·미등록 주소, 매핑 network 어긋남 중단, 주소 조회 인자).
 - 선택 회귀: domain 136, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 5266583..1501ac1, design-sync→code-reviewer 순차)**: Critical/Major/Minor 0으로 통과했다(검토 기준 1501ac1).
+  판정 순서와 02의 계열 분류·입금 귀속 일치, 발신을 출금으로 확정하지 않고 대조 대상으로만 분리한 점, 미지원·미등록 자산을 결과로 보존하면서 Fireblocks 경로를 바꾸지 않은 점,
+  등록 매핑 network 불일치만 내부 데이터 결함으로 중단하는 경계, 지갑 ID 역방향 조회·Solana ATA 동작을 추측하지 않은 점, 도메인 무의존을 확인했다.
