@@ -15,34 +15,55 @@ import java.util.UUID
  */
 class V26TransactionHashLookupPersistenceTest : PersistenceTestSupport() {
     @Test
-    fun `온체인 hash 조회는 전용 index를 쓰고 hash 없는 거래는 색인하지 않는다`() {
+    fun `기존 데이터가 있는 원장에 온라인으로 부분 index를 더하고 hash 조회가 그것을 쓴다`() {
         val schema = "tx_hash_${UUID.randomUUID().toString().replace("-", "")}"
 
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.createStatement().use { it.execute("CREATE SCHEMA $schema") }
             try {
                 connection.schema = schema
-                migrations().forEach { applyMigration(connection, it) }
+                // 업그레이드 경로 — V25까지 적용해 기존 거래를 쌓은 뒤 V26을 적용한다.
+                val all = migrations()
+                val upgrade = all.last()
+                assertThat(upgrade).isEqualTo(MIGRATION)
+                all.dropLast(1).forEach { applyMigration(connection, it) }
                 val jdbc = JdbcTemplate(SingleConnectionDataSource(connection, true))
                 seedTransactions(jdbc)
-                jdbc.execute("ANALYZE bcm_tx_l")
+                assertThat(indexNames(jdbc)).doesNotContain(INDEX)
 
+                applyMigration(connection, upgrade)
+
+                assertThat(indexNames(jdbc)).contains(INDEX)
+                // 실제 index 정의에 부분 조건이 들어 있는지 확인한다 — 행 수 집계로는 predicate를 증명하지 못한다.
+                val definition =
+                    jdbc.queryForObject(
+                        "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = ?",
+                        String::class.java,
+                        INDEX,
+                    )
+                assertThat(definition).contains("bcm_tx_l").contains("tx_hash").contains("WHERE (tx_hash IS NOT NULL)")
+                // 온라인 생성이 끝났으면 index는 유효 상태여야 한다.
+                assertThat(
+                    jdbc.queryForObject(
+                        """
+                        SELECT i.indisvalid FROM pg_index i
+                        JOIN pg_class c ON c.oid = i.indexrelid
+                        WHERE c.relnamespace = current_schema()::regnamespace AND c.relname = ?
+                        """.trimIndent(),
+                        Boolean::class.java,
+                        INDEX,
+                    ),
+                ).isTrue()
+
+                jdbc.execute("ANALYZE bcm_tx_l")
                 val plan =
                     jdbc
                         .queryForList(
                             "EXPLAIN (COSTS OFF) SELECT vndr_tx_id FROM bcm_tx_l WHERE tx_hash = '0xhash00000500'",
                             String::class.java,
                         ).joinToString("\n")
-                assertThat(plan).contains("idx_bcm_tx_hash")
+                assertThat(plan).contains(INDEX)
 
-                // 부분 index라 hash 없는 거래(제출 직후·입금 전)는 색인 대상이 아니다.
-                val indexed =
-                    jdbc.queryForObject(
-                        "SELECT count(*) FROM bcm_tx_l WHERE tx_hash IS NOT NULL",
-                        Long::class.java,
-                    )
-                assertThat(indexed).isEqualTo(1_000L)
-                assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_tx_l", Long::class.java)).isEqualTo(1_500L)
                 // 같은 hash를 가진 거래가 둘 이상 있어도 저장을 막지 않는다(RBF 계열·재관찰) — UNIQUE로 두지 않았다.
                 assertThat(
                     jdbc.queryForObject(
@@ -50,12 +71,19 @@ class V26TransactionHashLookupPersistenceTest : PersistenceTestSupport() {
                         Long::class.java,
                     ),
                 ).isEqualTo(2L)
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_tx_l", Long::class.java)).isEqualTo(1_500L)
             } finally {
                 connection.schema = null
                 connection.createStatement().use { it.execute("DROP SCHEMA $schema CASCADE") }
             }
         }
     }
+
+    private fun indexNames(jdbc: JdbcTemplate): List<String?> =
+        jdbc.queryForList(
+            "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'bcm_tx_l'",
+            String::class.java,
+        )
 
     private fun seedTransactions(jdbc: JdbcTemplate) {
         jdbc.execute(
@@ -111,5 +139,10 @@ class V26TransactionHashLookupPersistenceTest : PersistenceTestSupport() {
         } finally {
             connection.autoCommit = true
         }
+    }
+
+    private companion object {
+        const val INDEX = "idx_bcm_tx_hash"
+        const val MIGRATION = "V26__transaction_hash_lookup_index.sql"
     }
 }

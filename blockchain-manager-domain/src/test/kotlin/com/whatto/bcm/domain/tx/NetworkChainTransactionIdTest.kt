@@ -25,16 +25,27 @@ class NetworkChainTransactionIdTest {
         assertThat(NetworkChainTransactionId.of("BASE_SEPOLIA", HASH, "3")).isNotEqualTo(base)
         assertThat(NetworkChainTransactionId.of(NETWORK, OTHER_HASH, "3")).isNotEqualTo(base)
         assertThat(NetworkChainTransactionId.of(NETWORK, HASH, "4")).isNotEqualTo(base)
-        assertThat(NetworkChainTransactionId.of(NETWORK, HASH, null)).isNotEqualTo(base)
+    }
+
+    @Test
+    fun `순번 없는 이동은 ID를 지어내지 않는다`() {
+        // 명세에서 `index`는 선택이지만, 한 트랜잭션의 여러 이동이 순번 없이 같은 PK로 합쳐지면
+        // 서로 다른 계정·자산의 자금이 한 논리 거래가 된다. 고유 키를 만들 수 없으면 실패한다.
+        listOf("", " ").forEach { index ->
+            assertThatThrownBy { NetworkChainTransactionId.of(NETWORK, HASH, index) }
+                .describedAs(index)
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessageContaining("eventIndex")
+        }
     }
 
     @Test
     fun `입력 경계가 흔들려 서로 다른 이동이 합쳐지지 않는다`() {
         // 구분자 대신 길이를 앞에 붙이므로 값 안에 어떤 문자가 들어와도 경계가 유지된다.
-        assertThat(NetworkChainTransactionId.of("A", "B", "C"))
-            .isNotEqualTo(NetworkChainTransactionId.of("AB", "C", null))
-        assertThat(NetworkChainTransactionId.of("A:B", HASH, null))
-            .isNotEqualTo(NetworkChainTransactionId.of("A", "B$HASH", null))
+        assertThat(NetworkChainTransactionId.of("A", "BC", "D"))
+            .isNotEqualTo(NetworkChainTransactionId.of("AB", "C", "D"))
+        assertThat(NetworkChainTransactionId.of("A:B", HASH, "1"))
+            .isNotEqualTo(NetworkChainTransactionId.of("A", ":B$HASH", "1"))
     }
 
     @Test
@@ -43,8 +54,8 @@ class NetworkChainTransactionIdTest {
             .isEqualTo(NetworkChainTransactionId.of(NETWORK, HASH, "3"))
         // base58 서명처럼 대소문자가 값의 일부인 형식은 정규화하지 않는다.
         val signature = "5VERv8NW3Uh2uLmveXMBLvRw6KXpkCwcgSYqxLGfpPvT"
-        assertThat(NetworkChainTransactionId.of("SOLANA_DEVNET", signature, null))
-            .isNotEqualTo(NetworkChainTransactionId.of("SOLANA_DEVNET", signature.lowercase(), null))
+        assertThat(NetworkChainTransactionId.of("SOLANA_DEVNET", signature, "0"))
+            .isNotEqualTo(NetworkChainTransactionId.of("SOLANA_DEVNET", signature.lowercase(), "0"))
     }
 
     @Test
@@ -52,7 +63,7 @@ class NetworkChainTransactionIdTest {
         listOf<Pair<String, () -> String>>(
             "network" to { NetworkChainTransactionId.of(" ", HASH, "3") },
             "transactionHash" to { NetworkChainTransactionId.of(NETWORK, "", "3") },
-            "eventIndex" to { NetworkChainTransactionId.of(NETWORK, HASH, "") },
+            "eventIndex" to { NetworkChainTransactionId.of(NETWORK, HASH, " ") },
         ).forEach { (field, build) ->
             assertThatThrownBy { build() }
                 .describedAs(field)
