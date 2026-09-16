@@ -67,6 +67,7 @@ class DfnsChainEventDecisionTest {
         assertThat(observed.captured.vendorTransactionId).startsWith("dfns-").hasSize(57)
 
         val event = enqueued.captured.single()
+        assertThat(observed.captured.symbol).isEqualTo("USDC")
         assertThat(event.eventType).isEqualTo(OutboxEventType.CONFIRMED)
         assertThat(event.topic).isEqualTo("deposit-events")
         assertThat(event.traceId).isEqualTo(NOTIFICATION_ID)
@@ -134,6 +135,19 @@ class DfnsChainEventDecisionTest {
         assertThat(outcome).isEqualTo(DfnsChainDecisionOutcome.MissingDecimals(observation))
         verify(exactly = 0) { txStates.observe(any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
+    }
+
+    @Test
+    fun `발신 주소가 없으면 입금 이벤트를 만들지 않는다`() {
+        // 02는 입금 이벤트에 발신 주소가 항상 실린다고 확정했다 — 명세상 선택 필드라고 비운 채 내보내지 않는다.
+        val observation = transfer(from = null)
+
+        val outcome = decision(event = event(observation)).decide(NOTIFICATION_ID, PAYLOAD)
+
+        assertThat(outcome).isEqualTo(DfnsChainDecisionOutcome.MissingSender(observation))
+        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { outboxEvents.enqueue(any()) }
+        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
     }
 
     @Test
@@ -211,6 +225,7 @@ class DfnsChainEventDecisionTest {
         vendorAssetKind: String = "Erc20Transfer",
         amount: String? = "1500000",
         eventIndex: String? = "3",
+        from: String? = SENDER,
     ) = NetworkChainTransfer(
         network = NETWORK,
         vendorWalletId = "wa-1f04s-lqc9q-xxxxxxxxxxxxxxxx",
@@ -220,7 +235,7 @@ class DfnsChainEventDecisionTest {
         direction = direction,
         status = NetworkChainTransferStatus.CONFIRMED,
         amountBaseUnits = amount,
-        fromAddress = SENDER,
+        fromAddress = from,
         toAddress = DESTINATION,
         transactionHash = TX_HASH,
         blockNumber = 8_452_119,

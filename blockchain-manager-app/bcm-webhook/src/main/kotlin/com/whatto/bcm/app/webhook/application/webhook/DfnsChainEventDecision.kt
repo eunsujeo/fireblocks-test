@@ -36,7 +36,7 @@ import java.time.Instant
  * 확정은 벤더 상태가 아니라 **블록 깊이**로 낸다(CLAUDE.md 3절) — 사건의 `blockNumber`와 체인 head의 깊이를 관찰 컨펌 수로 담아
  * 네트워크 임계와 비교한다. head를 읽지 못하면 예외가 그대로 올라가 확정을 보류하고 인박스가 재시도한다.
  *
- * 입금이 아닌 결과(우리 발신·미지원 자산·미등록 자산·미귀속·정밀도 없음)는 원장을 쓰지 않고 결과로만 돌려준다 —
+ * 입금이 아닌 결과(우리 발신·미지원 자산·미등록 자산·미귀속·정밀도 없음·발신 주소 없음)는 원장을 쓰지 않고 결과로만 돌려준다 —
  * 무엇을 경보로 올리고 무엇을 넘길지는 워커가 정한다. **실행 빈으로 등록하지 않는 내부 대역이며 인박스 연결은 후속이다.**
  */
 class DfnsChainEventDecision(
@@ -77,6 +77,9 @@ class DfnsChainEventDecision(
         val baseUnits = checkNotNull(observation.amountBaseUnits) { "deposit observation must carry base units" }
         // 정밀도가 없으면 사람 단위 금액을 만들 수 없다. 0이나 최소 단위를 그대로 싣지 않는다 — 단위가 뒤섞이면 조용한 금액 사고다.
         val decimals = deposit.decimals ?: return DfnsChainDecisionOutcome.MissingDecimals(observation)
+        // 02는 입금 이벤트에 발신 주소가 항상 실린다고 확정했고 DAW-CORE의 입금 판별 게이트가 그 값을 쓴다.
+        // 명세상 `Native`·`Spl` 변형의 `from`은 선택이라 없을 수 있다 — 없으면 이벤트를 만들지 않고 멈춘다.
+        val sender = observation.fromAddress ?: return DfnsChainDecisionOutcome.MissingSender(observation)
         val confirmations =
             BlockDepthFinality.confirmationCount(
                 headBlockNumber = chainHeads.headBlockNumber(observation.network),
@@ -109,7 +112,7 @@ class DfnsChainEventDecision(
             )
         val events =
             stateChange.statusesToPublish.map { published ->
-                outboxEvent(notificationId, deposit, observation, baseUnits, decimals, confirmations, published)
+                outboxEvent(notificationId, deposit, observation, sender, baseUnits, decimals, confirmations, published)
             }
         outboxEvents.enqueue(events)
         return DfnsChainDecisionOutcome.Processed(observation, status, events)
@@ -119,6 +122,7 @@ class DfnsChainEventDecision(
         notificationId: String,
         deposit: NetworkChainAttributionResult.Deposit,
         observation: NetworkChainTransfer,
+        sender: String,
         baseUnits: String,
         decimals: Int,
         confirmations: Int,
@@ -136,7 +140,7 @@ class DfnsChainEventDecision(
                 network = deposit.network,
                 symbol = deposit.symbol,
                 to = observation.toAddress,
-                from = observation.fromAddress,
+                from = sender,
                 // 등록 정밀도로 사람 단위 금액을 만든다 — 제공자와 무관하게 이벤트 금액의 단위는 하나다(02).
                 amount = AssetDecimals.amountOf(baseUnits, decimals),
                 status = status,
@@ -196,6 +200,14 @@ sealed interface DfnsChainDecisionOutcome {
 
     /** 등록 자산인데 정밀도가 없어 이벤트 금액을 만들 수 없다(03 V27 이전 등록 행). */
     data class MissingDecimals(
+        val observation: NetworkChainTransfer,
+    ) : DfnsChainDecisionOutcome
+
+    /**
+     * 발신 주소가 없어 입금 이벤트를 만들 수 없다. 02는 입금 이벤트에 발신 주소가 항상 실린다고 확정했고
+     * DAW-CORE의 입금 판별이 그 값을 쓴다 — 명세상 선택 필드라고 비운 채 내보내지 않는다.
+     */
+    data class MissingSender(
         val observation: NetworkChainTransfer,
     ) : DfnsChainDecisionOutcome
 }

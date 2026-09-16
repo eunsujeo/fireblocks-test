@@ -803,7 +803,7 @@ CREATE TABLE bcm_tx_l (
   vndr_sub_stcd   VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 subStatus 원어 — 운영 조사용, 이벤트 미탑재
   vndr_ntwk_stcd  VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 networkStatus 원어 — 운영 조사용, 이벤트 미탑재
   stall_alrt_dttm VARCHAR(16)  NULL,          -- 막힘 경보 올린 일시 — 있으면 다음 주기 건너뜀 · 해소 전이 시 NULL
-  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 createdAt을 UTC 초 단위로 변환 — 대사 시간축, set-once
+  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 시간축을 UTC 초 단위로 변환 — 대사 시간축, set-once (제공자별 의미는 아래 표)
   rcnc_chck_dttm  VARCHAR(16)  NULL,          -- 창 밖 미결 거래의 마지막 단건 조회 claim/확인 일시
   rcnc_chck_cnt   INT          NOT NULL DEFAULT 0, -- 단건 조회 횟수 — 영속 백오프 단계
   rcnc_stop_dttm  VARCHAR(16)  NULL,          -- 최대 추적 나이 도달 시각 — 이후 자동 단건 조회 중단
@@ -830,7 +830,7 @@ CREATE INDEX idx_bcm_tx_rcnc ON bcm_tx_l (last_pub_stcd, rcnc_stop_dttm, rcnc_ch
 | `last_pub_stcd` | 새 알림의 상태와 이 값을 [허용 전이 표](02-bcm-flow.md)에 대조해 발행 여부를 가린다. 발행은 `bcm_outbox_l` 에 같은 트랜잭션으로 적재한다 |
 | `cnfm_cnt`·`last_chng_dttm` | **줄지 않는다** — 큰 값(늦은 시각)으로만 갱신한다. 막힘 점검의 입력이다 |
 | `vndr_sub_stcd`·`vndr_ntwk_stcd` | 마지막 알림의 벤더 원어 — 운영 조사(FAILED 사유 구분·대사 불일치 분석)용. whk_l 은 보존 기간 후 정리되므로 장기 조회처는 여기다. **이벤트에는 싣지 않는다** |
-| `vndr_crt_dttm` | Fireblocks `createdAt`을 저장 직전 UTC `yyyyMMddHHmmss`로 변환한 값. 최초 관찰 때만 기록하고 이후 웹훅 수신 시각으로 덮지 않는다. tx 대사는 벤더 목록과 이 컬럼의 같은 닫힌 구간을 비교한다 |
+| `vndr_crt_dttm` | **벤더가 준 시간축**을 저장 직전 UTC `yyyyMMddHHmmss`로 변환한 값. 최초 관찰 때만 기록하고 이후 웹훅 수신 시각으로 덮지 않는다. tx 대사는 벤더 목록과 이 컬럼의 같은 닫힌 구간을 비교한다. **제공자마다 그 시간축이 다르다** — Fireblocks는 거래 `createdAt`(거래 생성 시각)이고, **Dfns 입금은 알림 envelope의 `date`(사건 발생 시각)**다. Dfns 입금에는 거래 생성이라는 개념이 없고(우리가 낸 제출이 아니다) 사건의 `timestamp`는 형식·시간대 서술이 없어 쓸 수 없다([계약13](13-dfns-contracts.md#입금-판단--구현)). 두 값은 같은 뜻이 아니므로 **제공자를 섞어 한 구간으로 대사하지 않는다** — Dfns 대사 경로는 아직 없으며 그 시간축 계약은 대사 구현과 함께 정한다 |
 | `rcnc_chck_dttm`·`rcnc_chck_cnt` | createdAt 창 밖에 남은 미결 거래의 단건 조회 체크포인트. 후보를 `FOR UPDATE SKIP LOCKED`로 원자 claim하면서 벤더 호출 전에 갱신해 다중 인스턴스 중복 조회를 막고, 30초·1분·5분·15분·1시간 백오프의 다음 due를 계산한다 |
 | `rcnc_stop_dttm` | 기본 7일의 최대 추적 나이를 넘긴 시각. 값이 있으면 자동 단건 조회에서 제외하고 리포트·경보로 넘긴다. 웹훅·대사에서 더 최신 벤더 관찰이 실제 적용되면 세 reconciliation 컬럼을 초기화한다 |
 
