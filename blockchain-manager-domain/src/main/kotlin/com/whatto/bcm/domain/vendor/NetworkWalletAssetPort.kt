@@ -1,5 +1,6 @@
 package com.whatto.bcm.domain.vendor
 
+import com.whatto.bcm.domain.asset.AssetDecimals
 import java.math.BigDecimal
 import java.math.BigInteger
 
@@ -36,7 +37,7 @@ data class NetworkWalletAssetBalance(
 ) {
     init {
         require(vendorAssetId.isNotBlank() && vendorAssetId == vendorAssetId.trim()) { "Invalid vendor asset id" }
-        require(decimals in 0..MAX_DECIMALS) { "Invalid asset decimals" }
+        require(AssetDecimals.isValid(decimals)) { "Invalid asset decimals" }
         require(BASE_UNITS.matches(baseUnits)) { "Invalid asset base units" }
     }
 
@@ -45,10 +46,10 @@ data class NetworkWalletAssetBalance(
 
     companion object {
         /**
-         * 소수 자릿수 형식 상한 — 명세는 `decimals: number`만 두므로 BCM 정규화 한계로 둔다. 모델링한 자산(EVM ERC-20 `decimals()` uint8,
-         * Solana SPL mint decimals u8)의 값은 255를 넘을 수 없어 그 밖은 벤더 응답 형식 오류로 취급한다(계약13 잔액 계약).
+         * 소수 자릿수 형식 상한 — 명세는 `decimals: number`만 두므로 BCM 정규화 한계로 둔다. 근거와 값은 [AssetDecimals.MAX]에 있고
+         * 등록 정밀도와 같은 상한을 쓴다(계약13 잔액 계약).
          */
-        const val MAX_DECIMALS = 255
-        private val BASE_UNITS = Regex("0|[1-9][0-9]*")
+        const val MAX_DECIMALS = AssetDecimals.MAX
+        private val BASE_UNITS = AssetDecimals.BASE_UNITS
     }
 }

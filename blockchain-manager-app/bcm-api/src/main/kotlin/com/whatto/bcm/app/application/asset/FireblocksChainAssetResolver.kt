@@ -29,6 +29,8 @@ class FireblocksChainAssetResolver(
             locator.fireblocksAssetId == null -> missingId(locator)
             // Fireblocks 카탈로그가 자산 표준을 소유하므로 운영자 지정 표준은 이 원천에 적용되지 않는다.
             locator.tokenStandard != null -> InvalidAssetMappingException(locator.network, "tokenStandardNotApplicable")
+            // 정밀도도 카탈로그가 소유한다 — 운영자 입력으로 카탈로그 값을 덮지 않는다.
+            locator.decimals != null -> InvalidAssetMappingException(locator.network, "decimalsNotApplicable")
             else -> null
         }
 

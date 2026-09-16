@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.client.dfns
 
+import com.whatto.bcm.domain.asset.AssetDecimals
 import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
@@ -18,6 +19,7 @@ import com.whatto.bcm.domain.vendor.ResolvedChainAsset
  * (mint는 base58 32바이트, Token Program은 운영자가 `tokenStandard`로 명시), 모델이 없는 행은 거절, (3) 저장 가능한 키 길이다.
  * 온체인 존재·decimals·발행사 대조는 운영자의 발행사 공식 자료와 별도 수용 항목이며 코드가 추정하지 않는다.
  * Fireblocks 후보 assetId는 이 원천에 적용되지 않으므로 값이 있으면 거절한다 — Dfns 값을 Fireblocks 필드에 채우지 않는다.
+ * 정밀도는 카탈로그가 없어 해소로 얻을 수 없으므로 운영자 등록값을 요구한다.
  */
 class DfnsChainAssetResolver(
     private val properties: DfnsProperties,
@@ -48,7 +50,10 @@ class DfnsChainAssetResolver(
                 ChainModel.SOLANA -> solanaKey(vendorNetwork, locator) ?: return rejected(network, solanaFailure(locator))
             }
         if (key.length > VendorAssetMapping.VENDOR_ASSET_ID_MAX_LENGTH) return rejected(network, "vendorAssetIdTooLong")
-        return ChainAssetResolution.Resolved(ResolvedChainAsset(key, locator.contractAddress, null))
+        // Dfns에는 자산 카탈로그가 없어 정밀도를 해소로 얻을 수 없다 — 운영자가 발행사 자료와 대조해 등록해야 한다(03 V27·07).
+        val decimals = locator.decimals ?: return rejected(network, "decimalsRequired")
+        if (!AssetDecimals.isValid(decimals)) return rejected(network, "decimalsOutOfRange")
+        return ChainAssetResolution.Resolved(ResolvedChainAsset(key, locator.contractAddress, decimals))
     }
 
     private fun evmKey(

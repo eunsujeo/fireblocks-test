@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.api.admin
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.whatto.bcm.domain.asset.AssetDecimals
 import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
@@ -8,6 +9,8 @@ import com.whatto.bcm.domain.asset.VendorAssetCatalogSource
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.provider.ProviderOrigin
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
@@ -111,6 +114,7 @@ data class AssetCandidateSearchData(
  * 등록 요청 — `fireblocksAssetId`는 Fireblocks 원천의 후보 assetId다(그 원천에서 필수, 없으면 관문이 400).
  * Dfns 원천은 자산을 network·contractAddress로 지정하며 이 필드를 보내면 관문이 400으로 거절한다 — Dfns 값을 Fireblocks 필드에 채우지 않는다.
  * `tokenStandard`(SPL·SPL_2022)는 Dfns Solana 토큰(mint)에서만 필수이고 그 밖에서는 보내면 400이다.
+ * `decimals`는 Dfns 원천에서 필수이고 Fireblocks 원천에서는 보내면 400이다 — 그쪽은 카탈로그가 정밀도를 소유한다(03 V27).
  */
 data class RegisterAssetMappingRequest(
     @field:NotBlank
@@ -125,6 +129,9 @@ data class RegisterAssetMappingRequest(
     @param:JsonProperty(value = "contractAddress", required = true)
     val contractAddress: String?,
     val tokenStandard: TokenStandard? = null,
+    @field:Min(0)
+    @field:Max(AssetDecimals.MAX.toLong())
+    val decimals: Int? = null,
 )
 
 data class BulkRegisterAssetMappingsRequest(
@@ -142,6 +149,7 @@ data class AssetMappingData(
     val fireblocksAssetId: String?,
     val dfnsAssetKey: String?,
     val contractAddress: String?,
+    val decimals: Int?,
     val registeredAt: String,
 ) {
     companion object {
@@ -154,6 +162,7 @@ data class AssetMappingData(
             fireblocksAssetId = mapping.vendorAssetId.takeIf { origin.protocolProvider == FIREBLOCKS },
             dfnsAssetKey = mapping.vendorAssetId.takeIf { origin.protocolProvider == DFNS },
             contractAddress = mapping.contractAddress,
+            decimals = mapping.decimals,
             registeredAt = mapping.registeredAt,
         )
 

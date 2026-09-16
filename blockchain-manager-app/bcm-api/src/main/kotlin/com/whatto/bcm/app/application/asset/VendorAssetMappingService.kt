@@ -200,6 +200,7 @@ class VendorAssetMappingService(
         registeredAt = registeredAt,
         registeredByEmployeeNo = command.employeeNo,
         registeredByBranchCode = command.branchCode,
+        decimals = resolved.decimals,
     )
 
     private fun bulkFailure(
@@ -274,6 +275,7 @@ data class RegisterVendorAssetMappingCommand(
     val branchCode: String,
     val requestId: String = "UNSPECIFIED",
     val tokenStandard: TokenStandard? = null,
+    val decimals: Int? = null,
 ) {
-    fun locator() = ChainAssetLocator(network, fireblocksAssetId, contractAddress, tokenStandard)
+    fun locator() = ChainAssetLocator(network, fireblocksAssetId, contractAddress, tokenStandard, decimals)
 }

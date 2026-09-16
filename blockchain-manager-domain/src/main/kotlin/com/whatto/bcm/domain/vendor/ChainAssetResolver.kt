@@ -34,12 +34,18 @@ interface ChainAssetResolver {
  * 등록 요청의 자산 지정. `contractAddress == null`은 그 네트워크의 네이티브 자산이다(Solana에서는 mint 주소 자리).
  * `fireblocksAssetId`는 Fireblocks 후보 목록에서 고른 assetId이며 Fireblocks 원천에서는 필수, 다른 원천에서는 없어야 한다(있으면 거절).
  * `tokenStandard`는 Solana 토큰의 Token Program 구분이며 EVM·Fireblocks 원천에서는 없어야 한다.
+ * `decimals`는 Dfns 원천에서만 필수이며 Fireblocks 원천에서는 없어야 한다.
  */
 data class ChainAssetLocator(
     val network: String,
     val fireblocksAssetId: String?,
     val contractAddress: String?,
     val tokenStandard: TokenStandard? = null,
+    /**
+     * 운영자가 등록하는 정밀도. **Dfns 원천에서만 필수**다 — Dfns에는 자산 카탈로그가 없어 해소로 얻을 값이 없다.
+     * Fireblocks 원천은 카탈로그가 주는 값을 쓰므로 보내면 거절한다(운영자 입력으로 카탈로그 값을 덮지 않는다).
+     */
+    val decimals: Int? = null,
 )
 
 /** 해소된 물리 자산 — vendorAssetId는 벤더 호출·잔액 관찰의 대조 키이고 contractAddress는 대조한 근거의 사본이다(네이티브는 null). */

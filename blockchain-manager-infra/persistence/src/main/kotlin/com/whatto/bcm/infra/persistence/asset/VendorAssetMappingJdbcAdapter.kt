@@ -26,6 +26,7 @@ class VendorAssetMappingJdbcAdapter(
                 registeredByEmployeeNo = rs.getString("frst_reg_empno"),
                 registeredByBranchCode = rs.getString("frst_reg_brcd"),
                 active = rs.getString("actv_yn") == "Y",
+                decimals = rs.getObject("dcml_cnt", Integer::class.java)?.toInt(),
             )
         }
 
@@ -47,7 +48,7 @@ class VendorAssetMappingJdbcAdapter(
         jdbc
             .query(
                 """
-                SELECT ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, actv_yn, reg_dttm,
+                SELECT ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, dcml_cnt, actv_yn, reg_dttm,
                        frst_reg_empno, frst_reg_brcd
                   FROM bcm_vndr_ast_m
                  WHERE ntwk_cd = :ntwkCd AND tkn_smbl = :tknSmbl
@@ -61,7 +62,7 @@ class VendorAssetMappingJdbcAdapter(
         jdbc
             .query(
                 """
-                SELECT ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, actv_yn, reg_dttm,
+                SELECT ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, dcml_cnt, actv_yn, reg_dttm,
                        frst_reg_empno, frst_reg_brcd
                   FROM bcm_vndr_ast_m
                  WHERE vndr_ast_id = :vendorAssetId AND actv_yn = 'Y'
@@ -87,7 +88,7 @@ class VendorAssetMappingJdbcAdapter(
         val where = predicates.joinToString(" AND ", prefix = " WHERE ")
         return jdbc.query(
             """
-            SELECT ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, actv_yn, reg_dttm,
+            SELECT ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, dcml_cnt, actv_yn, reg_dttm,
                    frst_reg_empno, frst_reg_brcd
               FROM bcm_vndr_ast_m$where
              ORDER BY ntwk_cd, tkn_smbl
@@ -185,7 +186,7 @@ class VendorAssetMappingJdbcAdapter(
         jdbc
             .query(
                 """
-                SELECT ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, actv_yn, reg_dttm,
+                SELECT ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, dcml_cnt, actv_yn, reg_dttm,
                        frst_reg_empno, frst_reg_brcd
                   FROM bcm_vndr_ast_m
                  WHERE ntwk_cd = :ntwkCd AND tkn_smbl = :tknSmbl
@@ -199,10 +200,10 @@ class VendorAssetMappingJdbcAdapter(
         jdbc.update(
             """
             INSERT INTO bcm_vndr_ast_m
-              (ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, actv_yn, reg_dttm,
+              (ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, dcml_cnt, actv_yn, reg_dttm,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
-              (:ntwkCd, :tknSmbl, :vndrAstId, :cntrAddr, 'Y', :regDttm,
+              (:ntwkCd, :tknSmbl, :vndrAstId, :cntrAddr, :dcmlCnt, 'Y', :regDttm,
                :empno, :brcd, :empno, :brcd)
             """.trimIndent(),
             mapping.parameters(),
@@ -213,7 +214,7 @@ class VendorAssetMappingJdbcAdapter(
         jdbc.update(
             """
             UPDATE bcm_vndr_ast_m
-               SET vndr_ast_id = :vndrAstId, cntr_addr = :cntrAddr, actv_yn = 'Y', reg_dttm = :regDttm,
+               SET vndr_ast_id = :vndrAstId, cntr_addr = :cntrAddr, dcml_cnt = :dcmlCnt, actv_yn = 'Y', reg_dttm = :regDttm,
                    last_chng_empno = :empno, last_chng_brcd = :brcd
              WHERE ntwk_cd = :ntwkCd AND tkn_smbl = :tknSmbl AND actv_yn = 'N'
             """.trimIndent(),
@@ -242,11 +243,13 @@ class VendorAssetMappingJdbcAdapter(
                  'network', CAST(:beforeNetwork AS VARCHAR), 'symbol', CAST(:beforeSymbol AS VARCHAR),
                  'vendorAssetId', CAST(:beforeVendorAssetId AS VARCHAR),
                  'contractAddress', CAST(:beforeContractAddress AS VARCHAR),
+                 'decimals', CAST(:beforeDecimals AS INT),
                  'activeYn', CAST(:beforeActiveYn AS VARCHAR)) ELSE NULL END,
                CASE WHEN :hasAfter THEN jsonb_build_object(
                  'network', CAST(:afterNetwork AS VARCHAR), 'symbol', CAST(:afterSymbol AS VARCHAR),
                  'vendorAssetId', CAST(:afterVendorAssetId AS VARCHAR),
                  'contractAddress', CAST(:afterContractAddress AS VARCHAR),
+                 'decimals', CAST(:afterDecimals AS INT),
                  'activeYn', CAST(:afterActiveYn AS VARCHAR)) ELSE NULL END,
                :requestId, :changedAt, :empno, :brcd, :empno, :brcd)
             """.trimIndent(),
@@ -257,6 +260,8 @@ class VendorAssetMappingJdbcAdapter(
                 "action" to action,
                 "hasBefore" to (before != null),
                 "beforeNetwork" to before?.network,
+                "beforeDecimals" to before?.decimals,
+                "afterDecimals" to after?.decimals,
                 "beforeSymbol" to before?.symbol,
                 "beforeVendorAssetId" to before?.vendorAssetId,
                 "beforeContractAddress" to before?.contractAddress,
@@ -281,6 +286,7 @@ class VendorAssetMappingJdbcAdapter(
             "tknSmbl" to symbol,
             "vndrAstId" to vendorAssetId,
             "cntrAddr" to contractAddress,
+            "dcmlCnt" to decimals,
             "regDttm" to registeredAt,
             "empno" to registeredByEmployeeNo,
             "brcd" to registeredByBranchCode,

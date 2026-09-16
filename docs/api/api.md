@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.12.1`
+`v0.13.0`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -1756,7 +1756,7 @@ _응답_
   서버는 데이터셋 네트워크 행과 실행 설정의 Dfns network 일치(`networkBindingMismatch`)와 행의 계정·자산 모델(없으면 `assetModelUnsupported`)을 검증한다.
   EVM 모델은 컨트랙트 주소 형식 `^0x[0-9a-fA-F]{40}$`(`contractAddressInvalid`), Solana 모델은 mint가 base58 32바이트 공개키(`mintAddressInvalid`)이고
   `tokenStandard`(SPL·SPL_2022)가 필수(`tokenStandardRequired`)다. 네이티브·EVM에 `tokenStandard` 를 보내면 `tokenStandardNotApplicable` 이다.
-  검증을 지나면 Dfns 자산 키(`dfnsAssetKey`) 를 만든다.
+  검증을 지나면 Dfns 자산 키(`dfnsAssetKey`) 를 만든다. Dfns 원천은 `decimals` 도 필수(`decimalsRequired`)이고 Fireblocks 원천에 보내면 `decimalsNotApplicable` 이다.
   Dfns 공개 명세에는 자산 카탈로그 API 가 없어 온체인 존재·decimals 는 운영자의 발행사 공식 자료로 대조한다.
 - **활성 매핑을 덮어쓰지 않는다** — 이미 활인 (네트워크, 토큰) 매핑은 `409` 다. 논리 해제된 행은 검증을 다시 통과한 뒤 재활성 또는 교체하고 전후 snapshot을 남긴다.
 - **한 자산은 한 매핑** — 다른 (네트워크, 토큰) 이 이미 그 자산이면 `409` 다.
@@ -1801,6 +1801,7 @@ _요청 본문_
 | `fireblocksAssetId` | string | - | 후보 목록에서 선택한 Fireblocks Asset ID. Fireblocks 원천에서는 필수이며 서버가 등록 직전에 Network·주소와 다시 검증한다. Dfns 원천에서는 보내지 않는다(보내면 400).  |
 | `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null. Dfns 원천에서는 이 값과 network(Solana는 mint 주소와 `tokenStandard`)가 자산 지정의 전부다  |
 | `tokenStandard` | string | - | Dfns 원천의 Solana 토큰(mint)에서만 필수 — 같은 mint 주소로 Token Program을 구분할 수 없어 운영자가 발행사 자료로 확인해 명시한다. 네이티브 SOL·EVM·Fireblocks 원천에서는 보내지 않는다(보내면 400 `tokenStandardNotApplicable`).  `SPL` `SPL_2022` |
+| `decimals` | integer | - | 발행사 공식 문서에서 확인한 소수 자릿수. Dfns 원천에서는 **필수**다 — Dfns 에는 자산 카탈로그가 없어 서버가 해소할 값이 없고, 이 값이 없으면 최소 단위 관찰을 이벤트 금액으로 환산할 수 없다(없으면 400 `decimalsRequired`). Fireblocks 원천에서는 보내지 않는다 — 카탈로그 값을 운영자 입력으로 덮지 않는다(보내면 400 `decimalsNotApplicable`).  |
 
 
 _응답_
@@ -1815,6 +1816,7 @@ _응답_
     "fireblocksAssetId": "USDC_BASE",
     "dfnsAssetKey": null,
     "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "decimals": 6,
     "registeredAt": "20260806031045"
   },
   "meta": {
@@ -1900,6 +1902,7 @@ _응답_
       "fireblocksAssetId": "USDC_BASE",
       "dfnsAssetKey": null,
       "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "decimals": 6,
       "registeredAt": "20260806031045"
     }
   ],
@@ -2059,6 +2062,7 @@ _응답_
       "fireblocksAssetId": "USDC_BASE",
       "dfnsAssetKey": null,
       "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "decimals": 6,
       "registeredAt": "20260806031045"
     }
   ],
@@ -3259,6 +3263,7 @@ Dfns 원천 `{ "fireblocksAssetId": null, "dfnsAssetKey": "EthereumSepolia:Erc20
 | `fireblocksAssetId` | string \\| null | 필수 | 현재 매핑이 사용하는 Fireblocks 자산 식별자. Fireblocks 원천에서만 채워지고 Dfns 원천은 null |
 | `dfnsAssetKey` | string \\| null | 필수 | 현재 매핑이 사용하는 Dfns 자산 키 `<Network>:Native` 또는 `<Network>:<kind>:<locator>`(ERC-20은 소문자 컨트랙트, Solana는 `Spl`/`Spl2022`와 mint). Dfns 원천에서만 채워지고 Fireblocks 원천은 null |
 | `contractAddress` | string \\| null | - | 네이티브 자산은 null |
+| `decimals` | integer \\| null | 필수 | 등록 시점에 확정한 소수 자릿수. Fireblocks 원천은 카탈로그 해소값, Dfns 원천은 운영자 등록값이다. 정밀도를 저장하기 전에 등록된 기존 매핑은 null |
 | `registeredAt` | string | 필수 |  |
 
 
@@ -3978,6 +3983,7 @@ Fireblocks `{ "network": "BASE", "symbol": "USDC", "fireblocksAssetId": "USDC_BA
 Dfns EVM `{ "network": "ETHEREUM_SEPOLIA", "symbol": "USDC", "contractAddress": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" }`,
 Dfns Solana `{ "network": "SOLANA_DEVNET", "symbol": "USDC", "contractAddress": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", "tokenStandard": "SPL" }`.
 `fireblocksAssetId`와 `tokenStandard`는 서로 다른 원천의 필드라 한 요청에 함께 오지 않는다.
+`decimals` 는 Dfns 원천에서만 보낸다 — Fireblocks 는 카탈로그가 정밀도를 소유한다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
@@ -3986,6 +3992,7 @@ Dfns Solana `{ "network": "SOLANA_DEVNET", "symbol": "USDC", "contractAddress": 
 | `fireblocksAssetId` | string | - | 후보 목록에서 선택한 Fireblocks Asset ID. Fireblocks 원천에서는 필수이며 서버가 등록 직전에 Network·주소와 다시 검증한다. Dfns 원천에서는 보내지 않는다(보내면 400).  |
 | `contractAddress` | string \\| null | 필수 | 발행사 공식 문서에서 확인한 컨트랙트 주소. 네이티브 자산이면 null. Dfns 원천에서는 이 값과 network(Solana는 mint 주소와 `tokenStandard`)가 자산 지정의 전부다  |
 | `tokenStandard` | string | - | Dfns 원천의 Solana 토큰(mint)에서만 필수 — 같은 mint 주소로 Token Program을 구분할 수 없어 운영자가 발행사 자료로 확인해 명시한다. 네이티브 SOL·EVM·Fireblocks 원천에서는 보내지 않는다(보내면 400 `tokenStandardNotApplicable`).  `SPL` `SPL_2022` |
+| `decimals` | integer | - | 발행사 공식 문서에서 확인한 소수 자릿수. Dfns 원천에서는 **필수**다 — Dfns 에는 자산 카탈로그가 없어 서버가 해소할 값이 없고, 이 값이 없으면 최소 단위 관찰을 이벤트 금액으로 환산할 수 없다(없으면 400 `decimalsRequired`). Fireblocks 원천에서는 보내지 않는다 — 카탈로그 값을 운영자 입력으로 덮지 않는다(보내면 400 `decimalsNotApplicable`).  |
 
 
 ### BulkRegisterAssetMappingsRequest

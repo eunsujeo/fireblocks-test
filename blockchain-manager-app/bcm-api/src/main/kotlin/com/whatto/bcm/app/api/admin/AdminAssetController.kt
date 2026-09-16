@@ -113,6 +113,7 @@ class AdminAssetController(
                     branchCode = branchCode,
                     requestId = RequestIdFilter.requestIdOf(httpRequest),
                     tokenStandard = request.tokenStandard,
+                    decimals = request.decimals,
                 ),
             )
         return ApiResponse.of(AssetMappingData.from(mapping, origin), RequestIdFilter.requestIdOf(httpRequest))
@@ -139,6 +140,7 @@ class AdminAssetController(
                         branchCode = branchCode,
                         requestId = requestId,
                         tokenStandard = item.tokenStandard,
+                        decimals = item.decimals,
                     )
                 },
             )

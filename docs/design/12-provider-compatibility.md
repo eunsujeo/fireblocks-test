@@ -502,7 +502,7 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   문서화된 미지원 이동 종류는 키와 금액을 만들지 않고 원어만 남긴 채 **사건은 보존**하고, 문서에 없는 종류는 어느 변형도 만족하지 않으므로 거절한다.
   필수 필드는 변형별로 다르므로 모든 변형의 공통 필수 아홉과 모델 대상 변형의 추가 필수(`symbol`·`decimals`·`from`·`to`·locator·`value`)를 함께 검사한다 —
   관찰값에 담지 않는 필드도 결손이면 명세를 만족하지 않는다. `data.wallet`의 `id`·`network`가 사건과 같아야 하고, 설정 밖 네트워크·형식 오류는 `WebhookPayloadException`으로 거절한다.
-- 판단하지 않는 것: `Confirmed`를 BCM 확정으로 번역하지 않고, 종류와 상태가 고정 대응한다고 보지 않으며, 정밀도·심볼은 관찰값에 담지 않는다(선택·폐기 예정 벤더 필드에 업무 판단을 걸지 않는다). 다만 **정밀도의 BCM 출처는 아직 없어**(07·`bcm_vndr_ast_m`에 컬럼 없음) 입금 이벤트의 금액 환산은 그 출처를 정한 뒤에 한다 — 계약13의 미결 항목이다.
+- 판단하지 않는 것: `Confirmed`를 BCM 확정으로 번역하지 않고, 종류와 상태가 고정 대응한다고 보지 않으며, 정밀도·심볼은 관찰값에 담지 않는다(선택·폐기 예정 벤더 필드에 업무 판단을 걸지 않는다). 입금 이벤트의 금액은 등록 매핑의 정밀도(03 V27 `dcml_cnt`)로 환산한다.
   `timestamp`는 형식 서술이 없어 파싱하지 않고 원문 그대로 둔다. `value`의 최소 단위 해석은 BCM 규칙이며 수용 항목이다.
 - **조립하지 않는다** — 파서는 실행 빈으로 등록하지 않는 내부 대역이다. 입금 귀속(`bcm_addr_m` 대조)·논리 사건/outbox·미등록 자산 입금 경보·감시 주소 기능·
   `WebhookTransactionParser`/`VendorStatusTranslator`의 Dfns 구현·판단 워커 조립은 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다.
@@ -605,3 +605,21 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   수용 항목에 남겼다. 발신 사건 대조를 `(ntwk_cd, tx_hash)` 단일 후보 + 제출 원장 대응으로 좁히고 그 밖은 중단한다. V26을 V18과 같은 온라인 생성으로 바꿨다.
   마이그레이션 테스트를 업그레이드 경로로 다시 써 index 정의의 부분 조건과 `indisvalid`를 직접 확인한다. 재실행: domain 142 · persistence 234, 실패 0, 전체 ktlintCheck 통과.
 - **독립 converge 2차(Codex, 범위 5085f1b..1aaf76a, design-sync→code-reviewer 순차)**: 이전 4건 모두 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 1aaf76a).
+
+## 등록 자산 정밀도 보관 검증 (2026-09-16)
+
+- 사용자 확정(2026-09-16): 이벤트 금액 환산에 쓸 정밀도는 **등록 시점에 저장**한다. 벤더가 사건마다 주는 값에 의존하면 벤더가 인덱싱 값을 바꾸는 순간
+  같은 자산의 과거·미래 금액 해석이 달라진다. 계약은 [03 V27](03-bcm-db.md#v27-등록-자산의-정밀도-보관--물리-저장-계약)·[07](07-asset-master.md)·[계약13](13-dfns-contracts.md)에 고정했다.
+- 배경: 07은 "소수 자릿수는 현재 매핑에 보관하지 않는다"였다. Fireblocks가 사람 단위 금액을 보내 환산이 필요 없었기 때문이며, Dfns 관찰은 최소 단위 정수라
+  02의 이벤트 금액을 만들 수 없었다. DF3.16에서 "정밀도는 등록 매핑에서 읽는다"고 적은 것은 사실과 달랐고 이번에 바로잡았다.
+- DDL: V27 `bcm_vndr_ast_m.dcml_cnt SMALLINT NULL CHECK (0..255)` — **추가 전용**이라 기존 행·Fireblocks 데이터를 건드리지 않는다. 상한은 ERC-20 uint8·SPL u8 한계다.
+- 도메인: `AssetDecimals`(상한·최소 단위 표기·`amountOf` 환산)를 두고 `VendorAssetMapping.decimals`·`ChainAssetLocator.decimals`를 추가했다.
+  잔액 관찰(`NetworkWalletAssetBalance`)도 같은 상한·표기를 쓰도록 모아 중복 상수를 없앴다.
+- 원천별 관문: Fireblocks는 카탈로그가 정밀도를 소유하므로 운영자 입력을 `decimalsNotApplicable`로 거절하고 해소값을 저장한다.
+  Dfns는 카탈로그가 없어 운영자 등록값을 요구하며(`decimalsRequired`) 범위 밖은 `decimalsOutOfRange`다 — 등록을 통과시킨 뒤 입금에서 환산이 막히는 것보다 등록에서 막는다.
+- 영속: 조회·등록·교체·변경 snapshot에 정밀도를 함께 담는다. OpenAPI 0.13.0(요청 `decimals`, 응답 `AssetMapping.decimals` nullable).
+- 회귀에서 드러난 기존 결함 하나를 함께 고쳤다 — DF3.13에서 `DfnsClientConfig`에 Jackson 의존 빈이 생긴 뒤 `DfnsAccountAssemblyIntegrationTest`의 슬라이스 컨텍스트가
+  `ObjectMapper` 없이 뜨지 못했다. 그때 bcm-api 테스트를 돌리지 않아 놓친 회귀이며 슬라이스 설정에 Jackson 빈을 제공해 복구했다.
+- 검증: `AssetDecimalsTest` 4(상한, 환산 6종, 잘못된 표기·범위 7종, 등록 매핑 불변식), `DfnsChainAssetResolverTest`에 정밀도 필수·범위·보존 검증 추가,
+  `VendorAssetMappingPersistenceTest`에 실제 PostgreSQL 왕복과 등록·교체 snapshot의 before/after 정밀도 검증 추가, 조립 테스트에 `decimalsRequired` 거절 추가.
+- 전체 회귀: domain 146 · application 25 · client 168 · persistence 235 · API 308 · Webhook 75 · BAT 159 = **1,116건, 실패 0**. 전체 ktlintCheck 통과.

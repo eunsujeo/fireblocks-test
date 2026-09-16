@@ -25,3 +25,4 @@ V23__account_models.sql
 V24__network_wallet_evidence.sql
 V25__dfns_chain_model_and_asset_key.sql
 V26__transaction_hash_lookup_index.sql
+V27__vendor_asset_decimals.sql
