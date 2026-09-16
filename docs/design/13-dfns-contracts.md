@@ -232,6 +232,26 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 `Included`→`Confirmed` 재알림의 순서·중복과 두 종류가 같은 이동에 모두 오는지, Solana의 ATA 수신에서 `to`가 owner 주소인지 ATA 주소인지,
 `Wallet.address`가 실제로 항상 오는지, 조직 웹훅이 BCM 미관리 네트워크의 이동 사건도 보내는지.
 
+### 확정 판정 — 구현
+
+근거: [CLAUDE.md 3절 확정 결정](../../CLAUDE.md)(2026-09-16 사용자 확정)과 [02의 Dfns 경로 확정 근거](02-bcm-flow.md#dfns-경로의-확정-근거-2026-09-16-사용자-확정).
+명세 쪽 사실은 위 [온체인 이동 사건](#웹훅-온체인-이동-사건-관찰--구현)과 [전송 상태](#전송-제출조회-계약--구현) 표에 있다 —
+Dfns는 **컨펌 수를 주지 않고** `Included`/`Confirmed`와 `blockNumber`만 준다. `Confirmed`의 설명은 "confirmed on chain by our indexing pipeline"이며
+네트워크별 확인 지연은 벤더 문서의 별도 표에 있다.
+구현은 도메인 `ChainHeadPort`·`BlockDepthFinality`와 `EvmChainHeadClient`(infra/client)다. **내부 대역이며 상태 번역·판단 워커에 연결하지 않았다.**
+
+| 항목 | 근거 | BCM 규칙 |
+|---|---|---|
+| 확정 근거 | 벤더의 `Confirmed`는 reorg로 뒤집힐 수 있다(사용자 확정) | **벤더 상태 표기를 `FINALIZED`의 근거로 쓰지 않는다.** 사건의 `blockNumber`와 체인 head의 깊이를 직접 계산한다 |
+| 깊이 산식 | — | 블록 자체가 1컨펌이다(`head − blockNumber + 1`). head가 사건 블록보다 낮게 보이면(관측 지연·재구성) **0**으로 본다 — 음수 컨펌을 만들지 않는다 |
+| 임계 | 기존 `bcm.finality-confirmations.<network>`(02 DCCP 임계와 같은 설정) | 같은 설정을 그대로 쓴다 — 제공자마다 확정 임계 설정을 따로 두지 않는다. 값이 없거나 0 이하면 기존 `FinalityPolicyConfigurationException` 경로로 중단한다 |
+| head 출처 | 위탁 RPC(`bcm.evm-rpc.networks.<network>.url`, EVM `eth_blockNumber`) | 설정에 없는 네트워크는 임의 endpoint를 고르지 않고 중단한다. RPC 오류·결손·형식 오류·범위 밖 값은 head로 받지 않는다 |
+| 조회 실패 | — | 확정을 **보류**하고 재시도한다 — 실패를 감추지 않고 예외로 올린다. **모름을 "아직 미확정"으로 바꾸지 않는다**(바꾸면 늦은 확정이 영영 오지 않는다) |
+| 범위 밖 | — | Solana의 확정(슬롯·commitment 모델이 EVM 블록 깊이와 다르다)·`VendorStatusTranslator`의 Dfns 구현·판단 워커 조립·head 캐시/조회 주기·reorg 무효화(`FINALIZED → FAILED`) 관찰 경로 |
+
+수용 항목: 위탁 RPC endpoint의 운영 소유·가용성과 head 조회 주기·캐시 정책, 네트워크별 임계값(Dfns 문서의 확인 지연과 BCM 임계의 관계),
+Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블록이 사라졌을 때의 관찰 경로(벤더가 무효화 알림을 보내는지).
+
 ## 공개 API에서 선행할 변경
 
 | 현행 공개 계약 | Dfns 연결 전 필요한 결정 |

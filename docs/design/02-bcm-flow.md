@@ -216,6 +216,17 @@ Kafka offset을 커밋한다. 응답 유실 때 같은 요청을 반복하면 �
 - 커스텀 임계는 정책 템플릿을 Fireblocks Support 에 제출해 검토·승인 후 반영된다. 요청 값은 Admin 이 정한다.
 - **확정 판단은 status 만 보지 않는다** — `numOfConfirmations` 를 임계와 직접 비교한다. zero-confirmation 설정에서는 COMPLETED 가 블록 등장 시점에 먼저 뜰 수 있다.
 
+### Dfns 경로의 확정 근거 (2026-09-16 사용자 확정)
+
+Dfns는 컨펌 수를 주지 않는다. 웹훅 온체인 이동 사건은 `Included`/`Confirmed`와 `blockNumber`만 싣고,
+`Confirmed`는 벤더 인덱싱 파이프라인의 확인이라 reorg로 뒤집힐 수 있다. 그래서 **벤더의 확정 표기를 `FINALIZED`의 근거로 쓰지 않는다.**
+
+- 확정 판정은 `blockNumber`와 위탁 RPC로 읽은 체인 head의 **깊이**(블록 자체가 1컨펌)를 위 DCCP 임계와 같은
+  `bcm.finality-confirmations.<network>` 값과 비교한다. 규칙은 domain `BlockDepthFinality`, head 조회는 `ChainHeadPort`다.
+- head를 읽지 못하면 확정을 **보류**하고 재시도한다 — 모름을 "아직 미확정"으로 바꾸면 늦은 확정이 영영 오지 않는다.
+- Fireblocks 경로의 `numOfConfirmations` 직접 비교는 바뀌지 않는다. 두 경로 모두 벤더 status만으로 확정하지 않는다는 원칙은 같다.
+- 전이 표·EventType·순서 계약은 제공자와 무관하게 그대로 적용한다.
+
 ## 입금
 
 ```mermaid

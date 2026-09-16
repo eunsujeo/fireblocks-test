@@ -32,6 +32,7 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
 | `VendorContractCallPort` | 집금 호출 의도·접수/조회 결과 | 승인·대납·최종 서명 내용·방송 경로·수신 증적 |
 | `VendorAssetCatalogPort` | 후보 수집과 채택 자산의 분리 | 벤더 네트워크/자산 ID·페이지·정밀도·온체인 주소 대조 |
 | `VendorStatusTranslator` | 원시 관찰→업무 상태와 종결 대사 범위 | 실제 상태 의미. confirmationCount 중심 계약은 멀티체인 확장 전에 타입 분리 |
+| `FinalityPolicy`·`ChainHeadPort` | 네트워크별 확정 임계와 확정 판정의 입력 | Fireblocks는 벤더 `numOfConfirmations`를 임계와 비교한다. Dfns는 컨펌 수를 받지 못해 `blockNumber`와 체인 head의 깊이를 직접 계산한다(CLAUDE.md 3절·계약13) |
 | `WebhookProtocol`·`WebhookSignatureVerifier`·`WebhookTransactionParser` | 원문 바이트 검증·파싱·인박스/논리 사건 연결 | 수신 헤더/envelope는 WebhookProtocol로 분리. 키 조회·payload/재전달 ID·논리 사건 대응은 벤더별 책임. Dfns 전송 사건은 `NetworkTransferEventParser`, 온체인 이동(입금) 사건은 `NetworkChainEventParser`로 분리했다(계약13) |
 | `VendorNetworkFeePort` | 견적·원금/수수료 단위 구분 | 체인/계정별 견적·대납/실비. 현행 fee 필드를 Dfns 결과에 임의로 채우지 않음 |
 | `VendorWebhookRecoveryPort` | 구독 상태·복구 실행/감사 | 재전송과 이력 재처리의 실제 수행 구분. 미지원 API의 가짜 성공 금지 |
@@ -521,3 +522,17 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   재실행: domain 125 · client 157 · webhook 75, 실패 0, 전체 ktlintCheck 통과.
 - **독립 converge 2차(Codex, 범위 89a8b91..750ddff, design-sync→code-reviewer 순차)**: 이전 Major 3건 해소 확인(28종 목록이 명세와 누락·초과 없이 일치, 네 변형 required 일치),
   신규 Critical/Major/Minor 0으로 통과했다(검토 기준 750ddff).
+
+## Dfns 확정 판정의 블록 깊이 계약 검증 (2026-09-16)
+
+- 사용자 확정(2026-09-16): 벤더의 `Confirmed`는 reorg로 뒤집힐 수 있으므로 Dfns 경로의 `FINALIZED`는 **블록 깊이로 직접 계산**한다. 결정은 [CLAUDE.md 3절](../../CLAUDE.md)과
+  [02](02-bcm-flow.md#dfns-경로의-확정-근거-2026-09-16-사용자-확정)에, 계약은 [계약13](13-dfns-contracts.md#확정-판정--구현)에 고정했다.
+- 도메인: `ChainHeadPort`(네트워크 → head 블록 번호)와 순수 규칙 `BlockDepthFinality`를 추가했다. 블록 자체가 1컨펌이고, head가 사건 블록보다 낮게 보이면 0으로 본다(음수 금지).
+  임계는 제공자별로 나누지 않고 기존 `bcm.finality-confirmations.<network>`(`FinalityPolicy`)를 그대로 쓴다.
+- 어댑터: `EvmChainHeadClient`가 위탁 RPC(`bcm.evm-rpc.networks.<network>.url`)에 `eth_blockNumber`를 보낸다. 미설정 네트워크는 임의 endpoint를 고르지 않고,
+  RPC 오류·결손·비16진수·부호 있는 64비트 범위 밖 값은 head로 받지 않는다. 실패는 감추지 않고 올려 **확정을 보류**한다 — 모름을 "아직 미확정"으로 바꾸지 않는다.
+- **조립하지 않는다** — 실행 빈으로 등록하지 않는 내부 대역이다. `VendorStatusTranslator`의 Dfns 구현·판단 워커 조립·head 캐시/조회 주기·Solana 확정 모델·
+  reorg 무효화 관찰 경로는 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다. Fireblocks 경로의 `numOfConfirmations` 비교는 바뀌지 않았다.
+- 검증: `BlockDepthFinalityTest` 3(깊이 산식과 head 미달 0, 임계 이상만 확정, 음수 블록·0 이하 임계 거절 4종),
+  `EvmChainHeadClientTest` 4(`eth_blockNumber` 요청·결과 해석, 미설정 네트워크 중단, RPC 오류·결손·형식·범위 6종, HTTP 실패 전파).
+- 선택 회귀: domain 128 · client 161, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
