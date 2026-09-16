@@ -633,3 +633,17 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   OpenAPI 예시에 `decimals`를 넣고 문서를 재생성했다.
 - **독립 converge 2차(범위 fc66615..07a37cc)**: Major 1 — 07 DDL에 컬럼은 더했으나 실제 named CHECK(`ck_bcm_vndr_ast_dcml`)가 제약 목록에 없어 부분 해소였다. → 제약을 그대로 적었다.
 - **독립 converge 3차(design-sync 범위 07a37cc..b69288a, code-reviewer 범위 11777d9..b69288a 순차)**: 이전 지적 모두 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 b69288a).
+
+## Dfns 입금 판단 유스케이스 검증 (2026-09-16)
+
+- 계약은 [계약13](13-dfns-contracts.md#입금-판단--구현)에 고정했다. 앞선 관찰(DF3.16)·귀속(DF3.19)·번역(DF3.18)·확정(DF3.17)·식별자(DF3.20)·정밀도(DF3.21)를 하나로 잇는 유스케이스다.
+- `DfnsChainEventDecision`(bcm-webhook)이 호출자의 트랜잭션 안에서 원장 전이(`TxStateService`)와 outbox 적재(`OutboxEventService`)를 수행한다.
+  입금만 원장을 쓰고 발신·미지원 자산·미등록 자산·미귀속·정밀도 없음은 **원장을 쓰지 않고 결과로만** 돌려준다 — 경보·무시 판단은 워커의 몫이다.
+- 확정은 체인 head 깊이를 관찰 컨펌 수로 담아 번역기가 임계와 비교한다. **head 조회 실패는 예외로 올라가 확정을 보류**하고, 순번 없는 사건은 거래 ID를 지어내지 않고 실패한다.
+- 없는 값을 만들지 않는다 — 제출 키·`subStatus`·`networkStatus`는 `null`이고, 벤더 시각은 형식이 서술된 알림 `date`에서 만든다(사건 `timestamp`는 형식 서술이 없다).
+  금액은 등록 정밀도로 환산해 02 이벤트 금액의 단위를 제공자와 무관하게 하나로 유지한다.
+- 귀속 결과에 등록 정밀도를 함께 실어(`LedgerAsset.decimals`·`Deposit.decimals`) 유스케이스가 매핑을 다시 읽지 않게 했다.
+- **조립하지 않는다** — 실행 빈 미등록이며 인박스 P/S/F 처리·워커 조립·경보 포트·발신의 제출 원장 대조는 후속이다. `BCM_PROVIDER=dfns` 기동 차단도 그대로다.
+- 검증: `DfnsChainEventDecisionTest` 7(깊이 기반 확정과 등록 정밀도 환산·거래 ID·시각·없는 값, 임계 미달의 미확정, 발행할 상태 없음, 입금 아닌 결과 5종의 무쓰기,
+  정밀도 없음의 중단, 순번 없음의 실패, head 조회 실패의 전파), `NetworkChainAttributionTest`에 정밀도 전달 검증 추가.
+- 전체 회귀: 11개 모듈 **1,274건, 실패 0**. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.

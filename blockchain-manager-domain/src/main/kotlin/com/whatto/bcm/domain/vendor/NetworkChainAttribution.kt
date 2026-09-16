@@ -1,5 +1,7 @@
 package com.whatto.bcm.domain.vendor
 
+import com.whatto.bcm.domain.asset.AssetDecimals
+
 /**
  * 온체인 이동 관찰을 BCM 원장에 귀속시키는 **순수 판정**(계약13 "온체인 이동의 귀속").
  * 저장·발행·상태 번역을 하지 않는다 — 어떤 업무 대상인지만 가른다. 상태 번역은 `VendorStatusTranslator`, 발행은 판단 워커의 몫이다.
@@ -30,7 +32,7 @@ object NetworkChainAttribution {
         val accountId =
             ledger.accountOfDepositAddress(destination, asset.network, asset.symbol)
                 ?: return NetworkChainAttributionResult.Unattributed(observation, NetworkChainAttributionMiss.UNKNOWN_ADDRESS)
-        return NetworkChainAttributionResult.Deposit(observation, accountId, asset.network, asset.symbol)
+        return NetworkChainAttributionResult.Deposit(observation, accountId, asset.network, asset.symbol, asset.decimals)
     }
 }
 
@@ -50,10 +52,16 @@ interface NetworkChainLedgerLookup {
 data class LedgerAsset(
     val network: String,
     val symbol: String,
+    /**
+     * 등록 시점에 확정한 정밀도(03 V27). 최소 단위만 오는 관찰을 이벤트 금액으로 환산할 때 쓴다 —
+     * 값이 없는 매핑(V27 이전 등록)은 환산하지 않는다.
+     */
+    val decimals: Int? = null,
 ) {
     init {
         require(network.isNotBlank()) { "network must not be blank" }
         require(symbol.isNotBlank()) { "symbol must not be blank" }
+        require(decimals == null || AssetDecimals.isValid(decimals)) { "Invalid asset decimals" }
     }
 }
 
@@ -66,6 +74,8 @@ sealed interface NetworkChainAttributionResult {
         val accountId: String,
         val network: String,
         val symbol: String,
+        /** 등록 정밀도. 없으면 이벤트 금액을 만들 수 없다(03 V27 이전 등록 행) — 판단 워커가 그 경우를 가른다. */
+        val decimals: Int?,
     ) : NetworkChainAttributionResult
 
     /** 우리 지갑 발신 — 제출 원장 대조가 필요하다(후속). */
