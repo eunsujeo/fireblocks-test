@@ -23,17 +23,20 @@ class DfnsStatusTranslatorTest {
     }
 
     @Test
-    fun `블록 포함은 미확정이고 종결 원어는 실패·거절로 번역한다`() {
-        assertThat(translator.translate(observation("Included", confirmations = 99), NETWORK)).isEqualTo(TxStatus.CONFIRMED)
+    fun `종결 원어는 실패·거절로 번역한다`() {
         assertThat(translator.translate(observation("Failed"), NETWORK)).isEqualTo(TxStatus.FAILED)
         assertThat(translator.translate(observation("Rejected"), NETWORK)).isEqualTo(TxStatus.REJECTED)
     }
 
     @Test
-    fun `Confirmed는 임계 깊이에 도달했을 때만 확정이다`() {
-        assertThat(translator.translate(observation("Confirmed", confirmations = 11), NETWORK)).isEqualTo(TxStatus.CONFIRMED)
-        assertThat(translator.translate(observation("Confirmed", confirmations = 12), NETWORK)).isEqualTo(TxStatus.FINALIZED)
-        assertThat(translator.translate(observation("Confirmed", confirmations = 13), NETWORK)).isEqualTo(TxStatus.FINALIZED)
+    fun `온체인 관찰 둘 다 임계 깊이에 도달했을 때만 확정이다`() {
+        listOf("Confirmed", "Included").forEach { raw ->
+            assertThat(translator.translate(observation(raw, confirmations = 11), NETWORK)).describedAs(raw).isEqualTo(TxStatus.CONFIRMED)
+            assertThat(translator.translate(observation(raw, confirmations = 12), NETWORK)).describedAs(raw).isEqualTo(TxStatus.FINALIZED)
+            assertThat(translator.translate(observation(raw, confirmations = 13), NETWORK)).describedAs(raw).isEqualTo(TxStatus.FINALIZED)
+        }
+        // 벤더 확인 표기는 확정의 추가 관문이 아니다 — `Confirmed` 알림이 늦거나 유실돼도 깊이가 차면 확정한다.
+        assertThat(translator.translate(observation("Included", confirmations = 99), NETWORK)).isEqualTo(TxStatus.FINALIZED)
         // 전송 응답에는 blockNumber가 없어 깊이를 모른다 — 벤더가 Confirmed라 해도 확정으로 올리지 않는다.
         assertThat(translator.translate(observation("Confirmed", confirmations = 0), NETWORK)).isEqualTo(TxStatus.CONFIRMED)
     }
@@ -51,7 +54,7 @@ class DfnsStatusTranslatorTest {
         assertThat(translator.translate(observation("Confirmed", confirmations = 1), NETWORK)).isEqualTo(TxStatus.CONFIRMED)
         assertThat(asked).containsExactly("BASE_SEPOLIA", NETWORK)
         // 확정 판정이 필요 없는 상태는 임계를 묻지 않는다.
-        translator.translate(observation("Included"), NETWORK)
+        translator.translate(observation("Broadcasted"), NETWORK)
         translator.translate(observation("Failed"), NETWORK)
         assertThat(asked).containsExactly("BASE_SEPOLIA", NETWORK)
     }
