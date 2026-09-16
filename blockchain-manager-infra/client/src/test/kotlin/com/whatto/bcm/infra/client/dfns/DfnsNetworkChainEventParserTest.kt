@@ -66,20 +66,69 @@ class DfnsNetworkChainEventParserTest {
 
         val spl =
             parser.parse(
-                event(network = "SolanaDevnet", assetKind = "Spl2022Transfer", locatorField = "mint", locator = MINT).toByteArray(),
+                event(
+                    network = "SolanaDevnet",
+                    assetKind = "Spl2022Transfer",
+                    locatorField = "mint",
+                    locator = MINT,
+                    wallet = """{"id":"$WALLET_ID","network":"SolanaDevnet"}""",
+                ).toByteArray(),
             )
         assertThat(spl?.observation?.vendorAssetId).isEqualTo("SolanaDevnet:Spl2022:$MINT")
         assertThat(spl?.observation?.network).isEqualTo("SOLANA_DEVNET")
     }
 
     @Test
-    fun `모델 밖 이동 종류는 사건을 버리지 않고 대조 키와 금액 없이 원어만 남긴다`() {
-        listOf("Erc721Transfer", "UtxoTransfer", "Trc20Transfer", "HtsTransfer").forEach { assetKind ->
+    fun `문서화된 미지원 이동 종류는 사건을 버리지 않고 대조 키와 금액 없이 원어만 남긴다`() {
+        listOf("Erc721Transfer", "UtxoTransfer", "Trc20Transfer", "HtsTransfer", "Sep41Transfer").forEach { assetKind ->
             val parsed = parser.parse(event(assetKind = assetKind, locator = null).toByteArray())
             assertThat(parsed?.observation?.vendorAssetId).describedAs(assetKind).isNull()
             assertThat(parsed?.observation?.vendorAssetKind).describedAs(assetKind).isEqualTo(assetKind)
             assertThat(parsed?.observation?.amountBaseUnits).describedAs(assetKind).isNull()
         }
+        // 명세에 없는 종류는 미지원으로 받아들이지 않는다 — 어느 변형도 만족하지 않는 본문이다.
+        listOf("FooTransfer", "Erc20", "erc20transfer", "Erc20Transfer ").forEach { assetKind ->
+            assertThatThrownBy { parser.parse(event(assetKind = assetKind).toByteArray()) }
+                .describedAs(assetKind)
+                .isInstanceOf(WebhookPayloadException::class.java)
+                .hasMessageContaining("kind")
+        }
+    }
+
+    @Test
+    fun `모델 대상 변형이 요구하는 필드는 관찰에 담지 않아도 결손을 거절한다`() {
+        listOf(
+            event(from = null) to "from",
+            event(to = null) to "to",
+            event(decimals = null) to "decimals",
+            event(decimals = """"6"""") to "decimals",
+            event(assetKind = "NativeTransfer", locator = null, symbol = null) to "symbol",
+            event(assetKind = "NativeTransfer", locator = null, decimals = null) to "decimals",
+            event(metadata = null) to "metadata",
+            event(metadata = """{"fee":{"symbol":"ETH"}}""") to "metadata.asset",
+        ).forEach { (body, field) ->
+            assertThatThrownBy { parser.parse(body.toByteArray()) }
+                .describedAs(body)
+                .isInstanceOf(WebhookPayloadException::class.java)
+                .hasMessageContaining(field)
+        }
+        // Solana 변형은 명세상 from·to·decimals를 요구하지 않는다.
+        val spl =
+            parser.parse(
+                event(
+                    network = "SolanaDevnet",
+                    assetKind = "SplTransfer",
+                    locatorField = "mint",
+                    locator = MINT,
+                    from = null,
+                    to = null,
+                    symbol = null,
+                    decimals = null,
+                    wallet = """{"id":"$WALLET_ID","network":"SolanaDevnet"}""",
+                ).toByteArray(),
+            )
+        assertThat(spl?.observation?.toAddress).isNull()
+        assertThat(spl?.observation?.amountBaseUnits).isEqualTo("1500000")
     }
 
     @Test
@@ -101,8 +150,9 @@ class DfnsNetworkChainEventParserTest {
                 "data.blockchainEvent",
             event(wallet = null) to "data.wallet",
             event(wallet = """{"id":"wa-other-00000-xxxxxxxxxxxxxxxx"}""") to "data.wallet.id",
-            event(wallet = """{"address":"$WALLET_ADDRESS"}""") to "id",
-            event(network = "EthereumMainnet") to "network",
+            event(wallet = """{"network":"EthereumSepolia","address":"$WALLET_ADDRESS"}""") to "id",
+            event(network = "EthereumMainnet", wallet = """{"id":"$WALLET_ID","network":"EthereumMainnet"}""") to "network",
+            event(wallet = """{"id":"$WALLET_ID","network":"Ethereum"}""") to "data.wallet.network",
         ).forEach { (body, field) ->
             assertThatThrownBy { parser.parse(body.toByteArray()) }
                 .describedAs(body)
@@ -128,8 +178,13 @@ class DfnsNetworkChainEventParserTest {
             event(value = null) to "value",
             // locator 형식이 깨지면 등록과 같은 검사에서 걸러 키를 만들지 않는다.
             event(locator = "0xnot-an-address") to "data.blockchainEvent",
-            event(network = "SolanaDevnet", assetKind = "SplTransfer", locatorField = "mint", locator = "${MINT}2") to
-                "data.blockchainEvent",
+            event(
+                network = "SolanaDevnet",
+                assetKind = "SplTransfer",
+                locatorField = "mint",
+                locator = "${MINT}2",
+                wallet = """{"id":"$WALLET_ID","network":"SolanaDevnet"}""",
+            ) to "data.blockchainEvent",
         ).forEach { (body, field) ->
             assertThatThrownBy { parser.parse(body.toByteArray()) }
                 .describedAs(body)
@@ -185,15 +240,25 @@ class DfnsNetworkChainEventParserTest {
         direction: String? = "In",
         status: String? = "Confirmed",
         value: String? = "1500000",
+        symbol: String? = "USDC",
+        decimals: String? = "6",
+        from: String? = SENDER,
+        to: String? = WALLET_ADDRESS,
         txHash: String? = TX_HASH,
         timestamp: String? = "1758067200",
         blockNumber: String? = "8452119",
+        metadata: String? = """{"asset":{"symbol":"USDC","decimals":6}}""",
         wallet: String? = """{"id":"$WALLET_ID","network":"EthereumSepolia","address":"$WALLET_ADDRESS"}""",
     ): String =
         buildString {
             append("""{"data":{"blockchainEvent":{"network":"$network","direction":""")
             append(if (direction == null) "null" else """"$direction"""")
-            append(""","metadata":{"asset":{"symbol":"USDC","decimals":6}},"from":"$SENDER","to":"$WALLET_ADDRESS","index":"3"""")
+            append(""","index":"3"""")
+            metadata?.let { append(""","metadata":$it""") }
+            from?.let { append(""","from":"$it"""") }
+            to?.let { append(""","to":"$it"""") }
+            symbol?.let { append(""","symbol":"$it"""") }
+            decimals?.let { append(""","decimals":$it""") }
             walletId?.let { append(""","walletId":"$it"""") }
             assetKind?.let { append(""","kind":"$it"""") }
             locator?.let { append(""","$locatorField":"$it"""") }
