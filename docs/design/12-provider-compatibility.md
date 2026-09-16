@@ -422,3 +422,5 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   원문 바이트 검증·secret 순서 대조·재시도 금지·envelope 규칙·판단 워커 미조립·기동 차단 유지는 정합으로 확인됐다.
 - **반영**: 양수 검사를 먼저 하고 감산 없이 `subtractExact/addExact` 상·하한으로 비교한다(0·음수·`Long.MIN_VALUE`·`Long.MIN_VALUE+now`·`Long.MAX_VALUE` 거절 테스트 추가). 테스트 secret·토큰은 실행마다
   `SecureRandom`으로 생성해 소스에 고정값을 두지 않는다. 설계12 기동 계약 절을 "차단 상태에서 구현·조립된 슬라이스"와 "외부 기동 가능 범위"로 나눠 갱신했다. 재실행: client 63 · webhook 16, 실패 0, ktlintCheck 통과.
+- **독립 converge 2차(같은 Codex reviewer 세션, 수정 delta b3fdf58..1d20198, design-sync→code-reviewer 순차)**: 이전 Critical 2·Major 1·Minor 1 해소 확인, 신규 Critical/Major/Minor 없음. 검토 기준 commit은 1d20198이다.
+  실벤더 호출·실제 서명 원문 수용·기동 차단 해제·push는 미수행이다.
