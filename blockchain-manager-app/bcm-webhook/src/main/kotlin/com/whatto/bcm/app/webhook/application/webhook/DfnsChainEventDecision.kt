@@ -11,7 +11,6 @@ import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventType
 import com.whatto.bcm.domain.tx.BlockDepthFinality
 import com.whatto.bcm.domain.tx.ChainHeadPort
-import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.tx.NetworkChainTransactionId
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxStatus
@@ -33,8 +32,8 @@ import java.time.Instant
 /**
  * Dfns 온체인 이동 사건의 입금 판단(계약13). 호출자의 트랜잭션 안에서 원장 전이와 outbox 적재를 함께 수행한다.
  *
- * 확정은 벤더 상태가 아니라 **블록 깊이**로 낸다(CLAUDE.md 3절) — 사건의 `blockNumber`와 체인 head의 깊이를 관찰 컨펌 수로 담아
- * 네트워크 임계와 비교한다. head를 읽지 못하면 예외가 그대로 올라가 확정을 보류하고 인박스가 재시도한다.
+ * 확정은 벤더 상태가 아니라 **블록 깊이**로 낸다(CLAUDE.md 3절) — 사건의 `blockNumber`와 체인 head의 깊이를 관찰 컨펌 수로 담고
+ * 네트워크 임계와의 비교는 [VendorStatusTranslator] 구현이 수행한다. head를 읽지 못하면 예외가 그대로 올라가 확정을 보류하고 인박스가 재시도한다.
  *
  * 입금이 아닌 결과(우리 발신·미지원 자산·미등록 자산·미귀속·정밀도 없음·발신 주소 없음)는 원장을 쓰지 않고 결과로만 돌려준다 —
  * 무엇을 경보로 올리고 무엇을 넘길지는 워커가 정한다. **실행 빈으로 등록하지 않는 내부 대역이며 인박스 연결은 후속이다.**
@@ -43,7 +42,6 @@ class DfnsChainEventDecision(
     private val parser: NetworkChainEventParser,
     private val ledger: NetworkChainLedgerLookup,
     private val chainHeads: ChainHeadPort,
-    private val finalityPolicy: FinalityPolicy,
     private val statusTranslator: VendorStatusTranslator,
     private val txStates: TxStateService,
     private val outboxEvents: OutboxEventService,
@@ -80,6 +78,8 @@ class DfnsChainEventDecision(
         // 02는 입금 이벤트에 발신 주소가 항상 실린다고 확정했고 DAW-CORE의 입금 판별 게이트가 그 값을 쓴다.
         // 명세상 `Native`·`Spl` 변형의 `from`은 선택이라 없을 수 있다 — 없으면 이벤트를 만들지 않고 멈춘다.
         val sender = observation.fromAddress ?: return DfnsChainDecisionOutcome.MissingSender(observation)
+        // 결정적 payload 오류(순번 결손)는 외부 호출 전에 드러낸다 — RPC 장애에 가려 불필요하게 재시도하지 않는다.
+        val transactionId = transactionId(observation)
         val confirmations =
             BlockDepthFinality.confirmationCount(
                 headBlockNumber = chainHeads.headBlockNumber(observation.network),
@@ -93,7 +93,7 @@ class DfnsChainEventDecision(
         val stateChange =
             txStates.observe(
                 TxObservation(
-                    vendorTransactionId = transactionId(observation),
+                    vendorTransactionId = transactionId,
                     // 입금은 우리가 낸 제출이 아니므로 제출 키가 없다(Fireblocks 입금과 같다).
                     externalTransactionId = null,
                     accountId = deposit.accountId,
@@ -112,7 +112,7 @@ class DfnsChainEventDecision(
             )
         val events =
             stateChange.statusesToPublish.map { published ->
-                outboxEvent(notificationId, deposit, observation, sender, baseUnits, decimals, confirmations, published)
+                outboxEvent(notificationId, transactionId, deposit, observation, sender, baseUnits, decimals, confirmations, published)
             }
         outboxEvents.enqueue(events)
         return DfnsChainDecisionOutcome.Processed(observation, status, events)
@@ -120,6 +120,7 @@ class DfnsChainEventDecision(
 
     private fun outboxEvent(
         notificationId: String,
+        transactionId: String,
         deposit: NetworkChainAttributionResult.Deposit,
         observation: NetworkChainTransfer,
         sender: String,
@@ -133,7 +134,7 @@ class DfnsChainEventDecision(
             ChainEvent(
                 eventId = eventId,
                 type = EventType.DEPOSIT,
-                txId = transactionId(observation),
+                txId = transactionId,
                 txHash = observation.transactionHash,
                 externalTxId = null,
                 accountId = deposit.accountId,

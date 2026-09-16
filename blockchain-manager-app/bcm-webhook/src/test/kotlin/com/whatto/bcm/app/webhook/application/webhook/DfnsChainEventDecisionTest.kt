@@ -7,7 +7,6 @@ import com.whatto.bcm.domain.event.EventIdGenerator
 import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventType
 import com.whatto.bcm.domain.tx.ChainHeadPort
-import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStateChange
 import com.whatto.bcm.domain.tx.TxStatus
@@ -42,6 +41,7 @@ class DfnsChainEventDecisionTest {
     private val txStates = mockk<TxStateService>()
     private val outboxEvents = mockk<OutboxEventService>(relaxed = true)
     private val chainHeads = mockk<ChainHeadPort>()
+    private var eventSequence = 1
 
     @Test
     fun `발급 주소 입금은 블록 깊이로 확정을 판정하고 등록 정밀도로 금액을 만든다`() {
@@ -86,6 +86,29 @@ class DfnsChainEventDecisionTest {
 
         assertThat(observed.captured.confirmationCount).isEqualTo(1)
         assertThat(observed.captured.status).isEqualTo(TxStatus.CONFIRMED)
+    }
+
+    @Test
+    fun `앞 단계를 발행하지 않았으면 감지와 확정을 순서대로 같은 트랜잭션에 적재한다`() {
+        // 02의 순서 계약 — 소비 쪽은 "감지 없는 확정"을 다루지 않는다. 원장이 합성한 순서를 그대로 옮긴다.
+        every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
+        every { txStates.observe(any()) } returns
+            TxStateChange(record(), listOf(TxStatus.CONFIRMED, TxStatus.FINALIZED))
+        val enqueued = slot<List<OutboxEvent>>()
+        every { outboxEvents.enqueue(capture(enqueued)) } returns Unit
+
+        decision().decide(NOTIFICATION_ID, PAYLOAD)
+
+        val events = enqueued.captured
+        assertThat(events).hasSize(2)
+        assertThat(events.map { it.eventType }).containsExactly(OutboxEventType.CHECKING, OutboxEventType.CONFIRMED)
+        // 같은 거래의 서로 다른 사건이므로 evnt_id는 달라야 하고 거래 ID는 같아야 한다.
+        assertThat(events.map { it.eventId }).doesNotHaveDuplicates()
+        assertThat(events.map { it.vendorTransactionId }.distinct()).hasSize(1)
+        assertThat(events.map { it.payload }).containsExactly(
+            """{"amount":"1.5","status":"CONFIRMED"}""",
+            """{"amount":"1.5","status":"FINALIZED"}""",
+        )
     }
 
     @Test
@@ -151,12 +174,12 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
-    fun `순번 없는 사건은 거래 ID를 지어내지 않고 실패한다`() {
-        every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
-
+    fun `순번 없는 사건은 외부 호출 전에 거래 ID를 지어내지 않고 실패한다`() {
         assertThatThrownBy { decision(event = event(transfer(eventIndex = null))).decide(NOTIFICATION_ID, PAYLOAD) }
             .isInstanceOf(WebhookPayloadException::class.java)
             .hasMessageContaining("index")
+        // 결정적 payload 오류는 RPC 장애에 가려지지 않는다 — 체인 head를 읽기 전에 드러난다.
+        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
         verify(exactly = 0) { txStates.observe(any()) }
     }
 
@@ -188,11 +211,10 @@ class DfnsChainEventDecisionTest {
                 ) = accountId
             },
         chainHeads = chainHeads,
-        finalityPolicy = FinalityPolicy { 12 },
         statusTranslator = translator,
         txStates = txStates,
         outboxEvents = outboxEvents,
-        eventIdGenerator = EventIdGenerator { "evt-1" },
+        eventIdGenerator = EventIdGenerator { "evt-${eventSequence++}" },
         eventSerializer = ChainEventSerializer { """{"amount":"${it.amount}","status":"${it.status}"}""" },
         clock = Clock.fixed(Instant.parse("2026-09-16T01:02:03Z"), ZoneOffset.UTC),
         outboxMaxAttempts = 5,
