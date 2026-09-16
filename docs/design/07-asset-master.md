@@ -110,13 +110,14 @@ CREATE TABLE bcm_vndr_ast_m (
   tkn_smbl      VARCHAR(16)  NOT NULL,   -- 토큰 심볼 (표시용)
   vndr_ast_id   VARCHAR(128) NOT NULL,  -- 벤더 assetId(Fireblocks) 또는 Dfns 자산 키 — 벤더 호출·대조에만 쓴다 (V25에서 128자)
   cntr_addr     VARCHAR(128) NULL,       -- 등록 때 대조한 컨트랙트 주소 (네이티브는 NULL)
-  dcml_cnt      SMALLINT     NULL,       -- 등록 시점에 확정한 소수 자릿수 (V27, 0~255 CHECK. 정밀도 저장 전 등록 행은 NULL)
+  dcml_cnt      SMALLINT     NULL,       -- 등록 시점에 확정한 소수 자릿수 (V27. 정밀도 저장 전 등록 행은 NULL)
   actv_yn       VARCHAR(1)   NOT NULL,   -- 현재 지원 여부 Y/N
   reg_dttm      VARCHAR(16)  NOT NULL,
   -- 감사 4컬럼
   PRIMARY KEY (ntwk_cd, tkn_smbl),
   UNIQUE (vndr_ast_id),
-  FOREIGN KEY (ntwk_cd) REFERENCES bcm_blkc_m (ntwk_cd)
+  FOREIGN KEY (ntwk_cd) REFERENCES bcm_blkc_m (ntwk_cd),
+  CONSTRAINT ck_bcm_vndr_ast_dcml CHECK (dcml_cnt BETWEEN 0 AND 255)  -- V27
 );
 
 -- 매핑 변경 원장 — 변경 전후 상태를 추가 전용으로 보관한다
