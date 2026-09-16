@@ -26,6 +26,7 @@ class DfnsWebhookSignatureVerifier(
     private val keys: List<ByteArray> = secrets.map { it.toByteArray(StandardCharsets.UTF_8) }
 
     init {
+        // secret 자체는 어디에도 남기지 않는다 — 이 클래스는 로그·예외 메시지에 키 값을 포함하지 않는다.
         require(keys.isNotEmpty() && secrets.all { it.isNotBlank() && it == it.trim() }) { "Dfns webhook secrets must be configured" }
         require(replayToleranceSeconds > 0) { "Dfns webhook replay tolerance must be positive" }
     }
@@ -57,12 +58,17 @@ class DfnsWebhookSignatureVerifier(
             .doFinal(payload)
             .joinToString("") { "%02x".format(it) }
 
+    /** 명세는 `timestampSent`를 양수 Unix 초로 둔다 — 양수 검사를 먼저 하고 감산 없이 상·하한으로 비교해 극단값의 overflow 우회를 막는다. */
     private fun timestampWithinTolerance(payload: ByteArray): Boolean {
         val node = runCatching { objectMapper.readTree(payload) }.getOrNull() ?: return false
         val sent = node.path(TIMESTAMP_FIELD)
         if (!sent.isIntegralNumber || !sent.canConvertToLong()) return false
+        val sentSeconds = sent.asLong()
+        if (sentSeconds <= 0) return false
         val now = clock.instant().epochSecond
-        return kotlin.math.abs(now - sent.asLong()) < replayToleranceSeconds
+        val lower = runCatching { Math.subtractExact(now, replayToleranceSeconds) }.getOrNull() ?: return false
+        val upper = runCatching { Math.addExact(now, replayToleranceSeconds) }.getOrNull() ?: return false
+        return sentSeconds > lower && sentSeconds < upper
     }
 
     companion object {

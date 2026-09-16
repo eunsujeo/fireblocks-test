@@ -71,8 +71,10 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
   수수료·웹훅 복구·거래 대사/회수는 같은 선택된 포트를 사용하고 기존 배치 실행 게이트를 유지한다.
   계정·주소 유스케이스는 `AccountOperations` 경계로 나눠 `fireblocks|local`은 `AccountService`와 `WalletProvisioningConfig`, `dfns`는
   `ConditionalOnDfnsProtocol`의 `DfnsClientConfig`(`bcm.dfns.*`·서명기·지갑 HTTP 어댑터)·`DfnsAccountConfig`·`DfnsAccountService`만 조립한다
-  ([계약13](13-dfns-contracts.md#계정주소-api의-dfns-연결--구현)). Dfns 조립은 이 슬라이스에 한정되며 거래·Sweep·Admin·웹훅은 후속이라
-  API 전체 컨텍스트의 `dfns` 기동 차단은 그대로다.
+  ([계약13](13-dfns-contracts.md#계정주소-api의-dfns-연결--구현)). 기동 차단 상태에서 구현·조립된 Dfns 슬라이스는 계정·주소·잔액,
+  Admin 자산 등록 관문(`DfnsChainAssetResolver`), 웹훅 수신 프로토콜(`DfnsWebhookProtocol`은 모든 앱, HMAC 검증기는 Webhook 앱)이며
+  거래·Sweep·Admin 조회·웹훅 판단 워커는 후속이다. **외부에서 기동 가능한 범위**는 여전히 `fireblocks|local`뿐이고 API·Webhook·BAT 전체 컨텍스트의
+  `dfns` 기동 차단은 그대로다.
 - 선택된 Fireblocks 프로토콜의 API key와 PKCS#8 키(PEM 또는 파일 중 하나)는 기동 시 필수다. 실행 조립부가 키 파싱도 수행한다.
   기존의 자격 없는 부트스트랩은 더 이상 지원하지 않는다. 테스트는 실행 중 생성한 일회성 키를 주입한다.
 - `local`은 API/JWKS 및 설정된 모든 EVM RPC URL을 내부 HTTP(S) 주소로 제한하고 API key marker `bcm-local-stub`를 요구한다.
@@ -415,3 +417,8 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 검증: `DfnsWebhookSignatureVerifierTest` 5(현재/이전 secret·대소문자 hex, 다른 secret·변조·재직렬화 사본 거절, 헤더 형식 7종, timestampSent 결손/형식/경계 ±300, 생성자 요구),
   `DfnsWebhookProtocolTest` 2, `DfnsClientConfigTest` 2(API 조립엔 검증기 없음, 수신 조립은 secret 필수), `DfnsWebhookIngestionTest`(bcm-webhook) 2(실제 검증기·envelope + 공통 컨트롤러/서비스: 200 적재 원문·해시·서명 보존, 헤더 없음/중복/변조/오래된 timestamp 401).
 - 선택 회귀: client(dfns·config) 63 · webhook(Dfns 수신·경계·수신 서비스·ProviderStartup) 16, 실패 0. 변경 모듈 ktlintCheck 통과. 실벤더 호출·실제 서명 원문 수용·기동 차단 해제·push는 미수행이다.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 e78a9e1..b3fdf58, design-sync→code-reviewer 순차)**: Critical 2 — ① `timestampSent` 양수 제약 미구현·`abs(now − sent)`의 Long overflow로 극단 음수값이
+  허용 오차 검사를 우회, ② 테스트에 고정 secret·토큰 문자열(CLAUDE.md 0절 "테스트도 env 참조만"). design-sync Major = ①, Minor 1 — 설계12 기동 계약 절이 Dfns 조립을 계정·주소로만 서술해 신규 웹훅 조립 기록과 충돌.
+  원문 바이트 검증·secret 순서 대조·재시도 금지·envelope 규칙·판단 워커 미조립·기동 차단 유지는 정합으로 확인됐다.
+- **반영**: 양수 검사를 먼저 하고 감산 없이 `subtractExact/addExact` 상·하한으로 비교한다(0·음수·`Long.MIN_VALUE`·`Long.MIN_VALUE+now`·`Long.MAX_VALUE` 거절 테스트 추가). 테스트 secret·토큰은 실행마다
+  `SecureRandom`으로 생성해 소스에 고정값을 두지 않는다. 설계12 기동 계약 절을 "차단 상태에서 구현·조립된 슬라이스"와 "외부 기동 가능 범위"로 나눠 갱신했다. 재실행: client 63 · webhook 16, 실패 0, ktlintCheck 통과.
