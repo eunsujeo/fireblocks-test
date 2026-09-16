@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper
 /**
  * NetworkChainEventParser의 Dfns 구현 — 채택 명세 1.1018.3 `webhooks`의 `wallet.blockchainevent.detected`·
  * `wallet.blockchain_event.transfer.included`와 그 `data.blockchainEvent`(`WalletHistoryEvent`)·`data.wallet`(`Wallet`)이 근거다
- * (계약13 "웹훅 온체인 이동 사건 관찰"). **내부 대역이며 판단 워커·입금 유스케이스에 연결하지 않았다.**
+ * (계약13 "웹훅 온체인 이동 사건 관찰"). `dfns`에서 조립되어 입금 판단이 소비한다.
  *
  * - 두 종류가 아니면 null이다. 두 종류인데 형식이 다르면 예외로 올린다 — 입금 신호를 "해석 불가"로 조용히 버리지 않는다.
  * - `data.wallet.id`는 사건의 `walletId`와 같아야 한다. 두 값이 어긋난 본문은 어느 지갑의 이동인지 증명하지 못한다.

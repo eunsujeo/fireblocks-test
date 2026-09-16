@@ -46,25 +46,27 @@ class DfnsWebhookDecisionTransactionTest {
         val outcome = transaction().processNext()
 
         assertThat(outcome).isEqualTo(WebhookDecisionOutcome.Processed(NOTIFICATION_ID, 0))
-        // 벤더 종결 표식은 이동 상태 `Confirmed`다 — BCM 확정(블록 깊이)과는 별개의 보관·조회용 값이다.
-        assertThat(completed.captured).isTrue()
+        // `vndr_cmpl_yn`은 03이 Fireblocks 원본 보관용으로 정의한 표식이다 — Dfns 보관 경로가 없어 남기지 않는다.
+        assertThat(completed.captured).isFalse()
     }
 
     @Test
-    fun `벤더가 아직 확인하지 않은 이동은 종결 표식을 남기지 않는다`() {
-        every { inbox.findNextPendingForUpdate() } returns inboxItem()
-        every { decision.decide(any(), any()) } returns
-            DfnsChainDecisionOutcome.Processed(
-                transfer(status = NetworkChainTransferStatus.INCLUDED),
-                com.whatto.bcm.domain.tx.TxStatus.CONFIRMED,
-                emptyList(),
-            )
-        val completed = slot<Boolean>()
-        every { inbox.markProcessed(NOTIFICATION_ID, any(), capture(completed)) } returns Unit
+    fun `벤더 확인 여부와 무관하게 Fireblocks 보관 표식은 남기지 않는다`() {
+        listOf(NetworkChainTransferStatus.CONFIRMED, NetworkChainTransferStatus.INCLUDED).forEach { status ->
+            every { inbox.findNextPendingForUpdate() } returns inboxItem()
+            every { decision.decide(any(), any()) } returns
+                DfnsChainDecisionOutcome.Processed(
+                    transfer(status = status),
+                    com.whatto.bcm.domain.tx.TxStatus.CONFIRMED,
+                    emptyList(),
+                )
+            val completed = slot<Boolean>()
+            every { inbox.markProcessed(NOTIFICATION_ID, any(), capture(completed)) } returns Unit
 
-        transaction().processNext()
+            transaction().processNext()
 
-        assertThat(completed.captured).isFalse()
+            assertThat(completed.captured).describedAs(status.name).isFalse()
+        }
     }
 
     @Test

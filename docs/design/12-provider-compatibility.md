@@ -107,7 +107,7 @@ Service는 서명 검증→선택된 protocol의 envelope 파싱→동일 byte[]
 Fireblocks/로컬에서만 조립된다. 기존 parser·RS512 검증·worker·outbox·DB/공개 API 계약을 유지한다.
 판단 트랜잭션은 `WebhookDecisionWork` 경계로 추상화해 제공자마다 하나만 조립한다 — 기존 `WebhookDecisionTransaction`은 `fireblocks`·`local`,
 `DfnsWebhookDecisionTransaction`은 `dfns`에서만 만들고 워커·경보 처리는 경계 뒤의 벤더 어휘를 모른다([계약13](13-dfns-contracts.md#판단-워커-조립--구현)).
-Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립하며(검증기는 Webhook 앱 한정), 판단 워커·이력 복구는 후속이다.
+Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립한다(검증기는 Webhook 앱 한정). **입금 판단 워커는 조립됐고** 출금·발신 판단과 이력 복구가 후속이다.
 전송 사건(`wallet.transfer.*`)의 해석은 `WebhookTransactionParser`와 별개인 `NetworkTransferEventParser`로, 온체인 이동 사건
 (`wallet.blockchainevent.detected`·`wallet.blockchain_event.transfer.included`)은 `NetworkChainEventParser`로 두었다 — 둘 다 벤더 관찰을 그대로 담고
 업무 상태 번역·논리 사건 연결은 판단 워커의 몫이다. 알림 메타(`WebhookEnvelopeBase`)는 domain `VendorWebhookDelivery`로 공통이다.
@@ -672,10 +672,11 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - `ConfiguredFinalityPolicy`를 `infra/client/fireblocks`에서 제공자 중립 위치(`infra/client/config`)로 옮기고 조건을 제거했다 —
   `bcm.finality-confirmations.<network>`는 두 제공자가 같은 설정을 쓴다(Fireblocks는 벤더 컨펌 수, Dfns는 블록 깊이와 비교).
 - 상태 번역기·체인 head는 판단 경로에서만 필요하므로 Webhook 앱에서만 만든다(API/BAT 컨텍스트는 그대로). 사건 해석기는 envelope 해석과 같이 `DfnsClientConfig`에 둔다.
-- 인박스 상태 규율은 Fireblocks와 같다 — 판단 완료는 처리 완료, 미귀속은 경보 후 처리 완료, payload 결함은 재시도/격리, 확정 임계 설정 오류는 `P`로 남긴다.
+- 인박스 상태 규율은 Fireblocks와 같다 — 판단 완료·미귀속(경보 후)은 처리 완료, payload 결함은 재시도/격리, 확정 임계 설정 오류는 `P`로 남긴다.
+  다만 `vndr_cmpl_yn`은 남기지 않는다 — 03이 Fireblocks `data.status=COMPLETED`와 원본 보관 색인을 위해 정의한 표식이고, Dfns 온체인 사건은 인박스 `vndr_tx_id`가 null이라 그 색인 대상이 아니다.
 - **입금만 판단한다** — 전송 알림·발신 이동·미지원/미등록 자산·정밀도 없음·발신 주소 없음은 원장을 쓰지 않고 처리 완료로만 남긴다.
   제출 원장 대조 경로가 없어 출금 판단이 불가능하므로 **기동 차단 해제 조건에 "출금·발신 판단 구현"이 함께 걸린다**.
-- 검증: `DfnsWebhookDecisionTransactionTest` 8(대기 없음, 입금 완료와 벤더 종결 표식 유무, 미귀속 경보의 우리 어휘·hash, 미판단 계열 6종의 처리 완료,
+- 검증: `DfnsWebhookDecisionTransactionTest` 8(대기 없음, 입금 완료와 보관 표식 미기록, 벤더 확인 여부와 무관한 표식 미기록, 미귀속 경보의 우리 어휘·hash, 미판단 계열 6종의 처리 완료,
   payload 결함의 재시도·격리, 설정 오류의 P 유지와 충돌·일반 오류 감싸기, 예기치 못한 실패 기록),
   `WebhookDecisionAssemblyTest` 2(dfns에서 Dfns 경계·번역기·head·원장 조회 조립, fireblocks·local에서 Dfns 빈 0).
 - 전체 회귀: 11개 모듈 **1,286건, 실패 0**. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. `BCM_PROVIDER=dfns` 기동 차단은 유지된다.

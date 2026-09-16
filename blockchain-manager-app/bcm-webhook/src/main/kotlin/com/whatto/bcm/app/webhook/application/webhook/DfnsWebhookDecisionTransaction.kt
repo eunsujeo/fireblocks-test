@@ -3,7 +3,6 @@ package com.whatto.bcm.app.webhook.application.webhook
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.tx.FinalityPolicyConfigurationException
-import com.whatto.bcm.domain.vendor.NetworkChainTransferStatus
 import com.whatto.bcm.domain.webhook.UnattributedDepositAlert
 import com.whatto.bcm.domain.webhook.WebhookFailureResult
 import com.whatto.bcm.domain.webhook.WebhookInboxItem
@@ -60,7 +59,7 @@ class DfnsWebhookDecisionTransaction(
     private fun process(inboxItem: WebhookInboxItem): WebhookDecisionOutcome =
         when (val outcome = decision.decide(inboxItem.notificationId, inboxItem.payload.toByteArray())) {
             is DfnsChainDecisionOutcome.Processed -> {
-                markProcessed(inboxItem, outcome.observation.status)
+                markProcessed(inboxItem)
                 WebhookDecisionOutcome.Processed(inboxItem.notificationId, outcome.events.size)
             }
 
@@ -98,16 +97,14 @@ class DfnsWebhookDecisionTransaction(
             WebhookDecisionOutcome.Retrying(notificationId, retryCount)
         }
 
-    /** 벤더 종결 표식은 이동 상태 `Confirmed`다 — BCM 확정(블록 깊이)과는 별개의 보관·조회용 표식이다(03). */
-    private fun markProcessed(
-        inboxItem: WebhookInboxItem,
-        status: NetworkChainTransferStatus? = null,
-    ) {
-        inboxRepository.markProcessed(
-            inboxItem.notificationId,
-            CoreDateTimes.now(clock),
-            vendorCompleted = status == NetworkChainTransferStatus.CONFIRMED,
-        )
+    /**
+     * `vndr_cmpl_yn`은 **남기지 않는다**(항상 `N`). 03이 정의한 이 표식은 Fireblocks `data.status=COMPLETED`이며
+     * 원본 보관(`bcm_raw_tx_l`)의 보관·미보관 메트릭과 `vndr_tx_id` 부분 index를 위한 값이다. Dfns 온체인 사건은
+     * 인박스 `vndr_tx_id`가 null이라 그 index의 대상이 아니고 Dfns 원본 보관 경로도 아직 없다 —
+     * 의미 없는 표식을 남기지 않는다. Dfns 보관 계약은 후속이다(계약13).
+     */
+    private fun markProcessed(inboxItem: WebhookInboxItem) {
+        inboxRepository.markProcessed(inboxItem.notificationId, CoreDateTimes.now(clock), vendorCompleted = false)
     }
 
     private companion object {

@@ -36,7 +36,7 @@ import java.time.Instant
  * 네트워크 임계와의 비교는 [VendorStatusTranslator] 구현이 수행한다. head를 읽지 못하면 예외가 그대로 올라가 확정을 보류하고 인박스가 재시도한다.
  *
  * 입금이 아닌 결과(우리 발신·미지원 자산·미등록 자산·미귀속·정밀도 없음·발신 주소 없음)는 원장을 쓰지 않고 결과로만 돌려준다 —
- * 무엇을 경보로 올리고 무엇을 넘길지는 워커가 정한다. **실행 빈으로 등록하지 않는 내부 대역이며 인박스 연결은 후속이다.**
+ * 무엇을 경보로 올리고 무엇을 넘길지는 워커가 정한다. `dfns`에서 조립되어 `DfnsWebhookDecisionTransaction`이 호출한다.
  */
 class DfnsChainEventDecision(
     private val parser: NetworkChainEventParser,

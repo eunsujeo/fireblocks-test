@@ -9,7 +9,7 @@ import java.math.BigInteger
  * 위탁 RPC endpoint는 `bcm.evm-rpc.networks.<network>.url`을 그대로 쓴다.
  *
  * 실패(미설정 네트워크·RPC 오류·결손·형식 오류)는 감추지 않고 예외로 올린다 — head를 모르는 동안 확정을 내지 않되,
- * 모름을 "아직 미확정"으로 바꾸지도 않는다. 판단 경로가 재시도로 회수한다. **내부 대역이며 실행 빈으로 등록하지 않았다.**
+ * 모름을 "아직 미확정"으로 바꾸지도 않는다. 판단 경로가 재시도로 회수한다. Webhook 앱의 `dfns` 조립에서만 만든다.
  */
 class EvmChainHeadClient(
     builder: RestClient.Builder,
