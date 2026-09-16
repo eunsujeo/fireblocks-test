@@ -33,7 +33,7 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
 | `VendorAssetCatalogPort` | 후보 수집과 채택 자산의 분리 | 벤더 네트워크/자산 ID·페이지·정밀도·온체인 주소 대조 |
 | `VendorStatusTranslator` | 원시 관찰→업무 상태와 종결 대사 범위 | 실제 상태 의미. confirmationCount 중심 계약은 멀티체인 확장 전에 타입 분리. Dfns는 `DfnsStatusTranslator`가 전송 여섯·이동 둘의 원어를 번역하고 컨펌 수 자리에 블록 깊이를 받는다(계약13) |
 | `FinalityPolicy`·`ChainHeadPort` | 네트워크별 확정 임계와 확정 판정의 입력 | Fireblocks는 벤더 `numOfConfirmations`를 임계와 비교한다. Dfns는 컨펌 수를 받지 못해 `blockNumber`와 체인 head의 깊이를 직접 계산한다(CLAUDE.md 3절·계약13) |
-| `WebhookProtocol`·`WebhookSignatureVerifier`·`WebhookTransactionParser` | 원문 바이트 검증·파싱·인박스/논리 사건 연결 | 수신 헤더/envelope는 WebhookProtocol로 분리. 키 조회·payload/재전달 ID·논리 사건 대응은 벤더별 책임. Dfns 전송 사건은 `NetworkTransferEventParser`, 온체인 이동(입금) 사건은 `NetworkChainEventParser`로 분리했다(계약13) |
+| `WebhookProtocol`·`WebhookSignatureVerifier`·`WebhookTransactionParser` | 원문 바이트 검증·파싱·인박스/논리 사건 연결 | 수신 헤더/envelope는 WebhookProtocol로 분리. 키 조회·payload/재전달 ID·논리 사건 대응은 벤더별 책임. Dfns 전송 사건은 `NetworkTransferEventParser`, 온체인 이동(입금) 사건은 `NetworkChainEventParser`로 분리했고 귀속은 도메인 순수 판정 `NetworkChainAttribution`이 맡는다(계약13) |
 | `VendorNetworkFeePort` | 견적·원금/수수료 단위 구분 | 체인/계정별 견적·대납/실비. 현행 fee 필드를 Dfns 결과에 임의로 채우지 않음 |
 | `VendorWebhookRecoveryPort` | 구독 상태·복구 실행/감사 | 재전송과 이력 재처리의 실제 수행 구분. 미지원 API의 가짜 성공 금지 |
 | `VendorExecutionLimits` | 단일 호출/전체 제출 흐름의 최장 시간 | 재시도·백오프·응답 불명 회수까지 포함한 양수 상한 산정 |
@@ -564,3 +564,17 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **반영**: 온체인 관찰 둘(`Included`·`Confirmed`)에 **같은 깊이 판정**을 적용한다 — 벤더의 확인 표기는 확정의 근거도 추가 관문도 아니다. 계약13 상태 번역 표·설계12·PLAN·KDoc을
   같은 문구로 고치고, 두 원어의 임계 경계와 `Included`+충분한 깊이 → `FINALIZED`를 테스트에 넣었다. 재실행: domain 130 · client 167, 실패 0, 전체 ktlintCheck 통과.
 - **독립 converge 2차(Codex, 범위 134f1e3..3ef3012, design-sync→code-reviewer 순차)**: 이전 Major 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 3ef3012).
+
+## Dfns 온체인 이동 귀속 판정 검증 (2026-09-16)
+
+- 계약은 [계약13](13-dfns-contracts.md#온체인-이동의-귀속--구현)에 고정했다. 02의 웹훅 계열 분류(우리 발신은 제출 원장, 입금은 주소)와 09의 주소 매핑을 그대로 쓴다.
+- 도메인 순수 판정 `NetworkChainAttribution`과 조회 포트 `NetworkChainLedgerLookup`(`assetOf`·`accountOfDepositAddress`)을 추가했다.
+  저장·발행·상태 번역을 하지 않고 업무 대상만 가른다 — 상태 번역은 `DfnsStatusTranslator`, 발행은 판단 워커의 몫이다.
+- 판정 순서: 발신(`Outgoing`) → 미지원 이동 종류(`UnsupportedAsset`) → 미등록 자산(`UnmappedAsset`) → 매핑 network 어긋남(중단) →
+  목적지 없음/발급 주소 아님(`Unattributed`) → 관리 입금(`Deposit`). 주소 조회는 **등록 매핑의 network·symbol**로 한다.
+- **미지원·미등록·미귀속을 예외가 아니라 결과로 가른다** — Fireblocks 경로는 미등록 자산을 원문 결함으로 거절하지만, Dfns 조직 지갑은 등록하지 않은 토큰도 받으므로
+  수신 실패가 아니라 운영이 판단할 신호다. 등록 매핑과 관찰의 network가 어긋나는 것만 데이터 결함으로 중단한다.
+- 귀속은 발급 주소(`bcm_addr_m`) 대조로만 한다. 지갑 ID → 계정의 역방향 조회는 저장 계약이 없어 두지 않았다. Solana SPL의 `to`가 ATA면 `UNKNOWN_ADDRESS`가 되며 이는 수용 항목이다.
+- **조립하지 않는다** — 판단 워커·경보·논리 사건/outbox·제출 원장 대조는 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다. Fireblocks 귀속 경로는 바뀌지 않았다.
+- 검증: `NetworkChainAttributionTest` 6(관리 입금, 발신 우선 판정, 미지원·미등록 자산, 목적지 없음·미등록 주소, 매핑 network 어긋남 중단, 주소 조회 인자).
+- 선택 회귀: domain 136, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
