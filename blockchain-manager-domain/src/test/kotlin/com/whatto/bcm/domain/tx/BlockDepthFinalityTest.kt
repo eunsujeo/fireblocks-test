@@ -38,6 +38,17 @@ class BlockDepthFinalityTest {
     }
 
     @Test
+    fun `관찰값의 컨펌 수는 Int 상한을 넘지 않게 줄인다`() {
+        assertThat(BlockDepthFinality.confirmationCount(headBlockNumber = 112, blockNumber = 100)).isEqualTo(13)
+        assertThat(BlockDepthFinality.confirmationCount(headBlockNumber = 99, blockNumber = 100)).isEqualTo(0)
+        // 상한을 넘는 깊이는 어떤 임계보다도 크므로 상한으로 줄여도 확정 판정이 달라지지 않는다.
+        assertThat(BlockDepthFinality.confirmationCount(headBlockNumber = Long.MAX_VALUE, blockNumber = 1))
+            .isEqualTo(Int.MAX_VALUE)
+        assertThat(BlockDepthFinality.confirmationCount(headBlockNumber = Int.MAX_VALUE.toLong(), blockNumber = 1))
+            .isEqualTo(Int.MAX_VALUE)
+    }
+
+    @Test
     fun `음수 블록과 0 이하 임계는 판정 입력으로 받지 않는다`() {
         listOf<Pair<String, () -> Any>>(
             "headBlockNumber" to { BlockDepthFinality.confirmations(headBlockNumber = -1, blockNumber = 0) },
