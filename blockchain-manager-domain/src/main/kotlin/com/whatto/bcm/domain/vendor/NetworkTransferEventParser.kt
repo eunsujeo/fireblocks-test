@@ -1,5 +1,7 @@
 package com.whatto.bcm.domain.vendor
 
+import com.whatto.bcm.domain.webhook.VendorWebhookDelivery
+
 /**
  * 서명 검증을 통과한 벤더 웹훅 원문에서 **네트워크 전송 사건만** 읽어내는 출력 포트(계약13 "웹훅 전송 사건 관찰").
  *
@@ -16,24 +18,10 @@ fun interface NetworkTransferEventParser {
  * 업무 판단은 알림 ID가 아니라 전송 ID와 관찰한 상태로 한다.
  */
 data class NetworkTransferEvent(
-    /** 알림 ID. 인박스 dedup 키이며 논리 사건 ID가 아니다. */
-    val notificationId: String,
+    val delivery: VendorWebhookDelivery,
     val kind: NetworkTransferEventKind,
-    /** 사건 발생 시각 — 벤더가 UTC ISO 8601로 정의한 원문 값. */
-    val occurredAt: String,
-    /** 전달 시도 번호 — 벤더가 필수·1 이상으로 정의한다. */
-    val deliveryAttempt: Int,
-    /** 재전달이면 원본 알림 ID. */
-    val retryOfNotificationId: String?,
     val observation: NetworkTransferObservation,
-) {
-    init {
-        require(notificationId.isNotBlank()) { "notificationId must not be blank" }
-        require(occurredAt.isNotBlank()) { "occurredAt must not be blank" }
-        require(deliveryAttempt >= 1) { "deliveryAttempt must be positive" }
-        require(retryOfNotificationId == null || retryOfNotificationId.isNotBlank()) { "retryOfNotificationId must not be blank" }
-    }
-}
+)
 
 /**
  * 모델링한 전송 알림 종류 — 벤더가 문서화한 `wallet.transfer.*` 다섯이다(계약13).

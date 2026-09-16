@@ -28,6 +28,19 @@ internal object DfnsAssetKeys {
 
     fun isModeled(kind: String): Boolean = kind == NATIVE_KIND || kind == ERC20_KIND || kind in SPL_KINDS
 
+    /**
+     * 이력 사건(`WalletHistoryEvent`)의 이동 종류 → 자산 kind. 두 이름이 다르므로(`Erc20Transfer` vs `Erc20`) 목록으로 고정하고 접미사를 잘라 추정하지 않는다.
+     * 모델링하지 않은 이동 종류(NFT·UTXO·다른 체인 표준 등)는 null이다 — 등록할 수 있는 자산이 아니므로 대조 키를 만들지 않는다.
+     */
+    fun assetKindOfHistoryEvent(historyEventKind: String): String? =
+        when (historyEventKind) {
+            "NativeTransfer" -> NATIVE_KIND
+            "Erc20Transfer" -> ERC20_KIND
+            "SplTransfer" -> SPL_KIND
+            "Spl2022Transfer" -> SPL_2022_KIND
+            else -> null
+        }
+
     fun native(vendorNetwork: String): String = "${requireNetwork(vendorNetwork)}:$NATIVE_KIND"
 
     fun erc20(

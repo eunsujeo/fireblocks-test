@@ -32,7 +32,7 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
 | `VendorContractCallPort` | 집금 호출 의도·접수/조회 결과 | 승인·대납·최종 서명 내용·방송 경로·수신 증적 |
 | `VendorAssetCatalogPort` | 후보 수집과 채택 자산의 분리 | 벤더 네트워크/자산 ID·페이지·정밀도·온체인 주소 대조 |
 | `VendorStatusTranslator` | 원시 관찰→업무 상태와 종결 대사 범위 | 실제 상태 의미. confirmationCount 중심 계약은 멀티체인 확장 전에 타입 분리 |
-| `WebhookProtocol`·`WebhookSignatureVerifier`·`WebhookTransactionParser` | 원문 바이트 검증·파싱·인박스/논리 사건 연결 | 수신 헤더/envelope는 WebhookProtocol로 분리. 키 조회·payload/재전달 ID·논리 사건 대응은 벤더별 책임. Dfns 전송 사건은 `NetworkTransferEventParser`로 분리했다(계약13) |
+| `WebhookProtocol`·`WebhookSignatureVerifier`·`WebhookTransactionParser` | 원문 바이트 검증·파싱·인박스/논리 사건 연결 | 수신 헤더/envelope는 WebhookProtocol로 분리. 키 조회·payload/재전달 ID·논리 사건 대응은 벤더별 책임. Dfns 전송 사건은 `NetworkTransferEventParser`, 온체인 이동(입금) 사건은 `NetworkChainEventParser`로 분리했다(계약13) |
 | `VendorNetworkFeePort` | 견적·원금/수수료 단위 구분 | 체인/계정별 견적·대납/실비. 현행 fee 필드를 Dfns 결과에 임의로 채우지 않음 |
 | `VendorWebhookRecoveryPort` | 구독 상태·복구 실행/감사 | 재전송과 이력 재처리의 실제 수행 구분. 미지원 API의 가짜 성공 금지 |
 | `VendorExecutionLimits` | 단일 호출/전체 제출 흐름의 최장 시간 | 재시도·백오프·응답 불명 회수까지 포함한 양수 상한 산정 |
@@ -105,8 +105,10 @@ Service는 서명 검증→선택된 protocol의 envelope 파싱→동일 byte[]
 `FireblocksWebhookProtocol`은 기존 `id`/`eventType`/`data.id` 해석을 infra/client로 옮긴 구현이며,
 Fireblocks/로컬에서만 조립된다. 기존 parser·RS512 검증·worker·outbox·DB/공개 API 계약을 유지한다.
 Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립하며(검증기는 Webhook 앱 한정), 판단 워커·이력 복구는 후속이다.
-전송 사건(`wallet.transfer.*`)의 해석은 `WebhookTransactionParser`와 별개인 `NetworkTransferEventParser`로 두었다 — 벤더 전송 관찰을 그대로 담고
-업무 상태 번역·논리 사건 연결은 판단 워커의 몫이다. 계약과 한계는 [계약13](13-dfns-contracts.md#웹훅-전송-사건-관찰--구현)에 있다.
+전송 사건(`wallet.transfer.*`)의 해석은 `WebhookTransactionParser`와 별개인 `NetworkTransferEventParser`로, 온체인 이동 사건
+(`wallet.blockchainevent.detected`·`wallet.blockchain_event.transfer.included`)은 `NetworkChainEventParser`로 두었다 — 둘 다 벤더 관찰을 그대로 담고
+업무 상태 번역·논리 사건 연결은 판단 워커의 몫이다. 알림 메타(`WebhookEnvelopeBase`)는 domain `VendorWebhookDelivery`로 공통이다.
+계약과 한계는 [계약13](13-dfns-contracts.md#웹훅-전송-사건-관찰--구현)과 [온체인 이동](13-dfns-contracts.md#웹훅-온체인-이동-사건-관찰--구현)에 있다.
 
 ## 저장·API 변경 선행 조건
 
@@ -488,3 +490,21 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `Int?`→`Int`로 되돌리고 파서가 결손·비정수·0 이하를 거절하며, 알림 ID는 `whe-…` 형식을, `retryOf`는 있으면 같은 형식을 요구한다(빈 값을 결손으로 축소하지 않는다).
   `timestampSent`를 파서가 재검사하지 않는 이유(서명 검증기가 이미 필수 검사)를 계약13·설계12·KDoc에 적었다. 재실행: domain 122 · client 147 · webhook 75, 실패 0, 전체 ktlintCheck 통과.
 - **독립 converge 2차(Codex, 범위 37e2dec..3b5af8a, design-sync→code-reviewer 순차)**: 이전 Major 2건 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 3b5af8a).
+
+## Dfns 웹훅 온체인 이동 사건 관찰 검증 (2026-09-16)
+
+- 계약은 [계약13](13-dfns-contracts.md#웹훅-온체인-이동-사건-관찰--구현)에 먼저 고정했다. 근거는 채택 명세 1.1018.3 `webhooks`의 `wallet.blockchainevent.detected`·
+  `wallet.blockchain_event.transfer.included`와 `WalletHistoryEvent`·`Wallet`이다.
+- 도메인: 출력 포트 `NetworkChainEventParser`와 `NetworkChainEvent`·`NetworkChainEventKind`(지갑 대상 둘)·`NetworkChainTransfer`·`NetworkChainDirection`(In/Out)·
+  `NetworkChainTransferStatus`(Included/Confirmed)를 추가했다. 알림 메타는 전송 사건과 공통인 `VendorWebhookDelivery`로 뽑아 두 사건이 같은 값을 쓴다.
+- 어댑터: `DfnsNetworkChainEventParser`가 이동 종류(`Erc20Transfer` 등)를 **목록으로** 자산 kind에 대응시켜 등록·잔액·전송과 같은 키 규칙으로 `vendorAssetId`를 만든다.
+  모델 밖 이동 종류는 키와 금액을 만들지 않고 원어만 남긴 채 **사건은 보존**한다 — 등록할 수 없는 자산이라도 이동 사실을 버리지 않는다.
+  `data.wallet.id`가 사건의 `walletId`와 같아야 하고, 설정 밖 네트워크·필수 필드 결손·형식 오류는 `WebhookPayloadException`으로 거절한다.
+- 판단하지 않는 것: `Confirmed`를 BCM 확정으로 번역하지 않고, 종류와 상태가 고정 대응한다고 보지 않으며, 정밀도·심볼은 관찰값에 담지 않는다(등록 매핑에서 읽는다).
+  `timestamp`는 형식 서술이 없어 파싱하지 않고 원문 그대로 둔다. `value`의 최소 단위 해석은 BCM 규칙이며 수용 항목이다.
+- **조립하지 않는다** — 파서는 실행 빈으로 등록하지 않는 내부 대역이다. 입금 귀속(`bcm_addr_m` 대조)·논리 사건/outbox·미등록 자산 입금 경보·감시 주소 기능·
+  `WebhookTransactionParser`/`VendorStatusTranslator`의 Dfns 구현·판단 워커 조립은 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다.
+- 검증: `NetworkChainEventContractTest` 3(지갑 대상 두 종류와 유사 종류 4종 거절·방향/상태 원어 대응, 모델 밖 종류의 키·금액 없음, 금액 형식 5종과 음수 블록·빈 식별자 7종),
+  `DfnsNetworkChainEventParserTest` 9(토큰 입금 해석, 두 종류와 상태 독립, 네이티브/Solana mint 키, 모델 밖 종류 4종 보존, 이동 아닌 종류 4종 null,
+  본문·지갑 결손과 지갑 ID 불일치·설정 밖 네트워크 5종, 필수 필드·형식 오류 14종, 값 범위 3종과 알림 메타 4종, 비JSON 4종).
+- 선택 회귀: domain 125 · client 156 · webhook 75, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.

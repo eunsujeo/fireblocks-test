@@ -63,6 +63,9 @@ data class DfnsProperties(
         require(webhookReplayToleranceSeconds >= 1) { "webhookReplayToleranceSeconds must be positive" }
     }
 
+    /** 명세 `network` 값 → BCM 네트워크 코드. 값 중복을 금지하므로 역방향이 유일하다. 수신 사건처럼 network만 아는 경로가 쓴다. */
+    fun bcmNetworks(): Map<String, String> = networks.entries.associate { (bcmNetwork, vendorNetwork) -> vendorNetwork to bcmNetwork }
+
     /** Webhook 수신 앱에서만 요구한다 — API/BAT 조립은 웹훅 secret 없이 가능하다. */
     fun requireWebhookSecrets(): List<String> {
         check(webhookSecrets.isNotEmpty()) { "bcm.dfns.webhook-secrets is required for webhook ingestion" }

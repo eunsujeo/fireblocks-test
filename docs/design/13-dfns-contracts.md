@@ -195,17 +195,41 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 항목 | 명세로 확인한 사실 | BCM 규칙 |
 |---|---|---|
 | 사건 종류 | `webhooks` 항목과 `WebhookEventKind` enum은 지갑·서명·거래·전송·입금 감지·정책 등 24종을 둔다. 전송은 `wallet.transfer.{requested,broadcasted,confirmed,failed,rejected}` 다섯이고 각 설명은 "요청 생성/mempool 기록/온체인 확인/처리 실패/정책 거절"이다 | 이 다섯만 `NetworkTransferEventKind`로 옮긴다. 전송이 아닌 종류는 이 포트의 관심 밖(null)이며, 특히 `wallet.transaction.*`(임의 트랜잭션)과 `wallet.blockchainevent.*`(입금 감지)를 전송으로 합치지 않는다 — 각각 별도 계약이 필요하다 |
-| 알림 메타 | `WebhookEnvelopeBase`: 필수 `id`(`^whe-…$`)·`date`(UTC ISO 8601)·`timestampSent`·`deliveryAttempt`(정수 ≥1), 선택 `retryOf`(원본 알림 ID, 같은 형식·`minLength 1`) | 명세가 필수로 둔 것은 **모두 필수로 받는다** — `id`는 형식까지 검사하고, `date`는 UTC가 아니거나 형식이 다르면 거절하며, `deliveryAttempt`는 결손·비정수·0 이하를 거절한다(기본값 1을 지어내지 않는다). `retryOf`는 선택이지만 **있으면** 같은 형식이어야 하고 빈 값을 결손으로 축소하지 않는다. `timestampSent`는 앞선 서명 검증이 이미 필수로 검사하므로 여기서 다시 보지 않는다 |
+| 알림 메타(모든 종류 공통) | `WebhookEnvelopeBase`: 필수 `id`(`^whe-…$`)·`date`(UTC ISO 8601)·`timestampSent`·`deliveryAttempt`(정수 ≥1), 선택 `retryOf`(원본 알림 ID, 같은 형식·`minLength 1`) | 명세가 필수로 둔 것은 **모두 필수로 받는다** — `id`는 형식까지 검사하고, `date`는 UTC가 아니거나 형식이 다르면 거절하며, `deliveryAttempt`는 결손·비정수·0 이하를 거절한다(기본값 1을 지어내지 않는다). `retryOf`는 선택이지만 **있으면** 같은 형식이어야 하고 빈 값을 결손으로 축소하지 않는다. `timestampSent`는 앞선 서명 검증이 이미 필수로 검사하므로 여기서 다시 보지 않는다 |
 | 전송 정보 | 전송 다섯 종류의 `data.transferRequest`는 조회 응답과 **같은 `TransferRequest`**다 | 조회와 같은 검사를 같은 코드로 적용한다 — `id` 형식(`^xfr-…$`)·`walletId`·`network`·`requester.userId`·`metadata`·`requestBody`의 `kind`/locator/`to`/`amount`·`status`·UTC `dateRequested`. 자산 키는 등록과 같은 규칙(EVM 주소 형식·Solana base58 32바이트)으로 만든다. 웹훅은 우리가 부른 응답이 아니므로 대조할 기대 지갑이 없다 — `walletId`는 사건이 알려준 값을 그대로 담고 업무 소유 판정은 판단 워커의 몫이다 |
 | 상태의 출처 | 사건 종류와 `transferRequest.status`가 항상 짝을 이룬다는 서술은 **없다** | 업무 상태는 **종류가 아니라 `status`에서** 읽는다. 종류를 상태로 번역하지 않으며 `Confirmed`를 BCM `FINALIZED`로 옮기지 않는다(`TxStatus` 번역은 판단 워커와 함께 정한다) |
 | 네트워크 | `transferRequest.network`는 명세 `Network` enum 값이다 | `bcm.dfns.networks`(BCM 코드 → 명세 값, 값 중복 금지)의 **역방향**으로 BCM 코드를 되찾는다. 매핑에 없는 네트워크의 전송 사건은 해석할 수 없으므로 **거절**한다 — 조용히 넘기면 관리 대상 이동을 놓친다 |
 | 해석 실패 | — | 전송 종류인데 `data.transferRequest`가 없거나 형식이 다르면 `WebhookPayloadException`으로 올린다. 자금 이동 신호를 "해석 불가"로 축소하지 않는다. 메시지에는 필드 이름만 담고 원문 값은 담지 않는다(원문 증적은 인박스) |
 | 수용 경계 | — | envelope 해석(`DfnsWebhookProtocol`)은 전송 종류에서 `data.transferRequest.id`가 명세 형식일 때만 `vendorTransactionId`를 채우고 **어긋나도 거절하지 않는다** — 인박스 수용(원문 보관)을 막지 않고 엄격한 해석은 판단 시점의 파서가 맡는다 |
-| 범위 밖 | — | 입금 감지(`wallet.blockchainevent.detected`·`wallet.blockchain_event.transfer.included`의 `WalletHistoryEvent`)·`wallet.transaction.*`·정책/지갑 사건, `WebhookTransactionParser`·`VendorStatusTranslator`의 Dfns 구현, 재전달 dedup과 이력 복구, 판단 워커 조립 |
+| 범위 밖 | — | `wallet.transaction.*`·정책/지갑 사건, `WebhookTransactionParser`·`VendorStatusTranslator`의 Dfns 구현, 재전달 dedup과 이력 복구, 판단 워커 조립. 입금 감지는 아래 [웹훅 온체인 이동 사건 관찰](#웹훅-온체인-이동-사건-관찰--구현)로 구현했다 |
 
 수용 항목: 실제 Baseline이 보내는 전송 사건 본문이 위 수신 envelope schema와 같은지(특히 `deliveryAttempt`·`retryOf`의 실제 제공 형태),
 조직 웹훅이 BCM 미관리 네트워크의 전송 사건도 보내는지(보낸다면 위 "거절"을 건너뛰기로 바꿀지),
 같은 전송의 종류-상태 조합이 실제로 어떻게 오는지(예: `wallet.transfer.confirmed`에 `Failed` 상태가 오는 경우), 재전달의 순서·중복 처리 기준.
+
+### 웹훅 온체인 이동 사건 관찰 — 구현
+
+근거: 채택 명세 1.1018.3 `webhooks`의 `wallet.blockchainevent.detected`("A wallet event has been confirmed on chain (e.g.: a deposit)")·
+`wallet.blockchain_event.transfer.included`("included in a block but is not yet confirmed on chain", 일부 네트워크만)와 두 사건의
+`data.blockchainEvent`(`WalletHistoryEvent`)·`data.wallet`(`Wallet`), 그리고 위 [알림 메타](#웹훅-전송-사건-관찰--구현)와 같은 `WebhookEnvelopeBase`다.
+구현은 도메인 출력 포트 `NetworkChainEventParser`(+`NetworkChainEvent`·`NetworkChainEventKind`·`NetworkChainTransfer`·`NetworkChainDirection`·`NetworkChainTransferStatus`)와
+`DfnsNetworkChainEventParser`(infra/client)다. **내부 대역이며 판단 워커·입금 유스케이스·`bcm_addr_m` 대조에 연결하지 않았다.**
+
+| 항목 | 명세로 확인한 사실 | BCM 규칙 |
+|---|---|---|
+| 사건 종류 | 지갑 대상은 위 둘이다. `address_watch.blockchain_event.transfer.confirmed`는 **감시 주소**(키를 갖지 않는 등록 주소) 대상이고 `wallet.transaction.*`는 임의 트랜잭션이다 | 지갑 대상 둘만 `NetworkChainEventKind`로 옮긴다. 감시 주소 사건은 등록 주소 기능(`/address-watches`)을 쓰기로 정한 뒤에 다룬다 — 지갑 이동으로 합치지 않는다 |
+| 이동 종류 | `WalletHistoryEvent`는 `kind`별 oneOf다. 모델 대상은 `NativeTransfer`·`Erc20Transfer`(locator `contract`)·`SplTransfer`/`Spl2022Transfer`(locator `mint`)이고, 그 밖에 NFT·UTXO·다른 체인 표준 등 20종 이상이 있다 | 이동 종류를 **목록으로** 자산 kind에 대응시킨다(`Erc20Transfer`→`Erc20`) — 이름이 다르므로 접미사를 잘라 추정하지 않는다. 모델 밖 종류는 대조 키(`vendorAssetId`)와 금액을 만들지 않고 **원어(`vendorAssetKind`)만 남긴 채 사건은 보존한다** — 등록할 수 없는 자산이라도 이동 사실을 버리지 않는다(미지원 자산 판단은 판단 워커의 몫) |
+| 자산 키 | 모델 대상 변형의 locator 필드는 자산 조회·전송과 같은 이름이다 | 등록·잔액·전송과 **같은 키 규칙**(EVM 주소 형식·Solana base58 32바이트)으로 만든다. locator 형식이 깨졌으면 키를 만들지 않고 실패한다 |
+| 지갑 결속 | 사건의 `walletId`와 함께 `data.wallet`(필수)이 온다. `Wallet.address`는 **선택**이다 | `data.wallet.id`가 사건의 `walletId`와 같아야 한다 — 다르면 어느 지갑의 이동인지 증명하지 못하므로 거절한다. 지갑 주소는 있으면 담고 없으면 null이다(주소 대조·입금 귀속은 판단 워커) |
+| 방향·상태 | `direction`은 `In`/`Out`, `status`는 `Included`/`Confirmed`이며 `Confirmed`는 "confirmed on chain by our indexing pipeline"이다 | 원어 그대로 옮기고 그 밖의 값은 거절한다. **`Confirmed`를 BCM 확정(DCCP)으로 번역하지 않는다** — 종류와 상태가 고정 대응한다는 서술도 없으므로 상태는 사건 본문에서 읽는다 |
+| 금액 | `value`는 문자열이고 모델 대상 변형에서 필수다. **단위를 서술한 곳이 없다** | 전송 요청과 같은 규칙으로 **최소 단위 정수**(선행 0 금지)로 읽는다. 이는 BCM 해석이며 정수 검사는 비정수만 걸러낼 뿐 단위를 증명하지 못한다(아래 수용 항목) |
+| 정밀도·심볼 | `metadata.asset`은 필수지만 그 안의 `symbol`·`decimals`·`verified`는 필수가 아니다. 최상위 동명 필드는 `@deprecated`이면서 일부 변형의 required 목록에 남아 있다 | 관찰값에 **담지 않는다** — 정밀도·심볼은 BCM이 등록한 자산 매핑에서 읽고, 선택이자 폐기 예정인 벤더 필드에 업무 판단을 걸지 않는다 |
+| 체인 좌표 | 필수 `blockNumber`(number)·`txHash`·`timestamp`(문자열, 형식 서술 없음), 선택 `index`(문자열) | `blockNumber`는 정수·음수 아님만 받는다. `timestamp`는 **파싱하지 않고 원문 그대로** 둔다 — `date`·`dateRequested`와 달리 형식·시간대 서술이 없다. `index`는 있으면 원문으로 담는다 |
+| 범위 밖 | — | 입금 귀속(`bcm_addr_m` 대조)·`WebhookTransactionParser`/`VendorStatusTranslator`의 Dfns 구현·논리 사건 생성과 outbox·미등록 자산 입금 경보·감시 주소 기능·이력 복구·판단 워커 조립 |
+
+수용 항목: `value`의 단위(최소 단위인지)와 `timestamp`의 형식·시간대, 모델 밖 이동 종류가 실제로 얼마나 오는지,
+`Included`→`Confirmed` 재알림의 순서·중복과 두 종류가 같은 이동에 모두 오는지, Solana의 ATA 수신에서 `to`가 owner 주소인지 ATA 주소인지,
+`Wallet.address`가 실제로 항상 오는지, 조직 웹훅이 BCM 미관리 네트워크의 이동 사건도 보내는지.
 
 ## 공개 API에서 선행할 변경
 
