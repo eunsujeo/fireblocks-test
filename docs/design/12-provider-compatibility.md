@@ -581,3 +581,18 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 5266583..1501ac1, design-sync→code-reviewer 순차)**: Critical/Major/Minor 0으로 통과했다(검토 기준 1501ac1).
   판정 순서와 02의 계열 분류·입금 귀속 일치, 발신을 출금으로 확정하지 않고 대조 대상으로만 분리한 점, 미지원·미등록 자산을 결과로 보존하면서 Fireblocks 경로를 바꾸지 않은 점,
   등록 매핑 network 불일치만 내부 데이터 결함으로 중단하는 경계, 지갑 ID 역방향 조회·Solana ATA 동작을 추측하지 않은 점, 도메인 무의존을 확인했다.
+
+## Dfns 논리 거래 식별자와 hash 조회 index 검증 (2026-09-16)
+
+- 사용자 확정(2026-09-16): Dfns 입금의 논리 거래 ID는 `txHash`·`index`에서 파생한 결정적 값으로 만들고 `bcm_tx_l.vndr_tx_id` 폭을 넓히지 않는다.
+  계약은 [03 V26](03-bcm-db.md#v26-dfns-논리-거래-식별자와-온체인-hash-조회--물리-저장-계약)과 [계약13](13-dfns-contracts.md#논리-거래-식별자--구현)에 고정했다.
+- 근거: Fireblocks는 입금에도 벤더 거래 ID를 주지만 Dfns 이동 사건에는 ID 필드가 없다. `0x` 뺀 EVM hash가 이미 64자라 읽을 수 있는 형태로는 접두사·순번을 넣을 자리가 없고,
+  PK를 넓히면 참조 테이블·인덱스와 기존 Fireblocks 데이터 마이그레이션이 함께 필요하다.
+- 도메인: `NetworkChainTransactionId`가 `dfns-` + SHA-256(network·hash·순번) 요약 52자(합 57자)를 만든다. 입력은 길이를 앞에 붙여 이어 붙여 경계가 흔들리지 않게 하고,
+  EVM hash만 소문자로 정규화한다(base58 서명은 대소문자가 값의 일부라 건드리지 않는다). 출금은 벤더가 준 `xfr-…`를 그대로 쓴다.
+- DDL: V26 `idx_bcm_tx_hash`(`bcm_tx_l (tx_hash) WHERE tx_hash IS NOT NULL`) **추가 전용** 마이그레이션. 컬럼·PK·제약을 바꾸지 않는다.
+  hash는 RBF 계열·재관찰로 중복될 수 있어 UNIQUE로 두지 않는다. 운영 적용은 기존 규칙대로 DBA가 먼저 수행한다.
+- **조립하지 않는다** — 원장 쓰기·`tx_hash` 조회 Repository·판단 워커 조립은 후속이며 `BCM_PROVIDER=dfns` 기동 차단도 그대로다. Fireblocks 식별자 경로는 바뀌지 않았다.
+- 검증: `NetworkChainTransactionIdTest` 5(결정성·길이·원문 미노출, network/hash/순번 구분, 입력 경계 합쳐짐 방지, EVM 대소문자 정규화와 base58 미정규화, 빈 입력 거절),
+  `V26TransactionHashLookupPersistenceTest` 1(실제 PostgreSQL에 전체 마이그레이션 적용 후 hash 조회가 전용 index를 쓰는지, 부분 index가 hash 없는 거래를 색인하지 않는지, 같은 hash 중복 저장 허용).
+- 선택 회귀: domain 141 · persistence 234, 실패 0. 전체 ktlintCheck 통과. 공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
