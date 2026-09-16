@@ -17,7 +17,8 @@
 
 `local`은 설정에서 선택하는 실행 구성이다. 체인 환경과 실제 프로토콜 제공자는 내부에서 구분한다.
 Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실제 Baseline 설치를 로컬 실행의 선행 조건으로 두지 않는다.
-현재 `fireblocks`·`local` 조립을 지원한다. `dfns`는 어댑터가 없어 기동 시 명시적으로 거절하며 다른 제공자로 대체하지 않는다.
+현재 **기동을 지원하는 조립은 `fireblocks`·`local`뿐**이다. `dfns`는 계정·주소·잔액·자산 등록 관문·웹훅 수신·전송 어댑터를 구현했지만
+실행 조립과 Baseline 수용이 끝나지 않아 기동 시 명시적으로 거절하며 다른 제공자로 대체하지 않는다(아래 "현재 기동 계약").
 
 ## 공통 포트와 구현 책임
 
@@ -438,3 +439,11 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 검증: `NetworkTransferContractTest` 4(상태 원어 대응·종결/제출 집합, 제출 키 50자·금액 형식, 식별자 공백, 충돌 바이트 사본),
   `DfnsNetworkTransferClientTest` 6(서명 경로·본문 필드 정확 일치·정규화, Solana `Spl2022`/네이티브 본문, 409 충돌·duplicate ID, 409 본문 결손과 403 전파, 응답 불일치·결손 12종, 조회 404/ID 불일치, 호출 전 거절 6종).
 - 선택 회귀: domain 119 · client 138, 실패 0. 전체 모듈 compileKotlin/compileTestKotlin·변경 모듈 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용·push는 미수행이다.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 0ee8725..cd8f32e, design-sync→code-reviewer 순차)**: Critical 4 — ① 제출 성공 응답이 목적지·금액·제출 키와 결속되지 않고
+  명세 필수 필드(`requester`·`metadata`·`id` 형식)를 검사하지 않음, ② `FAILED.broadcast=false`가 "시스템 실패 또는 **온체인 실행 실패**"라는 공식 의미와 충돌, ③ 근거 없이 모든 409를 멱등 충돌로 확정,
+  ④ 새 테스트에 고정 인증 자격 문자열. Minor 2 — 금액의 선행 0 금지가 문서에 없음, 설계12 도입부의 "어댑터 없음" 문구가 현재 구현과 모순.
+  자산 키 역파싱·같은 본문 바이트 서명·충돌 바이트 보존·실행 빈 미등록은 정합으로 확인됐다.
+- **반영**: 제출 응답을 요청과 대조한다 — 자산 키·`to`·`amount`·`externalId`가 모두 같아야 하고 `id`는 명세 형식, `requester.userId`·`metadata`는 필수다. 관찰에 `destinationAddress`·`amountBaseUnits`를 넣어
+  호출자도 사후 대조할 수 있게 했다. 상태의 제출 여부를 `onChainSubmitted: Boolean?`로 바꿔 `FAILED`는 `null`(상태만으로 판별 불가)이다. 409는 공식 문서가 규정한 `error.details.duplicate` 표식이 있을 때만
+  충돌로 판정하고 나머지는 수신 바이트를 담은 벤더 오류로 전파한다. 테스트 자격값은 실행마다 생성한다. 금액의 선행 0 금지를 계약13에 BCM 정규화 규칙으로 적었고 설계12 도입부를 고쳤다.
+  재실행: domain 119 · client 138, 실패 0, ktlintCheck 통과.

@@ -47,13 +47,14 @@ class DfnsNetworkTransferClient(
         val path = transfersPath(request.vendorWalletId)
         val userAction = userActions.userAction(HttpMethod.POST, path, body)
         val response = http.call(SUBMIT_OPERATION, HttpMethod.POST, body, userAction) { it.path(path).build() }
+        // 공식 문서가 규정한 멱등 충돌 표식이 있는 409만 충돌로 판정한다 — 표식 없는 409는 원인을 단정하지 않고 일반 오류로 전파한다.
         if (response.status == HTTP_CONFLICT) {
-            return NetworkTransferSubmission.Conflict(duplicateTransferId(response), response.body)
+            idempotencyDuplicate(response)?.let { duplicate ->
+                return NetworkTransferSubmission.Conflict(duplicate.takeIf(String::isNotBlank), response.body)
+            }
         }
         response.requireSuccess()
-        return NetworkTransferSubmission.Accepted(
-            toObservation(parseObject(response), response, request.scope, request.vendorWalletId, asset),
-        )
+        return NetworkTransferSubmission.Accepted(toObservation(parseObject(response), response, request))
     }
 
     override fun transfer(
@@ -70,7 +71,7 @@ class DfnsNetworkTransferClient(
             }
         if (response.status == HTTP_NOT_FOUND) return null
         response.requireSuccess()
-        val observation = toObservation(parseObject(response), response, scope, vendorWalletId, asset = null)
+        val observation = toObservation(parseObject(response), response, scope, vendorWalletId)
         if (observation.transferId != transferId) throw response.failure("Dfns transfer id mismatch in read response")
         return observation
     }
@@ -97,29 +98,56 @@ class DfnsNetworkTransferClient(
         return objectMapper.writeValueAsBytes(body)
     }
 
-    private fun duplicateTransferId(response: DfnsHttpResponse): String? {
+    /** 멱등 충돌 표식이 있으면 기존 전송 ID(없으면 빈 문자열)를, 표식이 없으면 null을 돌려준다. */
+    private fun idempotencyDuplicate(response: DfnsHttpResponse): String? {
         val node = runCatching { objectMapper.readTree(response.body) }.getOrNull() ?: return null
-        val duplicate =
-            node
-                .path("error")
-                .path("details")
-                .path("duplicate")
-                .path("id")
-        return duplicate.takeIf(JsonNode::isString)?.asString()?.takeIf(String::isNotBlank)
+        if (!node.isObject) return null
+        val duplicate = node.path("error").path("details").path("duplicate")
+        if (!duplicate.isObject) return null
+        return duplicate
+            .path("id")
+            .takeIf(JsonNode::isString)
+            ?.asString()
+            ?.trim()
+            .orEmpty()
     }
 
-    /** 응답의 지갑·network가 요청과 같아야 하고, `asset`이 있으면 응답 `requestBody`의 자산 지정도 보낸 값과 같아야 한다. */
+    /** 제출 응답 정규화 — 보낸 요청과 자산·목적지·금액·제출 키까지 대조한다. */
+    private fun toObservation(
+        node: JsonNode,
+        response: DfnsHttpResponse,
+        request: NetworkTransferRequest,
+    ): NetworkTransferObservation {
+        val observation = toObservation(node, response, request.scope, request.vendorWalletId)
+        if (observation.vendorAssetId != request.vendorAssetId ||
+            observation.destinationAddress != request.destinationAddress ||
+            observation.amountBaseUnits != request.amountBaseUnits
+        ) {
+            throw response.failure("Dfns transfer request mismatch in response")
+        }
+        // 우리가 보낸 제출 키를 되돌려주지 않으면 이 응답이 우리 요청의 것이라는 결속을 증명하지 못한다(계약13 수용 항목).
+        if (observation.externalId != request.externalId) throw response.failure("Dfns transfer external id mismatch in response")
+        return observation
+    }
+
+    /** 응답의 지갑·network가 요청 scope와 같아야 하고 명세 필수 필드가 형식대로 있어야 한다. */
     private fun toObservation(
         node: JsonNode,
         response: DfnsHttpResponse,
         scope: NetworkWalletScope,
         expectedWalletId: String,
-        asset: DfnsAssetKey?,
     ): NetworkTransferObservation {
         val vendorNetwork = requiredText(node, "network", response)
         if (vendorNetwork != properties.networks[scope.network]) throw response.failure("Dfns transfer network mismatch")
         val walletId = requiredText(node, "walletId", response)
         if (walletId != expectedWalletId) throw response.failure("Dfns transfer wallet id mismatch")
+        val transferId = requiredText(node, "id", response)
+        if (!TRANSFER_ID_PATTERN.matches(transferId)) throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류: id")
+        // 명세 필수 필드 — 값을 쓰지 않더라도 결손이면 전송 응답으로 인정하지 않는다.
+        if (!node.path("metadata").isObject) throw response.failure("Dfns ${response.operation} 응답 결손: metadata")
+        val requester = node.path("requester")
+        if (!requester.isObject) throw response.failure("Dfns ${response.operation} 응답 결손: requester")
+        requiredText(requester, "userId", response)
         val requestBody = node.path("requestBody")
         if (!requestBody.isObject) throw response.failure("Dfns ${response.operation} 응답 결손: requestBody")
         val kind = requiredText(requestBody, "kind", response)
@@ -128,18 +156,17 @@ class DfnsNetworkTransferClient(
         val observedAsset =
             runCatching { DfnsAssetKeys.of(vendorNetwork, kind, observedLocator) }.getOrNull()
                 ?: throw response.failure("Dfns ${response.operation} 응답의 자산 지정을 해석할 수 없다: requestBody")
-        if (asset != null && (kind != asset.kind || observedLocator != asset.locator)) {
-            throw response.failure("Dfns transfer asset mismatch in response")
-        }
         val status =
             NetworkTransferStatus.ofVendorStatus(requiredText(node, "status", response))
                 ?: throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류: status")
         return try {
             NetworkTransferObservation(
-                transferId = requiredText(node, "id", response),
+                transferId = transferId,
                 network = scope.network,
                 vendorWalletId = walletId,
                 vendorAssetId = observedAsset,
+                destinationAddress = requiredText(requestBody, "to", response),
+                amountBaseUnits = requiredText(requestBody, "amount", response),
                 status = status,
                 externalId = optionalText(node, "externalId", response),
                 transactionHash = optionalText(node, "txHash", response),
@@ -200,5 +227,8 @@ class DfnsNetworkTransferClient(
         const val READ_OPERATION = "dfnsGetTransfer"
         const val HTTP_CONFLICT = 409
         const val HTTP_NOT_FOUND = 404
+
+        /** 명세 TransferRequest.id 형식. */
+        val TRANSFER_ID_PATTERN = Regex("xfr-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{14,16}")
     }
 }

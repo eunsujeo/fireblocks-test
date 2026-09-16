@@ -36,6 +36,7 @@ data class NetworkTransferRequest(
         require(vendorAssetId.isNotBlank() && vendorAssetId == vendorAssetId.trim()) { "Invalid vendor asset id" }
         require(destinationAddress.isNotBlank() && destinationAddress == destinationAddress.trim()) { "Invalid destination address" }
         require(BASE_UNITS.matches(amountBaseUnits)) { "Invalid transfer amount" }
+        // 명세 패턴은 `^\d+$`지만 BCM은 선행 0을 금지해 같은 금액의 표기를 하나로 고정한다(계약13) — 응답 대조가 표기 차이로 어긋나지 않게 한다.
         require(externalId.isNotBlank() && externalId == externalId.trim() && externalId.length <= EXTERNAL_ID_MAX_LENGTH) {
             "Invalid transfer external id"
         }
@@ -55,7 +56,8 @@ sealed interface NetworkTransferSubmission {
     ) : NetworkTransferSubmission
 
     /**
-     * 같은 `externalId`로 **다른 본문/지갑**을 보낸 충돌(벤더 409). 호출자는 조회 없이 요청 불일치로 판정하고 자동 재제출하지 않는다.
+     * 같은 `externalId`로 **다른 본문/지갑**을 보낸 멱등 충돌. 공식 문서가 규정한 표식(`error.details.duplicate`)이 있는 409만 이 결과가 되며,
+     * 표식 없는 409는 원인을 단정하지 않고 일반 벤더 오류로 전파한다. 호출자는 조회 없이 요청 불일치로 판정하고 자동 재제출하지 않는다.
      * `duplicateTransferId`는 벤더가 알려준 기존 전송 ID이며 없을 수도 있다. `responseBody`는 수신 원문 바이트다.
      */
     class Conflict(
@@ -68,12 +70,17 @@ sealed interface NetworkTransferSubmission {
     }
 }
 
-/** 전송 하나의 정규화 관찰. 상태 원어는 [NetworkTransferStatus]로 옮기고 BCM 업무 상태(TxStatus) 번역은 하지 않는다(계약13). */
+/**
+ * 전송 하나의 정규화 관찰. 상태 원어는 [NetworkTransferStatus]로 옮기고 BCM 업무 상태(TxStatus) 번역은 하지 않는다(계약13).
+ * 목적지·금액을 함께 돌려줘 호출자가 자기 요청과 대조할 수 있게 한다 — 어댑터의 대조를 거쳤더라도 원장에 남길 값은 관찰에서 읽는다.
+ */
 data class NetworkTransferObservation(
     val transferId: String,
     val network: String,
     val vendorWalletId: String,
     val vendorAssetId: String,
+    val destinationAddress: String,
+    val amountBaseUnits: String,
     val status: NetworkTransferStatus,
     val externalId: String?,
     val transactionHash: String?,
@@ -85,6 +92,8 @@ data class NetworkTransferObservation(
         requireWalletIdentifier("vendorWalletId", vendorWalletId)
         require(transferId.isNotBlank() && transferId == transferId.trim()) { "Invalid transfer id" }
         require(vendorAssetId.isNotBlank()) { "Invalid vendor asset id" }
+        require(destinationAddress.isNotBlank() && destinationAddress == destinationAddress.trim()) { "Invalid destination address" }
+        require(amountBaseUnits.isNotBlank() && amountBaseUnits.all { it in '0'..'9' }) { "Invalid transfer amount" }
         require(requestedAt.isNotBlank()) { "Invalid transfer request time" }
     }
 }
@@ -96,26 +105,29 @@ data class NetworkTransferObservation(
 enum class NetworkTransferStatus(
     /** 벤더 종결 — 공식 Idempotency 문서가 `externalId` 영구 결속 상태로 명시한 값이다. 재시도는 새 키를 쓴다. */
     val terminal: Boolean,
-    /** 체인에 제출된 뒤의 상태 — 같은 키의 새 제출을 만들면 이중 지급 위험이 있다. */
-    val broadcast: Boolean,
+    /**
+     * 체인 제출 여부. `null`은 **상태 원어만으로 알 수 없다**는 뜻이며 모름을 0/false로 바꾸지 않는다 —
+     * 호출자는 관찰의 `transactionHash`·벤더 조회로 판단한다. 체인에 나간 뒤에는 같은 자금의 새 제출이 이중 지급이 된다.
+     */
+    val onChainSubmitted: Boolean?,
 ) {
     /** 지갑 정책 승인 대기. */
-    PENDING(terminal = false, broadcast = false),
+    PENDING(terminal = false, onChainSubmitted = false),
 
     /** 승인 뒤 실행 중(짧은 구간). */
-    EXECUTING(terminal = false, broadcast = false),
+    EXECUTING(terminal = false, onChainSubmitted = false),
 
     /** mempool 기록. */
-    BROADCASTED(terminal = false, broadcast = true),
+    BROADCASTED(terminal = false, onChainSubmitted = true),
 
     /** Dfns 인덱싱이 확인한 온체인 포함. */
-    CONFIRMED(terminal = true, broadcast = true),
+    CONFIRMED(terminal = true, onChainSubmitted = true),
 
-    /** 시스템 실패 또는 온체인 실행 실패(문서상 벤더 재시도 없음). */
-    FAILED(terminal = true, broadcast = false),
+    /** 시스템 실패 **또는** 온체인 실행 실패 — 공식 문서가 두 경우를 함께 두므로 제출 여부는 상태만으로 확정하지 않는다. */
+    FAILED(terminal = true, onChainSubmitted = null),
 
-    /** 정책 승인에서 거절. */
-    REJECTED(terminal = true, broadcast = false),
+    /** 정책 승인에서 거절 — 실행 전 단계다. */
+    REJECTED(terminal = true, onChainSubmitted = false),
     ;
 
     companion object {
