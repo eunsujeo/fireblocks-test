@@ -166,7 +166,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 ### Dfns 웹훅 수신 프로토콜 — 구현
 
 근거: 공식 가이드 [Webhooks](https://docs.dfns.co/guides/developers/webhooks)(`.md` SHA-256 `db4a394386c5b8e14dc715768973e75098954e83fc28e7537cb090ac8624be78`, 2026-09-16 확인)와
-채택 명세 1.1018.3 `WebhookEvent`(필수 `id`·`date`·`kind`·`data`·`status`·`timestampSent`(Unix 초, 양수))·`WebhookWithSecret.secret`(생성 응답에서만 제공).
+채택 명세 1.1018.3의 조회 모델 `WebhookEvent`(필수 `id`·`date`·`kind`·`data`·`status`·`timestampSent`(Unix 초, 양수))·`WebhookWithSecret.secret`(생성 응답에서만 제공).
 구현은 `DfnsWebhookSignatureVerifier`·`DfnsWebhookProtocol`(infra/client)이며 `DfnsClientConfig`가 `WebhookProtocol`은 모든 앱에, HMAC 검증기는 `bcm.webhook.ingestion.enabled=true`인 Webhook 앱에만 만든다.
 
 | 항목 | 명세·가이드로 확인한 사실 | BCM 규칙 |
@@ -175,17 +175,18 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 서명 입력 | 가이드 예제는 **파싱한 payload를 다시 직렬화**(`JSON.stringify` / compact `json.dumps`)해 서명한다. 실제 발송 바이트와의 관계는 서술이 없다 | **수신 바이트 그대로** HMAC을 계산한다(CLAUDE.md 3절). 재직렬화하지 않고, 실패해도 다른 입력으로 재시도하지 않는다. 발송 바이트≠재직렬화 결과인 경우는 아래 수용 항목이다 |
 | secret | 생성 응답에서 한 번만 제공, 회전은 새 webhook 생성 후 옛 것 삭제 | `bcm.dfns.webhook-secrets`(env, 1개 이상, 순서대로 대조)로만 주입하고 DB·로그에 남기지 않는다. 어느 secret이 맞았는지의 증적은 후속(인박스에 키 식별 컬럼 없음) |
 | 재전송 방어 | 가이드 예제: `|now − timestampSent| < 5분` | `timestampSent`가 정수가 아니거나 없거나 `bcm.dfns.webhook-replay-tolerance-seconds`(기본 300) 밖이면 서명이 맞아도 거절. 비교는 상수 시간 |
-| envelope | `id`(WebhookEvent ID)·`kind`(사건 종류)는 필수 문자열. 채택 명세 1.1018.3의 `data`는 형식 미정의 객체다 | `notificationId=id`, `eventType=kind`. `vendorTransactionId`는 **형식이 문서화된 종류에서만** 채운다 — 아래 [웹훅 전송 사건 관찰](#웹훅-전송-사건-관찰--구현)의 `wallet.transfer.*`는 `data.transferRequest.id`를 쓰고, 나머지 종류는 근거가 없으므로 null로 둔다. 인박스 dedup 키는 `id`이며 재전달은 ID가 다르면 별도 수신이다 |
+| envelope | `id`(알림 ID)·`kind`(사건 종류)는 필수 문자열. 조회 모델 `WebhookEvent`의 `data`는 형식 미정의 객체다 — 실제로 전달되는 본문의 kind별 형식은 같은 명세의 `webhooks` 항목에 있다 | `notificationId=id`, `eventType=kind`. `vendorTransactionId`는 **형식이 문서화된 종류에서만** 채운다 — 아래 [웹훅 전송 사건 관찰](#웹훅-전송-사건-관찰--구현)의 `wallet.transfer.*`는 `data.transferRequest.id`를 쓰고, 나머지 종류는 근거가 없으므로 null로 둔다. 인박스 dedup 키는 `id`이며 재전달은 ID가 다르면 별도 수신이다 |
 | 판단 | — | 전송 사건 해석은 아래 [웹훅 전송 사건 관찰](#웹훅-전송-사건-관찰--구현)로 구현했고 내부 대역이다. `WebhookTransactionParser`·`VendorStatusTranslator`의 Dfns 구현과 입금 감지 사건은 미구현이라 Webhook 앱의 Dfns 판단 워커는 조립되지 않는다. `BCM_PROVIDER=dfns` 전체 기동 차단은 유지한다 |
 
 수용 항목: 실제 Baseline이 보낸 서명 원문(바이트)과 위 원문 검증의 일치, `timestampSent` 단위·허용 오차 적정성, 재전달 시도의 ID/`retryOf` 의미.
 
 ### 웹훅 전송 사건 관찰 — 구현
 
-근거: 공식 **현재 OpenAPI 2.0.54**의 `webhooks` 항목 — `wallet.transfer.requested`·`.broadcasted`·`.confirmed`·`.failed`·`.rejected`와
+근거: 채택 명세 1.1018.3의 **`webhooks` 항목** — `wallet.transfer.requested`·`.broadcasted`·`.confirmed`·`.failed`·`.rejected`와
 공통 `WebhookEnvelopeBase`, 그리고 각 사건의 `data.transferRequest`가 참조하는 `TransferRequest` schema다(파일 해시는 위 [공식 OpenAPI 재확인](#공식-openapi-재확인과-구현-근거-2026-09-14-사용자-정정) 표).
-**채택 명세 1.1018.3에는 같은 서술이 없다** — 그 판의 `WebhookEvent.data`는 `additionalProperties`뿐이고 kind별 형식은 2.0.54에서만 확인된다.
-그래서 이 슬라이스는 "2.0.54가 문서화한 형식을 그대로 요구하고, 어긋나면 조용히 버리지 않고 실패한다"로 구현했다. 실제 Baseline 판의 본문은 수용 항목이다.
+현재 OpenAPI 2.0.54도 같은 형식을 둔다. **수신 envelope(`WebhookEnvelopeBase`)와 조회 모델(`WebhookEvent`)은 서로 다른 schema다** —
+[위 절](#dfns-웹훅-수신-프로토콜--구현)에서 `data`가 형식 미정의라고 적은 것은 조회 모델 쪽이고, 실제로 전달되는 본문의 kind별 형식은 `webhooks` 항목에 있다.
+따라서 이 슬라이스는 수신 envelope schema를 그대로 요구하고, 어긋나면 조용히 버리지 않고 실패한다. 실제 Baseline이 보내는 본문의 일치는 수용 항목이다.
 
 구현은 도메인 출력 포트 `NetworkTransferEventParser`(+`NetworkTransferEvent`·`NetworkTransferEventKind`)와 `DfnsNetworkTransferEventParser`(infra/client)다.
 `TransferRequest` 정규화는 조회 어댑터와 **같은 코드**(`DfnsTransferRequests`)를 쓴다 — 두 경로가 같은 schema를 읽으므로 검사도 하나여야 한다.
@@ -193,8 +194,8 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 
 | 항목 | 명세로 확인한 사실 | BCM 규칙 |
 |---|---|---|
-| 사건 종류 | `WebhookEventKind` enum은 지갑·서명·거래·전송·입금 감지·정책 등 24종이다. 전송은 `wallet.transfer.{requested,broadcasted,confirmed,failed,rejected}` 다섯이고 각 설명은 "요청 생성/mempool 기록/온체인 확인/처리 실패/정책 거절"이다 | 이 다섯만 `NetworkTransferEventKind`로 옮긴다. 전송이 아닌 종류는 이 포트의 관심 밖(null)이며, 특히 `wallet.transaction.*`(임의 트랜잭션)과 `wallet.blockchainevent.*`(입금 감지)를 전송으로 합치지 않는다 — 각각 별도 계약이 필요하다 |
-| 알림 메타 | `WebhookEnvelopeBase`: 필수 `id`(2.0.54는 `^whe-…$`)·`date`(UTC ISO 8601)·`timestampSent`·`deliveryAttempt`(≥1), 선택 `retryOf`(원본 알림 ID) | `id`는 **형식을 검사하지 않는다** — 채택 명세 판 `WebhookEvent.id`에는 형식 제약이 없어 판마다 다를 수 있다. `date`는 UTC ISO 8601이어야 하고(비UTC·형식 오류는 거절) `deliveryAttempt`는 채택 명세 판에 없는 필드라 **결손이면 null**로 두되 있으면 1 이상 정수여야 한다. 기본값 1을 지어내지 않는다 |
+| 사건 종류 | `webhooks` 항목과 `WebhookEventKind` enum은 지갑·서명·거래·전송·입금 감지·정책 등 24종을 둔다. 전송은 `wallet.transfer.{requested,broadcasted,confirmed,failed,rejected}` 다섯이고 각 설명은 "요청 생성/mempool 기록/온체인 확인/처리 실패/정책 거절"이다 | 이 다섯만 `NetworkTransferEventKind`로 옮긴다. 전송이 아닌 종류는 이 포트의 관심 밖(null)이며, 특히 `wallet.transaction.*`(임의 트랜잭션)과 `wallet.blockchainevent.*`(입금 감지)를 전송으로 합치지 않는다 — 각각 별도 계약이 필요하다 |
+| 알림 메타 | `WebhookEnvelopeBase`: 필수 `id`(`^whe-…$`)·`date`(UTC ISO 8601)·`timestampSent`·`deliveryAttempt`(정수 ≥1), 선택 `retryOf`(원본 알림 ID, 같은 형식·`minLength 1`) | 명세가 필수로 둔 것은 **모두 필수로 받는다** — `id`는 형식까지 검사하고, `date`는 UTC가 아니거나 형식이 다르면 거절하며, `deliveryAttempt`는 결손·비정수·0 이하를 거절한다(기본값 1을 지어내지 않는다). `retryOf`는 선택이지만 **있으면** 같은 형식이어야 하고 빈 값을 결손으로 축소하지 않는다. `timestampSent`는 앞선 서명 검증이 이미 필수로 검사하므로 여기서 다시 보지 않는다 |
 | 전송 정보 | 전송 다섯 종류의 `data.transferRequest`는 조회 응답과 **같은 `TransferRequest`**다 | 조회와 같은 검사를 같은 코드로 적용한다 — `id` 형식(`^xfr-…$`)·`walletId`·`network`·`requester.userId`·`metadata`·`requestBody`의 `kind`/locator/`to`/`amount`·`status`·UTC `dateRequested`. 자산 키는 등록과 같은 규칙(EVM 주소 형식·Solana base58 32바이트)으로 만든다. 웹훅은 우리가 부른 응답이 아니므로 대조할 기대 지갑이 없다 — `walletId`는 사건이 알려준 값을 그대로 담고 업무 소유 판정은 판단 워커의 몫이다 |
 | 상태의 출처 | 사건 종류와 `transferRequest.status`가 항상 짝을 이룬다는 서술은 **없다** | 업무 상태는 **종류가 아니라 `status`에서** 읽는다. 종류를 상태로 번역하지 않으며 `Confirmed`를 BCM `FINALIZED`로 옮기지 않는다(`TxStatus` 번역은 판단 워커와 함께 정한다) |
 | 네트워크 | `transferRequest.network`는 명세 `Network` enum 값이다 | `bcm.dfns.networks`(BCM 코드 → 명세 값, 값 중복 금지)의 **역방향**으로 BCM 코드를 되찾는다. 매핑에 없는 네트워크의 전송 사건은 해석할 수 없으므로 **거절**한다 — 조용히 넘기면 관리 대상 이동을 놓친다 |
@@ -202,7 +203,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 수용 경계 | — | envelope 해석(`DfnsWebhookProtocol`)은 전송 종류에서 `data.transferRequest.id`가 명세 형식일 때만 `vendorTransactionId`를 채우고 **어긋나도 거절하지 않는다** — 인박스 수용(원문 보관)을 막지 않고 엄격한 해석은 판단 시점의 파서가 맡는다 |
 | 범위 밖 | — | 입금 감지(`wallet.blockchainevent.detected`·`wallet.blockchain_event.transfer.included`의 `WalletHistoryEvent`)·`wallet.transaction.*`·정책/지갑 사건, `WebhookTransactionParser`·`VendorStatusTranslator`의 Dfns 구현, 재전달 dedup과 이력 복구, 판단 워커 조립 |
 
-수용 항목: 실제 Baseline 판이 보내는 전송 사건 본문(`data.transferRequest`가 조회와 같은 형식인지, `deliveryAttempt`·`retryOf` 제공 여부),
+수용 항목: 실제 Baseline이 보내는 전송 사건 본문이 위 수신 envelope schema와 같은지(특히 `deliveryAttempt`·`retryOf`의 실제 제공 형태),
 조직 웹훅이 BCM 미관리 네트워크의 전송 사건도 보내는지(보낸다면 위 "거절"을 건너뛰기로 바꿀지),
 같은 전송의 종류-상태 조합이 실제로 어떻게 오는지(예: `wallet.transfer.confirmed`에 `Failed` 상태가 오는 경우), 재전달의 순서·중복 처리 기준.
 

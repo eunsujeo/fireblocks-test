@@ -460,14 +460,15 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 
 ## Dfns 웹훅 전송 사건 관찰 검증 (2026-09-16)
 
-- 계약은 [계약13](13-dfns-contracts.md#웹훅-전송-사건-관찰--구현)에 먼저 고정했다. 근거는 공식 **현재 OpenAPI 2.0.54**의 `webhooks` 항목(`wallet.transfer.*` 다섯)과
-  `WebhookEnvelopeBase`·`TransferRequest` schema다. 채택 명세 1.1018.3의 `WebhookEvent.data`는 형식이 없는 객체라 kind별 형식은 2.0.54에서만 확인된다 — 이 판 차이를 계약에 적고
-  실제 Baseline 본문을 수용 항목으로 남겼다.
+- 계약은 [계약13](13-dfns-contracts.md#웹훅-전송-사건-관찰--구현)에 먼저 고정했다. 근거는 채택 명세 1.1018.3의 `webhooks` 항목(`wallet.transfer.*` 다섯)과
+  `WebhookEnvelopeBase`·`TransferRequest` schema이며 현재 2.0.54도 같은 형식을 둔다. 수신 envelope(`WebhookEnvelopeBase`)와 조회 모델(`WebhookEvent`)이 서로 다른 schema라는 점을
+  계약에 적고, 실제 Baseline이 보내는 본문의 일치를 수용 항목으로 남겼다.
 - 도메인: 출력 포트 `NetworkTransferEventParser`와 `NetworkTransferEvent`(알림 ID·종류·발생 시각·전달 시도·`retryOf`·전송 관찰)·`NetworkTransferEventKind`(문서화된 다섯)를 추가했다.
   **종류는 상태를 결정하지 않는다** — 업무 상태는 `transferRequest.status`에서 읽고, 종류와 상태가 짝을 이룬다는 서술이 없으므로 모델이 강제하지 않는다.
 - 어댑터: `DfnsNetworkTransferEventParser`는 전송이 아닌 종류를 null로 흘리고, 전송 종류인데 `data.transferRequest`가 없거나 형식이 다르면 `WebhookPayloadException`으로 올린다
   (자금 이동 신호를 "해석 불가"로 버리지 않는다). `network`는 `bcm.dfns.networks`의 역방향으로 BCM 코드를 되찾고 매핑 밖 네트워크는 거절한다.
-  알림 ID 형식은 검사하지 않고(판마다 다를 수 있다) `date`는 UTC ISO 8601, `deliveryAttempt`는 결손이면 null·있으면 1 이상 정수다.
+  알림 메타는 수신 envelope schema대로 요구한다 — `id`는 형식(`whe-…`)까지, `date`는 UTC ISO 8601, `deliveryAttempt`는 필수·1 이상 정수이고 `retryOf`는 있으면 같은 형식이어야 한다.
+  `timestampSent`는 앞선 서명 검증이 이미 필수로 검사하므로 파서가 다시 보지 않는다.
 - 재사용: `TransferRequest` 정규화를 `DfnsTransferRequests`로 분리해 조회 어댑터와 웹훅 파서가 **같은 검사**를 쓴다. 실패 예외만 경로별로 다르다
   (HTTP는 수신 바이트를 담은 `VendorApiException`, 웹훅은 `WebhookPayloadException`). `DfnsNetworkTransferClient`의 동작은 바뀌지 않았다.
 - envelope: `DfnsWebhookProtocol`은 전송 종류에서 `data.transferRequest.id`가 명세 형식일 때만 `vendorTransactionId`를 채우고, 어긋나도 **거절하지 않는다** —
@@ -476,5 +477,5 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   재전달 dedup·이력 복구·판단 워커 조립은 후속이며 `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
 - 검증: `NetworkTransferEventContractTest` 3(문서화된 다섯 종류만 대응·유사 종류 7종 거절, 종류-상태 독립, 전달 시도/알림 메타 불변식 4종),
   `DfnsNetworkTransferEventParserTest` 8(정상 해석·알림 메타, 다섯 종류와 종류≠상태, 전송 아닌 종류 5종 null, Solana `Spl2022`와 깨진 mint, 전송 정보 결손·설정 밖 네트워크 4종,
-  알림 메타 오류 10종, 전송 필수 필드 13종, 비JSON 4종), `DfnsWebhookProtocolTest` 3(전송 ID 결속, 추정 금지 7종, 결손 거절).
+  알림 메타 결손·형식 오류 15종, 전송 필수 필드 13종, 비JSON 4종), `DfnsWebhookProtocolTest` 3(전송 ID 결속, 추정 금지 7종, 결손 거절).
 - 선택 회귀: domain 122 · client 147 · webhook 75, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.

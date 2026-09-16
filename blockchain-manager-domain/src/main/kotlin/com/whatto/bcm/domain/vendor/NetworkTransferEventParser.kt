@@ -21,8 +21,8 @@ data class NetworkTransferEvent(
     val kind: NetworkTransferEventKind,
     /** 사건 발생 시각 — 벤더가 UTC ISO 8601로 정의한 원문 값. */
     val occurredAt: String,
-    /** 벤더가 알려준 전달 시도 번호. 채택 명세 판에는 없는 필드라 결손이면 null이다. */
-    val deliveryAttempt: Int?,
+    /** 전달 시도 번호 — 벤더가 필수·1 이상으로 정의한다. */
+    val deliveryAttempt: Int,
     /** 재전달이면 원본 알림 ID. */
     val retryOfNotificationId: String?,
     val observation: NetworkTransferObservation,
@@ -30,7 +30,7 @@ data class NetworkTransferEvent(
     init {
         require(notificationId.isNotBlank()) { "notificationId must not be blank" }
         require(occurredAt.isNotBlank()) { "occurredAt must not be blank" }
-        require(deliveryAttempt == null || deliveryAttempt >= 1) { "deliveryAttempt must be positive" }
+        require(deliveryAttempt >= 1) { "deliveryAttempt must be positive" }
         require(retryOfNotificationId == null || retryOfNotificationId.isNotBlank()) { "retryOfNotificationId must not be blank" }
     }
 }
