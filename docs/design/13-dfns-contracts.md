@@ -224,9 +224,14 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 지갑 결속 | 사건의 `walletId`와 함께 `data.wallet`(필수)이 온다. `Wallet`의 `id`·`network`는 필수이고 `address`는 **선택**이다 | `data.wallet`의 `id`·`network`가 사건의 `walletId`·`network`와 각각 같아야 한다 — 다르면 어느 지갑의 어느 네트워크 이동인지 증명하지 못하므로 거절한다. 지갑 주소는 있으면 담고 없으면 null이다(주소 대조·입금 귀속은 판단 워커) |
 | 방향·상태 | `direction`은 `In`/`Out`, `status`는 `Included`/`Confirmed`이며 `Confirmed`는 "confirmed on chain by our indexing pipeline"이다 | 원어 그대로 옮기고 그 밖의 값은 거절한다. **`Confirmed`를 BCM 확정(DCCP)으로 번역하지 않는다** — 종류와 상태가 고정 대응한다는 서술도 없으므로 상태는 사건 본문에서 읽는다 |
 | 금액 | `value`는 문자열이고 모델 대상 변형에서 필수다. **단위를 서술한 곳이 없다** | 전송 요청과 같은 규칙으로 **최소 단위 정수**(선행 0 금지)로 읽는다. 이는 BCM 해석이며 정수 검사는 비정수만 걸러낼 뿐 단위를 증명하지 못한다(아래 수용 항목) |
-| 정밀도·심볼 | `metadata.asset`은 필수지만 그 안의 `symbol`·`decimals`·`verified`는 필수가 아니다. 최상위 동명 필드는 `@deprecated`이면서 일부 변형의 required 목록에 남아 있다 | 관찰값에 **담지 않는다** — 정밀도·심볼은 BCM이 등록한 자산 매핑에서 읽고, 선택이자 폐기 예정인 벤더 필드에 업무 판단을 걸지 않는다. 담지 않는 것과 명세 필수 필드의 존재를 검사하는 것은 별개다(위 필수 필드 행) |
+| 정밀도·심볼 | `metadata.asset`은 필수지만 그 안의 `symbol`·`decimals`·`verified`는 필수가 아니다. 최상위 동명 필드는 `@deprecated`이면서 일부 변형의 required 목록에 남아 있다 | 관찰값에 **담지 않는다** — 선택이자 폐기 예정인 벤더 필드에 업무 판단을 걸지 않는다. 담지 않는 것과 명세 필수 필드의 존재를 검사하는 것은 별개다(위 필수 필드 행). **정밀도의 출처는 아직 없다** — [07](07-asset-master.md)이 "소수 자릿수는 현재 매핑에 보관하지 않는다"이고 `bcm_vndr_ast_m`에도 컬럼이 없다. Fireblocks는 사람 단위 금액을 보내 정밀도가 필요 없었지만 Dfns는 최소 단위만 보내므로, **이벤트 금액을 만들려면 정밀도 출처를 먼저 정해야 한다**(아래 미결) |
 | 체인 좌표 | 필수 `blockNumber`(number)·`txHash`·`timestamp`(문자열, 형식 서술 없음), 선택 `index`(문자열) | `blockNumber`는 정수·음수 아님만 받는다. `timestamp`는 **파싱하지 않고 원문 그대로** 둔다 — `date`·`dateRequested`와 달리 형식·시간대 서술이 없다. `index`는 있으면 원문으로 담는다 |
 | 범위 밖 | — | 입금 귀속(`bcm_addr_m` 대조)·`WebhookTransactionParser`/`VendorStatusTranslator`의 Dfns 구현·논리 사건 생성과 outbox·미등록 자산 입금 경보·감시 주소 기능·이력 복구·판단 워커 조립 |
+
+**미결 — 이벤트 금액의 정밀도 출처.** [02](02-bcm-flow.md#상태-enum)는 이벤트에 금액을 싣고 DAW-CORE가 그 값으로만 입금 금액을 안다.
+Fireblocks는 `amountInfo.amount`(사람 단위)를 그대로 싣지만 Dfns 관찰은 최소 단위 정수라 환산이 필요하고, 환산에 쓸 정밀도를 BCM이 갖고 있지 않다.
+제공자마다 같은 `amount` 필드의 단위가 달라지면 조용한 금액 사고가 되므로 **정밀도 출처를 정하기 전에는 입금 이벤트를 만들지 않는다.**
+07은 "기존 카탈로그/매핑 DDL·decimals 저장·API에 필요한 확장은 DF1에서 확정한다"로 이 항목을 이미 열어 두었다.
 
 수용 항목: `value`의 단위(최소 단위인지)와 `timestamp`의 형식·시간대, 폐기 예정 표기가 붙은 `symbol`·`decimals`를 실제 Baseline이 계속 보내는지(required에서 빠지면 위 검사도 함께 푼다), 문서화된 미지원 이동 종류가 실제로 얼마나 오는지,
 `Included`→`Confirmed` 재알림의 순서·중복과 두 종류가 같은 이동에 모두 오는지, Solana의 ATA 수신에서 `to`가 owner 주소인지 ATA 주소인지,
