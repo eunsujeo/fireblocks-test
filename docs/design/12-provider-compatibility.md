@@ -659,3 +659,4 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   Minor 2 — 주입받은 `FinalityPolicy`가 쓰이지 않아 잘못된 의존을 암시했고, 순번 검사가 체인 head RPC 뒤라 결정적 payload 오류가 RPC 장애에 가려질 수 있었다.
 - **반영**: 두 상태를 순서대로 적재하고 `evnt_id`가 서로 다르며 거래 ID는 같은지 검증하는 테스트를 넣었다. 쓰이지 않던 `FinalityPolicy` 의존을 제거하고(임계 비교는 번역기 소유),
   순번 검사를 외부 호출 앞으로 옮겼다. 재실행: 11개 모듈 1,276건, 실패 0.
+- **독립 converge 3차(범위 18fb3eb..761d99d, design-sync→code-reviewer 순차)**: 이전 3건 모두 해소 확인, 신규 Critical/Major/Minor 0으로 통과했다(검토 기준 761d99d).
