@@ -1,5 +1,6 @@
 package com.whatto.bcm.domain.vendor
 
+import com.whatto.bcm.domain.webhook.VendorWebhookDelivery
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -39,13 +40,13 @@ class NetworkTransferEventContractTest {
 
     @Test
     fun `알림 메타의 빈 값·0 이하 전달 시도는 사건으로 받지 않는다`() {
-        assertThat(event(deliveryAttempt = 3, retryOf = "whe-1").retryOfNotificationId).isEqualTo("whe-1")
+        assertThat(delivery(deliveryAttempt = 3, retryOf = "whe-1").retryOfNotificationId).isEqualTo("whe-1")
 
-        listOf<Pair<String, () -> NetworkTransferEvent>>(
-            "deliveryAttempt" to { event(deliveryAttempt = 0) },
-            "notificationId" to { event(notificationId = " ") },
-            "occurredAt" to { event(occurredAt = "") },
-            "retryOfNotificationId" to { event(retryOf = "") },
+        listOf<Pair<String, () -> VendorWebhookDelivery>>(
+            "deliveryAttempt" to { delivery(deliveryAttempt = 0) },
+            "notificationId" to { delivery(notificationId = " ") },
+            "occurredAt" to { delivery(occurredAt = "") },
+            "retryOfNotificationId" to { delivery(retryOf = "") },
         ).forEach { (field, build) ->
             assertThatThrownBy { build() }
                 .describedAs(field)
@@ -54,19 +55,19 @@ class NetworkTransferEventContractTest {
         }
     }
 
-    private fun event(
-        kind: NetworkTransferEventKind = NetworkTransferEventKind.CONFIRMED,
-        status: NetworkTransferStatus = NetworkTransferStatus.CONFIRMED,
+    private fun delivery(
         notificationId: String = "whe-544ul-uqgad-jkgltj5p6fvd04cj",
         occurredAt: String = "2026-09-16T00:00:00.000Z",
         deliveryAttempt: Int = 1,
         retryOf: String? = null,
+    ) = VendorWebhookDelivery(notificationId, occurredAt, deliveryAttempt, retryOf)
+
+    private fun event(
+        kind: NetworkTransferEventKind = NetworkTransferEventKind.CONFIRMED,
+        status: NetworkTransferStatus = NetworkTransferStatus.CONFIRMED,
     ) = NetworkTransferEvent(
-        notificationId = notificationId,
+        delivery = delivery(),
         kind = kind,
-        occurredAt = occurredAt,
-        deliveryAttempt = deliveryAttempt,
-        retryOfNotificationId = retryOf,
         observation =
             NetworkTransferObservation(
                 transferId = "xfr-20g4k-nsdpo-mg6arrifgvid4orn",

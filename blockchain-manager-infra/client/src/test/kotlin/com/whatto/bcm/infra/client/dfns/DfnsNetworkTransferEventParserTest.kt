@@ -22,11 +22,11 @@ class DfnsNetworkTransferEventParserTest {
         val event = parser.parse(event(deliveryAttempt = "2", retryOf = """"$OTHER_NOTIFICATION_ID"""").toByteArray())
 
         checkNotNull(event)
-        assertThat(event.notificationId).isEqualTo(NOTIFICATION_ID)
+        assertThat(event.delivery.notificationId).isEqualTo(NOTIFICATION_ID)
         assertThat(event.kind).isEqualTo(NetworkTransferEventKind.CONFIRMED)
-        assertThat(event.occurredAt).isEqualTo(OCCURRED_AT)
-        assertThat(event.deliveryAttempt).isEqualTo(2)
-        assertThat(event.retryOfNotificationId).isEqualTo(OTHER_NOTIFICATION_ID)
+        assertThat(event.delivery.occurredAt).isEqualTo(OCCURRED_AT)
+        assertThat(event.delivery.deliveryAttempt).isEqualTo(2)
+        assertThat(event.delivery.retryOfNotificationId).isEqualTo(OTHER_NOTIFICATION_ID)
         val observation = event.observation
         assertThat(observation.transferId).isEqualTo(TRANSFER_ID)
         assertThat(observation.network).isEqualTo("ETHEREUM_SEPOLIA")
@@ -131,7 +131,7 @@ class DfnsNetworkTransferEventParserTest {
                 .isInstanceOf(WebhookPayloadException::class.java)
                 .hasMessageContaining(field)
         }
-        assertThat(parser.parse(event(retryOf = null).toByteArray())?.retryOfNotificationId).isNull()
+        assertThat(parser.parse(event(retryOf = null).toByteArray())?.delivery?.retryOfNotificationId).isNull()
     }
 
     @Test
