@@ -32,7 +32,7 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
 | `VendorContractCallPort` | 집금 호출 의도·접수/조회 결과 | 승인·대납·최종 서명 내용·방송 경로·수신 증적 |
 | `VendorAssetCatalogPort` | 후보 수집과 채택 자산의 분리 | 벤더 네트워크/자산 ID·페이지·정밀도·온체인 주소 대조 |
 | `VendorStatusTranslator` | 원시 관찰→업무 상태와 종결 대사 범위 | 실제 상태 의미. confirmationCount 중심 계약은 멀티체인 확장 전에 타입 분리 |
-| `WebhookProtocol`·`WebhookSignatureVerifier`·`WebhookTransactionParser` | 원문 바이트 검증·파싱·인박스/논리 사건 연결 | 수신 헤더/envelope는 WebhookProtocol로 분리. 키 조회·payload/재전달 ID·논리 사건 대응은 벤더별 책임 |
+| `WebhookProtocol`·`WebhookSignatureVerifier`·`WebhookTransactionParser` | 원문 바이트 검증·파싱·인박스/논리 사건 연결 | 수신 헤더/envelope는 WebhookProtocol로 분리. 키 조회·payload/재전달 ID·논리 사건 대응은 벤더별 책임. Dfns 전송 사건은 `NetworkTransferEventParser`로 분리했다(계약13) |
 | `VendorNetworkFeePort` | 견적·원금/수수료 단위 구분 | 체인/계정별 견적·대납/실비. 현행 fee 필드를 Dfns 결과에 임의로 채우지 않음 |
 | `VendorWebhookRecoveryPort` | 구독 상태·복구 실행/감사 | 재전송과 이력 재처리의 실제 수행 구분. 미지원 API의 가짜 성공 금지 |
 | `VendorExecutionLimits` | 단일 호출/전체 제출 흐름의 최장 시간 | 재시도·백오프·응답 불명 회수까지 포함한 양수 상한 산정 |
@@ -105,6 +105,8 @@ Service는 서명 검증→선택된 protocol의 envelope 파싱→동일 byte[]
 `FireblocksWebhookProtocol`은 기존 `id`/`eventType`/`data.id` 해석을 infra/client로 옮긴 구현이며,
 Fireblocks/로컬에서만 조립된다. 기존 parser·RS512 검증·worker·outbox·DB/공개 API 계약을 유지한다.
 Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립하며(검증기는 Webhook 앱 한정), 판단 워커·이력 복구는 후속이다.
+전송 사건(`wallet.transfer.*`)의 해석은 `WebhookTransactionParser`와 별개인 `NetworkTransferEventParser`로 두었다 — 벤더 전송 관찰을 그대로 담고
+업무 상태 번역·논리 사건 연결은 판단 워커의 몫이다. 계약과 한계는 [계약13](13-dfns-contracts.md#웹훅-전송-사건-관찰--구현)에 있다.
 
 ## 저장·API 변경 선행 조건
 
@@ -455,3 +457,24 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **독립 converge 3차(같은 Codex reviewer 세션, 수정 delta fb80e51..4be1251, design-sync→code-reviewer 순차)**: 잔여 Critical·Minor 해소 확인, 신규 Critical/Major 없음.
   Minor 1(검증 기록의 응답 결손 사례 수 12종 → 실제 25종)만 남아 위 검증 줄을 바로잡았다. 검토 기준 commit은 4be1251이다.
   실벤더 호출·운영 적용·실행 조립·기동 차단 해제·push는 미수행이다.
+
+## Dfns 웹훅 전송 사건 관찰 검증 (2026-09-16)
+
+- 계약은 [계약13](13-dfns-contracts.md#웹훅-전송-사건-관찰--구현)에 먼저 고정했다. 근거는 공식 **현재 OpenAPI 2.0.54**의 `webhooks` 항목(`wallet.transfer.*` 다섯)과
+  `WebhookEnvelopeBase`·`TransferRequest` schema다. 채택 명세 1.1018.3의 `WebhookEvent.data`는 형식이 없는 객체라 kind별 형식은 2.0.54에서만 확인된다 — 이 판 차이를 계약에 적고
+  실제 Baseline 본문을 수용 항목으로 남겼다.
+- 도메인: 출력 포트 `NetworkTransferEventParser`와 `NetworkTransferEvent`(알림 ID·종류·발생 시각·전달 시도·`retryOf`·전송 관찰)·`NetworkTransferEventKind`(문서화된 다섯)를 추가했다.
+  **종류는 상태를 결정하지 않는다** — 업무 상태는 `transferRequest.status`에서 읽고, 종류와 상태가 짝을 이룬다는 서술이 없으므로 모델이 강제하지 않는다.
+- 어댑터: `DfnsNetworkTransferEventParser`는 전송이 아닌 종류를 null로 흘리고, 전송 종류인데 `data.transferRequest`가 없거나 형식이 다르면 `WebhookPayloadException`으로 올린다
+  (자금 이동 신호를 "해석 불가"로 버리지 않는다). `network`는 `bcm.dfns.networks`의 역방향으로 BCM 코드를 되찾고 매핑 밖 네트워크는 거절한다.
+  알림 ID 형식은 검사하지 않고(판마다 다를 수 있다) `date`는 UTC ISO 8601, `deliveryAttempt`는 결손이면 null·있으면 1 이상 정수다.
+- 재사용: `TransferRequest` 정규화를 `DfnsTransferRequests`로 분리해 조회 어댑터와 웹훅 파서가 **같은 검사**를 쓴다. 실패 예외만 경로별로 다르다
+  (HTTP는 수신 바이트를 담은 `VendorApiException`, 웹훅은 `WebhookPayloadException`). `DfnsNetworkTransferClient`의 동작은 바뀌지 않았다.
+- envelope: `DfnsWebhookProtocol`은 전송 종류에서 `data.transferRequest.id`가 명세 형식일 때만 `vendorTransactionId`를 채우고, 어긋나도 **거절하지 않는다** —
+  인박스 수용(원문 보관)을 막지 않고 엄격한 해석은 판단 시점의 파서가 맡는다.
+- **조립하지 않는다** — 파서는 실행 빈으로 등록하지 않는 내부 대역이다. 입금 감지(`wallet.blockchainevent.*`)·`wallet.transaction.*`·`WebhookTransactionParser`/`VendorStatusTranslator`의 Dfns 구현·
+  재전달 dedup·이력 복구·판단 워커 조립은 후속이며 `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
+- 검증: `NetworkTransferEventContractTest` 3(문서화된 다섯 종류만 대응·유사 종류 7종 거절, 종류-상태 독립, 전달 시도/알림 메타 불변식 4종),
+  `DfnsNetworkTransferEventParserTest` 8(정상 해석·알림 메타, 다섯 종류와 종류≠상태, 전송 아닌 종류 5종 null, Solana `Spl2022`와 깨진 mint, 전송 정보 결손·설정 밖 네트워크 4종,
+  알림 메타 오류 10종, 전송 필수 필드 13종, 비JSON 4종), `DfnsWebhookProtocolTest` 3(전송 ID 결속, 추정 금지 7종, 결손 거절).
+- 선택 회귀: domain 122 · client 147 · webhook 75, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.

@@ -5,14 +5,12 @@ import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.vendor.NetworkTransferObservation
 import com.whatto.bcm.domain.vendor.NetworkTransferPort
 import com.whatto.bcm.domain.vendor.NetworkTransferRequest
-import com.whatto.bcm.domain.vendor.NetworkTransferStatus
 import com.whatto.bcm.domain.vendor.NetworkTransferSubmission
 import com.whatto.bcm.domain.vendor.NetworkWalletScope
 import org.springframework.http.HttpMethod
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
-import java.time.OffsetDateTime
 
 /**
  * NetworkTransferPort의 Dfns 구현 — 채택 명세 1.1018.3의 `POST /wallets/{walletId}/transfers`·`GET /wallets/{walletId}/transfers/{transferId}`
@@ -132,53 +130,19 @@ class DfnsNetworkTransferClient(
         return observation
     }
 
-    /** 응답의 지갑·network가 요청 scope와 같아야 하고 명세 필수 필드가 형식대로 있어야 한다. */
+    /** 응답의 지갑·network가 요청 scope와 같아야 하고 명세 필수 필드가 형식대로 있어야 한다. 검사는 웹훅 사건과 같은 규칙을 쓴다. */
     private fun toObservation(
         node: JsonNode,
         response: DfnsHttpResponse,
         scope: NetworkWalletScope,
         expectedWalletId: String,
-    ): NetworkTransferObservation {
-        val vendorNetwork = requiredText(node, "network", response)
-        if (vendorNetwork != properties.networks[scope.network]) throw response.failure("Dfns transfer network mismatch")
-        val walletId = requiredText(node, "walletId", response)
-        if (walletId != expectedWalletId) throw response.failure("Dfns transfer wallet id mismatch")
-        val transferId = requiredText(node, "id", response)
-        if (!TRANSFER_ID_PATTERN.matches(transferId)) throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류: id")
-        // 명세 필수 필드 — 값을 쓰지 않더라도 결손이면 전송 응답으로 인정하지 않는다.
-        if (!node.path("metadata").isObject) throw response.failure("Dfns ${response.operation} 응답 결손: metadata")
-        val requester = node.path("requester")
-        if (!requester.isObject) throw response.failure("Dfns ${response.operation} 응답 결손: requester")
-        requiredText(requester, "userId", response)
-        val requestBody = node.path("requestBody")
-        if (!requestBody.isObject) throw response.failure("Dfns ${response.operation} 응답 결손: requestBody")
-        val kind = requiredText(requestBody, "kind", response)
-        // 키 생성 규칙(EVM 주소 형식·Solana base58 32바이트)을 그대로 적용한다 — 형식이 깨진 locator는 수신 바이트를 담아 실패한다.
-        val observedLocator = DfnsAssetKeys.locatorField(kind)?.let { requiredText(requestBody, it, response) }
-        val observedAsset =
-            runCatching { DfnsAssetKeys.of(vendorNetwork, kind, observedLocator) }.getOrNull()
-                ?: throw response.failure("Dfns ${response.operation} 응답의 자산 지정을 해석할 수 없다: requestBody")
-        val status =
-            NetworkTransferStatus.ofVendorStatus(requiredText(node, "status", response))
-                ?: throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류: status")
-        return try {
-            NetworkTransferObservation(
-                transferId = transferId,
-                network = scope.network,
-                vendorWalletId = walletId,
-                vendorAssetId = observedAsset,
-                destinationAddress = requiredText(requestBody, "to", response),
-                amountBaseUnits = requiredText(requestBody, "amount", response),
-                status = status,
-                externalId = optionalText(node, "externalId", response),
-                transactionHash = optionalText(node, "txHash", response),
-                requestedAt = requireUtcTimestamp(node, "dateRequested", response),
-                failureReason = optionalText(node, "reason", response),
-            )
-        } catch (exception: IllegalArgumentException) {
-            throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류", exception)
-        }
-    }
+    ): NetworkTransferObservation =
+        DfnsTransferRequests.normalize(
+            node = node,
+            network = scope.network,
+            vendorNetwork = properties.networks[scope.network].orEmpty(),
+            expectedWalletId = expectedWalletId,
+        ) { reason, cause -> response.failure("Dfns ${response.operation} 응답 $reason", cause) }
 
     private fun parseObject(response: DfnsHttpResponse): JsonNode {
         val node =
@@ -189,41 +153,6 @@ class DfnsNetworkTransferClient(
             }
         if (!node.isObject) throw response.failure("Dfns ${response.operation} 응답이 JSON 객체가 아니다")
         return node
-    }
-
-    private fun requiredText(
-        node: JsonNode,
-        field: String,
-        response: DfnsHttpResponse,
-    ): String {
-        val value = node.path(field)
-        if (!value.isString || value.asString().isBlank()) throw response.failure("Dfns ${response.operation} 응답 결손: $field")
-        return value.asString()
-    }
-
-    /** 명세가 UTC ISO 8601로 정의한 시각 — 형식이 다르거나 UTC가 아니면 감사 시각으로 받지 않는다. */
-    private fun requireUtcTimestamp(
-        node: JsonNode,
-        field: String,
-        response: DfnsHttpResponse,
-    ): String {
-        val value = requiredText(node, field, response)
-        val parsed =
-            runCatching { OffsetDateTime.parse(value) }.getOrNull()
-                ?: throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류: $field")
-        if (parsed.offset.totalSeconds != 0) throw response.failure("Dfns ${response.operation} 응답 시각이 UTC가 아니다: $field")
-        return value
-    }
-
-    private fun optionalText(
-        node: JsonNode,
-        field: String,
-        response: DfnsHttpResponse,
-    ): String? {
-        val value = node.path(field)
-        if (value.isMissingNode || value.isNull) return null
-        if (!value.isString) throw response.failure("Dfns ${response.operation} 응답 필드 형식 오류: $field")
-        return value.asString().takeIf(String::isNotBlank)
     }
 
     private fun requireVendorId(
@@ -243,8 +172,5 @@ class DfnsNetworkTransferClient(
         const val READ_OPERATION = "dfnsGetTransfer"
         const val HTTP_CONFLICT = 409
         const val HTTP_NOT_FOUND = 404
-
-        /** 명세 TransferRequest.id 형식. */
-        val TRANSFER_ID_PATTERN = Regex("xfr-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{14,16}")
     }
 }
