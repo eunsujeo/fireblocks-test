@@ -680,3 +680,12 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   payload 결함의 재시도·격리, 설정 오류의 P 유지와 충돌·일반 오류 감싸기, 예기치 못한 실패 기록),
   `WebhookDecisionAssemblyTest` 2(dfns에서 Dfns 경계·번역기·head·원장 조회 조립, fireblocks·local에서 Dfns 빈 0).
 - 전체 회귀: 11개 모듈 **1,286건, 실패 0**. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. `BCM_PROVIDER=dfns` 기동 차단은 유지된다.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 e747427..a5496c8, design-sync 먼저)**: Major 2 — ① 앞선 슬라이스들이 "내부 대역·빈 미등록·워커 미연결"로 적어 둔 절과 KDoc이
+  실제 조립 상태와 달라졌다, ② Dfns 이동 상태 `Confirmed`에 `vndr_cmpl_yn=Y`를 남기는데 03은 이 표식을 Fireblocks `data.status=COMPLETED`이자 원본 보관(`bcm_raw_tx_l`)의
+  `vndr_tx_id` 부분 index용으로 정의한다 — Dfns 온체인 사건은 인박스 `vndr_tx_id`가 null이라 색인 대상도 아니다. design-sync 실패로 code-reviewer는 수행하지 않았다.
+  조건부 조립의 배타성·`ConfiguredFinalityPolicy` 이동·전송 알림 제한 표기는 정합으로 확인됐다.
+- **반영**: 조립된 경로(사건 해석기·번역기·체인 head·입금 판단)의 문구를 현재 상태로 갱신하고 여전히 연결되지 않은 전송·발신 경로와 구분했다.
+  `vndr_cmpl_yn`은 남기지 않으며(항상 `N`) 그 이유와 Dfns 원본 보관 계약을 수용 항목으로 적었다.
+- **독립 converge 2차(Codex gpt-5.6-luna medium — 1차 중 rate limit로 모델이 바뀌었다, design-sync 범위 a5496c8..HEAD·code-reviewer 범위 e747427..HEAD 순차)**:
+  이전 Major 2건 해소 확인, 신규 Critical/Major 0. Minor 1 — 조립 검증이 `ApplicationContextRunner`라 실제 앱 컨텍스트의 워커·경보 어댑터 연결까지는 보지 못한다.
+  이는 `BCM_PROVIDER=dfns` 전체 기동이 아직 차단돼 전체 컨텍스트를 띄울 수 없기 때문이며, **기동 차단 해제와 함께 processor를 포함한 조립 검증을 추가한다**(후속).
