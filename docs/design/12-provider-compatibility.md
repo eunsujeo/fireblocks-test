@@ -548,13 +548,13 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - 계약은 [계약13](13-dfns-contracts.md#상태-번역--구현)에 고정했다. 02의 `TxStatus` 다섯과 전이 표는 제공자와 무관하게 그대로 쓰고, 벤더 원어만 Dfns 것으로 바꾼다.
 - `DfnsStatusTranslator`가 기존 도메인 포트 `VendorStatusTranslator`를 구현한다 — 새 포트를 만들지 않았다. 받는 원어는 전송 상태 여섯과 온체인 이동 상태 둘이며
   목록 밖 원어는 `WebhookPayloadException`으로 거절한다(임의 상태로 바꾸지 않는다).
-- `Pending`·`Executing`·`Broadcasted` → `SUBMITTED`(체인 미등장), `Included` → `CONFIRMED`(미확정), `Failed` → `FAILED`, `Rejected` → `REJECTED`.
-  `Confirmed`는 **관찰의 컨펌 수(블록 깊이)가 임계 이상일 때만** `FINALIZED`이고 아니면 `CONFIRMED`다 — 벤더 표기로 확정하지 않는다(CLAUDE.md 3절).
+- `Pending`·`Executing`·`Broadcasted` → `SUBMITTED`(체인 미등장), `Failed` → `FAILED`, `Rejected` → `REJECTED`.
+  온체인 관찰 둘(`Included`·`Confirmed`)은 **관찰의 컨펌 수(블록 깊이)가 임계 이상일 때만** `FINALIZED`이고 아니면 `CONFIRMED`다 — 확정은 오직 깊이로 내고 벤더의 확인 표기를 추가 관문으로 두지 않는다(CLAUDE.md 3절).
 - 전송 응답에는 `blockNumber`가 없어 깊이를 모른다. 그래서 전송 경로의 `Confirmed`는 `CONFIRMED`에 머물고 출금의 확정도 온체인 이동 사건(`direction: Out`)에서 판정한다.
   관찰 컨펌 수는 `BlockDepthFinality.confirmationCount`가 만들며 `Int` 상한을 넘는 깊이는 상한으로 줄인다.
 - **대사 종결 판정은 만들지 않는다**(항상 null) — Dfns 대사 경로가 없고 `Confirmed`를 종결로 돌려주면 블록 깊이 결정을 우회한다. 포트 계약의 "대상 밖은 null"을 쓴다.
   Fireblocks의 동결 subStatus에 해당하는 Dfns 개념은 문서에 없어 만들지 않았고, 확정 후 동결·무효화 관찰 경로는 수용 항목이다.
 - **조립하지 않는다** — 실행 빈 미등록이며 `WebhookTransactionParser`의 Dfns 구현·입금 귀속·논리 사건/outbox·판단 워커 조립은 후속이다. Fireblocks 번역은 바뀌지 않았다.
-- 검증: `DfnsStatusTranslatorTest` 6(제출 3종, 포함·실패·거절, 임계 경계 4종, 네트워크별 임계 조회와 불필요한 조회 없음, 목록 밖 원어 7종·음수 컨펌 거절, 대사 판정 7종 null),
+- 검증: `DfnsStatusTranslatorTest` 6(제출 3종, 실패·거절, 온체인 관찰 둘의 임계 경계 8종과 벤더 확인 없이도 확정·깊이 모를 때 미확정, 네트워크별 임계 조회와 불필요한 조회 없음, 목록 밖 원어 7종·음수 컨펌 거절, 대사 판정 7종 null),
   `BlockDepthFinalityTest`에 관찰 컨펌 수 상한 축소 4종 추가.
 - 선택 회귀: domain 130 · client 167, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.

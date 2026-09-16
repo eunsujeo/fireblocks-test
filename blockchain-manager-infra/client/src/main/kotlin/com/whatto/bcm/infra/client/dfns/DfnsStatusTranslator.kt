@@ -13,9 +13,9 @@ import com.whatto.bcm.domain.webhook.WebhookPayloadException
  * 받는 원어는 전송 요청 상태 여섯(`Pending`·`Executing`·`Broadcasted`·`Confirmed`·`Failed`·`Rejected`)과
  * 온체인 이동 상태 둘(`Included`·`Confirmed`)이며, 목록 밖 원어는 임의 상태로 바꾸지 않고 거절한다.
  *
- * **`Confirmed`만으로 확정하지 않는다**(CLAUDE.md 3절) — reorg로 뒤집힐 수 있으므로 관찰의 컨펌 수(블록 깊이)를
- * 네트워크 임계와 비교해 [TxStatus.FINALIZED]를 낸다. 깊이를 모르는 관찰(전송 응답에는 `blockNumber`가 없다)은
- * [TxStatus.CONFIRMED]에 머문다 — 출금의 확정도 같은 거래의 온체인 이동 사건에서 판정한다.
+ * 확정은 **오직 블록 깊이로** 낸다(CLAUDE.md 3절) — 벤더의 `Confirmed` 표기는 reorg로 뒤집힐 수 있어 확정의 근거도,
+ * 확정의 추가 관문도 아니다. 온체인 이동 상태 둘(`Included`·`Confirmed`)은 같은 깊이 판정을 쓰고, 깊이를 모르는 관찰
+ * (전송 응답에는 `blockNumber`가 없다)은 [TxStatus.CONFIRMED]에 머문다 — 출금의 확정도 같은 거래의 온체인 이동 사건에서 판정한다.
  *
  * **내부 대역이며 실행 빈으로 등록하지 않았다.** 판단 워커 조립은 후속이다.
  */
@@ -37,9 +37,9 @@ class DfnsStatusTranslator(
             }
         }
         return when (NetworkChainTransferStatus.ofVendorValue(observation.rawStatus)) {
-            // 블록에 포함됐지만 벤더 확인 전이다 — 미확정.
-            NetworkChainTransferStatus.INCLUDED -> TxStatus.CONFIRMED
-            NetworkChainTransferStatus.CONFIRMED -> confirmedOrFinalized(observation, network)
+            // 두 상태 모두 블록 좌표가 있는 온체인 관찰이므로 같은 깊이 판정을 쓴다 — 벤더의 확인 표기를 확정의 추가 관문으로 두지 않는다.
+            // 그렇게 두면 `Confirmed` 알림이 늦거나 유실될 때 깊이가 충분해도 확정이 영영 나오지 않는다.
+            NetworkChainTransferStatus.INCLUDED, NetworkChainTransferStatus.CONFIRMED -> confirmedOrFinalized(observation, network)
             null -> throw WebhookPayloadException("unsupported Dfns status")
         }
     }

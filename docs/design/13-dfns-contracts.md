@@ -261,8 +261,7 @@ Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블�
 | 벤더 원어 | TxStatus | 근거 |
 |---|---|---|
 | `Pending`(지갑 정책 승인 대기) · `Executing`(승인 후 실행 중) · `Broadcasted`(mempool 기록) | `SUBMITTED` | 02의 `SUBMITTED`는 "서명·전파 준비 중, 체인 미등장"이다. mempool은 블록에 들어가기 전이다 |
-| `Included`(블록 포함, 벤더 확인 전) | `CONFIRMED` | 02의 `CONFIRMED`는 "체인에 등장, 컨펌 누적 중 — 미확정" |
-| `Confirmed`(벤더 인덱싱 확인) | 깊이 ≥ 임계면 `FINALIZED`, 아니면 `CONFIRMED` | **벤더 표기만으로 확정하지 않는다**(reorg). 관찰의 컨펌 수(블록 깊이)를 `bcm.finality-confirmations.<network>`와 비교한다 |
+| `Included`(블록 포함, 벤더 확인 전) · `Confirmed`(벤더 인덱싱 확인) | 깊이 ≥ 임계면 `FINALIZED`, 아니면 `CONFIRMED` | 둘 다 블록 좌표가 있는 온체인 관찰이라 **같은 깊이 판정**을 쓴다. 확정은 오직 블록 깊이로 내며(`bcm.finality-confirmations.<network>`와 비교) 벤더의 확인 표기는 확정의 근거도 **추가 관문도 아니다** — 관문으로 두면 `Confirmed` 알림이 늦거나 유실될 때 깊이가 차도 확정이 영영 나오지 않는다. 깊이가 임계에 못 미치면 02의 `CONFIRMED`("체인에 등장, 컨펌 누적 중 — 미확정")다 |
 | `Failed`(시스템 실패 또는 온체인 실행 실패) | `FAILED` | 02의 `FAILED`는 영구 실패 |
 | `Rejected`(정책 승인 거절) | `REJECTED` | 02의 `REJECTED`는 거부·차단이며 출금은 벤더 기준 종결 |
 | 그 밖의 원어 | — | 임의 상태로 바꾸지 않고 `WebhookPayloadException`으로 거절한다 |
