@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service
 
 @Service
 class WebhookDecisionProcessor(
-    private val transaction: WebhookDecisionTransaction,
+    private val transaction: WebhookDecisionWork,
     private val unattributedAlertPort: UnattributedDepositAlertPort,
     private val unregisteredVaultTransferAlertPort: UnregisteredVaultTransferAlertPort,
     private val poisonAlertPort: PoisonWebhookAlertPort,

@@ -61,7 +61,7 @@ class DfnsChainEventDecision(
             is NetworkChainAttributionResult.UnsupportedAsset -> DfnsChainDecisionOutcome.UnsupportedAsset(attribution.observation)
             is NetworkChainAttributionResult.UnmappedAsset -> DfnsChainDecisionOutcome.UnmappedAsset(attribution.observation)
             is NetworkChainAttributionResult.Unattributed ->
-                DfnsChainDecisionOutcome.Unattributed(attribution.observation, attribution.miss)
+                DfnsChainDecisionOutcome.Unattributed(attribution.observation, attribution.miss, attribution.network, attribution.symbol)
         }
     }
 
@@ -197,6 +197,8 @@ sealed interface DfnsChainDecisionOutcome {
     data class Unattributed(
         val observation: NetworkChainTransfer,
         val miss: NetworkChainAttributionMiss,
+        val network: String,
+        val symbol: String,
     ) : DfnsChainDecisionOutcome
 
     /** 등록 자산인데 정밀도가 없어 이벤트 금액을 만들 수 없다(03 V27 이전 등록 행). */

@@ -31,11 +31,22 @@ import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookPayloadException
 import com.whatto.bcm.domain.webhook.WebhookTransaction
 import com.whatto.bcm.domain.webhook.WebhookTransactionParser
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import com.whatto.bcm.support.time.BusinessDates
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.Clock
+
+/**
+ * 인박스 한 건을 판단하는 트랜잭션 경계. 제공자마다 구현이 **하나만** 조립된다 —
+ * 워커·경보 처리는 이 경계 뒤의 벤더 어휘를 모른다.
+ */
+interface WebhookDecisionWork {
+    fun processNext(): WebhookDecisionOutcome
+
+    fun recordUnexpectedFailure(notificationId: String): WebhookDecisionOutcome
+}
 
 sealed interface WebhookDecisionOutcome {
     data object NoWork : WebhookDecisionOutcome
@@ -79,6 +90,7 @@ class WebhookDecisionConflictException(
 ) : RuntimeException("webhook decision conflict: notificationId=$notificationId", cause)
 
 @Service
+@ConditionalOnFireblocksProtocol
 class WebhookDecisionTransaction(
     private val inboxRepository: WebhookInboxRepository,
     private val transactionRunner: TransactionRunner,
@@ -97,10 +109,10 @@ class WebhookDecisionTransaction(
     private val clock: Clock,
     @param:Value("\${bcm.webhook-worker.max-attempts:3}") private val maxAttempts: Int,
     @param:Value("\${bcm.webhook-worker.outbox-max-attempts:5}") private val outboxMaxAttempts: Int,
-) {
-    fun processNext(): WebhookDecisionOutcome = transactionRunner.run { processNextInTransaction() }
+) : WebhookDecisionWork {
+    override fun processNext(): WebhookDecisionOutcome = transactionRunner.run { processNextInTransaction() }
 
-    fun recordUnexpectedFailure(notificationId: String): WebhookDecisionOutcome =
+    override fun recordUnexpectedFailure(notificationId: String): WebhookDecisionOutcome =
         transactionRunner.run {
             inboxRepository
                 .recordFailure(notificationId, UNEXPECTED_FAILURE_REASON, maxAttempts)

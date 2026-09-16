@@ -356,6 +356,23 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 수용 항목: **실제 입금 사건에 `from`이 채워져 오는지**(오지 않는 변형이 있으면 02의 공개 이벤트 계약을 바꿀지 그 입금을 보류할지 결정해야 한다), 입금 사건이 `Included`→`Confirmed`로 두 번 올 때의 전이(같은 거래 ID로 합류하는지), 미등록 자산 입금의 운영 경보 수준,
 정밀도 없는 기존 매핑이 실제로 남아 있는지, 체인 head 조회 주기·캐시와 재시도 상한.
 
+### 판단 워커 조립 — 구현
+
+근거: [설계12의 조건부 조립](12-provider-compatibility.md#조건부-조립-구현-순서)과 위 [입금 판단](#입금-판단--구현).
+구현은 `WebhookDecisionWork` 경계와 `DfnsWebhookDecisionTransaction`·`DfnsWebhookDecisionConfig`(bcm-webhook)다.
+
+| 항목 | 규칙 |
+|---|---|
+| 경계 | 인박스 한 건을 판단하는 트랜잭션을 `WebhookDecisionWork`로 추상화하고 제공자마다 **하나만** 조립한다. 워커(`WebhookDecisionProcessor`)·경보 처리는 이 경계 뒤의 벤더 어휘를 모른다 |
+| 조건부 | 기존 `WebhookDecisionTransaction`은 `fireblocks`·`local`, `DfnsWebhookDecisionTransaction`은 `dfns`에서만 만든다. Fireblocks 판단 경로의 동작은 바뀌지 않았다 |
+| 확정 임계 | `ConfiguredFinalityPolicy`를 제공자 중립 위치로 옮겼다 — `bcm.finality-confirmations.<network>`는 두 제공자가 **같은 설정**을 쓴다(Fireblocks는 벤더 컨펌 수, Dfns는 블록 깊이와 비교) |
+| 조립 위치 | 상태 번역기·체인 head는 **판단 경로에서만** 필요하므로 Webhook 앱에서만 만든다. 사건 해석기(`NetworkChainEventParser`)는 envelope 해석과 같이 모든 앱에서 만들 수 있다 |
+| 인박스 상태 | 입금 판단 완료는 처리 완료(벤더 종결 표식은 이동 상태 `Confirmed`), 미귀속은 경보 후 처리 완료, payload 결함은 재시도/격리, 확정 임계 설정 오류는 `P`로 남겨 복구 뒤 재처리한다 — Fireblocks 경로와 같은 규율이다 |
+| **입금만 판단한다** | 전송 알림(`wallet.transfer.*`)·발신 이동·미지원/미등록 자산·정밀도 없음·발신 주소 없음은 원장을 쓰지 않고 **처리 완료로만** 남긴다. 제출 원장 대조 경로가 없어 출금 판단이 불가능하기 때문이며, 그래서 **`BCM_PROVIDER=dfns` 기동 차단 해제 조건에 "출금·발신 판단 구현"이 함께 걸린다.** 이 제약을 모르고 출금을 열면 안 된다 |
+| 범위 밖 | 발신의 제출 원장 대조·출금 유스케이스, 미등록 자산·미지원 종류의 경보 포트, `WebhookTransactionParser`의 Dfns 구현, 이력 복구, 기동 차단 해제 |
+
+수용 항목: 전송 알림을 처리 완료로 남기는 동안 잃는 정보의 운영 영향(이력 복구로 회수 가능한지), 미판단 계열의 경보 수준.
+
 ## 공개 API에서 선행할 변경
 
 | 현행 공개 계약 | Dfns 연결 전 필요한 결정 |

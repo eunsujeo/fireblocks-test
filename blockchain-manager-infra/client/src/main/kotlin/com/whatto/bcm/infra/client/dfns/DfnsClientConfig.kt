@@ -2,6 +2,7 @@ package com.whatto.bcm.infra.client.dfns
 
 import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.provider.ProviderOrigin
+import com.whatto.bcm.domain.vendor.NetworkChainEventParser
 import com.whatto.bcm.domain.webhook.WebhookProtocol
 import com.whatto.bcm.domain.webhook.WebhookSignatureVerifier
 import com.whatto.bcm.infra.client.config.ConditionalOnDfnsProtocol
@@ -38,6 +39,13 @@ class DfnsClientConfig {
     /** 웹훅 envelope 해석 — 모든 앱에서 만들 수 있다(secret 불필요). */
     @Bean
     fun dfnsWebhookProtocol(objectMapper: ObjectMapper): WebhookProtocol = DfnsWebhookProtocol(objectMapper)
+
+    /** 온체인 이동(입금) 사건 해석 — 판단 워커가 소비한다. */
+    @Bean
+    fun dfnsNetworkChainEventParser(
+        objectMapper: ObjectMapper,
+        properties: DfnsProperties,
+    ): NetworkChainEventParser = DfnsNetworkChainEventParser(objectMapper, properties)
 
     /**
      * 웹훅 HMAC 검증기 — Webhook 수신 앱에서만 조립한다(`bcm.dfns.webhook-secrets` 필수, 빈 생성 시점에 검사).

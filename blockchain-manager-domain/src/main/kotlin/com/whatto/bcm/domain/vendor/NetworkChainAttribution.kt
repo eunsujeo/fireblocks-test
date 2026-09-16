@@ -28,12 +28,18 @@ object NetworkChainAttribution {
         }
         val destination =
             observation.toAddress
-                ?: return NetworkChainAttributionResult.Unattributed(observation, NetworkChainAttributionMiss.MISSING_DESTINATION)
+                ?: return unattributed(observation, asset, NetworkChainAttributionMiss.MISSING_DESTINATION)
         val accountId =
             ledger.accountOfDepositAddress(destination, asset.network, asset.symbol)
-                ?: return NetworkChainAttributionResult.Unattributed(observation, NetworkChainAttributionMiss.UNKNOWN_ADDRESS)
+                ?: return unattributed(observation, asset, NetworkChainAttributionMiss.UNKNOWN_ADDRESS)
         return NetworkChainAttributionResult.Deposit(observation, accountId, asset.network, asset.symbol, asset.decimals)
     }
+
+    private fun unattributed(
+        observation: NetworkChainTransfer,
+        asset: LedgerAsset,
+        miss: NetworkChainAttributionMiss,
+    ) = NetworkChainAttributionResult.Unattributed(observation, miss, asset.network, asset.symbol)
 }
 
 /** 귀속에 필요한 BCM 원장 조회. 구현은 실행 모듈이 기존 조회 서비스로 연결한다. */
@@ -93,10 +99,12 @@ sealed interface NetworkChainAttributionResult {
         override val observation: NetworkChainTransfer,
     ) : NetworkChainAttributionResult
 
-    /** 등록 자산인데 우리 주소로 귀속되지 않는다 — 경보 대상이다. */
+    /** 등록 자산인데 우리 주소로 귀속되지 않는다 — 경보 대상이다. 자산은 이미 해소됐으므로 경보에 우리 어휘(network·symbol)를 싣는다. */
     data class Unattributed(
         override val observation: NetworkChainTransfer,
         val miss: NetworkChainAttributionMiss,
+        val network: String,
+        val symbol: String,
     ) : NetworkChainAttributionResult
 }
 
