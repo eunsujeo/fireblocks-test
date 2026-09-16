@@ -21,6 +21,13 @@ import java.time.Clock
  * secret 누락은 첫 수신이 아니라 조립에서 실패한다. `BCM_PROVIDER=dfns` 전체 기동 차단(ProviderConfiguration)은 여기서 검사하지 않는다.
  */
 class DfnsClientConfigTest {
+    /** 시험용 자격값 — 실행마다 생성한다(소스에 고정 토큰·secret을 두지 않음). */
+    private fun randomValue(): String =
+        java.util.Base64
+            .getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(java.security.SecureRandom().generateSeed(24))
+
     private val runner =
         ApplicationContextRunner()
             .withUserConfiguration(DfnsClientConfig::class.java)
@@ -32,7 +39,7 @@ class DfnsClientConfigTest {
             .withPropertyValues(
                 "bcm.provider=dfns",
                 "bcm.dfns.base-url=https://baseline.dfns.internal.test",
-                "bcm.dfns.auth-token=test-token",
+                "bcm.dfns.auth-token=${randomValue()}",
                 "bcm.dfns.credential-id=${DfnsTestKeyFixture.CREDENTIAL_ID}",
                 "bcm.dfns.credential-private-key-pem=${DfnsTestKeyFixture.pem(DfnsTestKeyFixture.ecKeyPair())}",
                 "bcm.dfns.networks.ETHEREUM_SEPOLIA=EthereumSepolia",
@@ -53,7 +60,7 @@ class DfnsClientConfigTest {
     @Test
     fun `웹훅 수신 조립은 secret이 있어야 HMAC 검증기를 만들고 없으면 조립에서 실패한다`() {
         runner
-            .withPropertyValues("bcm.webhook.ingestion.enabled=true", "bcm.dfns.webhook-secrets=test-secret-1,test-secret-2")
+            .withPropertyValues("bcm.webhook.ingestion.enabled=true", "bcm.dfns.webhook-secrets=${randomValue()},${randomValue()}")
             .run { context ->
                 assertThat(context).hasNotFailed()
                 assertThat(context.getBean(WebhookSignatureVerifier::class.java)).isInstanceOf(DfnsWebhookSignatureVerifier::class.java)

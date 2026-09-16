@@ -13,7 +13,7 @@ import javax.crypto.spec.SecretKeySpec
 
 /**
  * 공식 가이드의 `sha256=<hex>` HMAC-SHA256·webhook secret·timestampSent 허용 오차 계약 — 서명 입력은 수신 바이트 그대로다(계약13).
- * payload는 명세 WebhookEvent 필수 필드 형태의 시험 표기이며 실제 Dfns 발송 원문이 아니다. secret은 시험용 상수다.
+ * payload는 명세 WebhookEvent 필수 필드 형태의 시험 표기이며 실제 Dfns 발송 원문이 아니다. secret은 실행마다 무작위로 만든다(고정 자격을 소스에 두지 않음).
  */
 class DfnsWebhookSignatureVerifierTest {
     private val now = Instant.parse("2026-09-16T00:00:00Z")
@@ -30,7 +30,7 @@ class DfnsWebhookSignatureVerifierTest {
 
     @Test
     fun `다른 secret·변조된 바이트·재직렬화된 본문은 거절하고 다른 입력으로 재시도하지 않는다`() {
-        assertThat(verifier.verify(sign("other-secret", payload), payload)).isFalse()
+        assertThat(verifier.verify(sign(randomSecret(), payload), payload)).isFalse()
         assertThat(verifier.verify(sign(CURRENT_SECRET, payload), payload + '\n'.code.toByte())).isFalse()
         val reserialized = ObjectMapper().writeValueAsBytes(ObjectMapper().readTree(payload))
         val pretty = payload.toString(StandardCharsets.UTF_8).replace(",", ", ").toByteArray()
@@ -60,6 +60,11 @@ class DfnsWebhookSignatureVerifierTest {
             """{"id":"wh-1","kind":"wallet.transfer.confirmed","data":{},"timestampSent":1.5}""".toByteArray(),
             event(now.epochSecond - 300),
             event(now.epochSecond + 300),
+            event(0),
+            event(-1),
+            event(Long.MIN_VALUE),
+            event(Long.MIN_VALUE + now.epochSecond),
+            event(Long.MAX_VALUE),
             "not json".toByteArray(),
         ).forEach { body ->
             assertThat(verifier.verify(sign(CURRENT_SECRET, body), body)).describedAs(body.toString(StandardCharsets.UTF_8)).isFalse()
@@ -85,8 +90,15 @@ class DfnsWebhookSignatureVerifierTest {
             .toByteArray()
 
     companion object {
-        private const val CURRENT_SECRET = "test-webhook-secret-current"
-        private const val PREVIOUS_SECRET = "test-webhook-secret-previous"
+        private val CURRENT_SECRET = randomSecret()
+        private val PREVIOUS_SECRET = randomSecret()
+
+        /** 시험용 secret — 실행마다 생성하며 값이 소스·로그에 남지 않는다. */
+        fun randomSecret(): String =
+            java.util.Base64
+                .getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(java.security.SecureRandom().generateSeed(32))
 
         fun sign(
             secret: String,

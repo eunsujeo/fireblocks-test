@@ -27,7 +27,7 @@ import javax.crypto.spec.SecretKeySpec
 
 /**
  * Dfns 수신 경로 결합 — 실제 HMAC 검증기·envelope 해석 + 공통 컨트롤러/서비스. payload는 명세 WebhookEvent 형태의 시험 표기이며
- * 실제 Dfns 발송 원문·서명이 아니다(수용 항목). 인박스는 대역이다.
+ * 실제 Dfns 발송 원문·서명이 아니다(수용 항목). 인박스는 대역이고 secret은 실행마다 무작위다.
  */
 class DfnsWebhookIngestionTest {
     private val now = Instant.parse("2026-09-16T00:00:00Z")
@@ -101,6 +101,10 @@ class DfnsWebhookIngestionTest {
     }
 
     companion object {
-        private const val SECRET = "test-webhook-secret"
+        /** 시험용 secret — 실행마다 생성하며 소스에 고정 자격을 두지 않는다. */
+        private val SECRET: String =
+            java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                java.security.SecureRandom().generateSeed(32),
+            )
     }
 }
