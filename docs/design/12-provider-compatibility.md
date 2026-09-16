@@ -510,3 +510,14 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   변형별 추가 필수 8종과 Solana 변형의 선택 필드, 이동 아닌 종류 4종 null, 본문·지갑 결손과 지갑 ID/network 불일치·설정 밖 네트워크 6종,
   공통 필수·형식 오류 14종, 값 범위 3종과 알림 메타 4종, 비JSON 4종).
 - 선택 회귀: domain 125 · client 157 · webhook 75, 실패 0. 전체 ktlintCheck 통과. DDL·공개 API 변경 없음. 실벤더 호출·운영 적용 없음.
+- **독립 converge 1차(Codex gpt-6-astra high, 별도 reviewer 세션, 범위 119cdd9..89a8b91, design-sync 먼저)**: Major 3 — ① `WalletHistoryEvent`는 oneOf라 변형마다 required가 다른데
+  모델 대상 변형의 필수 필드(`metadata`/`metadata.asset`, Native의 `symbol`·`decimals`, Erc20의 `from`·`to`·`decimals`)를 검사하지 않았다. 담지 않는 것과 검사하지 않는 것은 별개다.
+  ② "모델 밖 종류 보존"이 문서화된 종류와 임의 문자열을 구분하지 않아 schema를 만족하지 않는 본문도 정상 관찰로 받았다. ③ `data.wallet`의 필수 `network`를 대조하지 않아 ID만 같고
+  네트워크가 다른 본문으로도 자산 키를 만들 수 있었다. design-sync 실패로 code-reviewer는 수행하지 않았다. `VendorWebhookDelivery` 공통화·설정 밖 네트워크 정책·`Confirmed` 미번역·
+  원문 `timestamp`는 정합으로 확인됐다.
+- **반영**: `DfnsChainEventKinds`에 명세 이동 종류 28개와 모든 변형의 required 교집합 아홉, 모델 대상 변형의 추가 필수를 두고 파서가 모두 검사한다. 문서에 없는 종류는 미지원으로
+  수용하지 않고 거절하며, 문서화된 미지원 종류만 공통 필수만 검사해 보존한다. `data.wallet.network`도 사건의 `network`와 대조한다. 정상 fixture를 명세 required대로 채우고
+  변형별 결손·미문서 종류·network 불일치 사례를 테스트에 넣었으며, 폐기 예정 표기가 붙은 `symbol`·`decimals`가 required에서 빠지면 검사도 함께 푼다는 조건을 수용 항목에 적었다.
+  재실행: domain 125 · client 157 · webhook 75, 실패 0, 전체 ktlintCheck 통과.
+- **독립 converge 2차(Codex, 범위 89a8b91..750ddff, design-sync→code-reviewer 순차)**: 이전 Major 3건 해소 확인(28종 목록이 명세와 누락·초과 없이 일치, 네 변형 required 일치),
+  신규 Critical/Major/Minor 0으로 통과했다(검토 기준 750ddff).
