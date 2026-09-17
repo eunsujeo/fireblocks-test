@@ -5,7 +5,8 @@ import com.whatto.bcm.domain.wallet.NetworkWalletSubmissionSpec
 
 /**
  * 논리 계정에 속한 네트워크 지갑의 생성·조회 경계. 벤더 HTTP schema가 아닌 BCM 내부 계약이다.
- * 기존 Fireblocks vault/asset 주소 생성 포트와 별개이며 아직 실행 어댑터를 조립하지 않는다.
+ * 기존 Fireblocks vault/asset 주소 생성 포트와 별개다. 실행 어댑터는 `BCM_PROVIDER=dfns`에서만 조립되며
+ * 그 선택 자체가 기동 단계에서 거절되므로 운영에서 실행되지 않는다.
  */
 interface NetworkWalletProvisioningPort {
     /**

@@ -275,7 +275,8 @@ upd: bcm_job_m | 1 | last_scs_dttm=12:00
 
 모든 테이블은 코어 규약의 감사 4컬럼(`frst_reg_empno`·`frst_reg_brcd`·`last_chng_empno`·`last_chng_brcd`)을 끝에 둔다 — 아래 스키마에서는 반복을 줄여 **감사 4컬럼**으로 줄여 적고, 자동 처리 행은 시스템 센티넬로 채운다.
 
-Dfns 원천·지갑/요청/수신 시도의 논리 식별 요구는 [연결 계약](13-dfns-contracts.md#실행-원천과-저장-식별자)에 기록한다. 아래 DDL은 현행 Fireblocks 계약이며 Dfns 물리 스키마 변경은 아직 적용하지 않는다.
+Dfns 원천·지갑/요청/수신 시도의 논리 식별 요구는 [연결 계약](13-dfns-contracts.md#실행-원천과-저장-식별자)에 기록한다.
+아래 DDL은 **V21까지의 공통·Fireblocks 계약**이다. Dfns를 위한 물리 변경은 V22~V27로 **이미 적용했고** 각 V절에 따로 적었다 — `BCM_PROVIDER=dfns` 전체 기동이 막혀 있는 것과 스키마가 적용됐다는 것은 별개다.
 
 ### 제공자 원천 binding — 후속 물리 계약
 
@@ -393,7 +394,8 @@ acnt_id·vendor vault ID·주소·진행 의도·이벤트 키를 치환하지 �
 
 DF3.6은 앞 절의 생성 의도·페이지 회수·완료 연결을 확장 테이블로 구현한다. 기존 계정의 NOT NULL과 주소 매핑은 유지한다.
 계정 FK는 현재 `bcm_acnt_m`을 참조하고, `LOGICAL` 모델 도입/소비자 분리는 후속 마이그레이션으로 수행한다.
-새 원장에는 아직 공개 API/벤더 실행 호출자가 없다. 이 저장 계약만으로 Dfns 지갑을 생성하거나 기동을 허용하지 않는다.
+이 저장 계약만으로 Dfns 지갑을 생성하거나 기동을 허용하지 않는다.
+현재는 공개 계정·주소 API가 `BCM_PROVIDER=dfns`에서 이 원장을 쓰도록 조건부로 조립돼 있으나(`DfnsAccountConfig`), `ProviderConfiguration`의 전체 기동 차단이 유지되므로 운영에서 실행되지는 않는다.
 
 | 테이블 | 컬럼·타입 | 키·제약 |
 |---|---|---|
@@ -525,7 +527,8 @@ Solana 수신 주소 모델은 [계약13](13-dfns-contracts.md#solana-수신-주
   유형/ref 경합은 기존 accountId로 합류하며 기존 VAULT 계정을 LOGICAL로 바꾸지 않는다.
   Fireblocks vault 대사는 LOGICAL 계정이 있으면 snapshot/벤더 조회 진행을 거절하며 NULL을 vault ID로 사용하지 않는다.
 - 기존 바이너리는 LOGICAL 행을 해석하지 못하므로 신규 모델 writer 활성화 후 구버전으로 단순 롤백하지 않는다.
-  실제 Dfns writer/API는 아직 활성화하지 않는다. 배포 SQL은 DBA가 적용하며 기존 V1~22를 수정하지 않는다.
+  Dfns writer/API는 `BCM_PROVIDER=dfns`에서만 조립되며, 그 선택 자체가 `ProviderConfiguration`에서 거절되므로 운영에서 활성화되지 않는다.
+  배포 SQL은 DBA가 적용하며 기존 V1~22를 수정하지 않는다.
 
 ### bcm_acnt_crtn_l — vault 생성 의도·회수 원장
 

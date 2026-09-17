@@ -22,7 +22,10 @@ import java.security.MessageDigest
 import java.time.Clock
 import java.util.UUID
 
-/** 내부 조립용 유스케이스. 실제 벤더/증적 어댑터 수용 전 기본 실행 빈과 공개 API에는 연결하지 않는다. */
+/**
+ * 네트워크 지갑 생성 유스케이스. 공개 주소 API가 `BCM_PROVIDER=dfns`에서만 이 구현을 조립한다(`DfnsAccountConfig`).
+ * 조건부 조립은 벤더·증적 어댑터의 수용이 아니다 — 전체 기동 차단이 유지되므로 운영에서 실행되지 않는다.
+ */
 class NetworkWalletProvisioningService(
     private val repository: NetworkWalletProvisioningRepository,
     private val vendor: NetworkWalletProvisioningPort,

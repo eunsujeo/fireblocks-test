@@ -111,14 +111,20 @@ CREATE TABLE bcm_vndr_ast_m (
   vndr_ast_id   VARCHAR(128) NOT NULL,  -- 벤더 assetId(Fireblocks) 또는 Dfns 자산 키 — 벤더 호출·대조에만 쓴다 (V25에서 128자)
   cntr_addr     VARCHAR(128) NULL,       -- 등록 때 대조한 컨트랙트 주소 (네이티브는 NULL)
   dcml_cnt      SMALLINT     NULL,       -- 등록 시점에 확정한 소수 자릿수 (V27. 정밀도 저장 전 등록 행은 NULL)
-  actv_yn       VARCHAR(1)   NOT NULL,   -- 현재 지원 여부 Y/N
+  actv_yn       VARCHAR(1)   NOT NULL,   -- 현재 지원 여부 Y/N (V11)
   reg_dttm      VARCHAR(16)  NOT NULL,
   -- 감사 4컬럼
   PRIMARY KEY (ntwk_cd, tkn_smbl),
-  UNIQUE (vndr_ast_id),
   FOREIGN KEY (ntwk_cd) REFERENCES bcm_blkc_m (ntwk_cd),
+  CONSTRAINT ck_bcm_vndr_ast_actv CHECK (actv_yn IN ('Y', 'N')),      -- V11
   CONSTRAINT ck_bcm_vndr_ast_dcml CHECK (dcml_cnt BETWEEN 0 AND 255)  -- V27
 );
+
+-- 벤더 자산 ID의 유일성은 **활성 행에만** 걸린다 (V11에서 V1의 전역 UNIQUE를 제거하고 부분 인덱스로 바꿨다).
+-- 비활성화한 이전 매핑이 같은 vndr_ast_id 를 그대로 들고 남아 있어도 재등록을 막지 않는다 — 교체·재활성 이력을 보존하기 위해서다.
+CREATE UNIQUE INDEX uk_bcm_vndr_ast_active_vendor
+  ON bcm_vndr_ast_m (vndr_ast_id)
+  WHERE actv_yn = 'Y';
 
 -- 매핑 변경 원장 — 변경 전후 상태를 추가 전용으로 보관한다
 CREATE TABLE bcm_vndr_ast_chng_l (
@@ -138,7 +144,8 @@ CREATE TABLE bcm_vndr_ast_chng_l (
 | 제약 | 무엇을 막나 |
 |---|---|
 | `PRIMARY KEY (ntwk_cd, tkn_smbl)` | 같은 자산이 두 줄로 갈라지는 것 |
-| `UNIQUE (vndr_ast_id)` | 현재 한 벤더 자산이 여러 (네트워크, 토큰)에 붙는 것 |
+| `uk_bcm_vndr_ast_active_vendor` (활성 행 부분 UNIQUE) | **활성인** 한 벤더 자산이 여러 (네트워크, 토큰)에 붙는 것. 비활성 행은 제외되므로 과거 매핑의 벤더 ID는 재사용할 수 있다 |
+| `ck_bcm_vndr_ast_actv` | `actv_yn` 이 Y/N 밖의 값이 되는 것 |
 | `FOREIGN KEY (ntwk_cd)` | 채택하지 않은 네트워크로 매핑이 생기는 것 |
 | `UNIQUE (ntwk_cd)` (카탈로그) | 우리 이름 하나가 두 벤더 체인을 가리키는 것 |
 | 자산 카탈로그 검색 인덱스 | 심볼·표시명 exact/prefix·단어 검색이 전체 행 순회로 느려지는 것 |
@@ -229,7 +236,7 @@ sequenceDiagram
         else 하나만 잡힘
             FB-->>API: assetId · 컨트랙트 주소 · 소수 자릿수
             API->>MDB: 현재 행 등록·재활성·교체 + 변경 전후 snapshot<br/>감사 4컬럼 = 실제 직원·부점
-            alt vndr_ast_id UNIQUE 위반
+            alt 활성 vndr_ast_id 중복 (부분 UNIQUE 위반)
                 MDB-->>API: 제약 위반
                 API-->>ADM: 409 CONFLICT
             else 저장 성공

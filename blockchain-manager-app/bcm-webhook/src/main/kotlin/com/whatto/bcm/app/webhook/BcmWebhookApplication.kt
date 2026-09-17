@@ -8,7 +8,10 @@ import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.FilterType
 import org.springframework.scheduling.annotation.EnableScheduling
 
-/** Fireblocks PUBLIC Webhook 수신·판단·outbox relay 전용 조립 지점. */
+/**
+ * 벤더 Webhook 수신·판단·outbox relay 전용 조립 지점. 수신 프로토콜과 판단 워커는 `BCM_PROVIDER`가 고르며
+ * (`fireblocks`·`local`은 `WebhookDecisionTransaction`, `dfns`는 `DfnsWebhookDecisionTransaction`) 제공자마다 하나만 뜬다.
+ */
 @SpringBootApplication
 @ComponentScan(
     basePackages = ["com.whatto.bcm.app.webhook", "com.whatto.bcm.infra", "com.whatto.bcm.support"],

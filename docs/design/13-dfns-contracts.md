@@ -115,14 +115,15 @@ domain의 `NetworkWalletProvisioningPort`는 `create(request, submission)`, `rea
 `scanComplete=true`는 이 조회의 마지막 페이지를 성공적으로 읽었다는 뜻이다. 동시 생성·지연 노출의 부재 보장이 아니므로 0건이어도 생성하지 않는다.
 known ID 단건 조회는 응답 검증까지 성공한 때만 완료 조회로 판정하며, null은 현재 미관찰로 처리한다.
 
-포트에는 기본 성공/빈 조회 구현이 없다. 실제 실행 어댑터·공개 API 조립은 아직 없으며 기존 `AccountService`는 계속
+포트에는 기본 성공/빈 조회 구현이 없다. 실행 어댑터(`DfnsNetworkWalletClient`)와 공개 계정·주소 API 조립은 이후 슬라이스에서 구현했고
+`BCM_PROVIDER=dfns`에서만 조건부로 뜬다 — 전체 기동 차단과는 별개다. 기존 `AccountService`는 계속
 Fireblocks `WalletVendorPort`와 기존 회수 정책을 쓴다. Dfns에 현재 vault 포트를 억지로 연결하거나 `WalletCreationPolicy`를 기본 제공하지 않는다.
 내부 `NetworkWalletProvisioningService`는 생성 응답도 조회와 같은 원장 판정에 전달해 식별/소유 검사를 적용한다.
 최초 제출 권한·재시작 복구는 [03의 V22 원장](03-bcm-db.md#v22-네트워크-지갑-원장--물리-저장-계약)과
 `NetworkWalletProvisioningRepository`/`NetworkWalletProvisioningJdbcAdapter`로 구현했다.
 예약과 최초 권한은 호출자 트랜잭션과 독립적으로 커밋하며, 회수 페이지의 증적·후보·cursor와 완료 연결을 원자 저장한다.
 미완료 scan에서 유일하게 검증된 ID도 known ID로 고정해 다른 scan의 후보로 바꾸지 않는다.
-V23 논리 계정과 내부 생성 서비스를 연결했다. 실제 HTTP 호출·원문 보관 어댑터·자산 주소 연결은 아직 없으며 저장 결과를 Dfns 수용으로 해석하지 않는다.
+V23 논리 계정과 내부 생성 서비스를 연결했다. HTTP 호출·원문 보관 어댑터·공개 주소 연결은 이후 슬라이스에서 구현했다 — 저장 결과나 조립 사실을 Dfns 수용으로 해석하지 않는다.
 
 ## 실행 원천과 저장 식별자
 
@@ -204,7 +205,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 네트워크 | `transferRequest.network`는 명세 `Network` enum 값이다 | `bcm.dfns.networks`(BCM 코드 → 명세 값, 값 중복 금지)의 **역방향**으로 BCM 코드를 되찾는다. 매핑에 없는 네트워크의 전송 사건은 해석할 수 없으므로 **거절**한다 — 조용히 넘기면 관리 대상 이동을 놓친다 |
 | 해석 실패 | — | 전송 종류인데 `data.transferRequest`가 없거나 형식이 다르면 `WebhookPayloadException`으로 올린다. 자금 이동 신호를 "해석 불가"로 축소하지 않는다. 메시지에는 필드 이름만 담고 원문 값은 담지 않는다(원문 증적은 인박스) |
 | 수용 경계 | — | envelope 해석(`DfnsWebhookProtocol`)은 전송 종류에서 `data.transferRequest.id`가 명세 형식일 때만 `vendorTransactionId`를 채우고 **어긋나도 거절하지 않는다** — 인박스 수용(원문 보관)을 막지 않고 엄격한 해석은 판단 시점의 파서가 맡는다 |
-| 범위 밖 | — | `wallet.transaction.*`·정책/지갑 사건, `WebhookTransactionParser`·`VendorStatusTranslator`의 Dfns 구현, 재전달 dedup과 이력 복구, 판단 워커 조립. 입금 감지는 아래 [웹훅 온체인 이동 사건 관찰](#웹훅-온체인-이동-사건-관찰--구현)로 구현했다 |
+| 범위 밖 | — | `wallet.transaction.*`·정책/지갑 사건, `WebhookTransactionParser`의 Dfns 구현, 재전달 dedup과 이력 복구. 입금 감지는 [웹훅 온체인 이동 사건 관찰](#웹훅-온체인-이동-사건-관찰--구현), 상태 번역은 [상태 번역](#상태-번역--구현), 워커 조립은 [판단 워커 조립](#판단-워커-조립--구현)으로 이후 구현했다 |
 
 수용 항목: 실제 Baseline이 보내는 전송 사건 본문이 위 수신 envelope schema와 같은지(특히 `deliveryAttempt`·`retryOf`의 실제 제공 형태),
 조직 웹훅이 BCM 미관리 네트워크의 전송 사건도 보내는지(보낸다면 위 "거절"을 건너뛰기로 바꿀지),
@@ -229,7 +230,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 금액 | `value`는 문자열이고 모델 대상 변형에서 필수다. **단위를 서술한 곳이 없다** | 전송 요청과 같은 규칙으로 **최소 단위 정수**(선행 0 금지)로 읽는다. 이는 BCM 해석이며 정수 검사는 비정수만 걸러낼 뿐 단위를 증명하지 못한다(아래 수용 항목) |
 | 정밀도·심볼 | `metadata.asset`은 필수지만 그 안의 `symbol`·`decimals`·`verified`는 필수가 아니다. 최상위 동명 필드는 `@deprecated`이면서 일부 변형의 required 목록에 남아 있다 | 관찰값에 **담지 않는다** — 선택이자 폐기 예정인 벤더 필드에 업무 판단을 걸지 않는다. 담지 않는 것과 명세 필수 필드의 존재를 검사하는 것은 별개다(위 필수 필드 행). **정밀도의 출처는 등록 매핑이다**(03 V27의 `dcml_cnt`) — 관찰이 아니라 등록값으로 환산한다. Dfns 원천은 정밀도 없이 등록할 수 없다 |
 | 체인 좌표 | 필수 `blockNumber`(number)·`txHash`·`timestamp`(문자열, 형식 서술 없음), 선택 `index`(문자열) | `blockNumber`는 정수·음수 아님만 받는다. `timestamp`는 **파싱하지 않고 원문 그대로** 둔다 — `date`·`dateRequested`와 달리 형식·시간대 서술이 없다. `index`는 있으면 원문으로 담는다 |
-| 범위 밖 | — | 입금 귀속(`bcm_addr_m` 대조)·`WebhookTransactionParser`/`VendorStatusTranslator`의 Dfns 구현·논리 사건 생성과 outbox·미등록 자산 입금 경보·감시 주소 기능·이력 복구·판단 워커 조립 |
+| 범위 밖 | — | `WebhookTransactionParser`의 Dfns 구현·미등록 자산 입금 경보 포트·감시 주소 기능·이력 복구. 입금 귀속·상태 번역·논리 사건/outbox·워커 조립은 [온체인 이동의 귀속](#온체인-이동의-귀속--구현) 이후 슬라이스에서 구현했다 |
 
 **해결(2026-09-16 사용자 확정) — 정밀도는 등록 시점에 저장한다**([03 V27](03-bcm-db.md#v27-등록-자산의-정밀도-보관--물리-저장-계약)).
 Dfns 원천은 카탈로그가 없어 운영자가 발행사 자료와 대조해 등록하며 정밀도 없이는 등록할 수 없다(`decimalsRequired`).
@@ -259,7 +260,7 @@ Dfns는 **컨펌 수를 주지 않고** `Included`/`Confirmed`와 `blockNumber`�
 | 임계 | 기존 `bcm.finality-confirmations.<network>`(02 DCCP 임계와 같은 설정) | 같은 설정을 그대로 쓴다 — 제공자마다 확정 임계 설정을 따로 두지 않는다. 값이 없거나 0 이하면 기존 `FinalityPolicyConfigurationException` 경로로 중단한다 |
 | head 출처 | 위탁 RPC(`bcm.evm-rpc.networks.<network>.url`, EVM `eth_blockNumber`) | 설정에 없는 네트워크는 임의 endpoint를 고르지 않고 중단한다. RPC 오류·결손·형식 오류·범위 밖 값은 head로 받지 않는다 |
 | 조회 실패 | — | 확정을 **보류**하고 재시도한다 — 실패를 감추지 않고 예외로 올린다. **모름을 "아직 미확정"으로 바꾸지 않는다**(바꾸면 늦은 확정이 영영 오지 않는다) |
-| 범위 밖 | — | Solana의 확정(슬롯·commitment 모델이 EVM 블록 깊이와 다르다)·`VendorStatusTranslator`의 Dfns 구현·판단 워커 조립·head 캐시/조회 주기·reorg 무효화(`FINALIZED → FAILED`) 관찰 경로 |
+| 범위 밖 | — | Solana의 확정(슬롯·commitment 모델이 EVM 블록 깊이와 다르다)·head 캐시/조회 주기·reorg 무효화(`FINALIZED → FAILED`) 관찰 경로. 상태 번역과 워커 조립은 이후 슬라이스에서 구현했다 |
 
 수용 항목: 위탁 RPC endpoint의 운영 소유·가용성과 head 조회 주기·캐시 정책, 네트워크별 임계값(Dfns 문서의 확인 지연과 BCM 임계의 관계),
 Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블록이 사라졌을 때의 관찰 경로(벤더가 무효화 알림을 보내는지).
@@ -354,7 +355,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 | 발신 주소 | [02](02-bcm-flow.md#상태-enum)는 **입금 이벤트에 발신 주소가 항상 실린다**고 확정했고 DAW-CORE의 입금 판별 게이트가 그 값을 쓴다. 그런데 명세상 `Native`·`Spl` 변형의 `from`은 선택이다 — 없으면 이벤트를 만들지 않고 `MissingSender`로 멈춘다. 공개 계약을 비운 채 내보내거나 빈 문자열을 지어내지 않는다 |
 | 금액 | 등록 정밀도로 사람 단위 금액을 만든다(`AssetDecimals.amountOf`) — 제공자와 무관하게 02 이벤트 금액의 단위는 하나다 |
 | 발행 | 전이 표가 발행할 상태만 outbox에 적재하고(`EventType.DEPOSIT`) 알림 ID를 `traceId`로 남긴다. 발행할 상태가 없으면 이벤트도 없다 |
-| 범위 밖 | 인박스 P/S/F 처리·워커 조립·경보 포트 연결·발신(제출 원장 대조)·`WebhookTransactionParser`의 Dfns 구현·이력 복구 |
+| 범위 밖 | 경보 포트 연결·발신(제출 원장 대조)·`WebhookTransactionParser`의 Dfns 구현·이력 복구. 인박스 P/S/F 처리와 워커 조립은 [판단 워커 조립](#판단-워커-조립--구현)으로 이후 구현했다 |
 
 수용 항목: **실제 입금 사건에 `from`이 채워져 오는지**(오지 않는 변형이 있으면 02의 공개 이벤트 계약을 바꿀지 그 입금을 보류할지 결정해야 한다), 입금 사건이 `Included`→`Confirmed`로 두 번 올 때의 전이(같은 거래 ID로 합류하는지), 미등록 자산 입금의 운영 경보 수준,
 정밀도 없는 기존 매핑이 실제로 남아 있는지, 체인 head 조회 주기·캐시와 재시도 상한.
@@ -533,7 +534,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 
 `LogicalAccountService`는 명시적으로 선택된 Dfns 원천에서 외부 호출 없이 논리 계정을 예약한다.
 `NetworkWalletProvisioningService`는 AccountQueryService로 LOGICAL 계정과 원천을 확인한 뒤 V22 원장과 생성 포트를 연결한다.
-두 클래스는 아직 기본 Spring 실행 빈/API에 연결하지 않는다. Fireblocks/로컬 AccountService의 공개 계약은 유지한다.
+두 클래스는 이후 `DfnsAccountConfig`가 `BCM_PROVIDER=dfns`에서만 조립한다 — 조건부 조립은 전체 기동 차단 해제가 아니다. Fireblocks/로컬 AccountService의 공개 계약은 유지한다.
 
 1. 같은 scope는 최초 의도/상관관계·요청 hash/버전/벤더 network snapshot으로 합류한다. 검증된 자산/네트워크 매핑으로
    seed를 만드는 것은 호출자의 책임이다. 포트 create에도 고정 submission snapshot을 전달해 실행 중 현재 매핑으로 바꾸지 않는다.
@@ -546,7 +547,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 5. 회수는 호출당 한 페이지만 읽어 저장한다. 진행 중 scan은 저장 cursor에서 이어가고, 끝난 대기는 새 scan으로 조회한다.
    새 scan에서 known ID가 있으면 단건 read, 없으면 후보 조회를 사용한다. 진행 중 목록 scan은 known ID를 얻어도 그 cursor를 끝까지 따른다.
    조회 실패·증적 보관 실패에는 cursor를 전진시키지 않는다. 0건/404는 재생성 허가가 아니다.
-6. COMPLETED/CONFLICT는 외부 호출 없이 저장 상태를 반환한다. Pending/Conflict의 공개 HTTP 매핑은 위 [보류·충돌 HTTP 계약](#보류충돌-http-계약--구현)으로 고정했고, 공개 주소 API의 Dfns 연결과 자산 수신 주소 완료는 후속이다.
+6. COMPLETED/CONFLICT는 외부 호출 없이 저장 상태를 반환한다. Pending/Conflict의 공개 HTTP 매핑은 위 [보류·충돌 HTTP 계약](#보류충돌-http-계약--구현)으로 고정했고, 공개 주소 API의 Dfns 연결은 [계정·주소 API의 Dfns 연결](#계정주소-api의-dfns-연결--구현)로 구현했다. 자산 수신 주소 완료는 후속이다.
 7. 벤더 호출이 2xx가 아닌 응답이나 해석 불가한 2xx 응답으로 실패해도 수신 바이트가 있으면 같은 작업 종류로 먼저 보관한 뒤 오류를 전파한다.
    원장 페이지·cursor·연결은 기록하지 않는다. 응답을 받지 못한 실패(연결·timeout)는 보관할 바이트가 없다. 보관 자체가 실패하면 그 실패를 벤더 오류에 suppressed로 붙여 함께 전파한다.
 

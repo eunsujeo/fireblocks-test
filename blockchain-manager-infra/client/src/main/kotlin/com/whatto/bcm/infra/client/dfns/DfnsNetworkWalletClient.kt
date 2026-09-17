@@ -24,7 +24,8 @@ import java.security.MessageDigest
  * NetworkWalletProvisioningPort·NetworkWalletAssetPort의 Dfns 구현 — 공식 OpenAPI 1.1018.3의 `POST /wallets`·`GET /wallets/{walletId}`·`GET /wallets`·
  * `GET /wallets/{walletId}/assets`.
  * 응답은 상태와 무관하게 받은 바이트 그대로 서비스에 넘기고(V24 증적), 정규화 값은 같은 바이트에서 해석한다.
- * 실행 빈으로 등록하지 않는다 — `BCM_PROVIDER=dfns` 기동 차단과 Baseline 수용은 별개다(계약13).
+ * `DfnsClientConfig`가 `BCM_PROVIDER=dfns`에서만 실행 빈으로 등록한다 — 조건부 조립은 Baseline 수용이 아니며
+ * `ProviderConfiguration`의 전체 기동 차단이 유지되므로 운영에서 실행되지 않는다(계약13).
  *
  * - create: 생성 의도에 고정한 submission의 vendorNetwork·correlationId로 본문을 만들고, 그 SHA-256이 저장된 requestHash와 같아야 보낸다.
  *   `externalId`는 상관관계 값이며 멱등 보장이 아니다. 실패·응답 유실 뒤 자동 재호출은 하지 않는다(서비스 계약).

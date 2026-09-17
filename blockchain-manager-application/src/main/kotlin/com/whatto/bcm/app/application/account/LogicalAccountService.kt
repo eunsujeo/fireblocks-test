@@ -9,7 +9,10 @@ import com.whatto.bcm.support.time.CoreDateTimes
 import java.time.Clock
 import java.util.UUID
 
-/** 내부 조립용 유스케이스. Dfns 수용 전 공개 API/기본 실행 빈에는 연결하지 않는다. */
+/**
+ * 논리 계정 생성 유스케이스. 공개 계정 API가 `BCM_PROVIDER=dfns`에서만 이 구현을 조립한다(`DfnsAccountConfig`).
+ * 조건부 조립은 Dfns 수용이 아니다 — 전체 기동 차단이 유지되므로 운영에서 실행되지 않는다.
+ */
 class LogicalAccountService(
     private val repository: LogicalAccountRepository,
     private val origin: ProviderOrigin,
