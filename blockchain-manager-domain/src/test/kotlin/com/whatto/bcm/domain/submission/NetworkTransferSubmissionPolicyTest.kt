@@ -65,8 +65,9 @@ class NetworkTransferSubmissionPolicyTest {
     }
 
     @Test
-    fun `벤더가 제출 키를 돌려주지 않아도 불일치로 바꾸지 않는다`() {
-        // 응답에 externalId가 없을 수 있다 — 없음을 다름으로 읽으면 실제로 나간 전송을 409로 되돌리게 된다.
+    fun `조회 관찰은 제출 키가 선택이라 없음을 불일치로 바꾸지 않는다`() {
+        // 제출 응답의 externalId 결속은 어댑터가 강제하므로(없거나 다르면 실패) 그 경로에는 null이 오지 않는다.
+        // 이 관용은 externalId가 선택 필드인 조회 관찰에 같은 대조 규칙을 쓰기 위한 것이다(계약13).
         assertThat(NetworkTransferSubmissionPolicy.matches(observation(externalId = null), REQUEST)).isTrue()
     }
 
