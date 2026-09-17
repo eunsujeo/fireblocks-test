@@ -849,6 +849,5 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `numeric`으로 계산해 `LEAST` 뒤에 변환하도록 고치고 상한·대량 시도 구간을 영속 테스트로 고정했다.
   ② 정본 여러 곳이 붙임 조건을 "단일 후보 + 제출 원장 대응"으로 **축약**해, 그대로 재구현하면 같은 금액의 다른 자산을 붙일 수 있었다 —
   03·13·PLAN에 관찰 일치(지갑·자산 키·금액·목적지)를 함께 적었다. ③ 발신을 "미판단·후속"으로 적은 잔여 4곳. ④ 도메인 KDoc의 계산 위치 표기.
-- 검증: 전체 1,352 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
-  (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)
+- 검증: 전체 1,353 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)

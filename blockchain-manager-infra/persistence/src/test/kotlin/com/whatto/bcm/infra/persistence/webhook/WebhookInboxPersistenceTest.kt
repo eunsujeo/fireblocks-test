@@ -64,6 +64,14 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
         inbox.recordFailure("noti-backoff-cap", "transient", 999, "20260917090000", 30)
         assertThat(nextAttemptOf("noti-backoff-cap")).isEqualTo("20260917091000")
         assertThat(WebhookRetryBackoff.delaySeconds(81, 30)).isEqualTo(WebhookRetryBackoff.MAX_SECONDS)
+
+        // rtry_cnt 는 INT 라 이론상 이만큼 커질 수 있다 — 지수를 제한하지 않으면 2^n 계산 자체가 numeric 범위를 넘는다.
+        // 상한에 닿지 않도록 maxAttempts 를 더 크게 두어 격리가 아니라 대기 계산 경로를 타게 한다.
+        val huge = 2_000_000_000
+        jdbc.update("UPDATE bcm_whk_l SET rtry_cnt = ? WHERE noti_id = ?", huge, "noti-backoff-cap")
+        inbox.recordFailure("noti-backoff-cap", "transient", Int.MAX_VALUE, "20260917090000", 1)
+        assertThat(nextAttemptOf("noti-backoff-cap")).isEqualTo("20260917091000")
+        assertThat(WebhookRetryBackoff.delaySeconds(huge + 1, 1)).isEqualTo(WebhookRetryBackoff.MAX_SECONDS)
     }
 
     @Test
