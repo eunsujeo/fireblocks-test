@@ -15,10 +15,13 @@ import org.springframework.stereotype.Service
 import java.time.Clock
 
 /**
- * Dfns 인박스 판단 — 한 건을 잠가 [DfnsChainEventDecision]에 넘기고 결과를 인박스 상태로 옮긴다(계약13).
+ * Dfns 인박스 판단 — 한 건을 잠가 판단에 넘기고 결과를 인박스 상태로 옮긴다(계약13).
  *
- * **입금만 판단한다.** 전송 알림(`wallet.transfer.*`)·발신 이동은 제출 원장 대조가 필요한데 그 경로가 아직 없어 처리 완료로 표시만 한다 —
- * 그래서 `BCM_PROVIDER=dfns`의 기동 차단 해제 조건에 "출금·발신 판단 구현"이 함께 걸려 있다(계약13). 이 제약을 모르고 출금을 열면 안 된다.
+ * **전송 알림([DfnsTransferEventDecision])을 먼저 부르고, 전송 사건이 아니면 온체인 이동([DfnsChainEventDecision])으로 넘긴다** —
+ * 두 파서는 서로 다른 `kind` 집합만 읽으므로 한쪽이 null이면 다른 쪽 차례다.
+ *
+ * 아직 원장을 쓰지 않는 것은 **발신 이동 사건**이다 — 기존 거래에 붙이는 대조가 아직 없어 처리 완료로 표시만 한다 —
+ * 그래서 `BCM_PROVIDER=dfns`의 기동 차단 해제 조건에 "발신 이동 대조 구현"이 함께 걸려 있다(계약13). 이 제약을 모르고 출금을 열면 안 된다.
  *
  * 실패 처리는 Fireblocks 경로와 같다 — payload 결함은 재시도/격리, 설정 오류는 P로 남겨 복구 뒤 다시 처리, 그 밖의 오류는 워커가 기록한다.
  */
@@ -68,10 +71,13 @@ class DfnsWebhookDecisionTransaction(
                 WebhookDecisionOutcome.Processed(inboxItem.notificationId, transfer.events.size)
             }
 
-            // 제출 원장에 없는 전송·한 키에 붙은 두 전송은 원장·이벤트를 만들지 않는다. 경보 계약은 후속이라 지금은 처리 완료로 남긴다.
-            is DfnsTransferDecisionOutcome.UnknownSubmission,
-            is DfnsTransferDecisionOutcome.Conflicting,
-            -> {
+            // 한 제출 키에 전송이 둘 붙었다 — 이중 제출 신호다. 재시도가 결과를 바꾸지 못하므로
+            // 상한을 기다리지 않고 **즉시 격리**한다(03 `sbmt_stcd` 전이 표·계약13). 처리 완료로 소거하면 신호가 사라진다.
+            is DfnsTransferDecisionOutcome.Conflicting -> quarantineNow(inboxItem, CONFLICTING_TRANSFER_REASON)
+
+            // 제출 원장에 없는 전송은 우리가 만든 게 아니다 — 원장·이벤트를 만들지 않는다.
+            // 경보 포트 연결은 후속이라 지금은 처리 완료로 남긴다(계약13 범위 밖).
+            is DfnsTransferDecisionOutcome.UnknownSubmission -> {
                 markProcessed(inboxItem)
                 WebhookDecisionOutcome.Ignored(inboxItem.notificationId)
             }
@@ -109,6 +115,15 @@ class DfnsWebhookDecisionTransaction(
             }
         }
 
+    /** 재시도가 결과를 바꾸지 못하는 영구 충돌은 상한을 기다리지 않고 한 번에 격리한다(Fireblocks 워커와 같은 규율). */
+    private fun quarantineNow(
+        inboxItem: WebhookInboxItem,
+        safeReason: String,
+    ): WebhookDecisionOutcome =
+        inboxRepository
+            .recordFailure(inboxItem.notificationId, safeReason, IMMEDIATE_QUARANTINE)
+            .toOutcome(inboxItem.notificationId)
+
     private fun failed(
         inboxItem: WebhookInboxItem,
         safeReason: String,
@@ -133,6 +148,11 @@ class DfnsWebhookDecisionTransaction(
     }
 
     private companion object {
+        const val IMMEDIATE_QUARANTINE = 1
+
+        /** 격리 사유는 원문·주소·금액을 담지 않는다 — 인박스에 남는 값이다. */
+        const val CONFLICTING_TRANSFER_REASON = "submission key linked to another transfer"
+
         const val UNEXPECTED_FAILURE_REASON = "decision processing failed"
     }
 }

@@ -8,7 +8,7 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * NetworkTransferEventParser의 Dfns 구현 — 공식 `webhooks`의 `wallet.transfer.*` 다섯 종류와
- * `WebhookEnvelopeBase`·`TransferRequest` schema를 근거로 한다(계약13 "웹훅 전송 사건 관찰"). **내부 대역이며 판단 워커에 연결하지 않았다.**
+ * `WebhookEnvelopeBase`·`TransferRequest` schema를 근거로 한다(계약13 "웹훅 전송 사건 관찰"). 판단 워커의 전송 알림 판단이 이 파서를 쓴다.
  *
  * - `data.transferRequest`는 조회 응답과 같은 `TransferRequest`라 [DfnsTransferRequests]로 **같은 검사**를 거친다.
  * - 전송이 아닌 종류는 null이다. 전송 종류인데 `data.transferRequest`가 없거나 형식이 다르면 예외로 올린다 —

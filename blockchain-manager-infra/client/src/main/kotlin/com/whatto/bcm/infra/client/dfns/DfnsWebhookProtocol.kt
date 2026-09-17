@@ -11,8 +11,8 @@ import tools.jackson.databind.ObjectMapper
  *
  * `vendorTransactionId`는 **형식이 문서화된 종류에서만** 채운다 — 공식 `webhooks`의 `wallet.transfer.*`는 `data.transferRequest`가
  * 조회와 같은 `TransferRequest`이므로 그 `id`를 쓰고, 형식이 정해지지 않은 나머지 종류는 추정하지 않고 null로 둔다.
- * 여기서는 형식이 어긋나도 거절하지 않는다 — 인박스 수용(원문 보관)을 막지 않는다. 전송 사건의 엄격한 해석기
- * [DfnsNetworkTransferEventParser]는 아직 실행 빈이 아니며 판단 워커는 `wallet.transfer.*`를 처리 완료로만 남긴다(계약13).
+ * 여기서는 형식이 어긋나도 거절하지 않는다 — 인박스 수용(원문 보관)을 막지 않는다.
+ * 전송 사건의 엄격한 해석은 판단 시점에 [DfnsNetworkTransferEventParser]가 수행한다(계약13 "전송 알림 판단").
  * 인박스 dedup 키는 `id`이며 재전달도 알림 ID가 다르면 별도 수신이다.
  */
 class DfnsWebhookProtocol(

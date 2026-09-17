@@ -22,7 +22,10 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 
-/** Dfns 인박스 판단 — 결과를 인박스 상태로 옮기는 경계(계약13). 입금만 판단하고 나머지는 처리 완료로 남긴다. */
+/**
+ * Dfns 인박스 판단 — 결과를 인박스 상태로 옮기는 경계(계약13).
+ * 이 클래스의 시나리오는 모두 온체인 이동 사건이며, 전송 알림 판단은 [DfnsTransferEventDecisionTest]가 다룬다.
+ */
 class DfnsWebhookDecisionTransactionTest {
     private val inbox = mockk<WebhookInboxRepository>(relaxed = true)
     private val decision = mockk<DfnsChainEventDecision>()
@@ -31,6 +34,20 @@ class DfnsWebhookDecisionTransactionTest {
             // 기존 시나리오는 전부 온체인 이동 사건이다 — 전송 알림 판단은 그 앞에서 비켜선다.
             every { decide(any(), any()) } returns DfnsTransferDecisionOutcome.NotTransferEvent
         }
+
+    @Test
+    fun `한 제출 키에 두 전송이 붙은 충돌은 상한을 기다리지 않고 즉시 격리한다`() {
+        // 이중 제출 신호다 — 재시도가 결과를 바꾸지 못하므로 처리 완료로 소거하면 신호가 사라진다(03 전이 표).
+        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { transferDecision.decide(any(), any()) } returns
+            DfnsTransferDecisionOutcome.Conflicting(mockk(relaxed = true), "ext-1")
+        every { inbox.recordFailure(NOTIFICATION_ID, any(), 1) } returns WebhookFailureResult(quarantined = true, retryCount = 1)
+
+        val outcome = transaction().processNext()
+
+        assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Quarantined::class.java)
+        verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
+    }
 
     @Test
     fun `대기 건이 없으면 아무것도 하지 않는다`() {
