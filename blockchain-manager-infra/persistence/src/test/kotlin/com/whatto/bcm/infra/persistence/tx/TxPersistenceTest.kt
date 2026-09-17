@@ -60,6 +60,96 @@ class TxPersistenceTest : PersistenceTestSupport() {
     )
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `같은 network와 hash의 경계는 후보 조회와 새 행 삽입을 직렬화한다`() {
+        // 후보 조회는 잠금 없는 조회이고 (ntwk_cd, tx_hash)에는 유일 제약이 없다 — 기존 행에 FOR UPDATE를 걸어도
+        // **새 행 삽입**은 막히지 않는다. 그래서 거래를 만드는 쪽과 붙이는 쪽이 같은 경계를 잡아야 한다(계약13).
+        val hash =
+            "0x" +
+                UUID
+                    .randomUUID()
+                    .toString()
+                    .replace("-", "")
+                    .repeat(2)
+        val network = "ETHEREUM"
+        txRecords.insert(txRecord(vendorTxId = "tx-lock-a", transactionHash = hash))
+        val template = TransactionTemplate(transactionManager)
+        val executor = Executors.newSingleThreadExecutor()
+        val holderReady = CountDownLatch(1)
+        val holderRelease = CountDownLatch(1)
+
+        try {
+            val holder =
+                executor.submit {
+                    template.execute {
+                        txRecords.lockNetworkTransactionHash(network, hash)
+                        // 경계 안에서 후보를 읽는다 — 이 시점의 후보 집합이 커밋까지 유지돼야 한다.
+                        assertThat(txRecords.findByNetworkAndTransactionHash(network, hash)).hasSize(1)
+                        holderReady.countDown()
+                        holderRelease.await(5, TimeUnit.SECONDS)
+                    }
+                }
+            assertThat(holderReady.await(5, TimeUnit.SECONDS)).isTrue()
+
+            val inserted =
+                Executors.newSingleThreadExecutor().submit<Boolean> {
+                    template.execute {
+                        txRecords.lockNetworkTransactionHash(network, hash)
+                        txRecords.insert(txRecord(vendorTxId = "tx-lock-b", transactionHash = hash))
+                        true
+                    } ?: false
+                }
+
+            Thread.sleep(500)
+            // 경계를 쥔 쪽이 커밋하기 전에는 같은 hash의 새 행이 들어오지 못한다.
+            assertThat(inserted.isDone).isFalse()
+
+            holderRelease.countDown()
+            holder.get(5, TimeUnit.SECONDS)
+            assertThat(inserted.get(5, TimeUnit.SECONDS)).isTrue()
+            assertThat(txRecords.findByNetworkAndTransactionHash(network, hash)).hasSize(2)
+        } finally {
+            holderRelease.countDown()
+            executor.shutdownNow()
+            jdbc.update("DELETE FROM bcm_tx_l WHERE tx_hash = ?", hash)
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `다른 network나 hash의 경계는 서로를 막지 않는다`() {
+        // 경계가 너무 넓으면 무관한 이동끼리 줄을 서게 된다.
+        val template = TransactionTemplate(transactionManager)
+        val executor = Executors.newSingleThreadExecutor()
+        val holderReady = CountDownLatch(1)
+        val holderRelease = CountDownLatch(1)
+
+        try {
+            executor.submit {
+                template.execute {
+                    txRecords.lockNetworkTransactionHash("ETHEREUM", "0xaaa")
+                    holderReady.countDown()
+                    holderRelease.await(5, TimeUnit.SECONDS)
+                }
+            }
+            assertThat(holderReady.await(5, TimeUnit.SECONDS)).isTrue()
+
+            val other =
+                Executors.newSingleThreadExecutor().submit<Boolean> {
+                    template.execute {
+                        txRecords.lockNetworkTransactionHash("ETHEREUM", "0xbbb")
+                        true
+                    } ?: false
+                }
+
+            assertThat(other.get(5, TimeUnit.SECONDS)).isTrue()
+        } finally {
+            holderRelease.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
     fun `거래 왕복 — 벤더 원어 보관 컬럼(subStatus·networkStatus)까지 그대로 되찾는다`() {
         val saved = txRecords.insert(txRecord())
         assertThat(txRecords.findByVendorTxId("tx-91c")).isEqualTo(saved)

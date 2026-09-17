@@ -861,5 +861,10 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   ② advisory lock에 **입금 판단이 참여하지 않았다** — 입금도 같은 `(network, tx_hash)`로 거래 행을 만든다. 경계 획득을 `decide` 진입부로 옮겨 모든 온체인 사건이 참여한다.
   Major 2건(정본·KDoc의 네 번째 조건 누락, "전송 알림이 오면 해소된다"는 과한 보장)과 Minor 1건도 함께 반영했다 —
   전송 알림의 `txHash`는 선택이라 hash 없이 올 수 있고 장기 `REQUESTED`도 미결로 남으므로, 해소가 보장되지 않고 창을 넘기면 격리된다는 경계를 적었다.
-- 검증: 전체 1,358 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+- **Improvement 1(실제 결합 검증) 일부 반영**: 이번 슬라이스의 핵심인 **직렬화 경계를 실제 PostgreSQL 두 연결로 고정**했다 —
+  경계를 쥔 쪽이 커밋하기 전에는 같은 `(network, hash)`의 새 행이 들어오지 못하고, 다른 `(network, hash)`는 서로 막지 않는다.
+  입금 판단도 같은 경계를 잡는지는 판단 단위 테스트로 고정했다.
+  **아직 없는 것**: `markSubmitted → bcm_tx_l → outbox → inbox S`의 실제 일괄 커밋·롤백과 중복 알림의 outbox 중복 방지를
+  한 컨텍스트에서 보는 결합 테스트 — Webhook 슬라이스 harness(`@DataJdbcTest` + 명시 `@Import`)를 만드는 후속이다.
+- 검증: 전체 1,361 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)

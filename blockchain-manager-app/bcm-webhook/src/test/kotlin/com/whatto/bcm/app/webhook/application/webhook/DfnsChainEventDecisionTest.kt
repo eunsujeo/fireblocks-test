@@ -203,6 +203,18 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
+    fun `입금 판단도 같은 직렬화 경계에 참여한다`() {
+        // 입금도 같은 (network, tx_hash)로 거래 행을 만든다 — 한 경로라도 빠지면 발신 붙임의 후보 조회에 팬텀 삽입이 남는다.
+        val deposit = transfer()
+        every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
+        every { txStates.observe(any()) } returns stateChange(TxStatus.FINALIZED)
+
+        decision(event = event(deposit)).decide(NOTIFICATION_ID, PAYLOAD)
+
+        verify(exactly = 1) { txStates.lockNetworkTransactionHash(NETWORK, TX_HASH) }
+    }
+
+    @Test
     fun `후보 조회 전에 network와 hash의 직렬화 경계를 잡는다`() {
         // 조회와 전이 사이에 같은 hash 행이 새로 삽입될 수 있다 — 거래를 만드는 쪽과 같은 경계를 공유해야 한다.
         val outgoing = transfer(direction = NetworkChainDirection.OUT)
