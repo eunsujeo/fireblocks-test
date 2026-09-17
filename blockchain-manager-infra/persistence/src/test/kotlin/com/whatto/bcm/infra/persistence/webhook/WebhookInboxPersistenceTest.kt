@@ -51,6 +51,22 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `대기는 상한에서 멈추고 큰 기준 대기에서도 넘치지 않는다`() {
+        // bigint로 먼저 곱하면 상한(LEAST)에 닿기 전에 overflow가 난다 — numeric으로 계산해야 한다.
+        inbox.insertIfAbsent(notification("noti-backoff-cap", "20260917085900"))
+
+        // 기준 대기가 상한을 훌쩍 넘어도 상한으로 끊긴다.
+        inbox.recordFailure("noti-backoff-cap", "transient", 99, "20260917090000", WebhookRetryBackoff.MAX_SECONDS * 10)
+        assertThat(nextAttemptOf("noti-backoff-cap")).isEqualTo("20260917091000")
+
+        // 시도가 아주 많이 쌓여 2^n이 커져도 같은 상한을 돌려준다.
+        jdbc.update("UPDATE bcm_whk_l SET rtry_cnt = 80 WHERE noti_id = ?", "noti-backoff-cap")
+        inbox.recordFailure("noti-backoff-cap", "transient", 999, "20260917090000", 30)
+        assertThat(nextAttemptOf("noti-backoff-cap")).isEqualTo("20260917091000")
+        assertThat(WebhookRetryBackoff.delaySeconds(81, 30)).isEqualTo(WebhookRetryBackoff.MAX_SECONDS)
+    }
+
+    @Test
     fun `격리되는 시도에는 대기 시각을 두지 않는다`() {
         // 재시도가 결과를 바꾸지 못하는 행에 대기 시각을 남기면 의미 없이 조회 조건만 복잡해진다.
         inbox.insertIfAbsent(notification("noti-backoff-final", "20260917085900"))
