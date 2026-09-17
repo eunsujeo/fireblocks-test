@@ -75,7 +75,7 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
   `ConditionalOnDfnsProtocol`의 `DfnsClientConfig`(`bcm.dfns.*`·서명기·지갑 HTTP 어댑터)·`DfnsAccountConfig`·`DfnsAccountService`만 조립한다
   ([계약13](13-dfns-contracts.md#계정주소-api의-dfns-연결--구현)). 기동 차단 상태에서 구현·조립된 Dfns 슬라이스는 계정·주소·잔액,
   Admin 자산 등록 관문(`DfnsChainAssetResolver`), 웹훅 수신 프로토콜(`DfnsWebhookProtocol`은 모든 앱, HMAC 검증기는 Webhook 앱),
-  그리고 웹훅 **입금** 판단 워커(`DfnsWebhookDecisionConfig`·`DfnsWebhookDecisionTransaction` — 아래 판단 워커 조립 절)이며
+  그리고 웹훅 판단 워커(`DfnsWebhookDecisionConfig`·`DfnsWebhookDecisionTransaction` — **입금과 전송 알림 판단 모두**)이며
   출금 제출 유스케이스(`DfnsSubmissionConfig`)이며 거래 조회·내부이체·Sweep·Admin 조회와 발신 이동 대조는 후속이다. **외부에서 기동 가능한 범위**는 여전히 `fireblocks|local`뿐이고 API·Webhook·BAT 전체 컨텍스트의
   `dfns` 기동 차단은 그대로다.
 - 선택된 Fireblocks 프로토콜의 API key와 PKCS#8 키(PEM 또는 파일 중 하나)는 기동 시 필수다. 실행 조립부가 키 파싱도 수행한다.
@@ -108,7 +108,7 @@ Service는 서명 검증→선택된 protocol의 envelope 파싱→동일 byte[]
 Fireblocks/로컬에서만 조립된다. 기존 parser·RS512 검증·worker·outbox·DB/공개 API 계약을 유지한다.
 판단 트랜잭션은 `WebhookDecisionWork` 경계로 추상화해 제공자마다 하나만 조립한다 — 기존 `WebhookDecisionTransaction`은 `fireblocks`·`local`,
 `DfnsWebhookDecisionTransaction`은 `dfns`에서만 만들고 워커·경보 처리는 경계 뒤의 벤더 어휘를 모른다([계약13](13-dfns-contracts.md#판단-워커-조립--구현)).
-Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립한다(검증기는 Webhook 앱 한정). **입금 판단 워커는 조립됐고** 출금·발신 판단과 이력 복구가 후속이다.
+Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립한다(검증기는 Webhook 앱 한정). **입금·전송 알림 판단 워커가 조립됐고** 발신 이동 대조와 이력 복구가 후속이다.
 전송 사건(`wallet.transfer.*`)의 해석은 `WebhookTransactionParser`와 별개인 `NetworkTransferEventParser`로, 온체인 이동 사건
 (`wallet.blockchainevent.detected`·`wallet.blockchain_event.transfer.included`)은 `NetworkChainEventParser`로 두었다 — 둘 다 벤더 관찰을 그대로 담고
 업무 상태 번역·논리 사건 연결은 판단 워커의 몫이다. 알림 메타(`WebhookEnvelopeBase`)는 domain `VendorWebhookDelivery`로 공통이다.

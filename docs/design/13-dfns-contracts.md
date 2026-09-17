@@ -511,7 +511,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
   `ConditionalOnFireblocksProtocol`로 `AccountService`를 만든다. 이 절은 API 앱의 계정·주소 조립이며,
   Webhook 앱의 Dfns **입금** 판단 조립은 [판단 워커 조립](#판단-워커-조립--구현)에서 따로 구현했다. 출금 제출은 `DfnsSubmissionConfig`가 따로 조립하며, 거래 조회·Sweep·Admin 조회의 Dfns 조립은 후속이고,
   조립 여부와 무관하게 전체 컨텍스트의 `BCM_PROVIDER=dfns` 기동 차단(`ProviderConfiguration`)은 유지한다. 차단 해제는 Baseline 수용 뒤 사용자 결정이다.
-- **후속**: tag/memo 체인 주소 모델, 웹훅의 전송·발신 경로. 자산 매핑 등록·잔액은 아래 두 절로, 입금 웹훅 경로는 위 판단 워커 절로 구현했다.
+- **후속**: tag/memo 체인 주소 모델, 웹훅의 **발신 이동 대조**. 자산 매핑 등록·잔액은 아래 두 절로, 입금과 전송 알림의 웹훅 경로는 위 판단 워커·전송 알림 판단 절로 구현했다.
 
 ### Dfns 데이터셋의 자산 매핑 — 구현
 
@@ -691,7 +691,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 |---|---|---|
 | 실제 Baseline 릴리스와 공개 schema의 일치 | 릴리스/이미지와 채택 명세 버전의 연결, 배포 지원 범위, clientData의 `origin` 요구 여부, `userAction` 유효기간 | 공식 버전별 OpenAPI에 근거한 인증/HTTP 어댑터·계약 테스트와 공개 계정·주소 API의 조건부 조립까지 구현 완료. 남은 것은 실제 Baseline 릴리스 대조이며 전체 기동 차단은 유지된다 |
 | createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위, 429 동작 | 목록/단건 조회 HTTP 어댑터·계약 테스트 완료. 최초 POST 1회·원장/증적 결합 복구는 내부 대역과 HTTP 어댑터 모두로 검증 완료 |
-| 웹훅 원문·서명·retry | 서명된 바이트(재직렬화 없이 수신 바이트로 검증되는지), timestamp 단위·오차, kind별 `data` 형식, 실제 retry/이력 응답과 ID 연결 | Dfns HMAC 검증기·envelope 해석·Webhook 앱 조립 조건과 **입금 판단 워커** 구현 완료(위 "Dfns 웹훅 수신 프로토콜 — 구현"·"판단 워커 조립 — 구현"). 전송·발신 경로와 이력 복구는 후속 |
+| 웹훅 원문·서명·retry | 서명된 바이트(재직렬화 없이 수신 바이트로 검증되는지), timestamp 단위·오차, kind별 `data` 형식, 실제 retry/이력 응답과 ID 연결 | Dfns HMAC 검증기·envelope 해석·Webhook 앱 조립 조건과 **판단 워커(입금·전송 알림)** 구현 완료(위 "Dfns 웹훅 수신 프로토콜 — 구현"·"판단 워커 조립 — 구현"·"전송 알림 판단 — 구현"). 발신 이동 대조와 이력 복구는 후속 |
 | 조직 Wallet·초기 체인/USDC·KRWK | 지원 조합·자산 locator·소유·정책/가스 권한 | 체인 식별/확정/대납 인터페이스 설계; 추가 체인 실구현은 후속 |
 | 자산 등록의 온체인 대조 | 채택 명세 `POST /networks/{network}/call-function`의 실제 응답 형식(ERC-20 `decimals()`·`symbol()` read), Solana mint 소유 프로그램 확인 원천 | Dfns 데이터셋 등록 관문(설정·네트워크 행·모델·주소/mint 형식·키 길이)은 구현 완료. 온체인 대조·Token Program은 발행사 공식 자료로 운영자가 확인 |
 | Solana owner 주소 수신 | Baseline이 owner 주소로 받은 SPL/Token-2022 입금을 지갑 자산(`Spl`/`Spl2022`)으로 관찰하는지, 비ATA token account·동결 계정 반영, ATA 생성 rent 부담 주체 | 등록 관문·자산 키·잔액 관찰 구현 완료. `account-address-networks`에 Solana를 넣는 것은 이 확인 뒤 운영 결정 |
