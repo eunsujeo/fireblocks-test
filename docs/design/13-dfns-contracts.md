@@ -71,7 +71,7 @@ Dfns 연결의 설계 후보는 다음과 같다. 아래 구조를 적용할 때
 
 | 단위 | Dfns 연결 후보 | 변경 전 확인할 것 |
 |---|---|---|
-| BCM 계정 | `(accountType, ref)`로 유일한 논리 계정과 불변 원천을 등록한다. | V23·LogicalAccountService로 내부 등록을 구현했다. 외부 지갑 없이 계정 생성이 완료되는 공개 HTTP 연결은 후속이며 accountId는 BCM 발급 ID를 유지한다. |
+| BCM 계정 | `(accountType, ref)`로 유일한 논리 계정과 불변 원천을 등록한다. | V23·LogicalAccountService로 내부 등록을 구현했고, 공개 계정 API의 Dfns 연결도 [계정·주소 API의 Dfns 연결](#계정주소-api의-dfns-연결--구현)로 구현했다. accountId는 BCM 발급 ID를 유지한다. |
 | 네트워크 지갑 | `(accountId, origin, network/environment)`별 조직 소유 wallet을 연결한다. | 다른 chain의 동일 주소·공유 signing key를 동일 wallet로 합치지 않는다. 초기 chain은 실제 지원 조합 확정 뒤 선택한다. |
 | 토큰 주소 | 같은 네트워크 wallet에 검증한 자산 locator를 연결한다. | USDC/KRWK 심볼만으로 자산을 찾지 않는다. contract/mint·정밀도는 별도 검증한다. 같은 체인에서 토큰마다 지갑을 새로 만들지 않는 후보이며 추가 체인 주소 모델은 후속이다. |
 | 생성 의도 | 원천·네트워크·요청 해시·상관관계 ID·제출 시도/회수 결과를 먼저 보존한다. | Dfns createWallet의 중복·동시 호출·응답 유실 계약 확인 전 자동 재생성을 열지 않는다. |
@@ -452,9 +452,10 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 - 주소 저장 경합((계정, 네트워크, 심볼) PK)은 먼저 저장된 값을 돌려준다. 원장 지갑 ID가 완료 ID와 다르거나 주소가 없으면 저장하지 않고 충돌이다.
 - **조립 범위**: `ConditionalOnDfnsProtocol`로 `DfnsClientConfig`(`bcm.dfns.*` 바인딩·서명기·HTTP 어댑터, 자격 누락은 빈 생성에서 실패)와
   `DfnsAccountConfig`(논리 계정·지갑 생성 서비스·주소 정책·`DfnsAccountService`)를 만들고, Fireblocks 쪽은 `FireblocksAccountConfig`·`WalletProvisioningConfig`가
-  `ConditionalOnFireblocksProtocol`로 `AccountService`를 만든다. 계정·주소 슬라이스만 조립되며 거래·Sweep·Admin·웹훅의 Dfns 조립은 후속이라
-  API 전체 컨텍스트의 `BCM_PROVIDER=dfns` 기동 차단(`ProviderConfiguration`)은 유지한다. 차단 해제는 Baseline 수용 뒤 사용자 결정이다.
-- **후속**: tag/memo 체인 주소 모델, 웹훅. 자산 매핑 등록·잔액은 아래 두 절로 구현했다.
+  `ConditionalOnFireblocksProtocol`로 `AccountService`를 만든다. 이 절은 API 앱의 계정·주소 조립이며,
+  Webhook 앱의 Dfns **입금** 판단 조립은 [판단 워커 조립](#판단-워커-조립--구현)에서 따로 구현했다. 거래·출금 제출·Sweep·Admin 조회의 Dfns 조립은 후속이고,
+  조립 여부와 무관하게 전체 컨텍스트의 `BCM_PROVIDER=dfns` 기동 차단(`ProviderConfiguration`)은 유지한다. 차단 해제는 Baseline 수용 뒤 사용자 결정이다.
+- **후속**: tag/memo 체인 주소 모델, 웹훅의 전송·발신 경로. 자산 매핑 등록·잔액은 아래 두 절로, 입금 웹훅 경로는 위 판단 워커 절로 구현했다.
 
 ### Dfns 데이터셋의 자산 매핑 — 구현
 
