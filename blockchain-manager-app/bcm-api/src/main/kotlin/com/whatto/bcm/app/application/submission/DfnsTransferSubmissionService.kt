@@ -177,7 +177,7 @@ class DfnsTransferSubmissionService(
                 TransactionSubmissionResult(observation.transferId)
             }
 
-            is NetworkTransferSubmission.Conflict -> conflict(externalTransactionId, claimId, firstSubmission)
+            is NetworkTransferSubmission.Conflict -> conflict(result, externalTransactionId, claimId, firstSubmission)
         }
     }
 
@@ -190,14 +190,28 @@ class DfnsTransferSubmissionService(
      * 확정 거절을 돌려주게 되고 지금은 되살릴 경로(발신 이동 대조)도 없다. 그래서 `REQUESTED`를 유지하고 재시도 가능한 실패로 올린다.
      */
     private fun conflict(
+        result: NetworkTransferSubmission.Conflict,
         externalTransactionId: String,
         claimId: String,
         firstSubmission: Boolean,
     ): Nothing {
         if (!firstSubmission) {
-            throw VendorApiException("resubmitTransfer", null, null)
+            // 자금이 나갔는지 모르는 구간이라 증적을 버리지 않는다 — 상태·수신 바이트를 그대로 실어 조사에 남긴다.
+            throw VendorApiException(
+                operation = "resubmitTransfer",
+                httpStatus = CONFLICT_STATUS,
+                responseBody = result.responseBody(),
+            )
         }
-        val rejected = RelayRejectedException("transfer request conflicts with the submission key")
+        val rejected =
+            RelayRejectedException(
+                "transfer request conflicts with the submission key",
+                VendorApiException(
+                    operation = "submitTransfer",
+                    httpStatus = CONFLICT_STATUS,
+                    responseBody = result.responseBody(),
+                ),
+            )
         try {
             transactionRunner.run {
                 submissions.markFailedByClaim(externalTransactionId, claimId, CoreDateTimes.now(clock))
@@ -314,6 +328,11 @@ class DfnsTransferSubmissionService(
     private fun retryAfterSeconds(record: SubmissionRecord): Long {
         val expiresAt = record.claimExpiresAt?.let(CoreDateTimes::parse) ?: return 1
         return Duration.between(CoreDateTimes.current(clock), expiresAt).seconds.coerceAtLeast(1)
+    }
+
+    private companion object {
+        /** 멱등 충돌의 벤더 응답 상태 — 어댑터가 표식을 확인한 409만 `Conflict`가 된다(계약13). */
+        const val CONFLICT_STATUS = 409
     }
 
     private data class SubmissionClaim(
