@@ -300,7 +300,10 @@ class SubmissionJdbcAdapter(
                    AND s.vndr_wlt_id = :vendorWalletId
                    AND s.vndr_ast_id = :vendorAssetId
                    AND s.base_amt = :amountBaseUnits
-                   AND s.rcv_vl = :recipientValue
+                   -- 주소 비교는 붙임 규칙보다 **넓게** 한다. 이 조회는 '배제하지 못하면 붙이지 않는다'의 입력이라
+                   -- 더 많이 걸리는 쪽(보류)이 안전하고, 놓치면 안전조건이 다시 열린다.
+                   -- EVM checksum 표기만 다른 같은 주소를 놓치지 않도록 소문자로 맞춰 본다.
+                   AND lower(s.rcv_vl) = lower(:recipientValue)
                    -- hash를 아직 모르는 제출만 본다 — 아는 제출은 (ntwk_cd, tx_hash) 후보 조회가 이미 가른다.
                    AND (s.vndr_tx_id IS NULL OR t.tx_hash IS NULL)
                  LIMIT 1

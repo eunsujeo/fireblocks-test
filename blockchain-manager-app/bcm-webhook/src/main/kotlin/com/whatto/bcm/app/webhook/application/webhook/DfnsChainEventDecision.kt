@@ -62,6 +62,9 @@ class DfnsChainEventDecision(
         payload: ByteArray,
     ): DfnsChainDecisionOutcome {
         val event = parser.parse(payload) ?: return DfnsChainDecisionOutcome.NotChainEvent
+        // 입금도 같은 (network, tx_hash)의 거래 행을 만든다 — 발신 붙임의 후보 조회가 그 삽입과 직렬화되려면
+        // **모든 온체인 사건이** 같은 경계에 참여해야 한다. 한 경로라도 빠지면 팬텀 삽입이 남는다.
+        txStates.lockNetworkTransactionHash(event.observation.network, event.observation.transactionHash)
         return when (val attribution = NetworkChainAttribution.attribute(event.observation, ledger)) {
             is NetworkChainAttributionResult.Deposit -> deposit(notificationId, event.delivery, attribution)
             is NetworkChainAttributionResult.Outgoing -> outgoing(notificationId, attribution.observation)
@@ -74,8 +77,10 @@ class DfnsChainEventDecision(
 
     /**
      * 발신 이동의 대조(계약13). **새 거래를 만들지 않는다** — `(ntwk_cd, tx_hash)`로 기존 거래를 찾아 그 거래의 전이로 반영한다.
-     * 붙임 조건은 세 가지다 — **후보가 정확히 하나**, **제출 원장에 대응**, **관찰이 그 제출의 지갑·자산 키·최소 단위 금액·목적지와 일치**
-     * ([NetworkChainOutgoingAttachment]). 후보 없음은 재시도로 남기고(전송 알림이 늦을 수 있다), 여럿·대응 없음·불일치는 워커가 즉시 격리한다.
+     * 붙임 조건은 네 가지다 — **후보가 정확히 하나**, **제출 원장에 대응**, **관찰이 그 제출의 지갑·자산 키·최소 단위 금액·목적지와 일치**,
+     * **같은 값의 미결 제출이 없음**
+     * ([NetworkChainOutgoingAttachment]). 후보 없음과 미결 제출 배제는 재시도로 남기고(전송 알림이 늦을 수 있다),
+     * 여럿·대응 없음·불일치는 워커가 즉시 격리한다.
      *
      * 출금의 **확정이 여기서 난다** — 전송 알림에는 `blockNumber`가 없어 깊이를 계산할 수 없고, 이 사건에만 블록 좌표가 있다.
      */
@@ -85,9 +90,7 @@ class DfnsChainEventDecision(
     ): DfnsChainDecisionOutcome {
         val network = observation.network
         val hash = observation.transactionHash
-        // 후보 조회와 전이 사이에 같은 hash의 행이 새로 삽입될 수 있다 — 거래를 만드는 쪽과 같은 경계를 먼저 잡고
-        // **그 안에서** 후보를 읽는다. 기존 행의 FOR UPDATE만으로는 새 행 삽입을 막지 못한다.
-        txStates.lockNetworkTransactionHash(network, hash)
+        // 경계는 decide 진입부에서 이미 잡았다 — 그 안에서 후보를 읽는다.
         val attached =
             NetworkChainOutgoingAttachment.attach(
                 observation,

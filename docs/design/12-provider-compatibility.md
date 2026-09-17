@@ -856,5 +856,10 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   → **같은 canonical의 제출이 아직 hash를 못 받았으면 붙이지 않고 보류**한다(그쪽 알림이 오면 해소되므로 격리가 아니라 재시도).
   ② **후보 판정과 상태 전이가 원자적이지 않다** — `(ntwk_cd, tx_hash)`에 유일 제약이 없어 조회와 전이 사이에 같은 hash 행이 새로 삽입될 수 있고,
   기존 행의 `FOR UPDATE`로는 막히지 않는다. → 거래를 만드는 쪽과 붙이는 쪽이 **같은 `(network, txHash)` advisory lock**을 잡는다.
-- 검증: 전체 1,357 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+- **2차 지적 반영(Critical 2)**: ① 미결 제출 배제 조회가 목적지를 **정확 일치**로 비교해, EVM checksum 표기만 다른 같은 주소의 제출을 놓쳤다 —
+  안전조건이 그 경우 다시 열린다. 이 조회는 "배제하지 못하면 붙이지 않는다"의 입력이라 **붙임 규칙보다 넓게**(소문자 비교) 보는 것이 맞고, 그렇게 고쳐 영속 테스트로 고정했다.
+  ② advisory lock에 **입금 판단이 참여하지 않았다** — 입금도 같은 `(network, tx_hash)`로 거래 행을 만든다. 경계 획득을 `decide` 진입부로 옮겨 모든 온체인 사건이 참여한다.
+  Major 2건(정본·KDoc의 네 번째 조건 누락, "전송 알림이 오면 해소된다"는 과한 보장)과 Minor 1건도 함께 반영했다 —
+  전송 알림의 `txHash`는 선택이라 hash 없이 올 수 있고 장기 `REQUESTED`도 미결로 남으므로, 해소가 보장되지 않고 창을 넘기면 격리된다는 경계를 적었다.
+- 검증: 전체 1,358 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)

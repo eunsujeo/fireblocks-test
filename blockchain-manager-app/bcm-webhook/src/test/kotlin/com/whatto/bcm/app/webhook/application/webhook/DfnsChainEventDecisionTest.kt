@@ -226,7 +226,7 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
-    fun `입금이 아닌 결과는 원장도 이벤트도 쓰지 않는다`() {
+    fun `미지원·미등록 자산과 이벤트를 만들 수 없는 관찰은 원장도 이벤트도 쓰지 않는다`() {
         val unsupported = transfer(vendorAssetId = null, vendorAssetKind = "Erc721Transfer", amount = null)
         assertThat(decision(event = event(unsupported)).decide(NOTIFICATION_ID, PAYLOAD))
             .isEqualTo(DfnsChainDecisionOutcome.UnsupportedAsset(unsupported))

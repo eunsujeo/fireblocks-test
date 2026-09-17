@@ -36,6 +36,33 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
     lateinit var dataSource: DataSource
 
     @Test
+    fun `같은 값의 미결 제출은 EVM 주소 표기가 달라도 찾아낸다`() {
+        // 이 조회는 "배제하지 못하면 붙이지 않는다"의 입력이라 놓치면 안전조건이 다시 열린다 — 붙임 규칙보다 넓게 본다.
+        val canonical =
+            SubmissionVendorCanonical(
+                vendorWalletId = "wa-1",
+                vendorAssetId = "EthereumSepolia:Native",
+                amountBaseUnits = "1000000",
+                decimals = 6,
+            )
+        val lower = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+        submissions.insert(
+            fixture(externalTransactionId = "wd-unresolved-a", recipientValue = lower, vendorCanonical = canonical),
+        )
+
+        // checksum 표기만 다른 같은 주소 — 같은 미결 제출로 잡혀야 한다.
+        assertThat(
+            submissions.existsUnresolvedWithSameCanonical("wd-other", canonical, lower.uppercase().replace("0X", "0x")),
+        ).isTrue()
+        // 자기 자신은 제외한다.
+        assertThat(submissions.existsUnresolvedWithSameCanonical("wd-unresolved-a", canonical, lower)).isFalse()
+        // 값이 다르면 잡히지 않는다.
+        assertThat(
+            submissions.existsUnresolvedWithSameCanonical("wd-other", canonical.copy(amountBaseUnits = "999"), lower),
+        ).isFalse()
+    }
+
+    @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     fun `REQUESTED 전용 소유권은 잠금 대기 뒤 FAILED가 된 행을 되살리지 않는다`() {
         // 이번 슬라이스 Critical의 직접 원인이 이 경합이었다 — 판정 시점의 상태가 아니라
