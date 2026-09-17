@@ -14,15 +14,15 @@ class TxStateService(
     private val stateMachine = TxStateMachine(repository)
 
     /**
-     * 온체인 hash로 거래 후보를 찾는다(V26 index). **hash는 유일하지 않으므로 목록이다** —
-     * 단일 후보 판정은 호출자의 업무 규칙이다(계약13 발신 이동 대조).
+     * 온체인 hash로 거래를 찾는다(V26 index). **hash는 유일하지 않으므로 목록이다** —
+     * 그중 어느 행에 사건의 블록 좌표를 적용할지는 호출자의 업무 규칙이다(계약13 발신 확정의 블록 좌표).
      */
     fun findByNetworkAndTransactionHash(
         network: String,
         transactionHash: String,
     ) = repository.findByNetworkAndTransactionHash(network, transactionHash)
 
-    /** `(network, transactionHash)` 직렬화 경계 — 거래를 만드는 쪽과 붙이는 쪽이 같은 경계를 잡는다(계약13). */
+    /** `(network, transactionHash)` 직렬화 경계 — 거래를 만드는 쪽과 좌표를 적용하는 쪽이 같은 경계를 잡는다(계약13). */
     fun lockNetworkTransactionHash(
         network: String,
         transactionHash: String,
