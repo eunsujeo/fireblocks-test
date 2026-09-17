@@ -25,6 +25,8 @@ dependencies {
         testImplementation(project(":blockchain-manager-test-support"))
     }
     testImplementation("org.springframework.boot:spring-boot-starter-data-jdbc")
+    // Dfns 판단 유스케이스 + 실제 원장 결합 슬라이스(@DataJdbcTest) — 별도 Dfns 데이터셋으로 실행한다
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jdbc-test")
     testImplementation(libs.springmockk)
     testImplementation(libs.spring.kafka)
     testImplementation(libs.openapi.validator.mockmvc)
