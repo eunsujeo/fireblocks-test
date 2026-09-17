@@ -898,7 +898,7 @@ CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, last_chck_dttm, req_dtt
 |---|---|---|---|
 | (없음) | `REQUESTED` | 제출 접수 | 행을 넣으면서 소유권을 함께 잡는다 |
 | `REQUESTED` | `SUBMITTED` | 제출 응답 | **소유권을 쥔 호출자만** |
-| `REQUESTED` | `SUBMITTED` | 웹훅 · 미결 점검 | 소유권과 무관 — 벤더 tx id 를 회수한다. 미결 점검은 조회만 하고 거래를 새로 제출하지 않는다 |
+| `REQUESTED` | `SUBMITTED` | 웹훅 · 미결 점검 | 소유권과 무관 — 벤더 tx id 를 회수한다. 미결 점검은 조회만 하고 거래를 새로 제출하지 않는다. **Dfns는 그 조회(제출 키 필터)가 없어 미결 점검이 이 전이를 만들지 않는다** — 확인 시각·횟수만 갱신하고 회수는 웹훅이나 원 제출 경로의 멱등 재제출로만 일어난다([계약13](13-dfns-contracts.md#출금-제출-계약--확정)) |
 | `REQUESTED` | `FAILED` | 제출 응답 | **확정 거절로 분류된 응답만**(아래 [흐름](02-bcm-flow.md) 4xx 표). 소유권을 쥔 호출자만 |
 | `FAILED` | `SUBMITTED` | **웹훅 · 거래 대사만** | 벤더에서 실재가 뒤늦게 확인된 거래를 회수 — 아래. `REQUESTED` 전용 미결 점검 대상은 아니다 |
 | `FAILED` | `REQUESTED` | 제출 응답(재제출 접수) | **같은 요청**의 재제출만. 새 소유권을 조건부 갱신 한 번으로 잡으면서 함께 전이한다 — 내용이 다르면 `409` 라 여기까지 오지 않는다 |
