@@ -222,10 +222,15 @@ class DfnsTransferSubmissionServiceTest {
         every { submissions.tryClaimRequested(EXTERNAL_ID, any(), any(), NOW) } answers {
             requested().copy(claimId = secondArg(), claimExpiresAt = thirdArg())
         }
-        every { vendor.submit(any()) } returns NetworkTransferSubmission.Conflict("xfr-other", ByteArray(0))
+        every { vendor.submit(any()) } returns NetworkTransferSubmission.Conflict("xfr-other", CONFLICT_BODY)
 
         // 진행 중 재제출이 409로 보일 가능성이 아직 수용 항목이라, 종결로 적으면 나간 전송에 확정 거절을 돌려주게 된다.
-        assertThatThrownBy { service.submit(command()) }.isInstanceOf(VendorApiException::class.java)
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOfSatisfying(VendorApiException::class.java) {
+                // 자금이 나갔는지 모르는 구간이라 증적을 버리지 않는다.
+                assertThat(it.httpStatus).isEqualTo(409)
+                assertThat(it.responseBody()).isEqualTo(CONFLICT_BODY)
+            }
 
         verify(exactly = 0) { submissions.markFailedByClaim(any(), any(), any()) }
     }
@@ -271,12 +276,19 @@ class DfnsTransferSubmissionServiceTest {
     @Test
     fun `표식 있는 409는 FAILED로 굳히고 행을 지우지 않는다`() {
         every { submissions.insert(any()) } answers { firstArg() }
-        every { vendor.submit(any()) } returns NetworkTransferSubmission.Conflict("xfr-other", ByteArray(0))
+        every { vendor.submit(any()) } returns NetworkTransferSubmission.Conflict("xfr-other", CONFLICT_BODY)
         every { submissions.markFailedByClaim(EXTERNAL_ID, any(), NOW) } answers {
             requested().copy(status = SubmissionStatus.FAILED)
         }
 
-        assertThatThrownBy { service.submit(command()) }.isInstanceOf(RelayRejectedException::class.java)
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOfSatisfying(RelayRejectedException::class.java) {
+                // 확정 거절이어도 벤더 응답 원문은 원인으로 남긴다.
+                assertThat(it.cause).isInstanceOfSatisfying(VendorApiException::class.java) { vendor ->
+                    assertThat(vendor.httpStatus).isEqualTo(409)
+                    assertThat(vendor.responseBody()).isEqualTo(CONFLICT_BODY)
+                }
+            }
 
         verify(exactly = 1) { submissions.markFailedByClaim(EXTERNAL_ID, any(), NOW) }
     }
@@ -405,6 +417,7 @@ class DfnsTransferSubmissionServiceTest {
         const val ASSET_KEY = "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
         const val ADDRESS = "0x1111111111111111111111111111111111111111"
         const val NOW = "20260917090000"
+        val CONFLICT_BODY: ByteArray = """{"error":{"details":{"duplicate":{"id":"xfr-other"}}}}""".toByteArray()
         val REQUEST_HASH =
             com.whatto.bcm.support.submission.SubmissionRequestHashes
                 .v1("ACCOUNT", SENDER_ID, "ADDRESS", ADDRESS, NETWORK, "USDC", "1")

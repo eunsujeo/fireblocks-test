@@ -36,6 +36,45 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
     lateinit var dataSource: DataSource
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `REQUESTED 전용 소유권은 잠금 대기 뒤 FAILED가 된 행을 되살리지 않는다`() {
+        // 이번 슬라이스 Critical의 직접 원인이 이 경합이었다 — 판정 시점의 상태가 아니라
+        // 잠금을 얻은 시점의 상태로 조건이 다시 평가돼야 한다(단일 조건부 UPDATE).
+        val externalTransactionId = "wd-claim-race"
+        submissions.insert(fixture(externalTransactionId = externalTransactionId, claimId = null, claimExpiresAt = null))
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            dataSource.connection.use { failing ->
+                failing.autoCommit = false
+                failing
+                    .prepareStatement("UPDATE bcm_sbmt_l SET sbmt_stcd = 'FAILED' WHERE ext_tx_id = ?")
+                    .use { statement ->
+                        statement.setString(1, externalTransactionId)
+                        statement.executeUpdate()
+                    }
+
+                // 같은 행을 노리는 소유권 시도는 위 트랜잭션이 끝날 때까지 잠금 대기한다.
+                val claimed =
+                    executor.submit<SubmissionRecord?> {
+                        submissions.tryClaimRequested(externalTransactionId, "claim-race", "20260917090030", "20260917090000")
+                    }
+                Thread.sleep(500)
+                assertThat(claimed.isDone).isFalse()
+                failing.commit()
+
+                // 잠금이 풀린 뒤 상태는 FAILED다 — 되살리지 않고 못 잡았다고 답해야 한다.
+                assertThat(claimed.get(5, TimeUnit.SECONDS)).isNull()
+            }
+            assertThat(submissions.findByExternalTransactionId(externalTransactionId)?.status)
+                .isEqualTo(SubmissionStatus.FAILED)
+        } finally {
+            executor.shutdownNow()
+            jdbc.update("DELETE FROM bcm_sbmt_l WHERE ext_tx_id = ?", externalTransactionId)
+        }
+    }
+
+    @Test
     fun `REQUESTED 전용 소유권은 FAILED 행을 되살리지 않는다`() {
         // 공용 tryClaim은 FAILED를 REQUESTED로 되돌리지만(02 Fireblocks 규칙), Dfns는 그 전이를 금지한다(03 전이 표).
         val failed =
