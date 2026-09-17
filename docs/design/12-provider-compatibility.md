@@ -849,5 +849,12 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `numeric`으로 계산해 `LEAST` 뒤에 변환하도록 고치고 상한·대량 시도 구간을 영속 테스트로 고정했다.
   ② 정본 여러 곳이 붙임 조건을 "단일 후보 + 제출 원장 대응"으로 **축약**해, 그대로 재구현하면 같은 금액의 다른 자산을 붙일 수 있었다 —
   03·13·PLAN에 관찰 일치(지갑·자산 키·금액·목적지)를 함께 적었다. ③ 발신을 "미판단·후속"으로 적은 잔여 4곳. ④ 도메인 KDoc의 계산 위치 표기.
-- 검증: 전체 1,353 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+- **code-reviewer 1차(첫 수행) Critical 2건 — 사용자 결정으로 이번 슬라이스에 반영**:
+  ① **canonical이 같은 이동 둘을 구분할 근거가 없다.** 서로 다른 제출이 같은 지갑·자산·목적지·금액이면,
+  A의 전송 알림만 먼저 온 상태에서 B의 이동이 A에 붙는다. 이력 조회·`TransferRequest` 양쪽을 다시 확인했지만
+  **벤더가 이동과 제출을 잇는 키를 주지 않는다**(`WalletHistoryEvent`에 전송 요청 ID 없음, `TransferRequest`에 이동 순번 없음).
+  → **같은 canonical의 제출이 아직 hash를 못 받았으면 붙이지 않고 보류**한다(그쪽 알림이 오면 해소되므로 격리가 아니라 재시도).
+  ② **후보 판정과 상태 전이가 원자적이지 않다** — `(ntwk_cd, tx_hash)`에 유일 제약이 없어 조회와 전이 사이에 같은 hash 행이 새로 삽입될 수 있고,
+  기존 행의 `FOR UPDATE`로는 막히지 않는다. → 거래를 만드는 쪽과 붙이는 쪽이 **같은 `(network, txHash)` advisory lock**을 잡는다.
+- 검증: 전체 1,357 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)

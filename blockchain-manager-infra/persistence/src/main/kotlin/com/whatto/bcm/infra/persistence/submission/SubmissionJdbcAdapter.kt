@@ -284,6 +284,37 @@ class SubmissionJdbcAdapter(
         return current
     }
 
+    override fun existsUnresolvedWithSameCanonical(
+        excludingExternalTransactionId: String,
+        canonical: SubmissionVendorCanonical,
+        recipientValue: String,
+    ): Boolean =
+        jdbc
+            .query(
+                """
+                SELECT 1
+                  FROM bcm_sbmt_l s
+                  LEFT JOIN bcm_tx_l t ON t.vndr_tx_id = s.vndr_tx_id
+                 WHERE s.ext_tx_id <> :excluded
+                   AND s.sbmt_stcd IN ('REQUESTED', 'SUBMITTED')
+                   AND s.vndr_wlt_id = :vendorWalletId
+                   AND s.vndr_ast_id = :vendorAssetId
+                   AND s.base_amt = :amountBaseUnits
+                   AND s.rcv_vl = :recipientValue
+                   -- hash를 아직 모르는 제출만 본다 — 아는 제출은 (ntwk_cd, tx_hash) 후보 조회가 이미 가른다.
+                   AND (s.vndr_tx_id IS NULL OR t.tx_hash IS NULL)
+                 LIMIT 1
+                """.trimIndent(),
+                mapOf(
+                    "excluded" to excludingExternalTransactionId,
+                    "vendorWalletId" to canonical.vendorWalletId,
+                    "vendorAssetId" to canonical.vendorAssetId,
+                    "amountBaseUnits" to canonical.amountBaseUnits,
+                    "recipientValue" to recipientValue,
+                ),
+            ) { _, _ -> true }
+            .isNotEmpty()
+
     override fun findByVendorTransactionId(vendorTransactionId: String): SubmissionRecord? =
         jdbc
             .query(

@@ -182,6 +182,17 @@ class TxJdbcAdapter(
 
     override fun findByExternalTxId(externalTxId: String): TxRecord? = crud.findByExtTxId(externalTxId)?.toDomain()
 
+    override fun lockNetworkTransactionHash(
+        network: String,
+        transactionHash: String,
+    ) {
+        // 트랜잭션 종료까지 유지되는 advisory lock — 행이 없어도 잡을 수 있어 "아직 없는 행"의 삽입과도 직렬화된다.
+        jdbc.query(
+            "SELECT pg_advisory_xact_lock(hashtext(:key))",
+            mapOf("key" to "bcm_tx_hash:$network:$transactionHash"),
+        ) { _, _ -> Unit }
+    }
+
     override fun findByNetworkAndTransactionHash(
         network: String,
         transactionHash: String,

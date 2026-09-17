@@ -26,6 +26,18 @@ interface TxRecordRepository {
     fun findByExternalTxId(externalTxId: String): TxRecord?
 
     /**
+     * `(network, transactionHash)` 단위 직렬화 경계를 현재 트랜잭션 동안 잡는다.
+     *
+     * 후보 조회는 잠금 없는 조회이고 `(ntwk_cd, tx_hash)`에는 유일 제약이 없다 — 조회와 전이 사이에 다른 트랜잭션이
+     * 같은 hash의 행을 **새로 삽입**할 수 있고, 기존 행에 `FOR UPDATE`를 걸어도 그 삽입은 막히지 않는다.
+     * 그래서 거래를 만드는 쪽과 붙이는 쪽이 같은 경계를 잡고, 그 안에서 후보를 다시 읽어야 한다.
+     */
+    fun lockNetworkTransactionHash(
+        network: String,
+        transactionHash: String,
+    )
+
+    /**
      * 온체인 hash로 거래를 찾는다(V26 index). **hash는 유일하지 않다** — 한 트랜잭션에 여러 이동이 있을 수 있고
      * 네트워크가 다르면 같은 hash도 다른 거래다. 그래서 목록으로 돌려주고 **단일 후보 판정은 호출자가 한다**(계약13).
      */

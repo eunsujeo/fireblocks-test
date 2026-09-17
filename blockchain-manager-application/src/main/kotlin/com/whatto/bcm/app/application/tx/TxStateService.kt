@@ -22,6 +22,12 @@ class TxStateService(
         transactionHash: String,
     ) = repository.findByNetworkAndTransactionHash(network, transactionHash)
 
+    /** `(network, transactionHash)` 직렬화 경계 — 거래를 만드는 쪽과 붙이는 쪽이 같은 경계를 잡는다(계약13). */
+    fun lockNetworkTransactionHash(
+        network: String,
+        transactionHash: String,
+    ) = repository.lockNetworkTransactionHash(network, transactionHash)
+
     fun observe(observation: TxObservation): TxStateChange = stateMachine.observe(observation)
 
     fun observeRoot(

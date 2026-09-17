@@ -11,6 +11,7 @@ import com.whatto.bcm.domain.event.EventType
 import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventType
 import com.whatto.bcm.domain.submission.SubmissionRecord
+import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.domain.tx.BlockDepthFinality
 import com.whatto.bcm.domain.tx.ChainHeadPort
 import com.whatto.bcm.domain.tx.NetworkChainTransactionId
@@ -84,11 +85,14 @@ class DfnsChainEventDecision(
     ): DfnsChainDecisionOutcome {
         val network = observation.network
         val hash = observation.transactionHash
+        // 후보 조회와 전이 사이에 같은 hash의 행이 새로 삽입될 수 있다 — 거래를 만드는 쪽과 같은 경계를 먼저 잡고
+        // **그 안에서** 후보를 읽는다. 기존 행의 FOR UPDATE만으로는 새 행 삽입을 막지 못한다.
+        txStates.lockNetworkTransactionHash(network, hash)
         val attached =
             NetworkChainOutgoingAttachment.attach(
                 observation,
                 txStates.findByNetworkAndTransactionHash(network, hash),
-                { submissions.findByVendorTransactionId(it) },
+                submissionLookup,
             )
         return when (attached) {
             // 아직 못 붙이는 것이지 잘못된 것이 아니다 — 전송 알림이 늦게 올 수 있다. 처리 완료로 닫으면 그 출금은 영영 확정되지 않는다.
@@ -103,9 +107,23 @@ class DfnsChainEventDecision(
             is NetworkChainAttachmentResult.Mismatched ->
                 DfnsChainDecisionOutcome.OutgoingUnattachable(observation, OutgoingAttachMiss.MISMATCH)
 
+            // 같은 값의 제출이 아직 hash를 못 받았다 — 그쪽 전송 알림이 오면 해소되므로 보류한다.
+            is NetworkChainAttachmentResult.Unresolved -> DfnsChainDecisionOutcome.OutgoingPending(observation)
+
             is NetworkChainAttachmentResult.Attach -> attachOutgoing(notificationId, observation, attached)
         }
     }
+
+    private val submissionLookup =
+        object : NetworkChainOutgoingAttachment.SubmissionLookup {
+            override fun byVendorTransactionId(vendorTransactionId: String) = submissions.findByVendorTransactionId(vendorTransactionId)
+
+            override fun hasUnresolvedWithSameCanonical(
+                excludingExternalTransactionId: String,
+                canonical: SubmissionVendorCanonical,
+                recipientValue: String,
+            ) = submissions.existsUnresolvedWithSameCanonical(excludingExternalTransactionId, canonical, recipientValue)
+        }
 
     private fun attachOutgoing(
         notificationId: String,

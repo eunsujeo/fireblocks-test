@@ -10,6 +10,7 @@ import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.domain.vendor.VendorContractCall
 import com.whatto.bcm.domain.vendor.VendorContractCallPort
 import com.whatto.bcm.domain.vendor.VendorContractCallRequest
@@ -275,6 +276,12 @@ private class FakeContractCallSubmissions(
                 respondedAt = null,
             ).also { row = it }
     }
+
+    override fun existsUnresolvedWithSameCanonical(
+        excludingExternalTransactionId: String,
+        canonical: SubmissionVendorCanonical,
+        recipientValue: String,
+    ) = false
 
     override fun tryClaimRequested(
         externalTransactionId: String,

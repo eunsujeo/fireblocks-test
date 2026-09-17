@@ -40,7 +40,10 @@ import java.time.ZoneOffset
  */
 class DfnsTransferEventDecisionTest {
     private val submissions = mockk<SubmissionObservationService>(relaxed = true)
-    private val txStates = mockk<TxStateService>()
+    private val txStates =
+        mockk<TxStateService> {
+            every { lockNetworkTransactionHash(any(), any()) } returns Unit
+        }
     private val outboxEvents = mockk<OutboxEventService>(relaxed = true)
 
     @Test
@@ -180,6 +183,17 @@ class DfnsTransferEventDecisionTest {
         }
         verify(exactly = 1) { txStates.observe(any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
+    }
+
+    @Test
+    fun `거래를 만들기 전에 network와 hash의 직렬화 경계를 잡는다`() {
+        // 발신 붙임의 후보 조회와 직렬화되어야 팬텀 삽입이 생기지 않는다.
+        every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
+        every { txStates.observe(any()) } returns stateChange(TxStatus.SUBMITTED)
+
+        decision().decide(NOTIFICATION_ID, PAYLOAD)
+
+        verify(exactly = 1) { txStates.lockNetworkTransactionHash("ETHEREUM_SEPOLIA", "0x" + "a".repeat(64)) }
     }
 
     @Test

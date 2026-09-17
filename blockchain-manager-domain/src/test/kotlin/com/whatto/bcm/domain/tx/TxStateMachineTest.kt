@@ -186,6 +186,11 @@ private class MemoryTxRecords(
 
     override fun findByExternalTxId(externalTxId: String): TxRecord? = record
 
+    override fun lockNetworkTransactionHash(
+        network: String,
+        transactionHash: String,
+    ) = Unit
+
     override fun findByNetworkAndTransactionHash(
         network: String,
         transactionHash: String,

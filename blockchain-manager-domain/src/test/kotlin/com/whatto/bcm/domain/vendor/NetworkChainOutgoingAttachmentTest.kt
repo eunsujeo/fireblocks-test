@@ -11,17 +11,19 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
 /**
- * 발신 이동을 기존 거래에 붙이는 판정(계약13 "논리 거래 식별자").
- * `tx_hash`는 유일하지 않으므로 **후보가 정확히 하나이고 제출 원장에 대응할 때만** 붙인다 —
- * 02의 "제출 원장이 기준"을 hash 추정으로 바꾸지 않는다.
+ * 발신 이동을 기존 거래에 붙이는 판정(계약13 "발신 이동 대조").
+ *
+ * 붙이려면 **후보가 정확히 하나**, **제출 원장에 대응**, **관찰이 그 제출의 canonical과 일치**,
+ * 그리고 **같은 값의 미결 제출이 없어야** 한다 — 벤더는 이동과 제출을 잇는 키를 주지 않으므로
+ * 배제하지 못하면 붙이지 않는다.
  */
 class NetworkChainOutgoingAttachmentTest {
     @Test
-    fun `후보가 하나이고 제출 원장에 대응하면 그 거래에 붙인다`() {
+    fun `후보가 하나이고 제출 원장에 대응하며 값이 같으면 그 거래에 붙인다`() {
         val record = txRecord()
         val submission = submission()
 
-        val result = NetworkChainOutgoingAttachment.attach(observation(), listOf(record)) { submission }
+        val result = NetworkChainOutgoingAttachment.attach(observation(), listOf(record), lookup(submission))
 
         assertThat(result).isEqualTo(NetworkChainAttachmentResult.Attach(record, submission))
     }
@@ -29,7 +31,7 @@ class NetworkChainOutgoingAttachmentTest {
     @Test
     fun `후보가 없으면 거래를 만들지 않는다`() {
         // 전송 알림이 아직 안 왔을 수 있다 — 여기서 만들면 알림이 나중에 와서 같은 자금의 거래가 둘이 된다.
-        val result = NetworkChainOutgoingAttachment.attach(observation(), emptyList()) { submission() }
+        val result = NetworkChainOutgoingAttachment.attach(observation(), emptyList(), lookup(submission()))
 
         assertThat(result).isEqualTo(NetworkChainAttachmentResult.NoCandidate)
     }
@@ -41,7 +43,8 @@ class NetworkChainOutgoingAttachmentTest {
             NetworkChainOutgoingAttachment.attach(
                 observation(),
                 listOf(txRecord(), txRecord(vendorTxId = "xfr-2")),
-            ) { submission() }
+                lookup(submission()),
+            )
 
         assertThat(result).isEqualTo(NetworkChainAttachmentResult.Ambiguous(2))
     }
@@ -51,7 +54,7 @@ class NetworkChainOutgoingAttachmentTest {
         // 우리 지갑에서 나간 이동인데 우리가 낸 제출이 아니라는 뜻이다 — hash 일치로 제출 원장 기준을 대체하지 않는다.
         val record = txRecord()
 
-        val result = NetworkChainOutgoingAttachment.attach(observation(), listOf(record)) { null }
+        val result = NetworkChainOutgoingAttachment.attach(observation(), listOf(record), lookup(null))
 
         assertThat(result).isEqualTo(NetworkChainAttachmentResult.NoSubmission(record))
     }
@@ -59,11 +62,21 @@ class NetworkChainOutgoingAttachmentTest {
     @Test
     fun `대응은 후보 거래의 벤더 전송 ID로 찾는다`() {
         val looked = mutableListOf<String>()
+        val recording =
+            object : NetworkChainOutgoingAttachment.SubmissionLookup {
+                override fun byVendorTransactionId(vendorTransactionId: String): SubmissionRecord? {
+                    looked += vendorTransactionId
+                    return submission()
+                }
 
-        NetworkChainOutgoingAttachment.attach(observation(), listOf(txRecord(vendorTxId = "xfr-9"))) {
-            looked += it
-            submission()
-        }
+                override fun hasUnresolvedWithSameCanonical(
+                    excludingExternalTransactionId: String,
+                    canonical: SubmissionVendorCanonical,
+                    recipientValue: String,
+                ) = false
+            }
+
+        NetworkChainOutgoingAttachment.attach(observation(), listOf(txRecord(vendorTxId = "xfr-9")), recording)
 
         assertThat(looked).containsExactly("xfr-9")
     }
@@ -75,20 +88,17 @@ class NetworkChainOutgoingAttachmentTest {
         val submission = submission()
 
         assertThat(
-            NetworkChainOutgoingAttachment.attach(observation(amountBaseUnits = "2000000"), listOf(record)) { submission },
+            NetworkChainOutgoingAttachment.attach(observation(amountBaseUnits = "2000000"), listOf(record), lookup(submission)),
         ).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, submission))
         assertThat(
-            NetworkChainOutgoingAttachment.attach(observation(toAddress = OTHER_ADDRESS), listOf(record)) { submission },
+            NetworkChainOutgoingAttachment.attach(observation(toAddress = OTHER_ADDRESS), listOf(record), lookup(submission)),
         ).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, submission))
         assertThat(
-            NetworkChainOutgoingAttachment.attach(observation(vendorWalletId = "wa-other"), listOf(record)) { submission },
+            NetworkChainOutgoingAttachment.attach(observation(vendorWalletId = "wa-other"), listOf(record), lookup(submission)),
         ).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, submission))
         // 같은 지갑·목적지로 최소 단위 금액이 같은 **다른 자산** 이동이 한 트랜잭션에 있을 수 있다.
         assertThat(
-            NetworkChainOutgoingAttachment.attach(
-                observation(vendorAssetId = "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
-                listOf(record),
-            ) { submission },
+            NetworkChainOutgoingAttachment.attach(observation(vendorAssetId = OTHER_ASSET_KEY), listOf(record), lookup(submission)),
         ).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, submission))
     }
 
@@ -98,16 +108,29 @@ class NetworkChainOutgoingAttachmentTest {
 
         // checksum 표기는 같은 주소의 다른 표기다.
         assertThat(
-            NetworkChainOutgoingAttachment.attach(observation(toAddress = ADDRESS.uppercase().replace("0X", "0x")), listOf(record)) {
-                submission()
-            },
+            NetworkChainOutgoingAttachment.attach(
+                observation(toAddress = ADDRESS.uppercase().replace("0X", "0x")),
+                listOf(record),
+                lookup(submission()),
+            ),
         ).isInstanceOf(NetworkChainAttachmentResult.Attach::class.java)
 
         // base58은 대소문자가 값의 일부다 — 무시하면 서로 다른 주소가 같아진다.
         val solana = submission(recipientValue = SOLANA_ADDRESS)
         assertThat(
-            NetworkChainOutgoingAttachment.attach(observation(toAddress = SOLANA_ADDRESS.lowercase()), listOf(record)) { solana },
+            NetworkChainOutgoingAttachment.attach(observation(toAddress = SOLANA_ADDRESS.lowercase()), listOf(record), lookup(solana)),
         ).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, solana))
+    }
+
+    @Test
+    fun `같은 값의 제출이 아직 hash를 못 받았으면 증명하지 못하므로 보류한다`() {
+        // 벤더는 이동과 제출을 잇는 키를 주지 않는다 — 같은 값의 제출이 남아 있으면 이 이동이 그쪽 것일 수도 있다.
+        val record = txRecord()
+        val submission = submission()
+
+        val result = NetworkChainOutgoingAttachment.attach(observation(), listOf(record), lookup(submission, unresolved = true))
+
+        assertThat(result).isEqualTo(NetworkChainAttachmentResult.Unresolved(record, submission))
     }
 
     @Test
@@ -116,15 +139,30 @@ class NetworkChainOutgoingAttachmentTest {
         val record = txRecord()
         val submission = submission(canonical = null)
 
-        assertThat(NetworkChainOutgoingAttachment.attach(observation(), listOf(record)) { submission })
-            .isEqualTo(NetworkChainAttachmentResult.Mismatched(record, submission))
+        val result = NetworkChainOutgoingAttachment.attach(observation(), listOf(record), lookup(submission))
+
+        assertThat(result).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, submission))
+    }
+
+    /** 기본 대역 — 같은 canonical의 미결 제출은 없다고 본다. 그 경우는 전용 테스트가 다룬다. */
+    private fun lookup(
+        found: SubmissionRecord?,
+        unresolved: Boolean = false,
+    ) = object : NetworkChainOutgoingAttachment.SubmissionLookup {
+        override fun byVendorTransactionId(vendorTransactionId: String) = found
+
+        override fun hasUnresolvedWithSameCanonical(
+            excludingExternalTransactionId: String,
+            canonical: SubmissionVendorCanonical,
+            recipientValue: String,
+        ) = unresolved
     }
 
     private fun observation(
         vendorWalletId: String = "wa-1",
         amountBaseUnits: String = "1000000",
         toAddress: String? = ADDRESS,
-        vendorAssetId: String? = "EthereumSepolia:Native",
+        vendorAssetId: String? = ASSET_KEY,
     ) = NetworkChainTransfer(
         network = "ETHEREUM_SEPOLIA",
         vendorWalletId = vendorWalletId,
@@ -182,11 +220,13 @@ class NetworkChainOutgoingAttachmentTest {
         const val ADDRESS = "0x1111111111111111111111111111111111111111"
         const val OTHER_ADDRESS = "0x2222222222222222222222222222222222222222"
         const val SOLANA_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        const val ASSET_KEY = "EthereumSepolia:Native"
+        const val OTHER_ASSET_KEY = "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
         val HASH = "0x" + "a".repeat(64)
         val CANONICAL =
             SubmissionVendorCanonical(
                 vendorWalletId = "wa-1",
-                vendorAssetId = "EthereumSepolia:Native",
+                vendorAssetId = ASSET_KEY,
                 amountBaseUnits = "1000000",
                 decimals = 6,
             )

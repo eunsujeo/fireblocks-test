@@ -1,6 +1,7 @@
 package com.whatto.bcm.domain.vendor
 
 import com.whatto.bcm.domain.submission.SubmissionRecord
+import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.domain.tx.TxRecord
 
 /**
@@ -34,6 +35,12 @@ object NetworkChainOutgoingAttachment {
                 ?: return NetworkChainAttachmentResult.NoSubmission(candidate)
         if (!matches(observation, submission)) {
             return NetworkChainAttachmentResult.Mismatched(candidate, submission)
+        }
+        // 값이 같다고 이 이동이 **이 제출의 것**임이 증명되지는 않는다 — 같은 값의 제출이 아직 hash를 못 받은 채 남아 있으면
+        // 그쪽의 이동일 수도 있다. 벤더는 이동과 제출을 잇는 키를 주지 않으므로 배제할 수 없으면 붙이지 않는다.
+        val canonical = requireNotNull(submission.vendorCanonical) { "matched submission must carry canonical values" }
+        if (submissions.hasUnresolvedWithSameCanonical(submission.externalTransactionId, canonical, submission.recipientValue)) {
+            return NetworkChainAttachmentResult.Unresolved(candidate, submission)
         }
         return NetworkChainAttachmentResult.Attach(candidate, submission)
     }
@@ -75,8 +82,15 @@ object NetworkChainOutgoingAttachment {
     private val EVM_ADDRESS = Regex("0x[0-9a-fA-F]{40}")
 
     /** 제출 원장 조회 경계 — 판단이 저장소 구현을 알지 않게 한다. */
-    fun interface SubmissionLookup {
+    interface SubmissionLookup {
         fun byVendorTransactionId(vendorTransactionId: String): SubmissionRecord?
+
+        /** 같은 canonical이면서 온체인 hash가 아직 기록되지 않은 미결 제출이 (자기 자신 말고) 또 있는가. */
+        fun hasUnresolvedWithSameCanonical(
+            excludingExternalTransactionId: String,
+            canonical: SubmissionVendorCanonical,
+            recipientValue: String,
+        ): Boolean
     }
 }
 
@@ -104,6 +118,16 @@ sealed interface NetworkChainAttachmentResult {
      */
     data class NoSubmission(
         val record: TxRecord,
+    ) : NetworkChainAttachmentResult
+
+    /**
+     * 값은 맞지만 **이 제출의 것이라고 증명하지 못한다** — 같은 canonical의 제출이 아직 hash를 받지 못한 채 남아 있다.
+     * 그쪽의 전송 알림이 오면 해소되므로(그 hash가 같으면 후보가 둘이 되어 [Ambiguous], 다르면 이 모호함이 사라진다)
+     * 격리가 아니라 **보류·재시도**다.
+     */
+    data class Unresolved(
+        val record: TxRecord,
+        val submission: SubmissionRecord,
     ) : NetworkChainAttachmentResult
 
     /**

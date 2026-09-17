@@ -75,6 +75,9 @@ class DfnsTransferEventDecision(
             submissions.markSubmitted(submission.externalTransactionId, observation.transferId, CoreDateTimes.now(clock))
         }
 
+        // 거래를 만드는 쪽도 같은 경계를 잡는다 — 발신 붙임의 후보 조회와 직렬화되어야 팬텀 삽입이 생기지 않는다.
+        observation.transactionHash?.let { txStates.lockNetworkTransactionHash(submission.network, it) }
+
         val status =
             statusTranslator.translate(
                 // 전송 알림에는 blockNumber가 없다 — 컨펌 수를 0으로 두어 번역기가 확정을 내지 않게 한다.

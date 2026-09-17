@@ -40,9 +40,16 @@ import java.time.ZoneOffset
  * Dfns 온체인 이동 사건의 입금 판단(계약13) — 확정은 블록 깊이로 내고, 입금이 아닌 결과는 원장을 쓰지 않는다.
  */
 class DfnsChainEventDecisionTest {
-    private val submissions = mockk<SubmissionObservationService>(relaxed = true)
+    private val submissions =
+        mockk<SubmissionObservationService>(relaxed = true) {
+            // 기본은 '같은 값의 미결 제출 없음' — 그 경우는 전용 테스트가 다룬다.
+            every { existsUnresolvedWithSameCanonical(any(), any(), any()) } returns false
+        }
 
-    private val txStates = mockk<TxStateService>()
+    private val txStates =
+        mockk<TxStateService> {
+            every { lockNetworkTransactionHash(any(), any()) } returns Unit
+        }
     private val outboxEvents = mockk<OutboxEventService>(relaxed = true)
     private val chainHeads = mockk<ChainHeadPort>()
     private var eventSequence = 1
@@ -178,6 +185,32 @@ class DfnsChainEventDecisionTest {
 
         verify(exactly = 0) { txStates.observe(any()) }
         verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
+    }
+
+    @Test
+    fun `같은 값의 제출이 아직 hash를 못 받았으면 붙이지 않고 보류한다`() {
+        // 벤더는 이동과 제출을 잇는 키를 주지 않는다 — 배제하지 못하면 붙이지 않는다. 그쪽 알림이 오면 해소된다.
+        val outgoing = transfer(direction = NetworkChainDirection.OUT)
+        every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns listOf(txRecord())
+        every { submissions.findByVendorTransactionId("xfr-1") } returns submissionRecord()
+        every { submissions.existsUnresolvedWithSameCanonical(any(), any(), any()) } returns true
+
+        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
+            .isEqualTo(DfnsChainDecisionOutcome.OutgoingPending(outgoing))
+
+        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
+    }
+
+    @Test
+    fun `후보 조회 전에 network와 hash의 직렬화 경계를 잡는다`() {
+        // 조회와 전이 사이에 같은 hash 행이 새로 삽입될 수 있다 — 거래를 만드는 쪽과 같은 경계를 공유해야 한다.
+        val outgoing = transfer(direction = NetworkChainDirection.OUT)
+        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns emptyList()
+
+        decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
+
+        verify(exactly = 1) { txStates.lockNetworkTransactionHash(NETWORK, TX_HASH) }
     }
 
     @Test
