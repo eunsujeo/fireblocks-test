@@ -92,6 +92,7 @@ class DfnsWebhookDecisionConfig {
     fun dfnsChainEventDecision(
         parser: NetworkChainEventParser,
         ledger: NetworkChainLedgerLookup,
+        submissions: SubmissionObservationService,
         chainHeads: ChainHeadPort,
         statusTranslator: VendorStatusTranslator,
         txStates: TxStateService,
@@ -103,6 +104,7 @@ class DfnsWebhookDecisionConfig {
     ) = DfnsChainEventDecision(
         parser = parser,
         ledger = ledger,
+        submissions = submissions,
         chainHeads = chainHeads,
         statusTranslator = statusTranslator,
         txStates = txStates,

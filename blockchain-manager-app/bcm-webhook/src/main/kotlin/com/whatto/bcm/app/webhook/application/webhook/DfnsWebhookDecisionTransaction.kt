@@ -20,8 +20,8 @@ import java.time.Clock
  * **전송 알림([DfnsTransferEventDecision])을 먼저 부르고, 전송 사건이 아니면 온체인 이동([DfnsChainEventDecision])으로 넘긴다** —
  * 두 파서는 서로 다른 `kind` 집합만 읽으므로 한쪽이 null이면 다른 쪽 차례다.
  *
- * 아직 원장을 쓰지 않는 것은 **발신 이동 사건**이다 — 기존 거래에 붙이는 대조가 아직 없어 처리 완료로 표시만 한다 —
- * 그래서 `BCM_PROVIDER=dfns`의 기동 차단 해제 조건에 "발신 이동 대조 구현"이 함께 걸려 있다(계약13). 이 제약을 모르고 출금을 열면 안 된다.
+ * 발신 이동은 기존 거래에 붙여 확정까지 낸다. 대조에 실패한 발신(후보 없음·대응 없음)과 미지원/미등록 자산은 원장을 쓰지 않고 처리 완료로 남기며,
+ * 후보가 여럿인 발신은 상한을 기다리지 않고 즉시 격리한다(계약13).
  *
  * 실패 처리는 Fireblocks 경로와 같다 — payload 결함은 재시도/격리, 설정 오류는 P로 남겨 복구 뒤 다시 처리, 그 밖의 오류는 워커가 기록한다.
  */
@@ -94,6 +94,16 @@ class DfnsWebhookDecisionTransaction(
                 WebhookDecisionOutcome.Processed(inboxItem.notificationId, outcome.events.size)
             }
 
+            // 발신 이동을 기존 거래에 붙였다 — 출금의 확정이 여기서 난다.
+            is DfnsChainDecisionOutcome.OutgoingAttached -> {
+                markProcessed(inboxItem)
+                WebhookDecisionOutcome.Processed(inboxItem.notificationId, outcome.events.size)
+            }
+
+            // 같은 (ntwk_cd, tx_hash)에 거래가 여럿이다 — 하나를 고르는 규칙을 지어내면 다른 거래에 남의 확정이 붙는다.
+            // 재시도가 결과를 바꾸지 못하므로 **즉시 격리**한다.
+            is DfnsChainDecisionOutcome.OutgoingAmbiguous -> quarantineNow(inboxItem, AMBIGUOUS_OUTGOING_REASON)
+
             is DfnsChainDecisionOutcome.Unattributed -> {
                 markProcessed(inboxItem)
                 WebhookDecisionOutcome.Unattributed(
@@ -152,6 +162,8 @@ class DfnsWebhookDecisionTransaction(
 
         /** 격리 사유는 원문·주소·금액을 담지 않는다 — 인박스에 남는 값이다. */
         const val CONFLICTING_TRANSFER_REASON = "submission key linked to another transfer"
+
+        const val AMBIGUOUS_OUTGOING_REASON = "outgoing transfer matches multiple transactions"
 
         const val UNEXPECTED_FAILURE_REASON = "decision processing failed"
     }

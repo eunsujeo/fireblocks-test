@@ -182,6 +182,17 @@ class TxJdbcAdapter(
 
     override fun findByExternalTxId(externalTxId: String): TxRecord? = crud.findByExtTxId(externalTxId)?.toDomain()
 
+    override fun findByNetworkAndTransactionHash(
+        network: String,
+        transactionHash: String,
+    ): List<TxRecord> =
+        jdbc.query(
+            // tx_hash 부분 index(V26)가 받치고 ntwk_cd로 좁힌다 — hash만으로는 네트워크가 다른 같은 hash가 섞인다.
+            "$TX_COLUMNS FROM bcm_tx_l WHERE ntwk_cd = :network AND tx_hash = :transactionHash",
+            mapOf("network" to network, "transactionHash" to transactionHash),
+            rowMapper,
+        )
+
     override fun findByPhysicalVendorTransactionId(vendorTransactionId: String): TxReconciliationRecord? =
         jdbc
             .query(

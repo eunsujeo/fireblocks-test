@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.asset.AssetDecimals
 import com.whatto.bcm.domain.event.ChainEvent
@@ -9,16 +10,20 @@ import com.whatto.bcm.domain.event.EventIdGenerator
 import com.whatto.bcm.domain.event.EventType
 import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventType
+import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.tx.BlockDepthFinality
 import com.whatto.bcm.domain.tx.ChainHeadPort
 import com.whatto.bcm.domain.tx.NetworkChainTransactionId
 import com.whatto.bcm.domain.tx.TxObservation
+import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.vendor.NetworkChainAttachmentResult
 import com.whatto.bcm.domain.vendor.NetworkChainAttribution
 import com.whatto.bcm.domain.vendor.NetworkChainAttributionMiss
 import com.whatto.bcm.domain.vendor.NetworkChainAttributionResult
 import com.whatto.bcm.domain.vendor.NetworkChainEventParser
 import com.whatto.bcm.domain.vendor.NetworkChainLedgerLookup
+import com.whatto.bcm.domain.vendor.NetworkChainOutgoingAttachment
 import com.whatto.bcm.domain.vendor.NetworkChainTransfer
 import com.whatto.bcm.domain.vendor.VendorStatusObservation
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
@@ -41,6 +46,7 @@ import java.time.Instant
 class DfnsChainEventDecision(
     private val parser: NetworkChainEventParser,
     private val ledger: NetworkChainLedgerLookup,
+    private val submissions: SubmissionObservationService,
     private val chainHeads: ChainHeadPort,
     private val statusTranslator: VendorStatusTranslator,
     private val txStates: TxStateService,
@@ -57,12 +63,124 @@ class DfnsChainEventDecision(
         val event = parser.parse(payload) ?: return DfnsChainDecisionOutcome.NotChainEvent
         return when (val attribution = NetworkChainAttribution.attribute(event.observation, ledger)) {
             is NetworkChainAttributionResult.Deposit -> deposit(notificationId, event.delivery, attribution)
-            is NetworkChainAttributionResult.Outgoing -> DfnsChainDecisionOutcome.Outgoing(attribution.observation)
+            is NetworkChainAttributionResult.Outgoing -> outgoing(notificationId, attribution.observation)
             is NetworkChainAttributionResult.UnsupportedAsset -> DfnsChainDecisionOutcome.UnsupportedAsset(attribution.observation)
             is NetworkChainAttributionResult.UnmappedAsset -> DfnsChainDecisionOutcome.UnmappedAsset(attribution.observation)
             is NetworkChainAttributionResult.Unattributed ->
                 DfnsChainDecisionOutcome.Unattributed(attribution.observation, attribution.miss, attribution.network, attribution.symbol)
         }
+    }
+
+    /**
+     * 발신 이동의 대조(계약13). **새 거래를 만들지 않는다** — `(ntwk_cd, tx_hash)`로 기존 거래를 찾아 그 거래의 전이로 반영한다.
+     * 후보가 정확히 하나이고 제출 원장에 대응할 때만 붙이고, 여럿이거나 대응이 없으면 중단해 워커가 운영 신호로 남긴다.
+     *
+     * 출금의 **확정이 여기서 난다** — 전송 알림에는 `blockNumber`가 없어 깊이를 계산할 수 없고, 이 사건에만 블록 좌표가 있다.
+     */
+    private fun outgoing(
+        notificationId: String,
+        observation: NetworkChainTransfer,
+    ): DfnsChainDecisionOutcome {
+        val network = observation.network
+        val hash = observation.transactionHash
+        val attached =
+            NetworkChainOutgoingAttachment.attach(
+                txStates.findByNetworkAndTransactionHash(network, hash),
+                { submissions.findByVendorTransactionId(it) },
+            )
+        return when (attached) {
+            is NetworkChainAttachmentResult.NoCandidate -> DfnsChainDecisionOutcome.OutgoingUnmatched(observation)
+            is NetworkChainAttachmentResult.Ambiguous ->
+                DfnsChainDecisionOutcome.OutgoingAmbiguous(observation, attached.candidateCount)
+
+            is NetworkChainAttachmentResult.NoSubmission -> DfnsChainDecisionOutcome.OutgoingUnmatched(observation)
+            is NetworkChainAttachmentResult.Attach -> attachOutgoing(notificationId, observation, attached)
+        }
+    }
+
+    private fun attachOutgoing(
+        notificationId: String,
+        observation: NetworkChainTransfer,
+        attached: NetworkChainAttachmentResult.Attach,
+    ): DfnsChainDecisionOutcome {
+        val submission = attached.submission
+        val confirmations =
+            BlockDepthFinality.confirmationCount(
+                headBlockNumber = chainHeads.headBlockNumber(observation.network),
+                blockNumber = observation.blockNumber,
+            )
+        val status =
+            statusTranslator.translate(
+                VendorStatusObservation(observation.status.vendorValue, subStatus = null, confirmationCount = confirmations),
+                submission.network,
+            )
+        val stateChange =
+            txStates.observe(
+                TxObservation(
+                    // 붙이는 것이지 만드는 게 아니다 — 키는 기존 거래의 벤더 전송 ID다.
+                    vendorTransactionId = attached.record.vendorTxId,
+                    externalTransactionId = submission.externalTransactionId,
+                    accountId = submission.senderAccountId,
+                    network = submission.network,
+                    symbol = submission.symbol,
+                    transactionHash = observation.transactionHash,
+                    status = status,
+                    confirmationCount = confirmations,
+                    vendorSubStatus = null,
+                    vendorNetworkStatus = null,
+                    observedAt = CoreDateTimes.now(clock),
+                    vendorCreatedAt = CoreDateTimes.now(clock),
+                ),
+            )
+        val eventType = submission.transactionType.customerEventType()
+        if (eventType == null) {
+            return DfnsChainDecisionOutcome.OutgoingAttached(observation, status, emptyList())
+        }
+        val events =
+            stateChange.statusesToPublish.map { published ->
+                outgoingEvent(notificationId, eventType, submission, attached.record, observation, confirmations, published)
+            }
+        outboxEvents.enqueue(events)
+        return DfnsChainDecisionOutcome.OutgoingAttached(observation, status, events)
+    }
+
+    private fun outgoingEvent(
+        notificationId: String,
+        eventType: EventType,
+        submission: SubmissionRecord,
+        record: TxRecord,
+        observation: NetworkChainTransfer,
+        confirmations: Int,
+        status: TxStatus,
+    ): OutboxEvent {
+        val eventId = eventIdGenerator.nextId()
+        val event =
+            ChainEvent(
+                eventId = eventId,
+                type = eventType,
+                txId = record.vendorTxId,
+                txHash = observation.transactionHash,
+                externalTxId = submission.externalTransactionId,
+                accountId = submission.senderAccountId,
+                network = submission.network,
+                symbol = submission.symbol,
+                to = submission.recipientValue,
+                from = null,
+                // 금액은 원장의 사람 단위 값이다 — 관찰의 최소 단위를 다시 환산하지 않는다(단위가 뒤섞이면 조용한 금액 사고다).
+                amount = submission.amount,
+                status = status,
+                numOfConfirmations = confirmations,
+            )
+        return OutboxEvent(
+            eventId = eventId,
+            eventDate = BusinessDates.now(clock),
+            vendorTransactionId = event.txId,
+            eventType = OutboxEventType.forPublishedStatus(status),
+            topic = eventType.topic,
+            payload = eventSerializer.serialize(event),
+            maxRetryCount = outboxMaxAttempts,
+            traceId = notificationId,
+        )
     }
 
     private fun deposit(
@@ -181,9 +299,25 @@ sealed interface DfnsChainDecisionOutcome {
         val events: List<OutboxEvent>,
     ) : DfnsChainDecisionOutcome
 
-    /** 우리 지갑 발신 — 제출 원장 대조가 필요하다(후속). */
-    data class Outgoing(
+    /** 발신 이동을 기존 거래에 붙였다 — 출금의 확정이 여기서 난다. */
+    data class OutgoingAttached(
         val observation: NetworkChainTransfer,
+        val status: TxStatus,
+        val events: List<OutboxEvent>,
+    ) : DfnsChainDecisionOutcome
+
+    /**
+     * 붙일 거래를 찾지 못했다(후보 없음 또는 제출 원장 대응 없음). **거래를 만들지 않는다** —
+     * 전송 알림이 아직 안 왔을 수도 있고 우리가 낸 전송이 아닐 수도 있다.
+     */
+    data class OutgoingUnmatched(
+        val observation: NetworkChainTransfer,
+    ) : DfnsChainDecisionOutcome
+
+    /** 같은 `(ntwk_cd, tx_hash)`에 거래가 여럿이다 — 하나를 고르는 규칙을 지어내지 않고 중단한다. */
+    data class OutgoingAmbiguous(
+        val observation: NetworkChainTransfer,
+        val candidateCount: Int,
     ) : DfnsChainDecisionOutcome
 
     data class UnsupportedAsset(

@@ -24,4 +24,13 @@ interface TxRecordRepository {
     fun findByActiveVendorTxIdForUpdate(activeVendorTxId: String): TxRecord?
 
     fun findByExternalTxId(externalTxId: String): TxRecord?
+
+    /**
+     * 온체인 hash로 거래를 찾는다(V26 index). **hash는 유일하지 않다** — 한 트랜잭션에 여러 이동이 있을 수 있고
+     * 네트워크가 다르면 같은 hash도 다른 거래다. 그래서 목록으로 돌려주고 **단일 후보 판정은 호출자가 한다**(계약13).
+     */
+    fun findByNetworkAndTransactionHash(
+        network: String,
+        transactionHash: String,
+    ): List<TxRecord>
 }

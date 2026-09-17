@@ -814,3 +814,18 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **독립 converge 최종**: design-sync **통과**(Critical·Major·Minor 0), code-reviewer **커밋 가능**(Critical 0).
   라운드는 design-sync 3회(Critical 1·Major 2 → Major 1 → 통과) 뒤 code-reviewer 2회(Critical 1 → 커밋 가능)였다.
 - 검증: 전체 1,332 테스트 0 실패, 전체 ktlintCheck·`git diff --check`·생성물 2종 통과. 벤더 실호출 없음.
+
+## Dfns 발신 이동 대조 검증 (2026-09-17)
+
+- 계약13 [발신 이동 대조 — 구현](13-dfns-contracts.md#발신-이동-대조--구현)을 `NetworkChainOutgoingAttachment`(domain)와 `DfnsChainEventDecision`의 발신 분기로 구현했다.
+- **출금의 확정이 여기서 난다** — 전송 알림에는 `blockNumber`가 없고 블록 좌표는 온체인 이동 사건에만 있다. 이 대조가 없으면 출금은 영영 확정되지 않았다.
+- **새 거래를 만들지 않는다.** `(ntwk_cd, tx_hash)`(V26 index)로 전송 알림이 만든 거래를 찾아 그 거래의 전이로 반영한다.
+  **후보가 정확히 하나이고 제출 원장에 대응할 때만** 붙인다 — hash는 유일하지 않으므로(한 트랜잭션에 여러 이동) 하나를 고르는 규칙을 지어내면
+  **다른 거래에 남의 확정이 붙는다**. 02의 "제출 원장이 기준"을 hash 일치로 대체하지 않는다.
+- 후보 없음은 도착 순서 때문일 수 있어 거래를 만들지 않고 처리 완료로 남긴다. **후보가 여럿인 경우만 상한을 기다리지 않고 즉시 격리**한다.
+- 업무 값(계정·네트워크·심볼·금액·목적지)은 제출 원장에서 읽고 관찰의 최소 단위를 다시 환산하지 않는다.
+- **조회는 거래 피처의 `TxStateService`를 통한다.** 처음에는 `TxRecordRepository`를 직접 주입했는데
+  **지난 슬라이스에서 `ArchitectureTest`에 넣은 검사가 그 위반을 바로 잡아냈다** — 같은 종류의 Critical을 리뷰 전에 막은 첫 사례다.
+- **범위 밖**: 후보 없음·대응 없음의 경보 포트, RBF(`replacementId`) 계열, `FAILED` 재시도의 새 제출 키 발급.
+  `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
+- 검증: 전체 1,341 테스트 0 실패(이번 슬라이스 9건 추가), 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
