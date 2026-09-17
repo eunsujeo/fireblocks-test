@@ -36,6 +36,22 @@ class DfnsWebhookDecisionTransactionTest {
         }
 
     @Test
+    fun `같은 hash에 거래가 여럿인 발신은 상한을 기다리지 않고 즉시 격리한다`() {
+        // 하나를 고르는 규칙을 지어내면 다른 거래에 남의 확정이 붙는다 — 처리 완료로 소거하지 않는다(계약13).
+        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { decision.decide(any(), any()) } returns
+            DfnsChainDecisionOutcome.OutgoingAmbiguous(transfer(direction = NetworkChainDirection.OUT), 2)
+        every {
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer matches multiple transactions", 1)
+        } returns WebhookFailureResult(quarantined = true, retryCount = 1)
+
+        val outcome = transaction().processNext()
+
+        assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Quarantined::class.java)
+        verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
+    }
+
+    @Test
     fun `한 제출 키에 두 전송이 붙은 충돌은 상한을 기다리지 않고 즉시 격리한다`() {
         // 이중 제출 신호다 — 재시도가 결과를 바꾸지 못하므로 처리 완료로 소거하면 신호가 사라진다(03 전이 표).
         every { inbox.findNextPendingForUpdate() } returns inboxItem()
@@ -120,7 +136,7 @@ class DfnsWebhookDecisionTransactionTest {
     fun `아직 판단하지 않는 계열은 원장을 건드리지 않고 처리 완료로 남긴다`() {
         listOf(
             DfnsChainDecisionOutcome.NotChainEvent,
-            DfnsChainDecisionOutcome.Outgoing(transfer(direction = NetworkChainDirection.OUT)),
+            DfnsChainDecisionOutcome.OutgoingUnmatched(transfer(direction = NetworkChainDirection.OUT)),
             DfnsChainDecisionOutcome.UnsupportedAsset(transfer()),
             DfnsChainDecisionOutcome.UnmappedAsset(transfer()),
             DfnsChainDecisionOutcome.MissingDecimals(transfer()),

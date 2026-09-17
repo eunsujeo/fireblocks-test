@@ -77,4 +77,9 @@ private class RecordingTxRecords(
     override fun findByActiveVendorTxIdForUpdate(activeVendorTxId: String): TxRecord? = record
 
     override fun findByExternalTxId(externalTxId: String): TxRecord? = record
+
+    override fun findByNetworkAndTransactionHash(
+        network: String,
+        transactionHash: String,
+    ): List<TxRecord> = listOfNotNull(record).filter { it.network == network && it.transactionHash == transactionHash }
 }

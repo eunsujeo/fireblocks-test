@@ -1,12 +1,14 @@
 package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
 import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.event.OutboxEventType
 import com.whatto.bcm.domain.tx.ChainHeadPort
+import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStateChange
 import com.whatto.bcm.domain.tx.TxStatus
@@ -38,6 +40,8 @@ import java.time.ZoneOffset
  * Dfns 온체인 이동 사건의 입금 판단(계약13) — 확정은 블록 깊이로 내고, 입금이 아닌 결과는 원장을 쓰지 않는다.
  */
 class DfnsChainEventDecisionTest {
+    private val submissions = mockk<SubmissionObservationService>(relaxed = true)
+
     private val txStates = mockk<TxStateService>()
     private val outboxEvents = mockk<OutboxEventService>(relaxed = true)
     private val chainHeads = mockk<ChainHeadPort>()
@@ -123,10 +127,64 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
+    fun `발신 이동은 새 거래를 만들지 않고 기존 거래에 붙여 블록 깊이로 확정한다`() {
+        val outgoing = transfer(direction = NetworkChainDirection.OUT)
+        val existing = txRecord()
+        every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns listOf(existing)
+        every { submissions.findByVendorTransactionId("xfr-1") } returns submissionRecord()
+        every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber + 11
+        val observed = slot<TxObservation>()
+        every { txStates.observe(capture(observed)) } answers { stateChange(TxStatus.FINALIZED) }
+        every { outboxEvents.enqueue(any()) } returns Unit
+
+        val outcome = decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
+
+        assertThat(outcome).isInstanceOfSatisfying(DfnsChainDecisionOutcome.OutgoingAttached::class.java) {
+            assertThat(it.status).isEqualTo(TxStatus.FINALIZED)
+        }
+        // 키는 기존 거래의 벤더 전송 ID다 — 파생 ID를 만들지 않는다.
+        assertThat(observed.captured.vendorTransactionId).isEqualTo("xfr-1")
+        assertThat(observed.captured.externalTransactionId).isEqualTo("ext-1")
+        assertThat(observed.captured.confirmationCount).isEqualTo(12)
+    }
+
+    @Test
+    fun `붙일 거래가 없거나 제출 원장 대응이 없으면 원장을 쓰지 않는다`() {
+        val outgoing = transfer(direction = NetworkChainDirection.OUT)
+        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns emptyList()
+
+        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
+            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnmatched(outgoing))
+
+        // 대응 없는 경우도 같다 — hash 일치만으로 확정을 붙이지 않는다.
+        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns listOf(txRecord())
+        every { submissions.findByVendorTransactionId(any()) } returns null
+
+        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
+            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnmatched(outgoing))
+
+        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
+    }
+
+    @Test
+    fun `같은 hash에 거래가 여럿이면 하나를 고르지 않고 중단한다`() {
+        val outgoing = transfer(direction = NetworkChainDirection.OUT)
+        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns
+            listOf(txRecord(), txRecord(vendorTxId = "xfr-2"))
+
+        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
+            .isEqualTo(DfnsChainDecisionOutcome.OutgoingAmbiguous(outgoing, 2))
+
+        verify(exactly = 0) { txStates.observe(any()) }
+    }
+
+    @Test
     fun `입금이 아닌 결과는 원장도 이벤트도 쓰지 않는다`() {
         val outgoing = transfer(direction = NetworkChainDirection.OUT)
+        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns emptyList()
         assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
-            .isEqualTo(DfnsChainDecisionOutcome.Outgoing(outgoing))
+            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnmatched(outgoing))
 
         val unsupported = transfer(vendorAssetId = null, vendorAssetKind = "Erc721Transfer", amount = null)
         assertThat(decision(event = event(unsupported)).decide(NOTIFICATION_ID, PAYLOAD))
@@ -212,6 +270,7 @@ class DfnsChainEventDecisionTest {
                     symbol: String,
                 ) = accountId
             },
+        submissions = submissions,
         chainHeads = chainHeads,
         statusTranslator = translator,
         txStates = txStates,
@@ -283,6 +342,39 @@ class DfnsChainEventDecisionTest {
             vendorCreatedAt = "20260916000005",
             firstDetectedAt = "20260916000005",
             lastChangedAt = "20260916000005",
+        )
+
+    private fun txRecord(vendorTxId: String = "xfr-1") =
+        com.whatto.bcm.domain.tx.TxRecord(
+            vendorTxId = vendorTxId,
+            accountId = "acct-1",
+            network = NETWORK,
+            symbol = "USDC",
+            transactionHash = TX_HASH,
+            lastPublishedStatus = TxStatus.SUBMITTED,
+            confirmationCount = 0,
+            firstDetectedAt = "20260916010203",
+            lastChangedAt = "20260916010203",
+        )
+
+    private fun submissionRecord() =
+        com.whatto.bcm.domain.submission.SubmissionRecord(
+            externalTransactionId = "ext-1",
+            requestHash = "0".repeat(64),
+            hashVersion = "v1",
+            status = com.whatto.bcm.domain.submission.SubmissionStatus.SUBMITTED,
+            claimId = null,
+            claimExpiresAt = null,
+            transactionType = com.whatto.bcm.domain.submission.SubmissionTransactionType.WITHDRAWAL,
+            vendorTransactionId = "xfr-1",
+            senderAccountId = "acct-1",
+            recipientType = com.whatto.bcm.domain.submission.SubmissionRecipientType.ADDRESS,
+            recipientValue = "0x1111111111111111111111111111111111111111",
+            network = NETWORK,
+            symbol = "USDC",
+            amount = "1",
+            requestedAt = "20260916010203",
+            respondedAt = null,
         )
 
     private companion object {
