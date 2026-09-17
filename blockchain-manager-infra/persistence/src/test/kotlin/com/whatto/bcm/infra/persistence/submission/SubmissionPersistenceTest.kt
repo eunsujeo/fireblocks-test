@@ -5,6 +5,7 @@ import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.infra.persistence.submission.fixture.SubmissionRecordFixture.fixture
 import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
 import com.whatto.bcm.support.submission.SubmissionRequestHashes
@@ -33,6 +34,57 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
 
     @Autowired
     lateinit var dataSource: DataSource
+
+    @Test
+    fun `제출 시점의 벤더 canonical 값을 함께 저장하고 그대로 되찾는다`() {
+        // Dfns 회수는 이 값들로만 본문을 다시 만든다 — 저장·복원이 어긋나면 "같은 본문"이 깨진다(03 V28).
+        val canonical =
+            SubmissionVendorCanonical(
+                vendorWalletId = "wa-1",
+                vendorAssetId = "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                amountBaseUnits = "1500000",
+                decimals = 6,
+            )
+        val requested = fixture(externalTransactionId = "wd-v28-canonical", vendorCanonical = canonical)
+
+        submissions.insert(requested)
+
+        assertThat(submissions.findByExternalTransactionId("wd-v28-canonical")?.vendorCanonical).isEqualTo(canonical)
+    }
+
+    @Test
+    fun `벤더 canonical 값이 없는 행도 그대로 저장된다 — Fireblocks 경로는 벤더 조회로 회수한다`() {
+        val requested = fixture(externalTransactionId = "wd-v28-none", vendorCanonical = null)
+
+        submissions.insert(requested)
+
+        assertThat(submissions.findByExternalTransactionId("wd-v28-none")?.vendorCanonical).isNull()
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `벤더 canonical 값은 한 벌이어야 하고 최소 단위·정밀도 형식을 DB가 막는다`() {
+        val base =
+            """
+            INSERT INTO bcm_sbmt_l
+              (ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, tx_dvcd, snd_acnt_id, rcv_dvcd, rcv_vl,
+               ntwk_cd, tkn_smbl, trsf_amt, req_dttm,
+               vndr_wlt_id, vndr_ast_id, base_amt, dcml_cnt,
+               frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, 'a', 'v1', 'REQUESTED', 'WITHDRAWAL', 'acct-1', 'ADDRESS', '0x1',
+                    'ETHEREUM', 'USDC', 1, '20260917090000', ?, ?, ?, ?, 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent()
+
+        // 일부만 채우면 본문을 재구성할 수 없다.
+        assertThatThrownBy { jdbc.update(base, "v28-partial", "wa-1", null, null, null) }
+            .hasMessageContaining("ck_bcm_sbmt_vndr_canonical")
+        // 선행 0이 있는 최소 단위는 같은 금액의 표기를 둘로 만든다.
+        assertThatThrownBy { jdbc.update(base, "v28-zero", "wa-1", "key", "0100", 6) }
+            .hasMessageContaining("ck_bcm_sbmt_base_amt")
+        // 모델 한계를 넘는 정밀도.
+        assertThatThrownBy { jdbc.update(base, "v28-dcml", "wa-1", "key", "100", 256) }
+            .hasMessageContaining("ck_bcm_sbmt_dcml")
+    }
 
     @Test
     fun `REQUESTED 제출 원장을 저장하고 externalTxId로 모든 canonical 필드를 되찾는다`() {

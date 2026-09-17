@@ -15,6 +15,7 @@ import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.domain.vendor.NetworkTransferObservation
 import com.whatto.bcm.domain.vendor.NetworkTransferPort
 import com.whatto.bcm.domain.vendor.NetworkTransferRequest
@@ -91,6 +92,8 @@ class DfnsTransferSubmissionServiceTest {
         assertThat(inserted.captured.status).isEqualTo(SubmissionStatus.REQUESTED)
         assertThat(inserted.captured.transactionType).isEqualTo(SubmissionTransactionType.WITHDRAWAL)
         assertThat(inserted.captured.claimId).isNotBlank()
+        // 회수가 "같은 본문"을 다시 만들 수 있도록 제출 시점 값을 함께 적는다(03 V28).
+        assertThat(inserted.captured.vendorCanonical).isEqualTo(CANONICAL)
         // 벤더 호출은 트랜잭션 밖이다 — 외부 통신을 트랜잭션에 넣으면 커넥션이 그 시간만큼 잠긴다(02).
         assertThat(runner.insideTransaction).isFalse()
         verify(exactly = 1) { vendor.submit(any()) }
@@ -148,7 +151,6 @@ class DfnsTransferSubmissionServiceTest {
 
     @Test
     fun `이미 SUBMITTED인 같은 요청은 벤더를 부르지 않고 처음의 전송 ID를 돌려준다`() {
-        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
             requested().copy(status = SubmissionStatus.SUBMITTED, vendorTransactionId = TRANSFER_ID)
 
@@ -156,11 +158,13 @@ class DfnsTransferSubmissionServiceTest {
 
         assertThat(result.transactionId).isEqualTo(TRANSFER_ID)
         verify(exactly = 0) { vendor.submit(any()) }
+        // 매핑이 해제돼도 원래 전송 ID를 돌려줘야 한다 — 결말은 원장이 이미 알고 있다.
+        verify(exactly = 0) { mappings.requiredCurrentMapping(any(), any()) }
+        verify(exactly = 0) { wallets.findWallet(any()) }
     }
 
     @Test
     fun `REQUESTED로 남은 건은 조회가 아니라 같은 본문 재제출로 회수한다`() {
-        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns requested()
         every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } answers {
             requested().copy(claimId = secondArg(), claimExpiresAt = thirdArg())
@@ -171,18 +175,49 @@ class DfnsTransferSubmissionServiceTest {
             requested().copy(status = SubmissionStatus.SUBMITTED, vendorTransactionId = TRANSFER_ID)
         }
 
+        // 회수 시점에 자산 매핑이 다른 키·다른 정밀도로 교체됐다 — 그래도 본문은 제출 시점 값이어야 한다.
+        every { mappings.requiredCurrentMapping(NETWORK, "USDC") } returns
+            MAPPING.copy(vendorAssetId = "EthereumSepolia:Native", decimals = 18)
+
         val result = service.submit(command())
 
         assertThat(result.transactionId).isEqualTo(TRANSFER_ID)
         // 회수의 전제는 "같은 본문"이다 — 저장된 canonical 값에서 재구성한 요청이 최초 제출과 같아야 한다.
         assertThat(request.captured.externalId).isEqualTo(EXTERNAL_ID)
+        assertThat(request.captured.vendorAssetId).isEqualTo(ASSET_KEY)
         assertThat(request.captured.amountBaseUnits).isEqualTo("1000000")
         assertThat(request.captured.destinationAddress).isEqualTo(ADDRESS)
     }
 
     @Test
+    fun `제출 시점 값이 없는 행은 본문을 지어내지 않고 거절해 다른 본문이 나가지 않게 한다`() {
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns requested().copy(vendorCanonical = null)
+        every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } answers {
+            requested().copy(vendorCanonical = null, claimId = secondArg(), claimExpiresAt = thirdArg())
+        }
+
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOf(UnprocessableRequestException::class.java)
+
+        verify(exactly = 0) { vendor.submit(any()) }
+    }
+
+    @Test
+    fun `회수 재제출의 409는 FAILED로 굳히지 않고 REQUESTED를 유지한다`() {
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns requested()
+        every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } answers {
+            requested().copy(claimId = secondArg(), claimExpiresAt = thirdArg())
+        }
+        every { vendor.submit(any()) } returns NetworkTransferSubmission.Conflict("xfr-other", ByteArray(0))
+
+        // 진행 중 재제출이 409로 보일 가능성이 아직 수용 항목이라, 종결로 적으면 나간 전송에 확정 거절을 돌려주게 된다.
+        assertThatThrownBy { service.submit(command()) }.isInstanceOf(VendorApiException::class.java)
+
+        verify(exactly = 0) { submissions.markFailedByClaim(any(), any(), any()) }
+    }
+
+    @Test
     fun `소유권을 못 잡으면 기다리지 않고 재시도 안내로 즉시 답한다`() {
-        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
             requested().copy(claimId = "other", claimExpiresAt = "20260917090030")
         every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } returns null
@@ -197,7 +232,6 @@ class DfnsTransferSubmissionServiceTest {
 
     @Test
     fun `FAILED 재시도는 거절하고 벤더를 부르지 않는다`() {
-        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns requested().copy(status = SubmissionStatus.FAILED)
 
         assertThatThrownBy { service.submit(command()) }
@@ -212,7 +246,6 @@ class DfnsTransferSubmissionServiceTest {
 
     @Test
     fun `같은 키에 다른 내용이면 벤더를 부르기 전에 409로 막는다`() {
-        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
             requested().copy(amount = "2", requestHash = "f".repeat(64))
 
@@ -313,6 +346,7 @@ class DfnsTransferSubmissionServiceTest {
             amount = "1",
             requestedAt = NOW,
             respondedAt = null,
+            vendorCanonical = CANONICAL,
         )
 
     private fun observation(
@@ -373,6 +407,13 @@ class DfnsTransferSubmissionServiceTest {
                 registeredAt = "20260917000000",
                 registeredByEmployeeNo = "000001",
                 registeredByBranchCode = "0001",
+                decimals = 6,
+            )
+        val CANONICAL =
+            SubmissionVendorCanonical(
+                vendorWalletId = WALLET_ID,
+                vendorAssetId = ASSET_KEY,
+                amountBaseUnits = "1000000",
                 decimals = 6,
             )
         val WALLET =

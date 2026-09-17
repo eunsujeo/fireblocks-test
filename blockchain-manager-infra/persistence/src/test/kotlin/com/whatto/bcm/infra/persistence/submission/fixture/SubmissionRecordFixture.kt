@@ -4,6 +4,7 @@ import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 
 object SubmissionRecordFixture {
     fun fixture(
@@ -24,6 +25,7 @@ object SubmissionRecordFixture {
         requestedAt: String = "20260807120000",
         respondedAt: String? = null,
         callData: String? = null,
+        vendorCanonical: SubmissionVendorCanonical? = null,
     ) = SubmissionRecord(
         externalTransactionId = externalTransactionId,
         requestHash = requestHash,
@@ -42,5 +44,6 @@ object SubmissionRecordFixture {
         requestedAt = requestedAt,
         respondedAt = respondedAt,
         callData = callData,
+        vendorCanonical = vendorCanonical,
     )
 }
