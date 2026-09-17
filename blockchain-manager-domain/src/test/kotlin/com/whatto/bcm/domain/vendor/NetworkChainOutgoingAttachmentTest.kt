@@ -83,6 +83,31 @@ class NetworkChainOutgoingAttachmentTest {
         assertThat(
             NetworkChainOutgoingAttachment.attach(observation(vendorWalletId = "wa-other"), listOf(record)) { submission },
         ).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, submission))
+        // 같은 지갑·목적지로 최소 단위 금액이 같은 **다른 자산** 이동이 한 트랜잭션에 있을 수 있다.
+        assertThat(
+            NetworkChainOutgoingAttachment.attach(
+                observation(vendorAssetId = "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+                listOf(record),
+            ) { submission },
+        ).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, submission))
+    }
+
+    @Test
+    fun `EVM 주소만 대소문자를 무시하고 base58 주소는 구분한다`() {
+        val record = txRecord()
+
+        // checksum 표기는 같은 주소의 다른 표기다.
+        assertThat(
+            NetworkChainOutgoingAttachment.attach(observation(toAddress = ADDRESS.uppercase().replace("0X", "0x")), listOf(record)) {
+                submission()
+            },
+        ).isInstanceOf(NetworkChainAttachmentResult.Attach::class.java)
+
+        // base58은 대소문자가 값의 일부다 — 무시하면 서로 다른 주소가 같아진다.
+        val solana = submission(recipientValue = SOLANA_ADDRESS)
+        assertThat(
+            NetworkChainOutgoingAttachment.attach(observation(toAddress = SOLANA_ADDRESS.lowercase()), listOf(record)) { solana },
+        ).isEqualTo(NetworkChainAttachmentResult.Mismatched(record, solana))
     }
 
     @Test
@@ -99,11 +124,12 @@ class NetworkChainOutgoingAttachmentTest {
         vendorWalletId: String = "wa-1",
         amountBaseUnits: String = "1000000",
         toAddress: String? = ADDRESS,
+        vendorAssetId: String? = "EthereumSepolia:Native",
     ) = NetworkChainTransfer(
         network = "ETHEREUM_SEPOLIA",
         vendorWalletId = vendorWalletId,
         vendorWalletAddress = "0x9999999999999999999999999999999999999999",
-        vendorAssetId = "EthereumSepolia:Native",
+        vendorAssetId = vendorAssetId,
         vendorAssetKind = "NativeTransfer",
         direction = NetworkChainDirection.OUT,
         status = NetworkChainTransferStatus.CONFIRMED,
@@ -129,30 +155,33 @@ class NetworkChainOutgoingAttachmentTest {
             lastChangedAt = "20260917090000",
         )
 
-    private fun submission(canonical: SubmissionVendorCanonical? = CANONICAL) =
-        SubmissionRecord(
-            externalTransactionId = "ext-1",
-            requestHash = "0".repeat(64),
-            hashVersion = "v1",
-            status = SubmissionStatus.SUBMITTED,
-            claimId = null,
-            claimExpiresAt = null,
-            transactionType = SubmissionTransactionType.WITHDRAWAL,
-            vendorTransactionId = "xfr-1",
-            senderAccountId = "acct-1",
-            recipientType = SubmissionRecipientType.ADDRESS,
-            recipientValue = ADDRESS,
-            network = "ETHEREUM_SEPOLIA",
-            symbol = "USDC",
-            amount = "1",
-            requestedAt = "20260917090000",
-            respondedAt = null,
-            vendorCanonical = canonical,
-        )
+    private fun submission(
+        canonical: SubmissionVendorCanonical? = CANONICAL,
+        recipientValue: String = ADDRESS,
+    ) = SubmissionRecord(
+        externalTransactionId = "ext-1",
+        requestHash = "0".repeat(64),
+        hashVersion = "v1",
+        status = SubmissionStatus.SUBMITTED,
+        claimId = null,
+        claimExpiresAt = null,
+        transactionType = SubmissionTransactionType.WITHDRAWAL,
+        vendorTransactionId = "xfr-1",
+        senderAccountId = "acct-1",
+        recipientType = SubmissionRecipientType.ADDRESS,
+        recipientValue = recipientValue,
+        network = "ETHEREUM_SEPOLIA",
+        symbol = "USDC",
+        amount = "1",
+        requestedAt = "20260917090000",
+        respondedAt = null,
+        vendorCanonical = canonical,
+    )
 
     private companion object {
         const val ADDRESS = "0x1111111111111111111111111111111111111111"
         const val OTHER_ADDRESS = "0x2222222222222222222222222222222222222222"
+        const val SOLANA_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         val HASH = "0x" + "a".repeat(64)
         val CANONICAL =
             SubmissionVendorCanonical(

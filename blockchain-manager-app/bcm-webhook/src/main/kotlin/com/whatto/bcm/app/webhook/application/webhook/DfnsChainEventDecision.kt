@@ -296,7 +296,7 @@ class DfnsChainEventDecision(
             .getOrElse { throw WebhookPayloadException("Dfns 웹훅 필드 형식 오류: date", it) }
 }
 
-/** 판단 결과 — 입금만 원장·outbox를 쓴다. 나머지는 워커가 경보·무시를 정한다. */
+/** 판단 결과 — 입금과 **붙은 발신**이 원장·outbox를 쓴다. 나머지는 워커가 재시도·격리·무시를 정한다. */
 sealed interface DfnsChainDecisionOutcome {
     /** 온체인 이동 사건이 아니다(전송 알림·지갑/정책 사건). */
     data object NotChainEvent : DfnsChainDecisionOutcome

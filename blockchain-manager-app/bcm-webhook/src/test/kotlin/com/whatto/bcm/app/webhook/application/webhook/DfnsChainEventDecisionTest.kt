@@ -312,7 +312,7 @@ class DfnsChainEventDecisionTest {
 
     private fun transfer(
         direction: NetworkChainDirection = NetworkChainDirection.IN,
-        vendorAssetId: String? = "EthereumSepolia:Erc20:0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+        vendorAssetId: String? = ASSET_KEY,
         vendorAssetKind: String = "Erc20Transfer",
         amount: String? = "1500000",
         eventIndex: String? = "3",
@@ -386,7 +386,7 @@ class DfnsChainEventDecisionTest {
             vendorCanonical =
                 com.whatto.bcm.domain.submission.SubmissionVendorCanonical(
                     vendorWalletId = WALLET_ID,
-                    vendorAssetId = "EthereumSepolia:Native",
+                    vendorAssetId = ASSET_KEY,
                     amountBaseUnits = amountBaseUnits,
                     decimals = 6,
                 ),
@@ -399,6 +399,9 @@ class DfnsChainEventDecisionTest {
         const val DESTINATION = "0x00e3495cf6af59008f22ffaf32d4c92ac33dac47"
         const val SENDER = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
         const val WALLET_ID = "wa-1f04s-lqc9q-xxxxxxxxxxxxxxxx"
+
+        /** 관찰과 제출 canonical 이 같은 자산 키를 가리켜야 대조를 통과한다. */
+        const val ASSET_KEY = "EthereumSepolia:Erc20:0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
 
         /** 관찰의 기본 금액 — 제출 원장 canonical과 같아야 대조를 통과한다. */
         const val AMOUNT_BASE_UNITS = "1500000"

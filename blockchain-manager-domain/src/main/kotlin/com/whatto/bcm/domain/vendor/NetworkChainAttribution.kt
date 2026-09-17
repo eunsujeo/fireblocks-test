@@ -14,7 +14,7 @@ object NetworkChainAttribution {
         observation: NetworkChainTransfer,
         ledger: NetworkChainLedgerLookup,
     ): NetworkChainAttributionResult {
-        // 우리 지갑에서 나간 이동은 주소가 아니라 제출 원장으로 가른다(02 웹훅 계열 분류) — 그 대조는 후속이다.
+        // 우리 지갑에서 나간 이동은 주소가 아니라 제출 원장으로 가른다(02 웹훅 계열 분류) — 그 대조는 `NetworkChainOutgoingAttachment`가 한다.
         if (observation.direction == NetworkChainDirection.OUT) return NetworkChainAttributionResult.Outgoing(observation)
         val vendorAssetId =
             observation.vendorAssetId
@@ -84,7 +84,7 @@ sealed interface NetworkChainAttributionResult {
         val decimals: Int?,
     ) : NetworkChainAttributionResult
 
-    /** 우리 지갑 발신 — 제출 원장 대조가 필요하다(후속). */
+    /** 우리 지갑 발신 — 기존 거래에 붙이려면 제출 원장 대조가 필요하다(`NetworkChainOutgoingAttachment`). */
     data class Outgoing(
         override val observation: NetworkChainTransfer,
     ) : NetworkChainAttributionResult

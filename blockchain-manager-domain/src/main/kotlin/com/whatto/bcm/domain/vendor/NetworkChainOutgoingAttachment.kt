@@ -12,7 +12,7 @@ import com.whatto.bcm.domain.tx.TxRecord
  * 붙이려면 세 가지가 모두 성립해야 한다.
  * 1. `(ntwk_cd, tx_hash)` 후보가 **정확히 하나** — hash는 유일하지 않다(한 트랜잭션에 여러 이동).
  * 2. 그 거래가 **제출 원장에 대응** — 02의 "제출 원장이 기준"을 hash 일치로 바꾸지 않는다.
- * 3. 관찰이 **그 제출의 canonical 값과 일치**(지갑·목적지·최소 단위 금액, 03 V28) —
+ * 3. 관찰이 **그 제출의 canonical 값과 일치**(지갑·자산 키·최소 단위 금액·목적지, 03 V28) —
  *    후보 수가 1인 것만으로는 이 이동이 그 제출의 것임을 증명하지 못한다. 한 트랜잭션에 우리 이동 A·B가 있고
  *    A의 전송 알림만 먼저 와 있으면 B의 사건이 A에 붙어 **다른 거래에 남의 확정이 붙는다**.
  *
@@ -50,10 +50,29 @@ object NetworkChainOutgoingAttachment {
         submission: SubmissionRecord,
     ): Boolean {
         val canonical = submission.vendorCanonical ?: return false
+        val destination = observation.toAddress ?: return false
         return observation.vendorWalletId == canonical.vendorWalletId &&
+            // 자산 키까지 봐야 한다 — 같은 지갑·목적지로 **최소 단위 금액이 같은 다른 자산** 이동이 한 트랜잭션에 있을 수 있다.
+            observation.vendorAssetId == canonical.vendorAssetId &&
             observation.amountBaseUnits == canonical.amountBaseUnits &&
-            observation.toAddress?.equals(submission.recipientValue, ignoreCase = true) == true
+            sameAddress(destination, submission.recipientValue)
     }
+
+    /**
+     * 주소 동일성. **기본은 대소문자 구분**이다 — Solana base58 주소는 대소문자가 값의 일부라 무시하면 서로 다른 주소가 같아진다.
+     * EVM 16진 주소일 때만 대소문자를 무시한다(checksum 표기는 같은 주소의 다른 표기다).
+     */
+    private fun sameAddress(
+        observed: String,
+        recorded: String,
+    ): Boolean =
+        if (EVM_ADDRESS.matches(observed) && EVM_ADDRESS.matches(recorded)) {
+            observed.equals(recorded, ignoreCase = true)
+        } else {
+            observed == recorded
+        }
+
+    private val EVM_ADDRESS = Regex("0x[0-9a-fA-F]{40}")
 
     /** 제출 원장 조회 경계 — 판단이 저장소 구현을 알지 않게 한다. */
     fun interface SubmissionLookup {

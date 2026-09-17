@@ -17,7 +17,7 @@ import com.whatto.bcm.domain.webhook.WebhookPayloadException
  * 확정의 추가 관문도 아니다. 온체인 이동 상태 둘(`Included`·`Confirmed`)은 같은 깊이 판정을 쓰고, 깊이를 모르는 관찰
  * (전송 응답에는 `blockNumber`가 없다)은 [TxStatus.CONFIRMED]에 머문다 — 출금의 확정도 같은 거래의 온체인 이동 사건에서 판정한다.
  *
- * Webhook 앱의 `dfns` 조립에서만 만들어 입금 판단이 쓴다(계약13 "판단 워커 조립").
+ * Webhook 앱의 `dfns` 조립에서만 만들어 입금 판단·전송 알림 판단·발신 이동 대조가 함께 쓴다(계약13).
  */
 class DfnsStatusTranslator(
     private val finalityPolicy: FinalityPolicy,
