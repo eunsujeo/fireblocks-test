@@ -758,8 +758,8 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `AssetDecimals.baseUnitsOf`는 **반올림하지 않는다**(반올림은 지시하지 않은 금액을 보내는 것이다).
 - **`FAILED` 재시도는 열지 않는다**(이번 슬라이스의 결정). 같은 키 재제출은 기존 실패 엔티티를 돌려줄 뿐이고, 새 키 발급은
   벤더 `Failed`가 시스템 실패와 온체인 실행 실패를 함께 뜻해(`onChainSubmitted = null`) **이중 지급**이 될 수 있다.
-  새 키는 체인 미제출이 확인된 경우로 제한하며 그 확인 수단(발신 이동 대조)이 생긴 뒤에 연다 — 그때까지 `UNPROCESSABLE_ENTITY`로 거절한다.
-- **범위 밖**: 발신 이동 대조(`(ntwk_cd, tx_hash)` 단일 후보 + 제출 원장 대응), 새 제출 키 발급 규칙, 미결 제출 점검의 Dfns 동작,
+  새 키는 체인 미제출이 확인된 경우로 제한하며 그 확인 수단(발신 확정의 블록 좌표)이 생긴 뒤에 연다 — 그때까지 `UNPROCESSABLE_ENTITY`로 거절한다.
+- **범위 밖**: 발신 온체인 사건의 확정 반영, 새 제출 키 발급 규칙, 미결 제출 점검의 Dfns 동작,
   내부이체·Sweep·대납·수수료·Travel Rule·memo. `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
 - **반영(1차 design-sync Critical 2)**: ① 회수 본문이 저장값에서 재구성되지 않고 회수 시점의 매핑·정밀도를 다시 읽었다 —
   V28로 제출 시점의 벤더 canonical 한 벌을 보관하고 그 값으로만 본문을 만든다. 저장값이 없으면 재구성하지 않고 `422`로 거절한다.
@@ -815,9 +815,10 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   라운드는 design-sync 3회(Critical 1·Major 2 → Major 1 → 통과) 뒤 code-reviewer 2회(Critical 1 → 커밋 가능)였다.
 - 검증: 전체 1,332 테스트 0 실패, 전체 ktlintCheck·`git diff --check`·생성물 2종 통과. 벤더 실호출 없음.
 
-## Dfns 발신 이동 대조 검증 (2026-09-17)
+## Dfns 발신 확정의 블록 좌표 검증 (2026-09-17)
 
-- 계약13 [발신 이동 대조 — 구현](13-dfns-contracts.md#발신-이동-대조--구현)을 `NetworkChainOutgoingAttachment`(domain)와 `DfnsChainEventDecision`의 발신 분기로 구현했다.
+- 계약13 [발신 확정의 블록 좌표 — 구현](13-dfns-contracts.md#발신-확정의-블록-좌표--구현)을 `NetworkChainOutgoingCoordinate`(domain)와 `DfnsChainEventDecision`의 발신 분기로 구현했다.
+  아래 1~2차 기록은 **이동을 제출에 귀속시키려 한 설계**이고, 3차 지적으로 그 전제를 버렸다(맨 아래 항목).
 - **출금의 확정이 여기서 난다** — 전송 알림에는 `blockNumber`가 없고 블록 좌표는 온체인 이동 사건에만 있다. 이 대조가 없으면 출금은 영영 확정되지 않았다.
 - **새 거래를 만들지 않는다.** `(ntwk_cd, tx_hash)`(V26 index)로 전송 알림이 만든 거래를 찾아 그 거래의 전이로 반영한다.
   **후보가 정확히 하나이고 제출 원장에 대응할 때만** 붙인다 — hash는 유일하지 않으므로(한 트랜잭션에 여러 이동) 하나를 고르는 규칙을 지어내면
@@ -879,3 +880,18 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   직렬화 테스트의 실행기 누수와 `sleep` 의존을 없애고 contender-ready latch로 결정적으로 바꿨으며, network가 다른 경우도 함께 고정했다.
 - 검증: 신규 결합 4건 포함 전체 1,367 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)
+- **code-reviewer 3차 Critical 2건 — 전제를 바꿨다(2026-09-17 사용자 확정)**:
+  ① 격리는 **증거를 남길 뿐 붙임 판단이 그것을 읽지 않아** 원래 경로가 그대로 열려 있었다(B의 이동이 canonical 일치로 A에 붙는다).
+  ② 결합 테스트의 롤백 단언이 **마지막 쓰기까지 닿지 않았다** — outbox 에서 실패시키면 인박스 `S` 갱신은 아예 시도되지 않아
+  "인박스가 P"가 롤백의 증거가 못 되고, `markProcessed`가 별도 트랜잭션으로 빠지는 회귀도 통과했다.
+- ②는 **마지막 쓰기를 실패시키는 경우**를 더해 닫았고, ①은 **설계를 바꿔** 닫았다. 근본 원인은 증명할 수 없는 물음을 확정의 관문으로 세운 것이다 —
+  "이 **이동**이 제출 A의 것인가"는 상관관계 키가 없어 증명할 수 없는데, 값이 닮았는지로 대신 판정하고 있었다.
+  확정에 필요한 것은 그 물음이 아니라 **"`txHash`가 몇 번 블록인가"**이고, 그건 어느 이동이 실어 왔든 답이 같은 블록의 사실이다.
+  귀속은 **벤더가 우리 `TransferRequest`에 결속해 준 `txHash`**가 이미 해결했다(전송 알림이 `bcm_tx_l`에 적는다).
+- 그래서 **이동을 제출에 귀속시키지 않는다.** 그 hash를 가진 우리 발신 거래(`ext_tx_id`가 있는 행) 전부에 같은 좌표를 적용한다 —
+  여럿이어도 모두 같은 블록이라 "후보 여럿"이라는 모호함 자체가 없어지고, 제출은 그 거래에 적힌 **제출 키로 직접** 찾는다.
+  **없어진 것**: canonical 일치 판정·단일 후보 판정·미결 제출 배제 조회(`existsUnresolvedWithSameCanonical`)와 그 EVM case-fold 분기.
+  **남는 것**: `(network, txHash)` advisory lock(팬텀 삽입 방어는 그대로 필요), V29 backoff, 원장 밖 전송 알림의 격리(이상 신호로서).
+  기동 차단 해제의 선행 조건도 "한 트랜잭션 안의 같은 canonical 이동은 우리 것"이라는 미검증 가정에서
+  **`TransferRequest.txHash`가 그 전송이 실제로 포함된 트랜잭션의 hash인지 확인**으로 바꿨다. 추가 RPC 호출은 없다 — 체인 head 조회는 지금과 같다.
+- 검증: 신규 결합 7건 포함 전체 1,361 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
