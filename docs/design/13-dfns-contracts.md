@@ -7,7 +7,10 @@ V24 보호 원문 저장소와 내부 생성 서비스+실제 PostgreSQL 결합 
 2026-09-15 공식 OpenAPI 1.1018.3 기반 인증(사용자 행위 서명)·지갑 생성/조회 HTTP 어댑터와 Pending/Conflict의 공개 HTTP 매핑을 구현했다.
 공개 계정·주소 API를 `AccountOperations`로 제공자별 조립해 Dfns 논리 계정·네트워크 지갑 주소 발급을 연결했다.
 Dfns 데이터셋의 자산 매핑 등록 관문(`ChainAssetResolver`)과 `GET /wallets/{walletId}/assets` 기반 잔액 계약을 구현했다.
-2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델, Dfns 웹훅 수신 프로토콜(HMAC 검증·envelope), 전송 제출·조회 어댑터(내부 대역)를 구현했다. API 전체 기동 차단·Baseline 수용은 유지·미완료다.
+2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델, Dfns 웹훅 수신 프로토콜(HMAC 검증·envelope), 전송 제출·조회 어댑터(내부 대역)를 구현했다.
+이어서 웹훅 전송·온체인 이동 사건 관찰, 블록 깊이 확정 판정, 상태 번역, 온체인 이동의 귀속, 논리 거래 식별자와 hash 조회 index(V26), 등록 자산 정밀도(V27), 입금 판단과 **판단 워커 조립**을 구현했다 — `BCM_PROVIDER=dfns`에서 입금 경로는 수신부터 원장·outbox까지 조건부로 조립된다.
+2026-09-17 출금 제출 계약(멱등 재제출 회수)을 고정했다. 제출 유스케이스·발신 이동 대조·Sweep은 아직 구현하지 않았다.
+API 전체 기동 차단·Baseline 수용은 유지·미완료다.
 [제공자 선택](12-provider-compatibility.md) · [전체 계획](../dfns-compatibility-plan.md) · [현행 API](../api/openapi.yaml)
 
 ## 자료의 적용 범위
