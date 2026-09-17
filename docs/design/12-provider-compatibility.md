@@ -76,7 +76,7 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
   ([계약13](13-dfns-contracts.md#계정주소-api의-dfns-연결--구현)). 기동 차단 상태에서 구현·조립된 Dfns 슬라이스는 계정·주소·잔액,
   Admin 자산 등록 관문(`DfnsChainAssetResolver`), 웹훅 수신 프로토콜(`DfnsWebhookProtocol`은 모든 앱, HMAC 검증기는 Webhook 앱),
   그리고 웹훅 **입금** 판단 워커(`DfnsWebhookDecisionConfig`·`DfnsWebhookDecisionTransaction` — 아래 판단 워커 조립 절)이며
-  거래·출금 제출·Sweep·Admin 조회와 발신 이동 대조는 후속이다. **외부에서 기동 가능한 범위**는 여전히 `fireblocks|local`뿐이고 API·Webhook·BAT 전체 컨텍스트의
+  출금 제출 유스케이스(`DfnsSubmissionConfig`)이며 거래 조회·내부이체·Sweep·Admin 조회와 발신 이동 대조는 후속이다. **외부에서 기동 가능한 범위**는 여전히 `fireblocks|local`뿐이고 API·Webhook·BAT 전체 컨텍스트의
   `dfns` 기동 차단은 그대로다.
 - 선택된 Fireblocks 프로토콜의 API key와 PKCS#8 키(PEM 또는 파일 중 하나)는 기동 시 필수다. 실행 조립부가 키 파싱도 수행한다.
   기존의 자격 없는 부트스트랩은 더 이상 지원하지 않는다. 테스트는 실행 중 생성한 일회성 키를 주입한다.

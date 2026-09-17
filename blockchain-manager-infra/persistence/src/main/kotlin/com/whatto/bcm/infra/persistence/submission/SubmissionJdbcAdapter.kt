@@ -8,6 +8,7 @@ import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.support.audit.SystemAudit
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.jdbc.core.RowMapper
@@ -34,12 +35,14 @@ class SubmissionJdbcAdapter(
                    tx_dvcd, vndr_tx_id, swp_exec_id,
                    snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
                    call_data, req_dttm, rsp_dttm,
+                   vndr_wlt_id, vndr_ast_id, base_amt, dcml_cnt,
                    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
                 VALUES
                   (:externalTransactionId, :requestHash, :hashVersion, :status, :claimId, :claimExpiresAt,
                    :transactionType,
                    :vendorTransactionId, :sweepExecutionId, :senderAccountId, :recipientType, :recipientValue,
                    :network, :symbol, :amount, :callData, :requestedAt, :respondedAt,
+                   :vendorWalletId, :vendorAssetId, :amountBaseUnits, :decimals,
                    :employeeNo, :branchCode, :employeeNo, :branchCode)
                 """.trimIndent(),
                 parameters(record),
@@ -280,6 +283,10 @@ class SubmissionJdbcAdapter(
             "callData" to record.callData,
             "requestedAt" to record.requestedAt,
             "respondedAt" to record.respondedAt,
+            "vendorWalletId" to record.vendorCanonical?.vendorWalletId,
+            "vendorAssetId" to record.vendorCanonical?.vendorAssetId,
+            "amountBaseUnits" to record.vendorCanonical?.amountBaseUnits,
+            "decimals" to record.vendorCanonical?.decimals,
             "employeeNo" to SystemAudit.EMPNO,
             "branchCode" to SystemAudit.BRCD,
         )
@@ -346,6 +353,15 @@ class SubmissionJdbcAdapter(
                     requestedAt = rs.getString("req_dttm"),
                     respondedAt = rs.getString("rsp_dttm"),
                     callData = rs.getString("call_data"),
+                    vendorCanonical =
+                        rs.getString("vndr_wlt_id")?.let { walletId ->
+                            SubmissionVendorCanonical(
+                                vendorWalletId = walletId,
+                                vendorAssetId = rs.getString("vndr_ast_id"),
+                                amountBaseUnits = rs.getString("base_amt"),
+                                decimals = rs.getInt("dcml_cnt"),
+                            )
+                        },
                 )
             }
 
@@ -354,7 +370,8 @@ class SubmissionJdbcAdapter(
             SELECT ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, claim_id, claim_exp_dttm,
                    tx_dvcd, vndr_tx_id, swp_exec_id,
                    snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
-                   call_data, req_dttm, rsp_dttm
+                   call_data, req_dttm, rsp_dttm,
+                   vndr_wlt_id, vndr_ast_id, base_amt, dcml_cnt
             FROM bcm_sbmt_l
             """.trimIndent()
     }
