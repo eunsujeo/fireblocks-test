@@ -7,8 +7,10 @@ import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
+import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.vendor.NetworkChainEventParser
+import com.whatto.bcm.domain.vendor.NetworkTransferEventParser
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
@@ -31,6 +33,8 @@ class WebhookDecisionAssemblyTest {
             .withBean(RestClient.Builder::class.java, { RestClient.builder() })
             .withBean(FinalityPolicy::class.java, { FinalityPolicy { 12 } })
             .withBean(NetworkChainEventParser::class.java, { NetworkChainEventParser { null } })
+            .withBean(NetworkTransferEventParser::class.java, { NetworkTransferEventParser { null } })
+            .withBean(SubmissionRecordRepository::class.java, { mockk<SubmissionRecordRepository>() })
             .withBean(WebhookInboxRepository::class.java, { mockk<WebhookInboxRepository>() })
             .withBean(TransactionRunner::class.java, {
                 object : TransactionRunner {
@@ -53,6 +57,7 @@ class WebhookDecisionAssemblyTest {
                 assertThat(context.getBean(WebhookDecisionWork::class.java))
                     .isInstanceOf(DfnsWebhookDecisionTransaction::class.java)
                 assertThat(context).hasSingleBean(DfnsChainEventDecision::class.java)
+                assertThat(context).hasSingleBean(DfnsTransferEventDecision::class.java)
                 assertThat(context).hasSingleBean(com.whatto.bcm.domain.tx.ChainHeadPort::class.java)
                 assertThat(context).hasSingleBean(com.whatto.bcm.domain.vendor.VendorStatusTranslator::class.java)
                 assertThat(context).hasSingleBean(com.whatto.bcm.domain.vendor.NetworkChainLedgerLookup::class.java)
@@ -66,6 +71,7 @@ class WebhookDecisionAssemblyTest {
                 assertThat(context).hasNotFailed()
                 assertThat(context).doesNotHaveBean(DfnsWebhookDecisionTransaction::class.java)
                 assertThat(context).doesNotHaveBean(DfnsChainEventDecision::class.java)
+                assertThat(context).doesNotHaveBean(DfnsTransferEventDecision::class.java)
                 assertThat(context).doesNotHaveBean(com.whatto.bcm.domain.tx.ChainHeadPort::class.java)
             }
         }

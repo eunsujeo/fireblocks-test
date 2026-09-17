@@ -26,6 +26,11 @@ import java.time.ZoneOffset
 class DfnsWebhookDecisionTransactionTest {
     private val inbox = mockk<WebhookInboxRepository>(relaxed = true)
     private val decision = mockk<DfnsChainEventDecision>()
+    private val transferDecision =
+        mockk<DfnsTransferEventDecision> {
+            // 기존 시나리오는 전부 온체인 이동 사건이다 — 전송 알림 판단은 그 앞에서 비켜선다.
+            every { decide(any(), any()) } returns DfnsTransferDecisionOutcome.NotTransferEvent
+        }
 
     @Test
     fun `대기 건이 없으면 아무것도 하지 않는다`() {
@@ -157,6 +162,7 @@ class DfnsWebhookDecisionTransactionTest {
                     override fun <T> run(block: () -> T): T = block()
                 },
             decision = decision,
+            transferDecision = transferDecision,
             clock = Clock.fixed(Instant.parse("2026-09-16T01:02:03Z"), ZoneOffset.UTC),
             maxAttempts = 3,
         )
