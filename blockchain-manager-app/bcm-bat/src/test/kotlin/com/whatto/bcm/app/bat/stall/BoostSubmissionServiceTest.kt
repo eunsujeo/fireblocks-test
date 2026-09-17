@@ -13,7 +13,6 @@ import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
-import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.domain.tx.BoostAttempt
 import com.whatto.bcm.domain.tx.BoostAttemptAcquisition
 import com.whatto.bcm.domain.tx.BoostAttemptRepository
@@ -359,12 +358,6 @@ private class SingleSubmissionRepository(
         claimExpiresAt: String,
         now: String,
     ) = error("not used")
-
-    override fun existsUnresolvedWithSameCanonical(
-        excludingExternalTransactionId: String,
-        canonical: SubmissionVendorCanonical,
-        recipientValue: String,
-    ) = false
 
     override fun tryClaimRequested(
         externalTransactionId: String,

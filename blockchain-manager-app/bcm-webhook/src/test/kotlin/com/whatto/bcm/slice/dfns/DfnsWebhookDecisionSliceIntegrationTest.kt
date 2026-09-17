@@ -221,6 +221,37 @@ class DfnsWebhookDecisionSliceIntegrationTest {
     }
 
     @Test
+    fun `원장 밖 전송 알림은 거래를 만들지 않고 격리된다`() {
+        // 우리 지갑에서 우리가 내지 않은 전송이 나갔다는 뜻이다. 처리 완료로 소거하면 원문이 사라지고,
+        // 원장을 만들면 남의 자금이 우리 원장에 들어온다 — 둘 다 하지 않는다(계약13).
+        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
+
+        val outcome = work.processNext()
+
+        assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Quarantined::class.java)
+        assertThat(txRows()).isEmpty()
+        assertThat(outboxRows()).isEmpty()
+        assertThat(inboxRow(TRANSFER_NOTIFICATION_ID))
+            .containsEntry("prcs_stcd", "F")
+            .containsEntry("err_msg", "transfer notification has no submission ledger entry")
+    }
+
+    @Test
+    fun `우리 발신 거래가 없는 hash의 이동 사건은 아무 거래도 확정시키지 않는다`() {
+        // 벤더가 우리 전송 요청에 결속해 준 txHash 만이 귀속의 근거다 — 다른 hash 의 이동은 우리 출금의 확정이 아니다.
+        submissions.insert(requestedSubmission())
+        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
+        work.processNext()
+        val beforeEvent = outboxRows().map { it["evnt_id"] }
+
+        receive(CHAIN_NOTIFICATION_ID, "wallet.blockchainevent.detected", outgoingChainEvent(txHash = OTHER_TX_HASH))
+
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
+        assertThat(txRow()).containsEntry("last_pub_stcd", "CONFIRMED").containsEntry("cnfm_cnt", 0)
+        assertThat(outboxRows().map { it["evnt_id"] }).isEqualTo(beforeEvent)
+    }
+
+    @Test
     fun `같은 전송의 재전달은 거래를 다시 만들지도 outbox를 다시 쌓지도 않는다`() {
         submissions.insert(requestedSubmission())
         receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
@@ -348,13 +379,13 @@ class DfnsWebhookDecisionSliceIntegrationTest {
             append("}")
         }
 
-    private fun outgoingChainEvent(): String =
+    private fun outgoingChainEvent(txHash: String = TX_HASH): String =
         buildString {
             append("""{"data":{"blockchainEvent":{"network":"$VENDOR_NETWORK","direction":"Out","index":"3"""")
             append(""","metadata":{"asset":{"symbol":"USDC","decimals":6}}""")
             append(""","from":"$WALLET_ADDRESS","to":"$DESTINATION","symbol":"USDC","decimals":6""")
             append(""","walletId":"$WALLET_ID","kind":"Erc20Transfer","contract":"$CONTRACT"""")
-            append(""","status":"Confirmed","value":"$BASE_UNITS","txHash":"$TX_HASH"""")
+            append(""","status":"Confirmed","value":"$BASE_UNITS","txHash":"$txHash"""")
             append(""","timestamp":"1758099600","blockNumber":$BLOCK_NUMBER}""")
             append(""","wallet":{"id":"$WALLET_ID","network":"$VENDOR_NETWORK","address":"$WALLET_ADDRESS"}}""")
             append(""","id":"$CHAIN_NOTIFICATION_ID","date":"2026-09-17T09:01:05.000Z"""")
@@ -389,6 +420,7 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         const val CONTRACT = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
         const val DESTINATION = "0x00e3495cf6af59008f22ffaf32d4c92ac33dac47"
         const val TX_HASH = "0x2a6f0c9b6bd0a7b9f4e3e0b33d2ff4c7cf9a7a0f9b4d2a8f8c1b3e5d7a9c0b11"
+        const val OTHER_TX_HASH = "0x3b7e1d0c7ce1b8caf5f4f1c44e3ff5d8da0b8b1fac5e3b9f9d2c4f6e8bad1c22"
         const val ASSET_KEY = "$VENDOR_NETWORK:Erc20:$CONTRACT"
         const val BASE_UNITS = "1500000"
         const val BLOCK_NUMBER = 8452119L

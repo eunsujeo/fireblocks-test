@@ -36,52 +36,6 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
     lateinit var dataSource: DataSource
 
     @Test
-    fun `같은 값의 미결 제출은 EVM 주소 표기가 달라도 찾아낸다`() {
-        // 이 조회는 "배제하지 못하면 붙이지 않는다"의 입력이라 놓치면 안전조건이 다시 열린다 — 붙임 규칙보다 넓게 본다.
-        val canonical =
-            SubmissionVendorCanonical(
-                vendorWalletId = "wa-1",
-                vendorAssetId = "EthereumSepolia:Native",
-                amountBaseUnits = "1000000",
-                decimals = 6,
-            )
-        val lower = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
-        submissions.insert(
-            fixture(externalTransactionId = "wd-unresolved-a", recipientValue = lower, vendorCanonical = canonical),
-        )
-
-        // checksum 표기만 다른 같은 주소 — 같은 미결 제출로 잡혀야 한다.
-        assertThat(
-            submissions.existsUnresolvedWithSameCanonical("wd-other", canonical, lower.uppercase().replace("0X", "0x")),
-        ).isTrue()
-        // 자기 자신은 제외한다.
-        assertThat(submissions.existsUnresolvedWithSameCanonical("wd-unresolved-a", canonical, lower)).isFalse()
-        // 값이 다르면 잡히지 않는다.
-        assertThat(
-            submissions.existsUnresolvedWithSameCanonical("wd-other", canonical.copy(amountBaseUnits = "999"), lower),
-        ).isFalse()
-    }
-
-    @Test
-    fun `base58 목적지는 대소문자를 구분해 정상 건을 부당하게 막지 않는다`() {
-        // EVM 이 아닌 주소까지 case-fold 하면 서로 다른 Solana 주소가 같아져 정상 건이 재시도 창을 넘겨 격리된다.
-        val canonical =
-            SubmissionVendorCanonical(
-                vendorWalletId = "wa-2",
-                vendorAssetId = "SolanaDevnet:Native",
-                amountBaseUnits = "1000000",
-                decimals = 9,
-            )
-        val solana = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        submissions.insert(
-            fixture(externalTransactionId = "wd-unresolved-sol", recipientValue = solana, vendorCanonical = canonical),
-        )
-
-        assertThat(submissions.existsUnresolvedWithSameCanonical("wd-other", canonical, solana)).isTrue()
-        assertThat(submissions.existsUnresolvedWithSameCanonical("wd-other", canonical, solana.lowercase())).isFalse()
-    }
-
-    @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     fun `REQUESTED 전용 소유권은 잠금 대기 뒤 FAILED가 된 행을 되살리지 않는다`() {
         // 이번 슬라이스 Critical의 직접 원인이 이 경합이었다 — 판정 시점의 상태가 아니라

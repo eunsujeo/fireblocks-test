@@ -40,11 +40,7 @@ import java.time.ZoneOffset
  * Dfns 온체인 이동 사건의 입금 판단(계약13) — 확정은 블록 깊이로 내고, 입금이 아닌 결과는 원장을 쓰지 않는다.
  */
 class DfnsChainEventDecisionTest {
-    private val submissions =
-        mockk<SubmissionObservationService>(relaxed = true) {
-            // 기본은 '같은 값의 미결 제출 없음' — 그 경우는 전용 테스트가 다룬다.
-            every { existsUnresolvedWithSameCanonical(any(), any(), any()) } returns false
-        }
+    private val submissions = mockk<SubmissionObservationService>(relaxed = true)
 
     private val txStates =
         mockk<TxStateService> {
@@ -134,11 +130,11 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
-    fun `발신 이동은 새 거래를 만들지 않고 기존 거래에 붙여 블록 깊이로 확정한다`() {
+    fun `발신 이동 사건은 그 hash의 발신 거래에 블록 좌표를 적용해 확정한다`() {
         val outgoing = transfer(direction = NetworkChainDirection.OUT)
         val existing = txRecord()
         every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns listOf(existing)
-        every { submissions.findByVendorTransactionId("xfr-1") } returns submissionRecord()
+        every { submissions.findByExternalTransactionId("ext-1") } returns submissionRecord()
         every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber + 11
         val observed = slot<TxObservation>()
         every { txStates.observe(capture(observed)) } answers { stateChange(TxStatus.FINALIZED) }
@@ -146,8 +142,9 @@ class DfnsChainEventDecisionTest {
 
         val outcome = decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
 
-        assertThat(outcome).isInstanceOfSatisfying(DfnsChainDecisionOutcome.OutgoingAttached::class.java) {
+        assertThat(outcome).isInstanceOfSatisfying(DfnsChainDecisionOutcome.OutgoingAdvanced::class.java) {
             assertThat(it.status).isEqualTo(TxStatus.FINALIZED)
+            assertThat(it.recordCount).isEqualTo(1)
         }
         // 키는 기존 거래의 벤더 전송 ID다 — 파생 ID를 만들지 않는다.
         assertThat(observed.captured.vendorTransactionId).isEqualTo("xfr-1")
@@ -156,7 +153,42 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
-    fun `붙일 거래가 아직 없으면 재처리 가능한 상태로 남긴다`() {
+    fun `제출은 대조가 아니라 거래에 적힌 제출 키로 직접 찾는다`() {
+        // 관찰값이 어느 제출과 닮았는지로 고르지 않는다 — 벤더는 이동과 제출을 잇는 키를 주지 않아 증명할 수 없다.
+        // 귀속은 벤더가 전송 요청에 결속해 준 txHash가 이미 해결했고, 원장에는 그 거래의 제출 키가 적혀 있다.
+        val outgoing = transfer(direction = NetworkChainDirection.OUT)
+        every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns listOf(txRecord())
+        every { submissions.findByExternalTransactionId("ext-1") } returns submissionRecord()
+        every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber
+        every { txStates.observe(any()) } returns stateChange(TxStatus.CONFIRMED)
+        every { outboxEvents.enqueue(any()) } returns Unit
+
+        decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
+
+        verify(exactly = 1) { submissions.findByExternalTransactionId("ext-1") }
+        verify(exactly = 0) { submissions.findByVendorTransactionId(any()) }
+    }
+
+    @Test
+    fun `같은 hash에 우리 발신이 여럿이면 모두 같은 블록이므로 모두 적용한다`() {
+        // 하나를 고르는 문제가 아니다 — 벤더가 여러 전송을 한 트랜잭션으로 냈어도 블록 좌표는 하나다.
+        val outgoing = transfer(direction = NetworkChainDirection.OUT)
+        every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns
+            listOf(txRecord(), txRecord(vendorTxId = "xfr-2", externalTxId = "ext-2"))
+        every { submissions.findByExternalTransactionId("ext-1") } returns submissionRecord()
+        every { submissions.findByExternalTransactionId("ext-2") } returns submissionRecord()
+        every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber + 11
+        every { txStates.observe(any()) } returns stateChange(TxStatus.FINALIZED)
+        every { outboxEvents.enqueue(any()) } returns Unit
+
+        val outcome = decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
+
+        assertThat((outcome as DfnsChainDecisionOutcome.OutgoingAdvanced).recordCount).isEqualTo(2)
+        verify(exactly = 2) { txStates.observe(any()) }
+    }
+
+    @Test
+    fun `그 hash의 발신 거래가 아직 없으면 재처리 가능한 상태로 남긴다`() {
         // 전송 알림이 늦게 올 수 있다 — 처리 완료로 닫으면 그 출금은 영영 확정되지 않는다.
         val outgoing = transfer(direction = NetworkChainDirection.OUT)
         every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns emptyList()
@@ -164,36 +196,8 @@ class DfnsChainEventDecisionTest {
         assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
             .isEqualTo(DfnsChainDecisionOutcome.OutgoingPending(outgoing))
 
-        verify(exactly = 0) { txStates.observe(any()) }
-        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
-    }
-
-    @Test
-    fun `제출 원장 대응이 없거나 관찰이 그 제출과 다르면 붙이지 않는다`() {
-        val outgoing = transfer(direction = NetworkChainDirection.OUT)
-        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns listOf(txRecord())
-        every { submissions.findByVendorTransactionId(any()) } returns null
-
-        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
-            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnattachable(outgoing, OutgoingAttachMiss.NO_SUBMISSION))
-
-        // 한 트랜잭션의 다른 이동이 같은 hash로 올 수 있다 — 금액이 다르면 붙이지 않는다.
-        every { submissions.findByVendorTransactionId(any()) } returns submissionRecord(amountBaseUnits = "999")
-
-        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
-            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnattachable(outgoing, OutgoingAttachMiss.MISMATCH))
-
-        verify(exactly = 0) { txStates.observe(any()) }
-        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
-    }
-
-    @Test
-    fun `같은 값의 제출이 아직 hash를 못 받았으면 붙이지 않고 보류한다`() {
-        // 벤더는 이동과 제출을 잇는 키를 주지 않는다 — 배제하지 못하면 붙이지 않는다. 그쪽 알림이 오면 해소된다.
-        val outgoing = transfer(direction = NetworkChainDirection.OUT)
-        every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns listOf(txRecord())
-        every { submissions.findByVendorTransactionId("xfr-1") } returns submissionRecord()
-        every { submissions.existsUnresolvedWithSameCanonical(any(), any(), any()) } returns true
+        // 같은 hash의 입금 행만 있는 경우도 마찬가지다 — 발신 사건이 입금 행의 상태를 옮기지 않는다.
+        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns listOf(txRecord(externalTxId = null))
 
         assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
             .isEqualTo(DfnsChainDecisionOutcome.OutgoingPending(outgoing))
@@ -204,7 +208,7 @@ class DfnsChainEventDecisionTest {
 
     @Test
     fun `입금 판단도 같은 직렬화 경계에 참여한다`() {
-        // 입금도 같은 (network, tx_hash)로 거래 행을 만든다 — 한 경로라도 빠지면 발신 붙임의 후보 조회에 팬텀 삽입이 남는다.
+        // 입금도 같은 (network, tx_hash)로 거래 행을 만든다 — 한 경로라도 빠지면 발신 좌표의 후보 조회에 팬텀 삽입이 남는다.
         val deposit = transfer()
         every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
         every { txStates.observe(any()) } returns stateChange(TxStatus.FINALIZED)
@@ -223,18 +227,6 @@ class DfnsChainEventDecisionTest {
         decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
 
         verify(exactly = 1) { txStates.lockNetworkTransactionHash(NETWORK, TX_HASH) }
-    }
-
-    @Test
-    fun `같은 hash에 거래가 여럿이면 하나를 고르지 않고 중단한다`() {
-        val outgoing = transfer(direction = NetworkChainDirection.OUT)
-        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns
-            listOf(txRecord(), txRecord(vendorTxId = "xfr-2"))
-
-        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
-            .isEqualTo(DfnsChainDecisionOutcome.OutgoingAmbiguous(outgoing, 2))
-
-        verify(exactly = 0) { txStates.observe(any()) }
     }
 
     @Test
@@ -397,18 +389,21 @@ class DfnsChainEventDecisionTest {
             lastChangedAt = "20260916000005",
         )
 
-    private fun txRecord(vendorTxId: String = "xfr-1") =
-        com.whatto.bcm.domain.tx.TxRecord(
-            vendorTxId = vendorTxId,
-            accountId = "acct-1",
-            network = NETWORK,
-            symbol = "USDC",
-            transactionHash = TX_HASH,
-            lastPublishedStatus = TxStatus.SUBMITTED,
-            confirmationCount = 0,
-            firstDetectedAt = "20260916010203",
-            lastChangedAt = "20260916010203",
-        )
+    private fun txRecord(
+        vendorTxId: String = "xfr-1",
+        externalTxId: String? = "ext-1",
+    ) = com.whatto.bcm.domain.tx.TxRecord(
+        vendorTxId = vendorTxId,
+        externalTxId = externalTxId,
+        accountId = "acct-1",
+        network = NETWORK,
+        symbol = "USDC",
+        transactionHash = TX_HASH,
+        lastPublishedStatus = TxStatus.SUBMITTED,
+        confirmationCount = 0,
+        firstDetectedAt = "20260916010203",
+        lastChangedAt = "20260916010203",
+    )
 
     private fun submissionRecord(amountBaseUnits: String = AMOUNT_BASE_UNITS) =
         com.whatto.bcm.domain.submission.SubmissionRecord(
