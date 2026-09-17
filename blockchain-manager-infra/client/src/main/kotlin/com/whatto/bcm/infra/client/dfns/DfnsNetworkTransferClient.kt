@@ -14,7 +14,7 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * NetworkTransferPort의 Dfns 구현 — 채택 명세 1.1018.3의 `POST /wallets/{walletId}/transfers`·`GET /wallets/{walletId}/transfers/{transferId}`
- * (계약13 "전송 제출·조회 계약"). 실행 빈으로 등록하지 않는 내부 대역이며 제출 원장·출금/Sweep 연결은 후속이다.
+ * (계약13 "전송 제출·조회 계약"). `DfnsClientConfig`가 `BCM_PROVIDER=dfns`에서만 등록하며 출금 제출 유스케이스가 쓴다. 내부이체·Sweep 연결은 후속이다.
  *
  * - 본문은 등록 자산 키에서 `kind`·locator를 되돌려 만들고 `to`·`amount`(최소 단위 정수)·`externalId`만 담는다.
  *   수수료·대납·Travel Rule·memo 같은 선택 필드는 각각 별도 계약 전이라 보내지 않는다.

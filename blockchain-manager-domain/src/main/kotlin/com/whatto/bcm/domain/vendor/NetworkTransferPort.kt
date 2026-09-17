@@ -2,7 +2,7 @@ package com.whatto.bcm.domain.vendor
 
 /**
  * 네트워크 지갑의 자산 전송 제출·조회 포트(계약13 "전송 제출·조회 계약"). Fireblocks의 vault 중심 `VendorTransactionPort`와 자원 모델이 달라 분리한다.
- * 내부 대역이며 제출 원장·출금/Sweep 유스케이스 연결은 후속이다.
+ * 출금 제출 유스케이스가 이 포트를 쓴다(`DfnsTransferSubmissionService`). 내부이체·Sweep 연결은 후속이다.
  *
  * - 자산은 등록 매핑의 `vendorAssetId`로만 지정한다 — 벤더 전송 본문의 kind·locator는 어댑터가 그 키에서 만든다.
  * - 금액은 최소 단위 정수 문자열이다. 어댑터가 단위를 바꾸거나 반올림하지 않는다.
@@ -56,7 +56,9 @@ sealed interface NetworkTransferSubmission {
     ) : NetworkTransferSubmission
 
     /**
-     * 같은 `externalId`로 **다른 본문/지갑**을 보낸 멱등 충돌. 공식 문서가 규정한 표식(`error.details.duplicate`)이 있는 409만 이 결과가 되며,
+     * 멱등 충돌 — 같은 `externalId`에 벤더가 **다른 본문/지갑**을 갖고 있다는 표식이다.
+     * 다만 앞 제출이 **진행 중일 때** 같은 본문 재제출이 무엇을 주는지는 아직 실측하지 못했다(계약13 수용 항목) —
+     * 호출자는 최초 제출에서만 확정 거절로 읽고, 회수 재제출에서는 종결로 굳히지 않는다. 공식 문서가 규정한 표식(`error.details.duplicate`)이 있는 409만 이 결과가 되며,
      * 표식 없는 409는 원인을 단정하지 않고 일반 벤더 오류로 전파한다. 호출자는 조회 없이 요청 불일치로 판정하고 자동 재제출하지 않는다.
      * `duplicateTransferId`는 벤더가 알려준 기존 전송 ID이며 없을 수도 있다. `responseBody`는 수신 원문 바이트다.
      */

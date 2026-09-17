@@ -9,7 +9,7 @@ Fireblocks와 Dfns를 지원 대상으로 유지하고 로컬에서도 실제 �
 후속으로 Fireblocks/로컬 선택 조립·웹훅 공통 경계·`WalletCreationPolicy` 분리를 구현했다.
 네트워크 지갑의 생성·조회 공통 포트와 보수적 회수 판정도 구현했다. [지갑 계약](design/13-dfns-contracts.md)의 내부 인터페이스이며, 그 Dfns 실행 어댑터는 이후 `DfnsClientConfig`가 `bcm.provider=dfns`에서만 조립한다.
 V22에는 생성 의도·조회 페이지/후보·완료 지갑을 저장하고 최초 제출 권한·회수/완료 원자성을 검증했다.
-V23 계정 모델·논리 계정 예약과 내부 지갑 생성/회수 서비스를 구현했다. 이후 V24 증적 저장소, Dfns HTTP 어댑터, 공개 계정·주소 API 연결(`DfnsAccountConfig`)까지 조건부 조립으로 구현했다 — 거래·출금·Sweep·Admin 조회는 후속이고 전체 기동 차단은 유지된다.
+V23 계정 모델·논리 계정 예약과 내부 지갑 생성/회수 서비스를 구현했다. 이후 V24 증적 저장소, Dfns HTTP 어댑터, 공개 계정·주소 API 연결(`DfnsAccountConfig`)과 출금 제출 유스케이스(`DfnsSubmissionConfig`)까지 조건부 조립으로 구현했다 — 거래 조회·내부이체·Sweep·Admin 조회는 후속이고 전체 기동 차단은 유지된다.
 [DB 원천 binding](design/03-bcm-db.md#제공자-원천-binding--후속-물리-계약)은 V21·조회 Repository·세 앱 기동 guard까지 구현했다. 실제 원천 등록/권한 설정·운영 적용은 미수행이다.
 Dfns 채택 완료나 운영 전환 승인으로 해석하지 않는다. 작업 현황은 [PLAN](../PLAN.md), 인계는 [PROGRESS](../PROGRESS.md)에서 관리한다.
 

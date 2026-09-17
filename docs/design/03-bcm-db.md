@@ -437,12 +437,13 @@ Dfns의 회수는 벤더 조회가 아니라 **같은 본문 재제출**이라(�
 |---|---|---|
 | `vndr_wlt_id` | `VARCHAR(64)` NULL | 제출에 쓴 벤더 지갑 ID |
 | `vndr_ast_id` | `VARCHAR(128)` NULL | 제출에 쓴 벤더 자산 키(`bcm_vndr_ast_m`와 같은 폭) |
-| `base_amt` | `VARCHAR(80)` NULL | 최소 단위 정수 문자열 — 선행 0 금지(`ck_bcm_sbmt_base_amt`) |
+| `base_amt` | `VARCHAR(320)` NULL | 최소 단위 정수 문자열 — 선행 0 금지(`ck_bcm_sbmt_base_amt`). 폭은 공개 금액의 정수부 18자리 + 정밀도 상한 255자리에 여유를 둔 값이다 |
 | `dcml_cnt` | `SMALLINT` NULL | 환산에 쓴 정밀도 0..255(`ck_bcm_sbmt_dcml`) |
 
 - **넷은 한 벌이다** — 일부만 있으면 본문을 재구성할 수 없으므로 전부 있거나 전부 없어야 한다(`ck_bcm_sbmt_vndr_canonical`).
 - Fireblocks·로컬은 벤더 조회로 회수하므로 넷 다 NULL이다. **NULL 허용 추가 전용**이라 기존 행은 그대로 둔다.
 - 저장값이 없는 행(V28 이전·다른 제공자)은 Dfns 회수가 **재구성하지 않고 거절**한다. 추측한 본문을 보내면 그게 곧 이중 전송이다.
+- 제약은 `NOT VALID`로 걸고 따로 `VALIDATE`한다. 즉시 검증하는 `ADD CONSTRAINT`는 기존 행 전체를 훑는 동안 강한 테이블 락을 잡아 Fireblocks 제출 경로까지 멈춘다 — `-- bcm:transaction=off`로 트랜잭션 밖에서 실행한다(V18·V26과 같은 온라인 적용 패턴).
 - `req_hash`의 canonical 7값은 바꾸지 않는다 — 이 컬럼들은 "같은 요청인가"의 판단 기준이 아니라 **같은 본문을 다시 만들기 위한 재료**다.
 
 ### V27 등록 자산의 정밀도 보관 — 물리 저장 계약
@@ -883,6 +884,10 @@ CREATE TABLE bcm_sbmt_l (
   call_data     TEXT         NULL,          -- cc-v1 CONTRACT_CALL calldata 소문자 hex. 일반 전송은 NULL
   req_dttm      VARCHAR(16)  NOT NULL,      -- 접수 일시 — 미결 제출 점검의 기준
   rsp_dttm      VARCHAR(16)  NULL,          -- 벤더 응답 일시
+  vndr_wlt_id   VARCHAR(64)  NULL,          -- V28 제출에 쓴 벤더 지갑 ID (Dfns 회수 전용 · Fireblocks는 NULL)
+  vndr_ast_id   VARCHAR(128) NULL,          -- V28 제출에 쓴 벤더 자산 키
+  base_amt      VARCHAR(320) NULL,          -- V28 최소 단위 정수 문자열 (선행 0 금지)
+  dcml_cnt      SMALLINT     NULL,          -- V28 환산에 쓴 정밀도 0..255
   last_chck_dttm VARCHAR(16) NULL,           -- 미결 점검이 마지막으로 벤더 조회한 일시
   chck_cnt      INTEGER      NOT NULL DEFAULT 0, -- 미결 조회 횟수 — 백오프·경보 기준
   -- 감사 4컬럼
@@ -891,7 +896,14 @@ CREATE TABLE bcm_sbmt_l (
   last_chng_empno VARCHAR(6)  NOT NULL,
   last_chng_brcd  VARCHAR(4)  NOT NULL,
   CHECK ((tx_dvcd IN ('SWEEP_APPROVE', 'SWEEP_BATCH')) = (call_data IS NOT NULL)),
-  CHECK (call_data IS NULL OR call_data ~ '^0x([0-9a-f][0-9a-f])+$')
+  CHECK (call_data IS NULL OR call_data ~ '^0x([0-9a-f][0-9a-f])+$'),
+  -- V28 — 넷은 한 벌이다. 일부만 있으면 회수 본문을 재구성할 수 없다.
+  CONSTRAINT ck_bcm_sbmt_vndr_canonical CHECK (
+    (vndr_wlt_id IS NULL AND vndr_ast_id IS NULL AND base_amt IS NULL AND dcml_cnt IS NULL)
+    OR (vndr_wlt_id IS NOT NULL AND vndr_ast_id IS NOT NULL AND base_amt IS NOT NULL AND dcml_cnt IS NOT NULL)
+  ),
+  CONSTRAINT ck_bcm_sbmt_base_amt CHECK (base_amt IS NULL OR base_amt ~ '^(0|[1-9][0-9]*)$'),
+  CONSTRAINT ck_bcm_sbmt_dcml CHECK (dcml_cnt IS NULL OR dcml_cnt BETWEEN 0 AND 255)
 );
 CREATE UNIQUE INDEX ux_bcm_sbmt_vndr_tx ON bcm_sbmt_l (vndr_tx_id) WHERE vndr_tx_id IS NOT NULL;
 CREATE INDEX idx_bcm_sbmt_open ON bcm_sbmt_l (sbmt_stcd, last_chck_dttm, req_dttm); -- 미결 점검 후보

@@ -7,7 +7,7 @@ V24 보호 원문 저장소와 내부 생성 서비스+실제 PostgreSQL 결합 
 2026-09-15 공식 OpenAPI 1.1018.3 기반 인증(사용자 행위 서명)·지갑 생성/조회 HTTP 어댑터와 Pending/Conflict의 공개 HTTP 매핑을 구현했다.
 공개 계정·주소 API를 `AccountOperations`로 제공자별 조립해 Dfns 논리 계정·네트워크 지갑 주소 발급을 연결했다.
 Dfns 데이터셋의 자산 매핑 등록 관문(`ChainAssetResolver`)과 `GET /wallets/{walletId}/assets` 기반 잔액 계약을 구현했다.
-2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델, Dfns 웹훅 수신 프로토콜(HMAC 검증·envelope), 전송 제출·조회 어댑터(내부 대역)를 구현했다.
+2026-09-16 V25 계정·자산 모델 컬럼과 Solana 자산 키(mint·Token Program)·owner 주소 수신 모델, Dfns 웹훅 수신 프로토콜(HMAC 검증·envelope), 전송 제출·조회 어댑터를 구현했다.
 이어서 웹훅 전송·온체인 이동 사건 관찰, 블록 깊이 확정 판정, 상태 번역, 온체인 이동의 귀속, 논리 거래 식별자와 hash 조회 index(V26), 등록 자산 정밀도(V27), 입금 판단과 **판단 워커 조립**을 구현했다 — `BCM_PROVIDER=dfns`에서 입금 경로는 수신부터 원장·outbox까지 조건부로 조립된다.
 2026-09-17 출금 제출 계약(멱등 재제출 회수)을 고정하고 **출금 제출 유스케이스**와 V28 제출 시점 벤더 canonical 값 보관을 구현했다. 발신 이동 대조·내부이체·Sweep은 아직 구현하지 않았다.
 API 전체 기동 차단·Baseline 수용은 유지·미완료다.
@@ -390,7 +390,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 |---|---|---|---|
 | 응답 유실·소유권 만료 회수 | `GET /wallets/{walletId}/transfers`의 query는 **`limit`·`paginationToken`뿐이다** — `externalId` 필터가 없다 | `GET /v1/transactions/external_tx_id/{externalTxId}` 단건 조회로 확인 | **같은 본문으로 다시 제출한다.** 공식 문서가 "같은 url·같은 본문(같은 `externalId`)을 재제출하면 처음 만들어진 엔티티를 `200`으로 돌려준다"고 규정한다 — 조회가 아니라 **멱등 재제출이 회수 수단**이다 |
 | 회수의 안전성 | 종결(`Confirmed`/`Failed`/`Rejected`) 뒤에도 `externalId`는 그 엔티티에 영구 결속되고 재제출은 기존 엔티티를 `200`으로 돌려준다(새로 만들지 않는다) | — | 그래서 02의 "조회를 건너뛰면 그게 곧 이중 출금"이 Dfns에서는 **같은 본문 재제출로 대체**된다. 본문이 같아야 한다는 조건이 안전장치다 |
-| 같은 키 다른 내용 | 같은 `externalId`에 다른 본문·다른 지갑이면 `409`(`error.details.duplicate`) | `400` 전부를 조회로 확인 | 표식 있는 `409`는 **요청 자체가 거절된 것이 확실**하므로 02 표의 `409`·`422` 계열로 `FAILED`다. 표식 없는 `409`는 원인을 단정하지 않고 02의 "그 밖의 `4xx`"대로 `REQUESTED`로 둔다 |
+| 같은 키 다른 내용 | 같은 `externalId`에 다른 본문·다른 지갑이면 `409`(`error.details.duplicate`) | `400` 전부를 조회로 확인 | 표식 있는 `409`는 **최초 제출에서는** 요청 자체가 거절된 것이 확실하므로 02 표의 `409`·`422` 계열로 `FAILED`다. **회수 재제출에서는 그렇게 읽지 않는다** — 앞 제출이 진행 중일 때의 응답이 아래 수용 항목이라 `409`가 진행 중 전송을 뜻할 수 있고, 종결로 적으면 나간 전송에 확정 거절을 돌려주게 된다(구현 절 참조). 표식 없는 `409`는 원인을 단정하지 않고 02의 "그 밖의 `4xx`"대로 `REQUESTED`로 둔다 |
 | 재시도 | 실패한 전송의 재시도는 **새 `externalId`**가 필요하다(원래 키는 재사용 불가) | 같은 키로 재제출 | 같은 키로 재제출하면 기존 실패 엔티티를 돌려받을 뿐이다 — 새 제출을 만들려면 BCM이 **새 제출 키**를 발급해야 하며 그 발급 규칙은 출금 유스케이스에서 정한다 |
 | 제출 키 길이 | `externalId`는 **1~50자**다 | `bcm_sbmt_l.ext_tx_id`는 03에서 **VARCHAR(128)** — 벤더 한계보다 훨씬 넓다 | 50자를 넘는 제출 키는 **자르지 않고 거절**한다. 원장이 받아들이는 길이와 벤더가 받는 길이가 다르므로 **제출 경로 입구(유스케이스)에서 먼저 거절**하고 원장에 `REQUESTED`를 만들지 않는다 — 원장에만 남고 영원히 제출되지 않는 행을 만들지 않기 위해서다. 공개 `externalTxId`가 50자를 넘는 경우가 실제로 있는지는 **DAW-CORE와 확인이 필요한 항목이다** |
 | 자산·목적지 | 전송 본문은 등록 자산 키에서 되돌린 `kind`·locator와 `to`·`amount`(최소 단위)뿐이다 | vault·assetId 중심 | 최소 단위 금액은 등록 정밀도(03 V27)로 환산해 만든다. 수수료·대납·Travel Rule·memo는 각각 별도 계약 전이라 보내지 않는다 |
@@ -533,7 +533,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 
 근거: 채택 명세 1.1018.3 `POST /wallets/{walletId}/transfers`(Transfer Asset)·`GET /wallets/{walletId}/transfers/{transferId}`(Get Transfer)와
 공식 [Idempotency](https://docs.dfns.co/api-reference/idempotency)(`.md` SHA-256 `6de82575a0cb361689df4221ad6f6e8d195ed3927d5fbb5e23c79e7fe0817507`, 2026-09-16 확인).
-구현은 도메인 출력 포트 `NetworkTransferPort`와 `DfnsNetworkTransferClient`(infra/client)다. **내부 대역이며 제출 원장·출금/Sweep 유스케이스에 연결하지 않았다.**
+구현은 도메인 출력 포트 `NetworkTransferPort`와 `DfnsNetworkTransferClient`(infra/client)다. **출금 제출 유스케이스가 이 포트를 쓴다**([출금 제출 유스케이스 — 구현](#출금-제출-유스케이스--구현)) — 내부이체·Sweep 연결은 후속이다.
 
 | 항목 | 명세·문서로 확인한 사실 | BCM 규칙 |
 |---|---|---|

@@ -81,6 +81,9 @@ class DfnsTransferSubmissionService(
             NetworkTransferSubmissionAction.AlreadySubmitted -> result(current)
 
             NetworkTransferSubmissionAction.Recover -> {
+                // 소유권을 잡기 전에 재구성 가능 여부부터 본다 — 어차피 거절할 요청에 진행 중 소유권을 남기면
+                // 다음 요청이 만료까지 503을 받는다(벤더 작업은 아무것도 없는데).
+                storedRequest(current)
                 val claim = newClaim()
                 val acquired = acquireClaim(command.externalTransactionId, claim)
                 if (acquired.status == SubmissionStatus.SUBMITTED) {
@@ -207,9 +210,11 @@ class DfnsTransferSubmissionService(
         externalTransactionId: String,
         claim: SubmissionClaim,
     ): SubmissionRecord {
+        // REQUESTED 전용이다 — 상태를 읽고 여기 오는 사이 다른 요청이 FAILED로 바꿨을 수 있고,
+        // 공용 tryClaim은 그 FAILED를 REQUESTED로 되살린다. Dfns가 금지한 전이라 조건을 함께 건다.
         val acquired =
             transactionRunner.run {
-                submissions.tryClaim(externalTransactionId, claim.id, claim.expiresAt, CoreDateTimes.now(clock))
+                submissions.tryClaimRequested(externalTransactionId, claim.id, claim.expiresAt, CoreDateTimes.now(clock))
             }
         if (acquired != null) return acquired
 
@@ -217,6 +222,8 @@ class DfnsTransferSubmissionService(
             submissions.findByExternalTransactionId(externalTransactionId)
                 ?: throw ConflictException("submission", externalTransactionId)
         if (current.status == SubmissionStatus.SUBMITTED) return current
+        // 읽은 뒤 다른 요청이 종결시켰다면 그 사실을 그대로 알린다 — 진행 중이 아니라 재시도 불가다.
+        if (current.status == SubmissionStatus.FAILED) NetworkTransferSubmissionPolicy.rejectRetry(externalTransactionId)
         // 소유권을 못 잡은 후발 요청은 기다리지 않는다 — 기다리면 벤더 지연이 API 전체를 막는다(02).
         throw SubmissionInProgressException(externalTransactionId, retryAfterSeconds(current))
     }

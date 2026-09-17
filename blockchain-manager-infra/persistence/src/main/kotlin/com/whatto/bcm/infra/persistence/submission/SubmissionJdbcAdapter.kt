@@ -54,6 +54,35 @@ class SubmissionJdbcAdapter(
     }
 
     @Transactional
+    override fun tryClaimRequested(
+        externalTransactionId: String,
+        claimId: String,
+        claimExpiresAt: String,
+        now: String,
+    ): SubmissionRecord? {
+        val updated =
+            jdbc.update(
+                """
+                UPDATE bcm_sbmt_l
+                SET claim_id = :claimId, claim_exp_dttm = :claimExpiresAt,
+                    last_chng_empno = :employeeNo, last_chng_brcd = :branchCode
+                WHERE ext_tx_id = :externalTransactionId
+                  AND sbmt_stcd = 'REQUESTED'
+                  AND (claim_id IS NULL OR claim_exp_dttm IS NULL OR claim_exp_dttm <= :now)
+                """.trimIndent(),
+                mapOf(
+                    "externalTransactionId" to externalTransactionId,
+                    "claimId" to claimId,
+                    "claimExpiresAt" to claimExpiresAt,
+                    "now" to now,
+                    "employeeNo" to SystemAudit.EMPNO,
+                    "branchCode" to SystemAudit.BRCD,
+                ),
+            )
+        return if (updated == 1) required(externalTransactionId) else null
+    }
+
+    @Transactional
     override fun tryClaim(
         externalTransactionId: String,
         claimId: String,
