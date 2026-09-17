@@ -3,10 +3,10 @@ package com.whatto.bcm.app.webhook.application.webhook
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
-import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.tx.ChainHeadPort
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.vendor.LedgerAsset
@@ -67,14 +67,14 @@ class DfnsWebhookDecisionConfig {
     @Bean
     fun dfnsTransferEventDecision(
         parser: NetworkTransferEventParser,
-        submissions: SubmissionRecordRepository,
+        submissions: SubmissionObservationService,
         statusTranslator: VendorStatusTranslator,
         txStates: TxStateService,
         outboxEvents: OutboxEventService,
         eventIdGenerator: EventIdGenerator,
         eventSerializer: ChainEventSerializer,
         clock: Clock,
-        @Value("\${bcm.outbox.max-attempts:5}") outboxMaxAttempts: Int,
+        @Value("\${bcm.webhook-worker.outbox-max-attempts:5}") outboxMaxAttempts: Int,
     ): DfnsTransferEventDecision =
         DfnsTransferEventDecision(
             parser,

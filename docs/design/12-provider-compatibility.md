@@ -800,4 +800,12 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   판단 계층은 충돌을 식별했지만 워커가 `Ignored`로 소비해, 이중 제출 신호가 재시도·격리·경보 없이 영구 처리 완료됐다 — 03·계약13·결과 타입 KDoc이 모두 "즉시 격리"라고 규정한 것과 정면으로 어긋났다.
   Fireblocks 워커의 `quarantineNow`와 같은 규율로 고쳤다. Major 2 — 계약13·KDoc 4곳이 "전송 파서는 워커에 연결되지 않았다"로 남았고,
   도메인 KDoc이 미확인을 "경보로 넘긴다"고 단정했는데 경보 포트는 범위 밖이다. 둘 다 반영했다.
+- **2차 지적 반영**: ① **피처 소유권 위반** — 판단 유스케이스가 제출 피처의 Repository를 직접 주입받아 조회·기록했다.
+  정본(`docs/standards/architecture.md`)은 피처 간 접근을 Service로 제한하고 기존 Fireblocks 판단 경로도 `SubmissionObservationService`를 쓴다.
+  Service로 바꾸고, **`ArchitectureTest`의 검사 대상에 새 판단 클래스 둘을 넣어** 같은 위반이 다시 나면 잡히게 했다(그 목록에 없어서 이번에 못 잡았다).
+  ② outbox 재시도 상한 설정 키가 기존 판단 경로(`bcm.webhook-worker.outbox-max-attempts`)와 달라 override 시 전송 알림만 운영 설정을 무시했다 — 같은 키로 통일했다.
+  ③ 이벤트의 심볼·금액·목적지가 제출 원장 값인지와 격리 사유가 고정 안전 문자열인지를 테스트로 고정했다. ④ 파서 빈 KDoc 정정.
+- **남은 개선(후속)**: 실제 PostgreSQL 결합 테스트 — `markSubmitted → bcm_tx_l → outbox → inbox S`의 일괄 커밋·롤백,
+  같은 제출 키의 전송 ID 경합, 중복 알림의 outbox 중복 방지. Dfns 전체 컨텍스트 테스트는 `BCM_PROVIDER=dfns` 기동 차단에 막혀 있어
+  **차단 해제와 함께 붙이는 standing follow-up**으로 남긴다(입금 판단의 전체 조립 테스트와 같은 조건이다).
 - 검증: 전체 1,331 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.

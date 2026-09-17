@@ -1,14 +1,15 @@
 package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
+import com.whatto.bcm.domain.event.ChainEvent
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
 import com.whatto.bcm.domain.event.EventType
 import com.whatto.bcm.domain.event.OutboxEvent
 import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionRecord
-import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.tx.TxObservation
@@ -38,7 +39,7 @@ import java.time.ZoneOffset
  * 계열은 제출 원장으로만 가르고, 확정은 여기서 내지 않는다(전송 알림에는 blockNumber가 없다).
  */
 class DfnsTransferEventDecisionTest {
-    private val submissions = mockk<SubmissionRecordRepository>(relaxed = true)
+    private val submissions = mockk<SubmissionObservationService>(relaxed = true)
     private val txStates = mockk<TxStateService>()
     private val outboxEvents = mockk<OutboxEventService>(relaxed = true)
 
@@ -60,6 +61,34 @@ class DfnsTransferEventDecisionTest {
         assertThat(observed.captured.vendorTransactionId).isEqualTo(TRANSFER_ID)
         assertThat(enqueued.captured).hasSize(1)
         assertThat(enqueued.captured.single().topic).isEqualTo(EventType.WITHDRAWAL.topic)
+    }
+
+    @Test
+    fun `이벤트의 심볼·금액·목적지는 알림이 아니라 제출 원장 값이다`() {
+        // 알림은 벤더가 보낸 관찰이고 업무 귀속의 근거는 우리가 승인·기록한 요청이다.
+        every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
+        every { txStates.observe(any()) } returns stateChange(TxStatus.SUBMITTED)
+        every { outboxEvents.enqueue(any()) } returns Unit
+        val serialized = mutableListOf<ChainEvent>()
+
+        decision(
+            serializer =
+                ChainEventSerializer {
+                    serialized += it
+                    "{}"
+                },
+        ).decide(NOTIFICATION_ID, PAYLOAD)
+
+        assertThat(serialized).singleElement().satisfies({ event ->
+            assertThat(event.symbol).isEqualTo("USDC")
+            assertThat(event.amount).isEqualTo("1")
+            assertThat(event.to).isEqualTo(ADDRESS)
+            assertThat(event.accountId).isEqualTo("acct-1")
+            assertThat(event.network).isEqualTo("ETHEREUM_SEPOLIA")
+            assertThat(event.externalTxId).isEqualTo(EXTERNAL_ID)
+            assertThat(event.txId).isEqualTo(TRANSFER_ID)
+            assertThat(event.numOfConfirmations).isEqualTo(0)
+        })
     }
 
     @Test
@@ -164,6 +193,7 @@ class DfnsTransferEventDecisionTest {
     private fun decision(
         parser: NetworkTransferEventParser = NetworkTransferEventParser { event() },
         statusTranslator: VendorStatusTranslator = translator(TxStatus.SUBMITTED),
+        serializer: ChainEventSerializer = ChainEventSerializer { "{}" },
     ) = DfnsTransferEventDecision(
         parser,
         submissions,
@@ -171,7 +201,7 @@ class DfnsTransferEventDecisionTest {
         txStates,
         outboxEvents,
         EventIdGenerator { "evt-1" },
-        ChainEventSerializer { "{}" },
+        serializer,
         CLOCK,
         outboxMaxAttempts = 5,
     )

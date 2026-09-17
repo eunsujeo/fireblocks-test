@@ -85,6 +85,8 @@ class ArchitectureTest {
     fun `검토한 복합 유스케이스는 다른 피처의 Repository를 직접 참조하지 않는다`() {
         mapOf(
             "WebhookDecisionTransaction" to "webhook",
+            "DfnsTransferEventDecision" to "webhook",
+            "DfnsChainEventDecision" to "webhook",
             "AllowanceRevocationCommandService" to "admin",
             "SweepBatchExecutionService" to "sweep",
             "DfnsAccountService" to "account",

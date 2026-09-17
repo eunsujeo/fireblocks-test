@@ -3,11 +3,11 @@ package com.whatto.bcm.app.webhook.application.webhook
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
-import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.vendor.NetworkChainEventParser
 import com.whatto.bcm.domain.vendor.NetworkTransferEventParser
@@ -34,7 +34,7 @@ class WebhookDecisionAssemblyTest {
             .withBean(FinalityPolicy::class.java, { FinalityPolicy { 12 } })
             .withBean(NetworkChainEventParser::class.java, { NetworkChainEventParser { null } })
             .withBean(NetworkTransferEventParser::class.java, { NetworkTransferEventParser { null } })
-            .withBean(SubmissionRecordRepository::class.java, { mockk<SubmissionRecordRepository>() })
+            .withBean(SubmissionObservationService::class.java, { mockk<SubmissionObservationService>() })
             .withBean(WebhookInboxRepository::class.java, { mockk<WebhookInboxRepository>() })
             .withBean(TransactionRunner::class.java, {
                 object : TransactionRunner {

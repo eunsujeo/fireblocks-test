@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
+import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.event.ChainEvent
 import com.whatto.bcm.domain.event.ChainEventSerializer
@@ -11,7 +12,6 @@ import com.whatto.bcm.domain.event.OutboxEventType
 import com.whatto.bcm.domain.submission.NetworkTransferJudgement
 import com.whatto.bcm.domain.submission.NetworkTransferJudgementResult
 import com.whatto.bcm.domain.submission.SubmissionRecord
-import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.NetworkTransferEventParser
@@ -36,7 +36,7 @@ import java.time.Instant
  */
 class DfnsTransferEventDecision(
     private val parser: NetworkTransferEventParser,
-    private val submissions: SubmissionRecordRepository,
+    private val submissions: SubmissionObservationService,
     private val statusTranslator: VendorStatusTranslator,
     private val txStates: TxStateService,
     private val outboxEvents: OutboxEventService,

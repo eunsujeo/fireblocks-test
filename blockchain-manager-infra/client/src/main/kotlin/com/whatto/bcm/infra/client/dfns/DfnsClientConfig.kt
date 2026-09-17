@@ -41,13 +41,14 @@ class DfnsClientConfig {
     @Bean
     fun dfnsWebhookProtocol(objectMapper: ObjectMapper): WebhookProtocol = DfnsWebhookProtocol(objectMapper)
 
-    /** 온체인 이동(입금) 사건 해석 — 판단 워커가 소비한다. */
+    /** 전송 알림(`wallet.transfer.*`) 해석 — 판단 워커의 전송 알림 판단이 소비한다. */
     @Bean
     fun dfnsNetworkTransferEventParser(
         objectMapper: ObjectMapper,
         properties: DfnsProperties,
     ): NetworkTransferEventParser = DfnsNetworkTransferEventParser(objectMapper, properties)
 
+    /** 온체인 이동 사건(`wallet.blockchainevent.*`) 해석 — 입금 판단과 발신 대조가 소비한다. */
     @Bean
     fun dfnsNetworkChainEventParser(
         objectMapper: ObjectMapper,

@@ -41,7 +41,10 @@ class DfnsWebhookDecisionTransactionTest {
         every { inbox.findNextPendingForUpdate() } returns inboxItem()
         every { transferDecision.decide(any(), any()) } returns
             DfnsTransferDecisionOutcome.Conflicting(mockk(relaxed = true), "ext-1")
-        every { inbox.recordFailure(NOTIFICATION_ID, any(), 1) } returns WebhookFailureResult(quarantined = true, retryCount = 1)
+        // 격리 사유는 인박스에 남는 값이라 원문·전송 ID·제출 키·주소·금액을 담지 않는다.
+        every {
+            inbox.recordFailure(NOTIFICATION_ID, "submission key linked to another transfer", 1)
+        } returns WebhookFailureResult(quarantined = true, retryCount = 1)
 
         val outcome = transaction().processNext()
 
