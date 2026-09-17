@@ -712,3 +712,31 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **반영**: 폭을 실제 스키마로 바로잡고 50자 초과 키를 **제출 경로 입구에서** 거절해 원장에만 남는 행을 만들지 않기로 했다.
   미결 점검은 Dfns에서 회수하지 않고 확인 시각·횟수만 갱신하며(회수는 웹훅·원 제출 경로의 멱등 재제출), 03 전이 표에도 그 예외를 적었다.
   본문은 저장된 canonical 값에서 결정적으로 재구성하고 `req_hash`로 같은 요청임을 먼저 확인한다.
+
+## 리뷰어 체크리스트 갱신과 소급 정합 점검 (2026-09-17)
+
+- **코드 동작을 바꾸지 않는 슬라이스다.** 리뷰 규칙을 고치고, 그 규칙으로 기존 Dfns 범위 전체를 다시 점검했다.
+- 문제의 출발점: `.claude/` 전체에 `Dfns`·계약13·설계12 언급이 **한 건도 없었다**. 점검 항목이 01·02·03·08과 `evidence/9x`만 가리켜,
+  DF3.1~3.24 동안 지금 작업의 정본이 체크리스트 밖에 있었다. 대조가 이뤄진 것은 구현 세션이 프롬프트마다 범위와 문서를 지정했기 때문이지 규칙 때문이 아니다.
+- `.claude/agents/design-sync.md`·`code-reviewer.md`·`test-writer.md`와 [converge 규칙](../ai/converge-review.md)을 고쳤다(커밋 `fc06776`).
+  - 정본에 12·13 추가, Dfns 근거를 채택 공식 명세로 명시(Fireblocks의 `evidence/9x`와 분리), 계약13 **"수용 항목"을 단정으로 쓰는 역방향 검사** 신설.
+  - **제공자 경계** 항목 신설 — 조건부 조립의 배타성, 제공자 중립 구성요소가 벤더 조건에 묶였는지, 문서가 적은 구현 상태와 실제 조립의 일치.
+  - 생성물 신선도에 `bcm-admin/openapi/generate.py --check` 추가 — 이 누락으로 BFF 생성 타입이 DF3.11~3.21 동안 stale로 남았던 전력이 있다.
+  - 락을 오래 잡는 DDL을 Critical로 명시, 확정 결정 확인을 CLAUDE.md 3절 **전체**로 바꾸고 Dfns 확정 판정·제공자 선택을 예시에 추가.
+  - design-sync에도 Critical/Major/Minor와 판정 어휘를 고정하고, 읽기 전용이 도구가 아니라 지시로 보장된다는 사실과 확인 절차를 적었다.
+- **구현 세션의 기계 점검**: 생성물 2종 신선, `domain` 모듈의 Spring/Jackson/JDBC import 0건, 조건부 애노테이션 배타(`dfns` vs `fireblocks|local`),
+  시크릿은 전부 테스트 내 생성 키쌍·플레이스홀더. V23 `ADD COLUMN NOT NULL DEFAULT`는 PG11+ 재작성 없음, V24 인덱스는 같은 마이그레이션의 새 테이블이라 둘 다 문제 아님.
+  **`EvmErc20Client`가 `@ConditionalOnFireblocksProtocol`에 묶여** `dfns`에서 `Erc20ContractPort`·`SweepBatchContractPort`·`SweepBatchReceiptPort` 빈이 없는 점은
+  현행 계약 위반은 아니지만(Dfns Sweep이 후속, 전체 기동 차단) **Dfns Sweep 연결이나 차단 해제 때 중립 조립 또는 Dfns 구현이 필요하다** — 리뷰어도 같은 판단이다.
+- **독립 converge(Codex gpt-5.6-sol high, 별도 reviewer 세션, 소급 design-sync 1회 + 델타 4회. 코드 동작 변경이 없어 code-reviewer는 수행하지 않았다)**:
+  1차(범위 `3c60082..b8b26a1`) Major 3 — ① 07의 현재 매핑 DDL이 V1의 전역 `UNIQUE (vndr_ast_id)`를 그대로 적었다. V11이 그 제약을 제거하고
+  `WHERE actv_yn='Y'` 부분 UNIQUE로 바꿨으므로 **비활성 매핑의 벤더 ID는 재사용할 수 있는데 문서대로면 반대로 읽힌다**(Dfns 이전 시대의 드리프트),
+  ② 03이 Dfns 물리 스키마를 "아직 적용하지 않는다"와 "V22~V27 구현 완료"로 동시에 설명, ③ 12·13과 KDoc 5곳이 이미 조건부 조립된 경로를 "미연결"로 기록.
+  2차 Major 2·Minor 1, 3차 Major 1, 4차 Major 2 — 모두 같은 종류(현재 상태 드리프트)의 잔여였고 호환 계획 도입부·경계 표, 02의 실행 흐름 머리말까지 번졌다.
+  5차 **통과 — 정합**(Critical 0, Major 0).
+- **반영**: 07 DDL을 부분 UNIQUE·`ck_bcm_vndr_ast_actv`·`ck_bcm_vndr_ast_dcml`로 바로잡고 제약 표·등록 시퀀스도 활성 행 기준으로 고쳤다.
+  나머지는 **"`BCM_PROVIDER=dfns`에서만 조건부로 조립된다"와 "`ProviderConfiguration`의 전체 기동 차단이 유지된다"를 항상 함께 적는** 규칙으로 통일해,
+  조립 사실이 Baseline 수용이나 차단 해제로 읽히지 않게 했다. 범위 밖 목록에서는 실제로 구현한 항목만 뺐다 —
+  `WebhookTransactionParser`의 Dfns 구현·감시 주소·이력 복구·발신 제출 원장 대조·미판단 결과의 경보는 미구현으로 남겼고 리뷰어가 확인했다.
+- 설계12의 날짜가 붙은 슬라이스별 검증 기록은 당시 상태의 이력이므로 현재 상태 문구로 보지 않는다(리뷰어와 합의).
+- 공개 API·DB·실행 동작 변경 없음. `BCM_PROVIDER=dfns` 기동 차단도 그대로다.
