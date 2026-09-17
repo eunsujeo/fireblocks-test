@@ -740,3 +740,25 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `WebhookTransactionParser`의 Dfns 구현·감시 주소·이력 복구·발신 제출 원장 대조·미판단 결과의 경보는 미구현으로 남겼고 리뷰어가 확인했다.
 - 설계12의 날짜가 붙은 슬라이스별 검증 기록은 당시 상태의 이력이므로 현재 상태 문구로 보지 않는다(리뷰어와 합의).
 - 공개 API·DB·실행 동작 변경 없음. `BCM_PROVIDER=dfns` 기동 차단도 그대로다.
+
+## Dfns 출금 제출 유스케이스 검증 (2026-09-17)
+
+- 계약13 [출금 제출 유스케이스 — 구현](13-dfns-contracts.md#출금-제출-유스케이스--구현)을 `DfnsTransferSubmissionService`(bcm-api)로 구현했다.
+- **제공자 경계**: 공개 `POST /transactions`의 제출을 `TransactionSubmissionWork`로 추상화하고 제공자마다 하나만 조립한다.
+  Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireblocksProtocol`), Dfns는 `DfnsSubmissionConfig`가 만든다.
+  `VendorTransactionPort` 구현이 `FireblocksClient`뿐이라 기존 서비스와 `BandSCommandService`는 이미 `dfns`에서 만들어질 수 없었고,
+  조건부 애노테이션은 그 사실을 드러낸 것이다(동작 변경 아님). 제출 조립은 계정 조립(`DfnsAccountConfig`)과 **나눠 둔다** —
+  한 설정에 묶으면 계정만 필요한 조립 지점까지 제출 원장·전송 포트 의존을 끌고 간다.
+- **02와 같은 것**: 선기록(`REQUESTED` 먼저) → 소유권(토큰+만료) → 벤더 호출은 트랜잭션 밖 → 같은 키·다른 내용은 `409` →
+  소유권 실패는 기다리지 않고 `503`+`Retry-After` → 그 밖의 벤더 오류·무응답은 `REQUESTED` 유지.
+- **02와 다른 것(회수)**: 벤더에 `externalId` 조회가 없어 **같은 본문 재제출**이 회수다. 본문은 저장된 canonical 값에서 결정적으로 재구성하고
+  원문 JSON을 보관하지 않는다. 받은 관찰은 지갑·자산·목적지·금액으로 다시 대조하며, 벤더가 `externalId`를 안 돌려줘도 불일치로 바꾸지 않는다.
+- **입구 거절**: 제출 키가 50자를 넘으면 **원장에 적기 전에** 거절한다(`VALIDATION_FAILED`). 원장 폭(128)이 벤더 한계(50)보다 넓어
+  그 사이 길이는 원장에만 남고 영영 제출되지 않는다. 등록 정밀도가 없거나 금액 자릿수가 정밀도를 넘어도 같은 자리에서 거절한다 —
+  `AssetDecimals.baseUnitsOf`는 **반올림하지 않는다**(반올림은 지시하지 않은 금액을 보내는 것이다).
+- **`FAILED` 재시도는 열지 않는다**(이번 슬라이스의 결정). 같은 키 재제출은 기존 실패 엔티티를 돌려줄 뿐이고, 새 키 발급은
+  벤더 `Failed`가 시스템 실패와 온체인 실행 실패를 함께 뜻해(`onChainSubmitted = null`) **이중 지급**이 될 수 있다.
+  새 키는 체인 미제출이 확인된 경우로 제한하며 그 확인 수단(발신 이동 대조)이 생긴 뒤에 연다 — 그때까지 `UNPROCESSABLE_ENTITY`로 거절한다.
+- **범위 밖**: 발신 이동 대조(`(ntwk_cd, tx_hash)` 단일 후보 + 제출 원장 대응), 새 제출 키 발급 규칙, 미결 제출 점검의 Dfns 동작,
+  내부이체·Sweep·대납·수수료·Travel Rule·memo. `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
+- 검증: 전체 1,308 테스트 0 실패(이번 슬라이스 22건 추가), 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
