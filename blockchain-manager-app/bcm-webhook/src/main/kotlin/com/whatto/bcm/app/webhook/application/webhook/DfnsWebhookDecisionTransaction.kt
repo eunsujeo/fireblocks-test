@@ -28,6 +28,7 @@ class DfnsWebhookDecisionTransaction(
     private val inboxRepository: WebhookInboxRepository,
     private val transactionRunner: TransactionRunner,
     private val decision: DfnsChainEventDecision,
+    private val transferDecision: DfnsTransferEventDecision,
     private val clock: Clock,
     @param:Value("\${bcm.webhook-worker.max-attempts:3}") private val maxAttempts: Int,
 ) : WebhookDecisionWork {
@@ -56,8 +57,32 @@ class DfnsWebhookDecisionTransaction(
         }
     }
 
-    private fun process(inboxItem: WebhookInboxItem): WebhookDecisionOutcome =
-        when (val outcome = decision.decide(inboxItem.notificationId, inboxItem.payload.toByteArray())) {
+    private fun process(inboxItem: WebhookInboxItem): WebhookDecisionOutcome {
+        val payload = inboxItem.payload.toByteArray()
+        // 전송 알림(우리가 낸 발신)을 먼저 본다 — 두 파서는 서로 다른 `kind` 집합만 읽으므로 한쪽이 null이면 다른 쪽 차례다.
+        return when (val transfer = transferDecision.decide(inboxItem.notificationId, payload)) {
+            is DfnsTransferDecisionOutcome.NotTransferEvent -> processChainEvent(inboxItem, payload)
+
+            is DfnsTransferDecisionOutcome.Processed -> {
+                markProcessed(inboxItem)
+                WebhookDecisionOutcome.Processed(inboxItem.notificationId, transfer.events.size)
+            }
+
+            // 제출 원장에 없는 전송·한 키에 붙은 두 전송은 원장·이벤트를 만들지 않는다. 경보 계약은 후속이라 지금은 처리 완료로 남긴다.
+            is DfnsTransferDecisionOutcome.UnknownSubmission,
+            is DfnsTransferDecisionOutcome.Conflicting,
+            -> {
+                markProcessed(inboxItem)
+                WebhookDecisionOutcome.Ignored(inboxItem.notificationId)
+            }
+        }
+    }
+
+    private fun processChainEvent(
+        inboxItem: WebhookInboxItem,
+        payload: ByteArray,
+    ): WebhookDecisionOutcome =
+        when (val outcome = decision.decide(inboxItem.notificationId, payload)) {
             is DfnsChainDecisionOutcome.Processed -> {
                 markProcessed(inboxItem)
                 WebhookDecisionOutcome.Processed(inboxItem.notificationId, outcome.events.size)

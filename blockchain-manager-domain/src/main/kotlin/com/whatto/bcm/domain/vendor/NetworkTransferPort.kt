@@ -106,6 +106,8 @@ data class NetworkTransferObservation(
  * `CONFIRMED`는 Dfns 인덱싱 파이프라인의 온체인 확인이며 BCM `FINALIZED`(DCCP 임계)가 아니다.
  */
 enum class NetworkTransferStatus(
+    /** 명세 enum 원어. 상태 번역기는 원어를 받으므로 관찰에서 이 값을 꺼내 쓴다 — 이름을 원어로 가정하지 않는다. */
+    val vendorValue: String,
     /** 벤더 종결 — 공식 Idempotency 문서가 `externalId` 영구 결속 상태로 명시한 값이다. 재시도는 새 키를 쓴다. */
     val terminal: Boolean,
     /**
@@ -115,34 +117,26 @@ enum class NetworkTransferStatus(
     val onChainSubmitted: Boolean?,
 ) {
     /** 지갑 정책 승인 대기. */
-    PENDING(terminal = false, onChainSubmitted = false),
+    PENDING(vendorValue = "Pending", terminal = false, onChainSubmitted = false),
 
     /** 승인 뒤 실행 중(짧은 구간). */
-    EXECUTING(terminal = false, onChainSubmitted = false),
+    EXECUTING(vendorValue = "Executing", terminal = false, onChainSubmitted = false),
 
     /** mempool 기록. */
-    BROADCASTED(terminal = false, onChainSubmitted = true),
+    BROADCASTED(vendorValue = "Broadcasted", terminal = false, onChainSubmitted = true),
 
     /** Dfns 인덱싱이 확인한 온체인 포함. */
-    CONFIRMED(terminal = true, onChainSubmitted = true),
+    CONFIRMED(vendorValue = "Confirmed", terminal = true, onChainSubmitted = true),
 
     /** 시스템 실패 **또는** 온체인 실행 실패 — 공식 문서가 두 경우를 함께 두므로 제출 여부는 상태만으로 확정하지 않는다. */
-    FAILED(terminal = true, onChainSubmitted = null),
+    FAILED(vendorValue = "Failed", terminal = true, onChainSubmitted = null),
 
     /** 정책 승인에서 거절 — 실행 전 단계다. */
-    REJECTED(terminal = true, onChainSubmitted = false),
+    REJECTED(vendorValue = "Rejected", terminal = true, onChainSubmitted = false),
     ;
 
     companion object {
-        private val BY_VENDOR =
-            mapOf(
-                "Pending" to PENDING,
-                "Executing" to EXECUTING,
-                "Broadcasted" to BROADCASTED,
-                "Confirmed" to CONFIRMED,
-                "Failed" to FAILED,
-                "Rejected" to REJECTED,
-            )
+        private val BY_VENDOR = entries.associateBy { it.vendorValue }
 
         /** 명세 enum 값만 받는다 — 모르는 원어를 임의 상태로 바꾸지 않는다. */
         fun ofVendorStatus(value: String): NetworkTransferStatus? = BY_VENDOR[value]

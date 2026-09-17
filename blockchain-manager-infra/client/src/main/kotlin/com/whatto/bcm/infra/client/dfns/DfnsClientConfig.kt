@@ -3,6 +3,7 @@ package com.whatto.bcm.infra.client.dfns
 import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.vendor.NetworkChainEventParser
+import com.whatto.bcm.domain.vendor.NetworkTransferEventParser
 import com.whatto.bcm.domain.webhook.WebhookProtocol
 import com.whatto.bcm.domain.webhook.WebhookSignatureVerifier
 import com.whatto.bcm.infra.client.config.ConditionalOnDfnsProtocol
@@ -41,6 +42,12 @@ class DfnsClientConfig {
     fun dfnsWebhookProtocol(objectMapper: ObjectMapper): WebhookProtocol = DfnsWebhookProtocol(objectMapper)
 
     /** 온체인 이동(입금) 사건 해석 — 판단 워커가 소비한다. */
+    @Bean
+    fun dfnsNetworkTransferEventParser(
+        objectMapper: ObjectMapper,
+        properties: DfnsProperties,
+    ): NetworkTransferEventParser = DfnsNetworkTransferEventParser(objectMapper, properties)
+
     @Bean
     fun dfnsNetworkChainEventParser(
         objectMapper: ObjectMapper,

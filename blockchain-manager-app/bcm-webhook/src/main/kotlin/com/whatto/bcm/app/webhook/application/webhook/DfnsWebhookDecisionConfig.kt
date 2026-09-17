@@ -6,11 +6,13 @@ import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
+import com.whatto.bcm.domain.submission.SubmissionRecordRepository
 import com.whatto.bcm.domain.tx.ChainHeadPort
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.vendor.LedgerAsset
 import com.whatto.bcm.domain.vendor.NetworkChainEventParser
 import com.whatto.bcm.domain.vendor.NetworkChainLedgerLookup
+import com.whatto.bcm.domain.vendor.NetworkTransferEventParser
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.infra.client.config.ConditionalOnDfnsProtocol
 import com.whatto.bcm.infra.client.dfns.DfnsStatusTranslator
@@ -61,6 +63,30 @@ class DfnsWebhookDecisionConfig {
                 symbol: String,
             ): String? = depositAddresses.findByAddress(address, network, symbol)?.accountId
         }
+
+    @Bean
+    fun dfnsTransferEventDecision(
+        parser: NetworkTransferEventParser,
+        submissions: SubmissionRecordRepository,
+        statusTranslator: VendorStatusTranslator,
+        txStates: TxStateService,
+        outboxEvents: OutboxEventService,
+        eventIdGenerator: EventIdGenerator,
+        eventSerializer: ChainEventSerializer,
+        clock: Clock,
+        @Value("\${bcm.outbox.max-attempts:5}") outboxMaxAttempts: Int,
+    ): DfnsTransferEventDecision =
+        DfnsTransferEventDecision(
+            parser,
+            submissions,
+            statusTranslator,
+            txStates,
+            outboxEvents,
+            eventIdGenerator,
+            eventSerializer,
+            clock,
+            outboxMaxAttempts,
+        )
 
     @Bean
     fun dfnsChainEventDecision(
