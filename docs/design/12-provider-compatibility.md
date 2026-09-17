@@ -76,7 +76,7 @@ Dfns Stub을 통한 로컬 어댑터 시험은 별도 시험 구성이다. 실�
   ([계약13](13-dfns-contracts.md#계정주소-api의-dfns-연결--구현)). 기동 차단 상태에서 구현·조립된 Dfns 슬라이스는 계정·주소·잔액,
   Admin 자산 등록 관문(`DfnsChainAssetResolver`), 웹훅 수신 프로토콜(`DfnsWebhookProtocol`은 모든 앱, HMAC 검증기는 Webhook 앱),
   그리고 웹훅 판단 워커(`DfnsWebhookDecisionConfig`·`DfnsWebhookDecisionTransaction` — **입금과 전송 알림 판단 모두**)이며
-  출금 제출 유스케이스(`DfnsSubmissionConfig`)이며 거래 조회·내부이체·Sweep·Admin 조회와 발신 이동 대조는 후속이다. **외부에서 기동 가능한 범위**는 여전히 `fireblocks|local`뿐이고 API·Webhook·BAT 전체 컨텍스트의
+  출금 제출 유스케이스(`DfnsSubmissionConfig`), 발신 이동 대조이며 거래 조회·내부이체·Sweep·Admin 조회는 후속이다. **외부에서 기동 가능한 범위**는 여전히 `fireblocks|local`뿐이고 API·Webhook·BAT 전체 컨텍스트의
   `dfns` 기동 차단은 그대로다.
 - 선택된 Fireblocks 프로토콜의 API key와 PKCS#8 키(PEM 또는 파일 중 하나)는 기동 시 필수다. 실행 조립부가 키 파싱도 수행한다.
   기존의 자격 없는 부트스트랩은 더 이상 지원하지 않는다. 테스트는 실행 중 생성한 일회성 키를 주입한다.
@@ -108,7 +108,7 @@ Service는 서명 검증→선택된 protocol의 envelope 파싱→동일 byte[]
 Fireblocks/로컬에서만 조립된다. 기존 parser·RS512 검증·worker·outbox·DB/공개 API 계약을 유지한다.
 판단 트랜잭션은 `WebhookDecisionWork` 경계로 추상화해 제공자마다 하나만 조립한다 — 기존 `WebhookDecisionTransaction`은 `fireblocks`·`local`,
 `DfnsWebhookDecisionTransaction`은 `dfns`에서만 만들고 워커·경보 처리는 경계 뒤의 벤더 어휘를 모른다([계약13](13-dfns-contracts.md#판단-워커-조립--구현)).
-Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립한다(검증기는 Webhook 앱 한정). **입금·전송 알림 판단 워커가 조립됐고** 발신 이동 대조와 이력 복구가 후속이다.
+Dfns HMAC 검증기·`kind` envelope 해석은 [계약13](13-dfns-contracts.md#dfns-웹훅-수신-프로토콜--구현)대로 구현해 `dfns`에서만 조립한다(검증기는 Webhook 앱 한정). **입금·전송 알림·발신 이동 대조 판단이 모두 조립됐고** 이력 복구와 RBF 계열이 후속이다.
 전송 사건(`wallet.transfer.*`)의 해석은 `WebhookTransactionParser`와 별개인 `NetworkTransferEventParser`로, 온체인 이동 사건
 (`wallet.blockchainevent.detected`·`wallet.blockchain_event.transfer.included`)은 `NetworkChainEventParser`로 두었다 — 둘 다 벤더 관찰을 그대로 담고
 업무 상태 번역·논리 사건 연결은 판단 워커의 몫이다. 알림 메타(`WebhookEnvelopeBase`)는 domain `VendorWebhookDelivery`로 공통이다.
@@ -822,10 +822,15 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **새 거래를 만들지 않는다.** `(ntwk_cd, tx_hash)`(V26 index)로 전송 알림이 만든 거래를 찾아 그 거래의 전이로 반영한다.
   **후보가 정확히 하나이고 제출 원장에 대응할 때만** 붙인다 — hash는 유일하지 않으므로(한 트랜잭션에 여러 이동) 하나를 고르는 규칙을 지어내면
   **다른 거래에 남의 확정이 붙는다**. 02의 "제출 원장이 기준"을 hash 일치로 대체하지 않는다.
-- 후보 없음은 도착 순서 때문일 수 있어 거래를 만들지 않고 처리 완료로 남긴다. **후보가 여럿인 경우만 상한을 기다리지 않고 즉시 격리**한다.
+- 인박스 처리: 붙였으면 처리 완료. **후보 여럿·제출 원장 대응 없음·관찰 불일치는 즉시 격리**(시간이 지나도 해소되지 않는다), **후보 없음만 재시도**로 남긴다 — 전송 알림이 늦게 올 수 있고, 처리 완료로 닫으면 뒤늦은 알림이 거래를 만들어도 그 사건을 다시 실행할 트리거가 없어 **출금이 영영 확정되지 않는다**.
 - 업무 값(계정·네트워크·심볼·금액·목적지)은 제출 원장에서 읽고 관찰의 최소 단위를 다시 환산하지 않는다.
 - **조회는 거래 피처의 `TxStateService`를 통한다.** 처음에는 `TxRecordRepository`를 직접 주입했는데
   **지난 슬라이스에서 `ArchitectureTest`에 넣은 검사가 그 위반을 바로 잡아냈다** — 같은 종류의 Critical을 리뷰 전에 막은 첫 사례다.
 - **범위 밖**: 후보 없음·대응 없음의 경보 포트, RBF(`replacementId`) 계열, `FAILED` 재시도의 새 제출 키 발급.
   `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
-- 검증: 전체 1,341 테스트 0 실패(이번 슬라이스 9건 추가), 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+- **독립 converge 1차(Codex gpt-5.6-sol high)**: **Critical 2** — ① 이동이 전송 알림보다 먼저 오면 후보 없음을 **처리 완료로 닫아** 출금 확정이 영구 유실됐다.
+  계약에 "도착 순서는 수용 항목"이라 적고도 그 경우를 성공으로 닫은 것이다. ② **"현재 단일 후보"는 이동과 제출의 유일 대응을 증명하지 않는다** —
+  한 트랜잭션에 우리 이동 A·B가 있고 A의 알림만 먼저 와 있으면 B의 사건이 A에 붙는다. Major 2 — `NoSubmission`의 계약과 동작이 반대, 상태 드리프트 6곳.
+  ①은 후보 없음을 재시도로 남기고(상한에 닿으면 격리) ②는 **관찰과 제출 canonical(03 V28)·목적지 대조**를 붙임 조건에 더해 반영했다.
+  대응 없음·불일치는 재시도로 풀리지 않으므로 즉시 격리로 갈랐다.
+- 검증: 전체 1,345 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.

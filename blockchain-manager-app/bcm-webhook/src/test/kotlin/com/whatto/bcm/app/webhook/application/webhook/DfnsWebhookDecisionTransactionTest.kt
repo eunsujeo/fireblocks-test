@@ -36,6 +36,32 @@ class DfnsWebhookDecisionTransactionTest {
         }
 
     @Test
+    fun `붙일 수 없는 발신은 즉시 격리하고 아직 못 붙이는 발신은 재시도로 남긴다`() {
+        // 대응 없음·불일치는 시간이 지나도 해소되지 않는다. 반대로 후보 없음은 전송 알림이 늦은 것일 수 있어
+        // 처리 완료로 닫으면 그 출금이 영영 확정되지 않는다 — 재시도로 남겨 알림이 오면 붙는다.
+        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { decision.decide(any(), any()) } returns
+            DfnsChainDecisionOutcome.OutgoingUnattachable(
+                transfer(direction = NetworkChainDirection.OUT),
+                OutgoingAttachMiss.MISMATCH,
+            )
+        every {
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer cannot be attached: MISMATCH", 1)
+        } returns WebhookFailureResult(quarantined = true, retryCount = 1)
+
+        assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Quarantined::class.java)
+
+        every { decision.decide(any(), any()) } returns
+            DfnsChainDecisionOutcome.OutgoingPending(transfer(direction = NetworkChainDirection.OUT))
+        every {
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer has no matching transaction yet", 3)
+        } returns WebhookFailureResult(quarantined = false, retryCount = 1)
+
+        assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
+        verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
+    }
+
+    @Test
     fun `같은 hash에 거래가 여럿인 발신은 상한을 기다리지 않고 즉시 격리한다`() {
         // 하나를 고르는 규칙을 지어내면 다른 거래에 남의 확정이 붙는다 — 처리 완료로 소거하지 않는다(계약13).
         every { inbox.findNextPendingForUpdate() } returns inboxItem()
@@ -136,7 +162,6 @@ class DfnsWebhookDecisionTransactionTest {
     fun `아직 판단하지 않는 계열은 원장을 건드리지 않고 처리 완료로 남긴다`() {
         listOf(
             DfnsChainDecisionOutcome.NotChainEvent,
-            DfnsChainDecisionOutcome.OutgoingUnmatched(transfer(direction = NetworkChainDirection.OUT)),
             DfnsChainDecisionOutcome.UnsupportedAsset(transfer()),
             DfnsChainDecisionOutcome.UnmappedAsset(transfer()),
             DfnsChainDecisionOutcome.MissingDecimals(transfer()),

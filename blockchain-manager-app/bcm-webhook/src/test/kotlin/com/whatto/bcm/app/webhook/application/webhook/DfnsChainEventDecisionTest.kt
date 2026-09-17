@@ -149,19 +149,32 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
-    fun `붙일 거래가 없거나 제출 원장 대응이 없으면 원장을 쓰지 않는다`() {
+    fun `붙일 거래가 아직 없으면 재처리 가능한 상태로 남긴다`() {
+        // 전송 알림이 늦게 올 수 있다 — 처리 완료로 닫으면 그 출금은 영영 확정되지 않는다.
         val outgoing = transfer(direction = NetworkChainDirection.OUT)
         every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns emptyList()
 
         assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
-            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnmatched(outgoing))
+            .isEqualTo(DfnsChainDecisionOutcome.OutgoingPending(outgoing))
 
-        // 대응 없는 경우도 같다 — hash 일치만으로 확정을 붙이지 않는다.
+        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
+    }
+
+    @Test
+    fun `제출 원장 대응이 없거나 관찰이 그 제출과 다르면 붙이지 않는다`() {
+        val outgoing = transfer(direction = NetworkChainDirection.OUT)
         every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns listOf(txRecord())
         every { submissions.findByVendorTransactionId(any()) } returns null
 
         assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
-            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnmatched(outgoing))
+            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnattachable(outgoing, OutgoingAttachMiss.NO_SUBMISSION))
+
+        // 한 트랜잭션의 다른 이동이 같은 hash로 올 수 있다 — 금액이 다르면 붙이지 않는다.
+        every { submissions.findByVendorTransactionId(any()) } returns submissionRecord(amountBaseUnits = "999")
+
+        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
+            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnattachable(outgoing, OutgoingAttachMiss.MISMATCH))
 
         verify(exactly = 0) { txStates.observe(any()) }
         verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
@@ -181,11 +194,6 @@ class DfnsChainEventDecisionTest {
 
     @Test
     fun `입금이 아닌 결과는 원장도 이벤트도 쓰지 않는다`() {
-        val outgoing = transfer(direction = NetworkChainDirection.OUT)
-        every { txStates.findByNetworkAndTransactionHash(any(), any()) } returns emptyList()
-        assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
-            .isEqualTo(DfnsChainDecisionOutcome.OutgoingUnmatched(outgoing))
-
         val unsupported = transfer(vendorAssetId = null, vendorAssetKind = "Erc721Transfer", amount = null)
         assertThat(decision(event = event(unsupported)).decide(NOTIFICATION_ID, PAYLOAD))
             .isEqualTo(DfnsChainDecisionOutcome.UnsupportedAsset(unsupported))
@@ -311,7 +319,7 @@ class DfnsChainEventDecisionTest {
         from: String? = SENDER,
     ) = NetworkChainTransfer(
         network = NETWORK,
-        vendorWalletId = "wa-1f04s-lqc9q-xxxxxxxxxxxxxxxx",
+        vendorWalletId = WALLET_ID,
         vendorWalletAddress = DESTINATION,
         vendorAssetId = vendorAssetId,
         vendorAssetKind = vendorAssetKind,
@@ -357,7 +365,7 @@ class DfnsChainEventDecisionTest {
             lastChangedAt = "20260916010203",
         )
 
-    private fun submissionRecord() =
+    private fun submissionRecord(amountBaseUnits: String = AMOUNT_BASE_UNITS) =
         com.whatto.bcm.domain.submission.SubmissionRecord(
             externalTransactionId = "ext-1",
             requestHash = "0".repeat(64),
@@ -369,12 +377,19 @@ class DfnsChainEventDecisionTest {
             vendorTransactionId = "xfr-1",
             senderAccountId = "acct-1",
             recipientType = com.whatto.bcm.domain.submission.SubmissionRecipientType.ADDRESS,
-            recipientValue = "0x1111111111111111111111111111111111111111",
+            recipientValue = DESTINATION,
             network = NETWORK,
             symbol = "USDC",
             amount = "1",
             requestedAt = "20260916010203",
             respondedAt = null,
+            vendorCanonical =
+                com.whatto.bcm.domain.submission.SubmissionVendorCanonical(
+                    vendorWalletId = WALLET_ID,
+                    vendorAssetId = "EthereumSepolia:Native",
+                    amountBaseUnits = amountBaseUnits,
+                    decimals = 6,
+                ),
         )
 
     private companion object {
@@ -383,6 +398,11 @@ class DfnsChainEventDecisionTest {
         const val ACCOUNT_ID = "acct_dfns_1"
         const val DESTINATION = "0x00e3495cf6af59008f22ffaf32d4c92ac33dac47"
         const val SENDER = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+        const val WALLET_ID = "wa-1f04s-lqc9q-xxxxxxxxxxxxxxxx"
+
+        /** 관찰의 기본 금액 — 제출 원장 canonical과 같아야 대조를 통과한다. */
+        const val AMOUNT_BASE_UNITS = "1500000"
+
         const val TX_HASH = "0x2a6f0c9b6bd0a7b9f4e3e0b33d2ff4c7cf9a7a0f9b4d2a8f8c1b3e5d7a9c0b11"
         val PAYLOAD = "{}".toByteArray()
     }

@@ -40,7 +40,7 @@ import java.time.Instant
  * 확정은 벤더 상태가 아니라 **블록 깊이**로 낸다(CLAUDE.md 3절) — 사건의 `blockNumber`와 체인 head의 깊이를 관찰 컨펌 수로 담고
  * 네트워크 임계와의 비교는 [VendorStatusTranslator] 구현이 수행한다. head를 읽지 못하면 예외가 그대로 올라가 확정을 보류하고 인박스가 재시도한다.
  *
- * 입금이 아닌 결과(우리 발신·미지원 자산·미등록 자산·미귀속·정밀도 없음·발신 주소 없음)는 원장을 쓰지 않고 결과로만 돌려준다 —
+ * **발신은 기존 거래에 붙여 확정까지 낸다**(아래 발신 분기). 미지원 자산·미등록 자산·미귀속·정밀도 없음·발신 주소 없음은 원장을 쓰지 않고 결과로만 돌려준다 —
  * 무엇을 경보로 올리고 무엇을 넘길지는 워커가 정한다. `dfns`에서 조립되어 `DfnsWebhookDecisionTransaction`이 호출한다.
  */
 class DfnsChainEventDecision(
@@ -85,15 +85,23 @@ class DfnsChainEventDecision(
         val hash = observation.transactionHash
         val attached =
             NetworkChainOutgoingAttachment.attach(
+                observation,
                 txStates.findByNetworkAndTransactionHash(network, hash),
                 { submissions.findByVendorTransactionId(it) },
             )
         return when (attached) {
-            is NetworkChainAttachmentResult.NoCandidate -> DfnsChainDecisionOutcome.OutgoingUnmatched(observation)
+            // 아직 못 붙이는 것이지 잘못된 것이 아니다 — 전송 알림이 늦게 올 수 있다. 처리 완료로 닫으면 그 출금은 영영 확정되지 않는다.
+            is NetworkChainAttachmentResult.NoCandidate -> DfnsChainDecisionOutcome.OutgoingPending(observation)
             is NetworkChainAttachmentResult.Ambiguous ->
                 DfnsChainDecisionOutcome.OutgoingAmbiguous(observation, attached.candidateCount)
 
-            is NetworkChainAttachmentResult.NoSubmission -> DfnsChainDecisionOutcome.OutgoingUnmatched(observation)
+            // 시간이 지나도 해소되지 않는 이상 신호다 — 재처리로 풀리지 않는다.
+            is NetworkChainAttachmentResult.NoSubmission ->
+                DfnsChainDecisionOutcome.OutgoingUnattachable(observation, OutgoingAttachMiss.NO_SUBMISSION)
+
+            is NetworkChainAttachmentResult.Mismatched ->
+                DfnsChainDecisionOutcome.OutgoingUnattachable(observation, OutgoingAttachMiss.MISMATCH)
+
             is NetworkChainAttachmentResult.Attach -> attachOutgoing(notificationId, observation, attached)
         }
     }
@@ -307,11 +315,20 @@ sealed interface DfnsChainDecisionOutcome {
     ) : DfnsChainDecisionOutcome
 
     /**
-     * 붙일 거래를 찾지 못했다(후보 없음 또는 제출 원장 대응 없음). **거래를 만들지 않는다** —
-     * 전송 알림이 아직 안 왔을 수도 있고 우리가 낸 전송이 아닐 수도 있다.
+     * 붙일 거래가 아직 없다. **거래를 만들지 않고 재처리 가능한 상태로 남긴다** —
+     * 전송 알림이 늦게 올 수 있고(도착 순서는 수용 항목), 처리 완료로 닫으면 그 출금은 영영 확정되지 않는다.
      */
-    data class OutgoingUnmatched(
+    data class OutgoingPending(
         val observation: NetworkChainTransfer,
+    ) : DfnsChainDecisionOutcome
+
+    /**
+     * 붙일 수 없다 — 제출 원장 대응이 없거나(우리가 낸 전송이 아니다) 관찰이 그 제출의 값과 다르다.
+     * 시간이 지나도 해소되지 않으므로 재처리하지 않고 운영 신호로 남긴다.
+     */
+    data class OutgoingUnattachable(
+        val observation: NetworkChainTransfer,
+        val miss: OutgoingAttachMiss,
     ) : DfnsChainDecisionOutcome
 
     /** 같은 `(ntwk_cd, tx_hash)`에 거래가 여럿이다 — 하나를 고르는 규칙을 지어내지 않고 중단한다. */
@@ -347,4 +364,13 @@ sealed interface DfnsChainDecisionOutcome {
     data class MissingSender(
         val observation: NetworkChainTransfer,
     ) : DfnsChainDecisionOutcome
+}
+
+/** 발신 이동을 붙이지 못한 이유 — 경보·격리 사유에 쓰이며 원문·주소·금액을 담지 않는다. */
+enum class OutgoingAttachMiss {
+    /** 후보 거래는 있는데 제출 원장에 대응이 없다. */
+    NO_SUBMISSION,
+
+    /** 후보·제출은 있는데 관찰이 그 제출의 canonical 값과 다르다(또는 저장값이 없어 증명할 수 없다). */
+    MISMATCH,
 }

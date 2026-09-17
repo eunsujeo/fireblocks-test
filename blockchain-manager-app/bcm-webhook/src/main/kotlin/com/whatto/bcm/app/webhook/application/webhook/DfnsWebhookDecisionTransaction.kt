@@ -104,6 +104,15 @@ class DfnsWebhookDecisionTransaction(
             // 재시도가 결과를 바꾸지 못하므로 **즉시 격리**한다.
             is DfnsChainDecisionOutcome.OutgoingAmbiguous -> quarantineNow(inboxItem, AMBIGUOUS_OUTGOING_REASON)
 
+            // 붙일 거래가 아직 없다 — 전송 알림이 늦게 올 수 있다. **처리 완료로 닫지 않는다**:
+            // 닫으면 뒤늦은 알림이 거래를 만들어도 이 사건을 다시 실행할 트리거가 없어 그 출금은 영영 확정되지 않는다.
+            // 재시도로 남겨 알림이 오면 붙고, 상한까지 안 오면 격리돼 운영이 본다.
+            is DfnsChainDecisionOutcome.OutgoingPending -> failed(inboxItem, PENDING_OUTGOING_REASON)
+
+            // 시간이 지나도 해소되지 않는 이상 신호다 — 재시도 예산을 태우지 않고 즉시 격리한다.
+            is DfnsChainDecisionOutcome.OutgoingUnattachable ->
+                quarantineNow(inboxItem, "outgoing transfer cannot be attached: ${outcome.miss}")
+
             is DfnsChainDecisionOutcome.Unattributed -> {
                 markProcessed(inboxItem)
                 WebhookDecisionOutcome.Unattributed(
@@ -164,6 +173,8 @@ class DfnsWebhookDecisionTransaction(
         const val CONFLICTING_TRANSFER_REASON = "submission key linked to another transfer"
 
         const val AMBIGUOUS_OUTGOING_REASON = "outgoing transfer matches multiple transactions"
+
+        const val PENDING_OUTGOING_REASON = "outgoing transfer has no matching transaction yet"
 
         const val UNEXPECTED_FAILURE_REASON = "decision processing failed"
     }
