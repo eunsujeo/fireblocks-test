@@ -424,7 +424,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 | 원장 우선 | **원장을 먼저 읽는다** — 이미 결말이 난 건은 현재 자산 매핑·지갑을 읽지 않고 답한다 | 매핑이 해제됐다고 원래 `txId`를 못 돌려주면 안 된다 |
 | 회수 | `REQUESTED`이고 소유권을 뺏었으면 **같은 본문을 다시 제출**한다. 조회하지 않는다 | 벤더에 `externalId` 필터가 없다. 공식 Idempotency 계약이 같은 본문 재제출에 기존 엔티티 `200`을 보장하므로 이중 전송이 아니다 |
 | 본문 재구성 | **제출 시점에 원장에 적은 벤더 canonical 값(03 V28: 지갑 ID·자산 키·최소 단위 금액·정밀도)으로만** 만든다. 회수 시점의 매핑·정밀도를 다시 읽지 않는다. 저장값이 없는 행은 **재구성하지 않고 `422`로 거절**한다 | 회수 시점에 매핑이 교체되면 같은 키·같은 `req_hash`로 다른 본문이 나가 이중 전송이 된다. 추측한 본문을 보내는 것이 곧 그 사고다 |
-| 응답 대조 | 제출·회수로 받은 관찰이 내 요청과 같은지 **돌려받은 값으로 다시 본다**(지갑·자산·목적지·금액, `externalId`는 있을 때만). 어긋나면 `409` | 벤더의 본문 대조를 믿되 원장에 남길 값은 관찰에서 읽는다. `externalId`를 안 돌려줄 수 있어 없음을 불일치로 바꾸지 않는다 |
+| 응답 대조 | 제출·회수로 받은 관찰이 내 요청과 같은지 **돌려받은 값으로 다시 본다**(지갑·자산·목적지·금액). `externalId`는 **제출 응답에서는 어댑터가 이미 결속을 강제**하므로(없거나 다르면 어댑터가 실패시킨다 — 위 전송 어댑터의 응답 정규화) 이 경로에 `null`이 오지 않는다. 대조 규칙 자체는 `null`을 불일치로 보지 않는데, 그건 `externalId`가 선택인 **조회 관찰**에도 같은 규칙을 쓰기 위해서다 | 벤더의 본문 대조를 믿되 원장에 남길 값은 관찰에서 읽는다. 결속 강제는 한 곳(어댑터)에 두고 유스케이스는 그 결과를 다시 확인만 한다 |
 | `409`(표식 있음) | **최초 제출에서만** `FAILED`로 굳힌다. **회수 재제출에서는 `REQUESTED`를 유지**하고 재시도 가능한 실패로 올린다 | 최초 제출의 표식은 우리가 보낸 적 없는 키를 벤더가 이미 갖고 있다는 뜻이라 확정 거절이 맞다(02의 `409`·`422` 계열). 회수에서는 **앞 제출이 진행 중일 때의 응답이 아직 수용 항목**이라 `409`가 진행 중 전송을 뜻할 가능성을 배제할 수 없다 — 종결로 적으면 실제로 나간 전송에 확정 거절을 돌려주고 지금은 되살릴 경로도 없다. 표식 없는 `409`는 어댑터가 일반 벤더 오류로 전파한다 |
 | 그 밖의 벤더 오류·무응답 | 예외가 그대로 올라가 `REQUESTED`가 남는다 | 02 그대로 — 나갔는지 모르므로 지우지 않는다 |
 
@@ -542,7 +542,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 | 사용자 행위 서명 | Transfer Asset은 `Wallets:Transfers:Create` 권한과 사용자 행위 서명을 요구한다 | 지갑 생성과 같은 `/auth/action/init`→`/auth/action`→`X-DFNS-USERACTION` 흐름을 쓰고, 서명 경로는 지갑 ID가 들어간 실제 경로다. 응답을 받지 못한 실패 뒤 자동 재호출은 없다 |
 | 응답 상태 | `Pending`(지갑 정책 승인 대기) · `Executing`(승인 후 실행 중, 짧은 구간) · `Broadcasted`(mempool 기록) · `Confirmed`(Dfns 인덱싱 파이프라인이 온체인 확인) · `Failed`(시스템 실패 또는 **온체인 실행 실패**, 문서상 재시도 없음) · `Rejected`(정책 승인에서 거절) | 도메인 `NetworkTransferStatus`로 옮기고 종결 여부(`Confirmed`/`Failed`/`Rejected`)와 체인 제출 여부(`onChainSubmitted: Boolean?`)만 판단한다. **`Failed`는 `null`**이다 — 시스템 실패와 온체인 실행 실패를 함께 뜻해 상태 원어만으로 제출 여부를 확정할 수 없고, 모름을 false로 바꾸지 않는다. **`Confirmed`를 BCM `FINALIZED`로 번역하지 않는다** — DCCP 임계는 별개이며 `TxStatus` 번역은 웹훅 판단 워커와 함께 정한다 |
 | 응답 정규화 | 필수 `id`(`xfr-…`)·`walletId`·`network`·`requester`·`requestBody`·`metadata`·`status`·`dateRequested`. 선택 `txHash`·`externalId`·`fee`·`reason`·`approvalId`·`replacementId` | 필수 필드를 검사한다 — `id`는 명세 형식(`^xfr-…$`), `requester.userId`·`metadata`는 있어야 하고 `requestBody`의 `to`·`amount`도 필수이며 `dateRequested`는 UTC ISO 8601이어야 한다(형식이 다르거나 UTC가 아니면 감사 시각으로 받지 않는다). **제출 응답은 보낸 요청과 결속을 증명해야 한다** — `walletId`·`network`가 요청 scope와, `requestBody`의 `kind`·locator·`to`·`amount`가 보낸 값과, 되돌아온 `externalId`가 우리 제출 키와 같아야 한다(없거나 다르면 실패). 다르면 수신 바이트를 담아 실패한다. 관찰에는 목적지·금액을 함께 담아 호출자도 대조할 수 있다. 조회 `404`는 미관찰(null)이다 |
-| 범위 밖 | — | 제출 원장(`bcm_sbmt_l`) 연결·출금/내부이체 유스케이스, 정책 승인(`Pending`) 운영 흐름, 대체 제출(cancel/speed-up)·boost, fee sponsor·Travel Rule, Sweep 컨트랙트 호출, 전송 응답의 원문 증적 보관(V24는 지갑 생성 의도 FK 전용이라 별도 원장이 필요하다) |
+| 범위 밖 | — | 내부이체 유스케이스, 정책 승인(`Pending`) 운영 흐름, 대체 제출(cancel/speed-up)·boost, fee sponsor·Travel Rule, Sweep 컨트랙트 호출, 전송 응답의 원문 증적 보관(V24는 지갑 생성 의도 FK 전용이라 별도 원장이 필요하다). 제출 원장 연결과 출금 유스케이스는 [출금 제출 유스케이스 — 구현](#출금-제출-유스케이스--구현)으로 구현했다 |
 
 수용 항목: 실제 `409` 본문 형식과 `details.duplicate`·**멱등 외 409 원인의 존재 여부**, 제출 응답이 `externalId`를 항상 되돌려주는지,
 `Failed`에서 온체인 제출 여부를 가릴 관찰 필드(`txHash`·`details`), `Pending` 정책 승인의 운영 흐름·타임아웃, `Broadcasted`→`Confirmed` 지연과 재조회 주기,

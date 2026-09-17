@@ -31,8 +31,9 @@ import java.time.Duration
 import java.util.UUID
 
 /**
- * Dfns 경로의 출금 제출 유스케이스(계약13 "출금 제출 계약"). 02의 선기록·소유권·벤더 호출은 트랜잭션 밖·`FAILED` 판정 기준을 그대로 쓰고
- * **회수 수단만 다르다** — 벤더에 `externalId` 조회가 없으므로 **같은 본문 재제출**이 회수다(공식 Idempotency 계약).
+ * Dfns 경로의 출금 제출 유스케이스(계약13 "출금 제출 계약"). 02의 선기록·소유권·벤더 호출은 트랜잭션 밖을 그대로 쓰고
+ * **회수 수단이 다르다** — 벤더에 `externalId` 조회가 없으므로 **같은 본문 재제출**이 회수다(공식 Idempotency 계약).
+ * `FAILED` 판정 기준도 한 곳 다르다 — 회수 재제출의 표식 있는 `409`는 확정 거절로 읽지 않는다(아래 4·[conflict]).
  *
  * Fireblocks 경로와 다른 네 가지.
  * 1. 제출 키가 50자를 넘으면 **원장에 적기 전에** 거절한다 — 원장 폭(128)이 벤더 한계(50)보다 넓어 제출되지 못할 행을 만들 수 있다.
@@ -89,7 +90,8 @@ class DfnsTransferSubmissionService(
                 if (acquired.status == SubmissionStatus.SUBMITTED) {
                     result(acquired)
                 } else {
-                    // 같은 본문 재제출이 곧 회수다 — 벤더가 처음 만든 엔티티를 200으로 돌려주므로 이중 전송이 아니다.
+                    // 같은 본문 재제출이 곧 회수다. 공식 Idempotency 계약은 종결 뒤 재제출에 기존 엔티티 200을 보장하는데,
+                    // **앞 제출이 진행 중일 때의 응답은 아직 수용 항목**이라 200을 전제하지 않는다 — 그래서 아래 conflict가 회수에서는 종결로 굳히지 않는다.
                     submitToVendor(storedRequest(acquired), command.externalTransactionId, claim.id, firstSubmission = false)
                 }
             }
