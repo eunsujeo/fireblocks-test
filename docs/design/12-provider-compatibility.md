@@ -864,13 +864,18 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
 - **Improvement 1(실제 결합 검증) 일부 반영**: 이번 슬라이스의 핵심인 **직렬화 경계를 실제 PostgreSQL 두 연결로 고정**했다 —
   경계를 쥔 쪽이 커밋하기 전에는 같은 `(network, hash)`의 새 행이 들어오지 못하고, 다른 `(network, hash)`는 서로 막지 않는다.
   입금 판단도 같은 경계를 잡는지는 판단 단위 테스트로 고정했다.
-  **아직 없는 것**: `markSubmitted → bcm_tx_l → outbox → inbox S`의 실제 일괄 커밋·롤백과 중복 알림의 outbox 중복 방지를
-  한 컨텍스트에서 보는 결합 테스트 — Webhook 슬라이스 harness(`@DataJdbcTest` + 명시 `@Import`)를 만드는 후속이다.
+  **Improvement 3(전체 트랜잭션 결합 테스트) 반영**: `DfnsWebhookDecisionSliceIntegrationTest`(`@DataJdbcTest` + 명시 `@Import`,
+  별도 Dfns 데이터셋)로 `markSubmitted → bcm_tx_l → outbox → inbox S`가 **함께 커밋**되고, outbox 적재만 실패해도 넷이 **모두 되돌아오며**
+  실패 기록은 업무 트랜잭션 밖이라 남는 것을 실제 PostgreSQL로 고정했다. 벤더 재전달은 알림 ID가 달라 인박스 dedup이 막지 못하므로
+  **같은 상태의 관찰이 outbox를 다시 쌓지 않는 것**과, 발신 이동 사건이 그 거래에 붙어 확정을 내는 경로까지 한 흐름으로 관통한다.
+  조립은 실행 앱과 같은 `DfnsWebhookDecisionConfig`를 그대로 쓰고 **체인 head만 대역**이다(위탁 RPC는 외부 호출이다).
+  슬라이스는 실행 앱이 훑지 않는 패키지에 둔다 — 안에 두면 시험용 빈이 전체 컨텍스트에 섞여 Fireblocks 조립의 단일 후보 주입이 깨진다
+  (`@TestConfiguration`으로도 걸러지지 않아 실제로 깨졌다). 테스트 전용 Boot 관리 스타터 1건은 별도 커밋이다.
 - **code-reviewer 2차 Critical 1건**: 발신 귀속이 **가정이 깨질 때 fail-closed가 아니었다**. 원장 밖 전송 알림이 처리 완료로 소거되어 배제 증거가 남지 않고,
   벤더가 원장 밖 요청 B를 우리 제출 A와 같은 트랜잭션으로 합치면 B의 이동이 A에 붙는다 — 제출 원장만 보는 배제 조회로는 막지 못한다.
   ① **원장 밖 전송 알림을 격리**해 원문과 사실을 남긴다(소거하면 같은 트랜잭션의 이동을 나중에 판단할 근거도 사라진다).
   ② 이 가정을 운영 수용 항목이 아니라 **`BCM_PROVIDER=dfns` 기동 차단 해제의 선행 검증 조건**으로 올렸다 — 이력 조회로 확인하기 전에는 발신 확정을 운영에 열지 않는다.
 - **Improvement 반영**: 배제 조회의 case-fold를 **EVM 주소 형태일 때만** 적용한다(base58까지 접으면 서로 다른 Solana 주소가 같아져 정상 건이 부당하게 막힌다).
   직렬화 테스트의 실행기 누수와 `sleep` 의존을 없애고 contender-ready latch로 결정적으로 바꿨으며, network가 다른 경우도 함께 고정했다.
-- 검증: 전체 1,363 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+- 검증: 신규 결합 4건 포함 전체 1,367 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)

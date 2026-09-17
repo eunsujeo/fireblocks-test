@@ -24,7 +24,8 @@ PDF의 all sync는 변경 예정 설명이다. 업무 접수·외부 실행·체
 Fireblocks와 Dfns는 공통 제공자 포트에 연결하며 **시작 시 `BCM_PROVIDER=fireblocks|dfns|local`로 실행 구현 하나를 선택**하는 계획이다.
 선택값에 따라 클라이언트·웹훅 검증/parser·대사/수수료까지 함께 조립하고 API/Webhook/BAT 설정을 일치시킨다.
 비선택 벤더 자격은 요구하지 않으며 요청별 다중 벤더 routing은 초기 범위에 넣지 않는다. 내부 제공자·체인 환경은 별도로 검증한다.
-미설정/잘못된 값은 기동 오류로 처리하며 기존 실행 예제에 명시적 값을 추가한다. 현재 코드에는 이 선택 설정이 아직 없다.
+미설정/잘못된 값은 기동 오류로 처리하며 기존 실행 예제에 명시적 값을 추가한다.
+이 선택·검증은 `ProviderConfiguration`으로 구현했고 Fireblocks·로컬은 조건부로 조립된다 — `dfns`는 값으로는 선택되지만 Baseline 수용 전까지 기동 자체를 거절한다([계약13](13-dfns-contracts.md)).
 구체 포트·호출 시간·설정 조립 계약은 [제공자 호환 설계](12-provider-compatibility.md)를 따른다.
 로컬은 현행 `FireblocksClient → 상태형 Stub → Anvil`을 재사용하며 Dfns Stub 경로도 같은 업무 시나리오로 확장하는 계획이다.
 실제 토큰 이동·receipt·로그·잔고·복구를 검증하고, 로컬 정책 모사와 벤더 실제 MPC/정책 수용 증적은 구분한다.

@@ -372,7 +372,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 | 조건부 | 기존 `WebhookDecisionTransaction`은 `fireblocks`·`local`, `DfnsWebhookDecisionTransaction`은 `dfns`에서만 만든다. Fireblocks 판단 경로의 동작은 바뀌지 않았다 |
 | 확정 임계 | `ConfiguredFinalityPolicy`를 제공자 중립 위치로 옮겼다 — `bcm.finality-confirmations.<network>`는 두 제공자가 **같은 설정**을 쓴다(Fireblocks는 벤더 컨펌 수, Dfns는 블록 깊이와 비교) |
 | 조립 위치 | 상태 번역기·체인 head는 **판단 경로에서만** 필요하므로 Webhook 앱에서만 만든다. 사건 해석기(`NetworkChainEventParser`)는 envelope 해석과 같이 모든 앱에서 만들 수 있다 |
-| 인박스 상태 | 입금 판단 완료·미귀속(경보 후)·미확인 전송은 처리 완료, payload 결함은 재시도/격리, **한 제출 키에 두 전송이 붙은 충돌은 상한을 기다리지 않고 즉시 격리**, 확정 임계 설정 오류는 `P`로 남겨 복구 뒤 재처리한다 — Fireblocks 경로와 같은 규율이다. **`vndr_cmpl_yn`은 남기지 않는다**(항상 `N`) — 03이 정의한 이 표식은 Fireblocks `data.status=COMPLETED`이며 원본 보관(`bcm_raw_tx_l`)의 `vndr_tx_id` 부분 index를 위한 값이다. Dfns 온체인 사건은 인박스 `vndr_tx_id`가 null이라 그 index의 대상이 아니고 Dfns 원본 보관 경로도 없다 — 의미 없는 표식을 남기지 않으며 보관 계약은 후속이다 |
+| 인박스 상태 | 입금 판단 완료·미귀속(경보 후)은 처리 완료, payload 결함은 재시도/격리, **제출 원장에 없는 전송과 한 제출 키에 두 전송이 붙은 충돌은 상한을 기다리지 않고 즉시 격리**([전송 알림 판단](#전송-알림-판단--구현)의 미확인·충돌), 확정 임계 설정 오류는 `P`로 남겨 복구 뒤 재처리한다 — Fireblocks 경로와 같은 규율이다. **`vndr_cmpl_yn`은 남기지 않는다**(항상 `N`) — 03이 정의한 이 표식은 Fireblocks `data.status=COMPLETED`이며 원본 보관(`bcm_raw_tx_l`)의 `vndr_tx_id` 부분 index를 위한 값이다. Dfns 온체인 사건은 인박스 `vndr_tx_id`가 null이라 그 index의 대상이 아니고 Dfns 원본 보관 경로도 없다 — 의미 없는 표식을 남기지 않으며 보관 계약은 후속이다 |
 | 판단 범위 | 전송 알림은 [전송 알림 판단](#전송-알림-판단--구현), 발신 이동은 [발신 이동 대조](#발신-이동-대조--구현)가 맡는다. 원장을 쓰지 않는 것은 **미지원/미등록 자산·정밀도 없음·발신 주소 없음**(처리 완료)과 대조에 실패한 발신이다 — 후보 없음은 **재시도**, 대응 없음·관찰 불일치는 **즉시 격리**다 |
 | 범위 밖 | 미등록 자산·미지원 종류·미확인 전송·대조 실패의 경보 포트, `WebhookTransactionParser`의 Dfns 구현, 이력 복구, 기동 차단 해제. 출금 유스케이스·전송 알림 판단·발신 이동 대조는 이후 구현했다 |
 
