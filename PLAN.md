@@ -256,7 +256,7 @@ Ethereum·Base·Solana와 USDC·KRWK는 모델 목표다. 사용자 후속 지�
 - [x] **DF3.24 Dfns 출금 제출 계약 확정(코드 변경 없음)** — 채택 명세의 전송 목록 조회에 `externalId` 필터가 없어(`limit`·`paginationToken`뿐) 02의 "응답 유실 뒤 조회로 회수"를 Dfns에서 쓸 수 없음을 확인하고, 공식 Idempotency 계약(같은 url·본문 재제출 → 기존 엔티티 `200`)에 따라 **같은 본문 재제출**을 회수 수단으로 고정했다. 표식 있는 `409`는 확정 거절, 표식 없는 `409`는 `REQUESTED`다. 실패 재시도는 새 제출 키가 필요하며 발급 규칙은 유스케이스에서 정한다. 제출 키 50자 제한은 공개 `externalTxId`에 영향이 있어 DAW-CORE 확인 항목이다. 02에 제공자별 회수 절차 절을 더했고 계약은 [계약13](docs/design/13-dfns-contracts.md#출금-제출-계약--확정), 기록은 [설계12](docs/design/12-provider-compatibility.md#dfns-출금-제출-계약-확정-2026-09-17).
 - [x] **출금 제출 유스케이스** — 제출 원장 선기록·소유권·멱등 재제출 회수를 `DfnsTransferSubmissionService`로 구현했다. 공개 제출 경계를 `TransactionSubmissionWork`로 나눠 제공자마다 하나만 조립한다. `FAILED` 재시도는 이중 지급 위험 때문에 열지 않았다.
 - [x] **전송 알림 판단** — 발신 거래의 `bcm_tx_l` 행을 만드는 경로를 제출 원장 기준으로 구현했다(`NetworkTransferJudgement`·`DfnsTransferEventDecision`). 확정은 내지 않는다(전송 알림에 `blockNumber`가 없다).
-- [x] **발신 이동 대조** — 발신 온체인 사건을 `(ntwk_cd, tx_hash)` 단일 후보 + 제출 원장 대응으로 기존 거래에 붙여 출금의 확정을 낸다.
+- [x] **발신 이동 대조** — 발신 온체인 사건을 `(ntwk_cd, tx_hash)` 단일 후보 + 제출 원장 대응 + 관찰 일치(지갑·자산 키·금액·목적지)일 때만 기존 거래에 붙여 출금의 확정을 낸다. 붙일 대상이 아직 없으면 재시도(V29 인박스 대기), 대응 없음·불일치·후보 여럿은 즉시 격리.
 - [ ] **다음 구현: `FAILED` 재시도와 새 제출 키** — 발신 대조로 체인 미제출을 확인해 `422`로 막아 둔 재시도를 열고 새 제출 키 발급 규칙을 정한다. 함께 Webhook 판단의 실제 PostgreSQL 결합 테스트(`@DataJdbcTest` + 명시 `@Import`)를 붙인다. 이어서 내부이체·Sweep 유스케이스와 Admin 조회의 Dfns 구현을 계약13·02·06·08에서 확정한 뒤 구현한다. 완료 뒤 `BCM_PROVIDER=dfns` 기동 차단 해제는 Baseline 수용과 함께 사용자 결정이다.
 
 DF8은 DF6 이후 진행하며 DF7 신규 기능 완료를 선행 조건으로 두지 않는다. 초기 세 실행 환경 호환·#51 신규 기능·전체 멀티체인 호환은 구분한다. 완료 기준은 상세 계획 5~7절을 따른다.

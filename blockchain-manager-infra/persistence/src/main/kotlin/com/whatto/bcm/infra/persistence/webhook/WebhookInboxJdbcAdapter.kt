@@ -128,10 +128,12 @@ class WebhookInboxJdbcAdapter(
                                ELSE to_char(
                                    to_timestamp(:now, 'YYYYMMDDHH24MISS')
                                        + make_interval(
+                                           -- numeric으로 계산해 **상한을 적용하기 전에** overflow가 나지 않게 한다.
+                                           -- bigint로 먼저 곱하면 큰 기준 대기·높은 상한에서 LEAST에 닿기 전에 넘친다.
                                            secs => LEAST(
-                                               :maxSeconds::bigint,
-                                               :baseSeconds::bigint * power(2, rtry_cnt)::bigint
-                                           )
+                                               :maxSeconds::numeric,
+                                               :baseSeconds::numeric * power(2::numeric, rtry_cnt)
+                                           )::bigint
                                        ),
                                    'YYYYMMDDHH24MISS'
                                )

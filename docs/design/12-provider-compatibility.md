@@ -845,5 +845,10 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   대기 계산을 **저장소가 `rtry_cnt`로 하도록** 옮겨 모든 실패 경로가 같은 규율을 따른다. SQL과 도메인 식이 어긋나지 않게 영속 테스트로 고정했다.
   ③ 03 정본 `CREATE TABLE bcm_whk_l` 블록과 인덱스 목록에 V29를 반영하고, 트랜잭션 밖 실행이라 `ADD COLUMN IF NOT EXISTS`로 재실행 안전하게 했다.
   ④ 계약13의 파서·head·번역기·귀속·판단 범위 6곳의 "입금 전용/후속" 표기를 고쳤다.
+- **4차 지적 반영**: ① SQL 대기 계산이 `bigint`로 먼저 곱해 **상한을 적용하기 전에 overflow**가 날 수 있었다(큰 기준 대기·높은 상한).
+  `numeric`으로 계산해 `LEAST` 뒤에 변환하도록 고치고 상한·대량 시도 구간을 영속 테스트로 고정했다.
+  ② 정본 여러 곳이 붙임 조건을 "단일 후보 + 제출 원장 대응"으로 **축약**해, 그대로 재구현하면 같은 금액의 다른 자산을 붙일 수 있었다 —
+  03·13·PLAN에 관찰 일치(지갑·자산 키·금액·목적지)를 함께 적었다. ③ 발신을 "미판단·후속"으로 적은 잔여 4곳. ④ 도메인 KDoc의 계산 위치 표기.
 - 검증: 전체 1,352 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+  (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)

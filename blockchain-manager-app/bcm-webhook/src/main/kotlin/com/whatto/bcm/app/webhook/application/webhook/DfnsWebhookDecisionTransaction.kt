@@ -128,8 +128,8 @@ class DfnsWebhookDecisionTransaction(
                 )
             }
 
-            // 아직 판단하지 않는 계열 — 입금이 아니거나(발신·미지원·미등록) 이벤트를 만들 수 없는 관찰이다.
-            // 원장·이벤트를 만들지 않고 처리 완료로 남긴다. 무엇을 경보로 올릴지는 계약 확정 뒤 붙인다(계약13).
+            // 아직 판단하지 않는 계열 — 미지원·미등록 자산이거나 이벤트를 만들 수 없는 관찰(정밀도 없음·발신 주소 없음)이다.
+            // 발신은 위 분기에서 이미 갈렸다. 원장·이벤트를 만들지 않고 처리 완료로 남기며 경보 포트 연결은 후속이다(계약13).
             else -> {
                 markProcessed(inboxItem)
                 WebhookDecisionOutcome.Ignored(inboxItem.notificationId)
