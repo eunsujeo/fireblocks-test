@@ -872,5 +872,5 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   ② 이 가정을 운영 수용 항목이 아니라 **`BCM_PROVIDER=dfns` 기동 차단 해제의 선행 검증 조건**으로 올렸다 — 이력 조회로 확인하기 전에는 발신 확정을 운영에 열지 않는다.
 - **Improvement 반영**: 배제 조회의 case-fold를 **EVM 주소 형태일 때만** 적용한다(base58까지 접으면 서로 다른 Solana 주소가 같아져 정상 건이 부당하게 막힌다).
   직렬화 테스트의 실행기 누수와 `sleep` 의존을 없애고 contender-ready latch로 결정적으로 바꿨으며, network가 다른 경우도 함께 고정했다.
-- 검증: 전체 1,364 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+- 검증: 전체 1,363 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)
