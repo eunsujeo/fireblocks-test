@@ -229,8 +229,9 @@ class DfnsTransferEventDecisionTest {
                     network = "EthereumSepolia",
                     vendorWalletId = "wa-1",
                     vendorAssetId = "EthereumSepolia:Native",
-                    destinationAddress = ADDRESS,
-                    amountBaseUnits = "1000000",
+                    // 원장 목적지와 **다른** 값이다 — 구현이 알림 목적지를 쓰도록 회귀하면 테스트가 깨져야 한다.
+                    destinationAddress = NOTIFIED_ADDRESS,
+                    amountBaseUnits = "9000000",
                     status = NetworkTransferStatus.BROADCASTED,
                     externalId = EXTERNAL_ID,
                     transactionHash = "0x" + "a".repeat(64),
@@ -281,7 +282,12 @@ class DfnsTransferEventDecisionTest {
         const val NOTIFICATION_ID = "wh-1"
         const val TRANSFER_ID = "xfr-1"
         const val EXTERNAL_ID = "ext-1"
+
+        /** 제출 원장에 적힌 우리 요청의 목적지 — 이벤트는 이 값이어야 한다. */
         const val ADDRESS = "0x1111111111111111111111111111111111111111"
+
+        /** 알림이 알려준 목적지 — 업무 귀속의 근거가 아니다. */
+        const val NOTIFIED_ADDRESS = "0x2222222222222222222222222222222222222222"
         val PAYLOAD = "{}".toByteArray()
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-09-17T09:00:00Z"), ZoneOffset.UTC)
     }

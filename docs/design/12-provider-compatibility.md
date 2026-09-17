@@ -804,8 +804,13 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   정본(`docs/standards/architecture.md`)은 피처 간 접근을 Service로 제한하고 기존 Fireblocks 판단 경로도 `SubmissionObservationService`를 쓴다.
   Service로 바꾸고, **`ArchitectureTest`의 검사 대상에 새 판단 클래스 둘을 넣어** 같은 위반이 다시 나면 잡히게 했다(그 목록에 없어서 이번에 못 잡았다).
   ② outbox 재시도 상한 설정 키가 기존 판단 경로(`bcm.webhook-worker.outbox-max-attempts`)와 달라 override 시 전송 알림만 운영 설정을 무시했다 — 같은 키로 통일했다.
-  ③ 이벤트의 심볼·금액·목적지가 제출 원장 값인지와 격리 사유가 고정 안전 문자열인지를 테스트로 고정했다. ④ 파서 빈 KDoc 정정.
+  ③ 이벤트의 심볼·금액·목적지가 제출 원장 값인지와 격리 사유가 고정 안전 문자열인지를 테스트로 고정했다 — 알림 fixture의 목적지·금액을 원장 값과 **다르게** 두어 구현이 알림값을 쓰도록 회귀하면 깨지게 했다(처음에는 같은 값이라 회귀를 못 잡았다). ④ 파서 빈 KDoc 정정.
 - **남은 개선(후속)**: 실제 PostgreSQL 결합 테스트 — `markSubmitted → bcm_tx_l → outbox → inbox S`의 일괄 커밋·롤백,
-  같은 제출 키의 전송 ID 경합, 중복 알림의 outbox 중복 방지. Dfns 전체 컨텍스트 테스트는 `BCM_PROVIDER=dfns` 기동 차단에 막혀 있어
-  **차단 해제와 함께 붙이는 standing follow-up**으로 남긴다(입금 판단의 전체 조립 테스트와 같은 조건이다).
-- 검증: 전체 1,331 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+  마지막 `markProcessed` 실패 시 전체 롤백, 같은 제출 키의 전송 ID 경합, 서로 다른 알림 ID로 온 같은 상태 알림의 outbox 중복 방지.
+  **"기동 차단 때문에 불가능"이라고 적었던 것은 틀렸다**(리뷰어 지적) — 전체 `BcmWebhookApplication` 컨텍스트는 막혀 있지만,
+  `DfnsAccountAssemblyIntegrationTest`처럼 `@DataJdbcTest` + 명시적 `@Import`로 `ProviderConfiguration`을 제외하고
+  Dfns 조립 + 실제 PostgreSQL을 붙이는 선례가 이미 있다. Webhook 쪽에 같은 방식의 슬라이스 harness를 만들면 **지금 검증할 수 있다** —
+  다음 슬라이스에서 붙인다. 현재 코드에서 구체적 원자성 결함은 발견되지 않았다.
+- **독립 converge 최종**: design-sync **통과**(Critical·Major·Minor 0), code-reviewer **커밋 가능**(Critical 0).
+  라운드는 design-sync 3회(Critical 1·Major 2 → Major 1 → 통과) 뒤 code-reviewer 2회(Critical 1 → 커밋 가능)였다.
+- 검증: 전체 1,332 테스트 0 실패, 전체 ktlintCheck·`git diff --check`·생성물 2종 통과. 벤더 실호출 없음.
