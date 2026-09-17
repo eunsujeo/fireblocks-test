@@ -50,18 +50,4 @@ interface SubmissionRecordRepository {
     fun findByExternalTransactionId(externalTransactionId: String): SubmissionRecord?
 
     fun findByVendorTransactionId(vendorTransactionId: String): SubmissionRecord?
-
-    /**
-     * **같은 canonical(지갑·자산 키·목적지·최소 단위 금액)이면서 온체인 hash가 아직 기록되지 않은** 미결 제출이
-     * [excludingExternalTransactionId] 말고 또 있는가.
-     *
-     * 발신 이동을 기존 거래에 붙일 때 쓴다(계약13 "발신 이동 대조"). 벤더는 이동과 제출을 잇는 키를 주지 않으므로,
-     * 같은 값의 제출이 아직 hash를 받지 못한 채 남아 있으면 **이 이동이 그 제출의 것일 가능성을 배제할 수 없다** —
-     * 배제하지 못한 채 붙이면 다른 논리 출금에 남의 확정이 붙는다.
-     */
-    fun existsUnresolvedWithSameCanonical(
-        excludingExternalTransactionId: String,
-        canonical: SubmissionVendorCanonical,
-        recipientValue: String,
-    ): Boolean
 }

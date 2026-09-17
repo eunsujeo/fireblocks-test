@@ -284,46 +284,6 @@ class SubmissionJdbcAdapter(
         return current
     }
 
-    override fun existsUnresolvedWithSameCanonical(
-        excludingExternalTransactionId: String,
-        canonical: SubmissionVendorCanonical,
-        recipientValue: String,
-    ): Boolean =
-        jdbc
-            .query(
-                """
-                SELECT 1
-                  FROM bcm_sbmt_l s
-                  LEFT JOIN bcm_tx_l t ON t.vndr_tx_id = s.vndr_tx_id
-                 WHERE s.ext_tx_id <> :excluded
-                   AND s.sbmt_stcd IN ('REQUESTED', 'SUBMITTED')
-                   AND s.vndr_wlt_id = :vendorWalletId
-                   AND s.vndr_ast_id = :vendorAssetId
-                   AND s.base_amt = :amountBaseUnits
-                   -- 이 조회는 '배제하지 못하면 붙이지 않는다'의 입력이라 놓치면 안전조건이 다시 열린다.
-                   -- 그래서 EVM checksum 표기 차이는 같은 주소로 본다. 다만 **EVM 형태일 때만** 그렇게 한다 —
-                   -- base58(Solana)은 대소문자가 값의 일부라 case-fold하면 서로 다른 주소가 같아져 정상 건이 부당하게 막힌다.
-                   AND (
-                       s.rcv_vl = :recipientValue
-                       OR (
-                           :recipientValue ~ '^0x[0-9a-fA-F]{40}$'
-                           AND lower(s.rcv_vl) = lower(:recipientValue)
-                       )
-                   )
-                   -- hash를 아직 모르는 제출만 본다 — 아는 제출은 (ntwk_cd, tx_hash) 후보 조회가 이미 가른다.
-                   AND (s.vndr_tx_id IS NULL OR t.tx_hash IS NULL)
-                 LIMIT 1
-                """.trimIndent(),
-                mapOf(
-                    "excluded" to excludingExternalTransactionId,
-                    "vendorWalletId" to canonical.vendorWalletId,
-                    "vendorAssetId" to canonical.vendorAssetId,
-                    "amountBaseUnits" to canonical.amountBaseUnits,
-                    "recipientValue" to recipientValue,
-                ),
-            ) { _, _ -> true }
-            .isNotEmpty()
-
     override fun findByVendorTransactionId(vendorTransactionId: String): SubmissionRecord? =
         jdbc
             .query(

@@ -20,8 +20,8 @@ import java.time.Clock
  * **전송 알림([DfnsTransferEventDecision])을 먼저 부르고, 전송 사건이 아니면 온체인 이동([DfnsChainEventDecision])으로 넘긴다** —
  * 두 파서는 서로 다른 `kind` 집합만 읽으므로 한쪽이 null이면 다른 쪽 차례다.
  *
- * 발신 이동은 기존 거래에 붙여 확정까지 낸다. 붙이지 못한 발신은 갈라서 다룬다 —
- * **후보 없음·미결 제출 배제는 재시도**(전송 알림이 늦을 수 있다), **후보 여럿·대응 없음·관찰 불일치는 즉시 격리**(시간이 지나도 해소되지 않는다).
+ * 발신 이동 사건은 그 `txHash`의 **우리 발신 거래에 블록 좌표를 적용**해 확정까지 낸다. 그 거래가 아직 없으면
+ * **재시도로 남긴다** — 전송 알림이 늦을 수 있고, 처리 완료로 닫으면 그 출금은 영영 확정되지 않는다.
  * 미지원/미등록 자산·정밀도 없음·발신 주소 없음만 원장을 쓰지 않고 처리 완료로 남긴다(계약13).
  *
  * 실패 처리는 Fireblocks 경로와 같다 — payload 결함은 재시도/격리, 설정 오류는 P로 남겨 복구 뒤 다시 처리, 그 밖의 오류는 워커가 기록한다.
@@ -94,24 +94,16 @@ class DfnsWebhookDecisionTransaction(
                 WebhookDecisionOutcome.Processed(inboxItem.notificationId, outcome.events.size)
             }
 
-            // 발신 이동을 기존 거래에 붙였다 — 출금의 확정이 여기서 난다.
-            is DfnsChainDecisionOutcome.OutgoingAttached -> {
+            // 이 hash의 우리 발신 거래에 블록 좌표를 적용했다 — 출금의 확정이 여기서 난다.
+            is DfnsChainDecisionOutcome.OutgoingAdvanced -> {
                 markProcessed(inboxItem)
                 WebhookDecisionOutcome.Processed(inboxItem.notificationId, outcome.events.size)
             }
 
-            // 같은 (ntwk_cd, tx_hash)에 거래가 여럿이다 — 하나를 고르는 규칙을 지어내면 다른 거래에 남의 확정이 붙는다.
-            // 재시도가 결과를 바꾸지 못하므로 **즉시 격리**한다.
-            is DfnsChainDecisionOutcome.OutgoingAmbiguous -> quarantineNow(inboxItem, AMBIGUOUS_OUTGOING_REASON)
-
-            // 붙일 거래가 아직 없다 — 전송 알림이 늦게 올 수 있다. **처리 완료로 닫지 않는다**:
+            // 그 hash의 발신 거래가 아직 없다 — 전송 알림이 늦게 올 수 있다. **처리 완료로 닫지 않는다**:
             // 닫으면 뒤늦은 알림이 거래를 만들어도 이 사건을 다시 실행할 트리거가 없어 그 출금은 영영 확정되지 않는다.
-            // 재시도로 남겨 알림이 오면 붙고, 상한까지 안 오면 격리돼 운영이 본다.
+            // 재시도로 남겨 알림이 오면 적용되고, 상한까지 안 오면 격리돼 운영이 본다.
             is DfnsChainDecisionOutcome.OutgoingPending -> failed(inboxItem, PENDING_OUTGOING_REASON)
-
-            // 시간이 지나도 해소되지 않는 이상 신호다 — 재시도 예산을 태우지 않고 즉시 격리한다.
-            is DfnsChainDecisionOutcome.OutgoingUnattachable ->
-                quarantineNow(inboxItem, "outgoing transfer cannot be attached: ${outcome.miss}")
 
             is DfnsChainDecisionOutcome.Unattributed -> {
                 markProcessed(inboxItem)
@@ -179,11 +171,9 @@ class DfnsWebhookDecisionTransaction(
         /** 격리 사유는 원문·주소·금액을 담지 않는다 — 인박스에 남는 값이다. */
         const val CONFLICTING_TRANSFER_REASON = "submission key linked to another transfer"
 
-        const val AMBIGUOUS_OUTGOING_REASON = "outgoing transfer matches multiple transactions"
-
         const val UNKNOWN_TRANSFER_REASON = "transfer notification has no submission ledger entry"
 
-        const val PENDING_OUTGOING_REASON = "outgoing transfer has no matching transaction yet"
+        const val PENDING_OUTGOING_REASON = "outgoing transaction is not recorded yet"
 
         const val UNEXPECTED_FAILURE_REASON = "decision processing failed"
     }
