@@ -39,14 +39,14 @@ class DfnsWebhookDecisionTransactionTest {
     fun `붙일 수 없는 발신은 즉시 격리하고 아직 못 붙이는 발신은 재시도로 남긴다`() {
         // 대응 없음·불일치는 시간이 지나도 해소되지 않는다. 반대로 후보 없음은 전송 알림이 늦은 것일 수 있어
         // 처리 완료로 닫으면 그 출금이 영영 확정되지 않는다 — 재시도로 남겨 알림이 오면 붙는다.
-        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
         every { decision.decide(any(), any()) } returns
             DfnsChainDecisionOutcome.OutgoingUnattachable(
                 transfer(direction = NetworkChainDirection.OUT),
                 OutgoingAttachMiss.MISMATCH,
             )
         every {
-            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer cannot be attached: MISMATCH", 1)
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer cannot be attached: MISMATCH", 1, null)
         } returns WebhookFailureResult(quarantined = true, retryCount = 1)
 
         assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Quarantined::class.java)
@@ -54,7 +54,7 @@ class DfnsWebhookDecisionTransactionTest {
         every { decision.decide(any(), any()) } returns
             DfnsChainDecisionOutcome.OutgoingPending(transfer(direction = NetworkChainDirection.OUT))
         every {
-            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer has no matching transaction yet", 3)
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer has no matching transaction yet", 3, any())
         } returns WebhookFailureResult(quarantined = false, retryCount = 1)
 
         assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
@@ -64,11 +64,11 @@ class DfnsWebhookDecisionTransactionTest {
     @Test
     fun `같은 hash에 거래가 여럿인 발신은 상한을 기다리지 않고 즉시 격리한다`() {
         // 하나를 고르는 규칙을 지어내면 다른 거래에 남의 확정이 붙는다 — 처리 완료로 소거하지 않는다(계약13).
-        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
         every { decision.decide(any(), any()) } returns
             DfnsChainDecisionOutcome.OutgoingAmbiguous(transfer(direction = NetworkChainDirection.OUT), 2)
         every {
-            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer matches multiple transactions", 1)
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer matches multiple transactions", 1, null)
         } returns WebhookFailureResult(quarantined = true, retryCount = 1)
 
         val outcome = transaction().processNext()
@@ -80,12 +80,12 @@ class DfnsWebhookDecisionTransactionTest {
     @Test
     fun `한 제출 키에 두 전송이 붙은 충돌은 상한을 기다리지 않고 즉시 격리한다`() {
         // 이중 제출 신호다 — 재시도가 결과를 바꾸지 못하므로 처리 완료로 소거하면 신호가 사라진다(03 전이 표).
-        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
         every { transferDecision.decide(any(), any()) } returns
             DfnsTransferDecisionOutcome.Conflicting(mockk(relaxed = true), "ext-1")
         // 격리 사유는 인박스에 남는 값이라 원문·전송 ID·제출 키·주소·금액을 담지 않는다.
         every {
-            inbox.recordFailure(NOTIFICATION_ID, "submission key linked to another transfer", 1)
+            inbox.recordFailure(NOTIFICATION_ID, "submission key linked to another transfer", 1, null)
         } returns WebhookFailureResult(quarantined = true, retryCount = 1)
 
         val outcome = transaction().processNext()
@@ -96,7 +96,7 @@ class DfnsWebhookDecisionTransactionTest {
 
     @Test
     fun `대기 건이 없으면 아무것도 하지 않는다`() {
-        every { inbox.findNextPendingForUpdate() } returns null
+        every { inbox.findNextPendingForUpdate(any()) } returns null
 
         assertThat(transaction().processNext()).isEqualTo(WebhookDecisionOutcome.NoWork)
         verify(exactly = 0) { decision.decide(any(), any()) }
@@ -104,7 +104,7 @@ class DfnsWebhookDecisionTransactionTest {
 
     @Test
     fun `입금 판단이 끝나면 발행한 이벤트 수와 함께 처리 완료로 표시한다`() {
-        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
         every { decision.decide(NOTIFICATION_ID, PAYLOAD.toByteArray()) } returns
             DfnsChainDecisionOutcome.Processed(transfer(), com.whatto.bcm.domain.tx.TxStatus.FINALIZED, emptyList())
         val completed = slot<Boolean>()
@@ -120,7 +120,7 @@ class DfnsWebhookDecisionTransactionTest {
     @Test
     fun `벤더 확인 여부와 무관하게 Fireblocks 보관 표식은 남기지 않는다`() {
         listOf(NetworkChainTransferStatus.CONFIRMED, NetworkChainTransferStatus.INCLUDED).forEach { status ->
-            every { inbox.findNextPendingForUpdate() } returns inboxItem()
+            every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
             every { decision.decide(any(), any()) } returns
                 DfnsChainDecisionOutcome.Processed(
                     transfer(status = status),
@@ -138,7 +138,7 @@ class DfnsWebhookDecisionTransactionTest {
 
     @Test
     fun `미귀속 입금은 우리 어휘로 경보를 올리고 처리 완료로 남긴다`() {
-        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
         every { decision.decide(any(), any()) } returns
             DfnsChainDecisionOutcome.Unattributed(
                 transfer(),
@@ -167,7 +167,7 @@ class DfnsWebhookDecisionTransactionTest {
             DfnsChainDecisionOutcome.MissingDecimals(transfer()),
             DfnsChainDecisionOutcome.MissingSender(transfer()),
         ).forEach { decided ->
-            every { inbox.findNextPendingForUpdate() } returns inboxItem()
+            every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
             every { decision.decide(any(), any()) } returns decided
 
             assertThat(transaction().processNext())
@@ -178,20 +178,20 @@ class DfnsWebhookDecisionTransactionTest {
 
     @Test
     fun `payload 결함은 재시도로, 상한에 닿으면 격리로 남긴다`() {
-        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
         every { decision.decide(any(), any()) } throws WebhookPayloadException("Dfns 웹훅 결손: id")
-        every { inbox.recordFailure(NOTIFICATION_ID, "Dfns 웹훅 결손: id", 3) } returns WebhookFailureResult(1, false)
+        every { inbox.recordFailure(NOTIFICATION_ID, "Dfns 웹훅 결손: id", 3, any()) } returns WebhookFailureResult(1, false)
 
         assertThat(transaction().processNext()).isEqualTo(WebhookDecisionOutcome.Retrying(NOTIFICATION_ID, 1))
 
-        every { inbox.recordFailure(NOTIFICATION_ID, "Dfns 웹훅 결손: id", 3) } returns WebhookFailureResult(3, true)
+        every { inbox.recordFailure(NOTIFICATION_ID, "Dfns 웹훅 결손: id", 3, any()) } returns WebhookFailureResult(3, true)
         assertThat(transaction().processNext()).isEqualTo(WebhookDecisionOutcome.Quarantined(NOTIFICATION_ID, 3))
         verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
     }
 
     @Test
     fun `설정 오류는 인박스를 P로 남기고 충돌·그 밖의 오류는 워커가 처리하도록 감싼다`() {
-        every { inbox.findNextPendingForUpdate() } returns inboxItem()
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
 
         // 운영 설정 오류는 payload poison이 아니다 — 실패 기록 없이 그대로 올려 복구 뒤 다시 처리한다.
         every { decision.decide(any(), any()) } throws FinalityPolicyConfigurationException(NETWORK)
@@ -203,13 +203,13 @@ class DfnsWebhookDecisionTransactionTest {
         every { decision.decide(any(), any()) } throws IllegalStateException("boom")
         assertThatThrownBy { transaction().processNext() }.isInstanceOf(WebhookDecisionProcessingException::class.java)
 
-        verify(exactly = 0) { inbox.recordFailure(any(), any(), any()) }
+        verify(exactly = 0) { inbox.recordFailure(any(), any(), any(), any()) }
         verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
     }
 
     @Test
     fun `예기치 못한 실패 기록은 워커가 따로 요청한다`() {
-        every { inbox.recordFailure(NOTIFICATION_ID, "decision processing failed", 3) } returns WebhookFailureResult(2, false)
+        every { inbox.recordFailure(NOTIFICATION_ID, "decision processing failed", 3, any()) } returns WebhookFailureResult(2, false)
 
         assertThat(transaction().recordUnexpectedFailure(NOTIFICATION_ID))
             .isEqualTo(WebhookDecisionOutcome.Retrying(NOTIFICATION_ID, 2))
@@ -226,6 +226,7 @@ class DfnsWebhookDecisionTransactionTest {
             transferDecision = transferDecision,
             clock = Clock.fixed(Instant.parse("2026-09-16T01:02:03Z"), ZoneOffset.UTC),
             maxAttempts = 3,
+            retryBaseSeconds = 30,
         )
 
     private fun inboxItem() =

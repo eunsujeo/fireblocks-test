@@ -29,6 +29,8 @@ import java.util.Properties
     properties = [
         "bcm.webhook-worker.enabled=false",
         "bcm.outbox-relay.enabled=false",
+        // 판단 재시도가 즉시 일어나야 하는 테스트다 — 재시도 대기(03 V29)는 별도 테스트가 고정한다.
+        "bcm.webhook-worker.retry-base-seconds=0",
     ],
 )
 class DepositEventKafkaIntegrationTest : IntegrationTestSupport() {

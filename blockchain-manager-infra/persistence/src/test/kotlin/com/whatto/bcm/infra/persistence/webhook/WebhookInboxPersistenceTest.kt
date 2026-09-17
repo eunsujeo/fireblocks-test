@@ -21,6 +21,9 @@ import java.util.concurrent.TimeUnit
 @DataJdbcTest
 @Import(WebhookInboxJdbcAdapter::class)
 class WebhookInboxPersistenceTest : PersistenceTestSupport() {
+    /** 대기 시각이 지난 행만 집으므로, 조회 기준 시각은 항상 지난 값을 쓴다(03 V29). */
+    private val pickAt = "29991231235959"
+
     @Autowired
     lateinit var inbox: WebhookInboxJdbcAdapter
 
@@ -29,6 +32,16 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
 
     @Autowired
     lateinit var transactionManager: PlatformTransactionManager
+
+    @Test
+    fun `대기 시각이 지나지 않은 행은 집지 않는다`() {
+        // backoff가 있어도 워커가 그 시각을 무시하면 무의미하다 — 조회 조건이 그 값을 봐야 한다(03 V29).
+        inbox.insertIfAbsent(notification("noti-backoff", "20260917085900"))
+        inbox.recordFailure("noti-backoff", "transient", 5, "20301231235959")
+
+        assertThat(inbox.findNextPendingForUpdate("20260917090000")).isNull()
+        assertThat(inbox.findNextPendingForUpdate("20310101000000")?.notificationId).isEqualTo("noti-backoff")
+    }
 
     @Test
     fun `성공 처리는 S와 처리시각 및 vendor COMPLETED 표식을 함께 기록한다`() {
@@ -71,8 +84,8 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
     fun `실패는 횟수와 안전한 사유를 남기고 상한에 닿으면 F로 격리한다`() {
         inbox.insertIfAbsent(notification("noti-poison", "20260807120000"))
 
-        val first = inbox.recordFailure("noti-poison", "missing data.assetId", 2)
-        val second = inbox.recordFailure("noti-poison", "missing data.assetId", 2)
+        val first = inbox.recordFailure("noti-poison", "missing data.assetId", 2, null)
+        val second = inbox.recordFailure("noti-poison", "missing data.assetId", 2, null)
 
         assertThat(first.retryCount).isEqualTo(1)
         assertThat(first.quarantined).isFalse()
@@ -99,7 +112,7 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
             val first =
                 executor.submit<WebhookInboxItem?> {
                     transaction.execute<WebhookInboxItem?> {
-                        inbox.findNextPendingForUpdate().also {
+                        inbox.findNextPendingForUpdate(pickAt).also {
                             firstLocked.countDown()
                             check(releaseFirst.await(5, TimeUnit.SECONDS))
                         }
@@ -107,7 +120,7 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
                 }
             assertThat(firstLocked.await(5, TimeUnit.SECONDS)).isTrue()
 
-            val second = transaction.execute { inbox.findNextPendingForUpdate() }
+            val second = transaction.execute { inbox.findNextPendingForUpdate(pickAt) }
 
             assertThat(second?.notificationId).isEqualTo("noti-new")
             releaseFirst.countDown()

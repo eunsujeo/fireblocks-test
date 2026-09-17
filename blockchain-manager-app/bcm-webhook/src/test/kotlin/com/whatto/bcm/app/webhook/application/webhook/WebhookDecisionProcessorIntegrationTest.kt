@@ -35,6 +35,8 @@ import java.util.concurrent.atomic.AtomicInteger
         "bcm.webhook-worker.enabled=false",
         "bcm.webhook-worker.max-attempts=2",
         "bcm.webhook-worker.outbox-max-attempts=5",
+        // 이 테스트는 즉시 재시도를 전제한다 — 재시도 대기(03 V29)는 별도 테스트가 고정한다.
+        "bcm.webhook-worker.retry-base-seconds=0",
     ],
 )
 class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
