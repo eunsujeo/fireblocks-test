@@ -9,10 +9,21 @@ Phase converge는 특정 AI 제품이 아니라 **독립 검토 역할과 동일
 2. 구현 세션과 분리된 읽기 전용 세션이 `.claude/agents/design-sync.md`를 전부 읽고 design-sync를 수행한다.
 3. 구현 세션이 지적을 반영하고 검증을 다시 수행한다.
 4. 또 다른 읽기 전용 리뷰 turn 또는 독립 세션이 `.claude/agents/code-reviewer.md`를 전부 읽고 코드 리뷰를 수행한다.
-5. Critical이 없을 때 도구·모델, 실제 diff 범위, 결과, 검토 commit을 `PROGRESS.md`에 기록한다.
+5. Critical이 없을 때 도구·모델, 실제 diff 범위, 결과, 검토 commit을 기록한다. **슬라이스별 정본 기록은**
+   `docs/design/12-provider-compatibility.md`의 해당 검증 절이며, `PROGRESS.md`에는 요약만 남긴다(50줄 상한).
 
-design-sync와 code-reviewer는 병렬 실행하지 않는다. 리뷰 세션은 파일을 수정하지 않고 발견만 보고하며, 구현 세션이 스스로
-최종 `code-reviewer` 판정을 내릴 수 없다.
+design-sync와 code-reviewer는 병렬 실행하지 않는다. design-sync가 미통과면 그 자리에서 멈추고 code-reviewer로 넘어가지
+않는다. 리뷰 세션은 파일을 수정하지 않고 발견만 보고하며, 구현 세션이 스스로 최종 `code-reviewer` 판정을 내릴 수 없다.
+
+읽기 전용은 **도구 권한이 아니라 지시로 보장한다** — 리뷰어는 `git diff` 실행을 위해 셸이 필요하므로 도구 수준에서는
+쓰기가 막혀 있지 않다. 리뷰 요청 프롬프트에 매번 "코드를 수정하지 마세요"를 포함하고, 리뷰 후 구현 세션이
+`git status`로 작업 트리가 그대로인지 확인한다.
+
+## 심각도와 완료 기준
+
+두 검사 모두 **Critical / Major / Minor**로 분류하고 끝에 판정을 적는다. design-sync는 `통과`(Critical·Major 0) /
+`미통과 — 반영 필요`, code-reviewer는 `커밋 가능` / `Critical 수정 후 커밋` / `재작업 필요`다.
+converge 완료 기준은 **두 검사 모두 Critical 0이고 design-sync가 통과**일 때다. 심각도 정의는 각 `.claude/agents/*.md`에 있다.
 
 ## 실행기
 
