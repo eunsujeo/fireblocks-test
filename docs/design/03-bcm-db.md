@@ -437,9 +437,10 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
 
 - `findNextPendingForUpdate`는 `next_attmpt_dttm IS NULL OR next_attmpt_dttm <= :now`인 행만 집는다 —
   대기 중인 행을 집으면 backoff가 무의미해지고, 그 행이 head를 막아 뒤의 건도 밀린다.
-- `recordFailure`가 이 값을 채운다. 대기는 시도마다 2배로 늘리되 상한을 둔다(`WebhookRetryBackoff`: 기본 30초 → 최대 10분).
+- `recordFailure`가 이 값을 **이번 시도 횟수로 계산해** 채운다(`base * 2^(n-1)`, 상한 `WebhookRetryBackoff.MAX_SECONDS`). 호출자가 미리 계산하면 시도 횟수를 모르는 경로(롤백 뒤 별도 기록)가 매번 첫 대기를 쓰게 된다.
   **즉시 격리**(재시도가 결과를 바꾸지 못하는 영구 충돌)에는 대기 시각을 두지 않는다 — 의미가 없다.
 - 기준 대기는 `bcm.webhook-worker.retry-base-seconds`(기본 30)로 바꿀 수 있고 `0`이면 즉시 재시도다.
+- **실제 대기 창은 `max-attempts`가 정한다.** 상한에 닿는 시도는 그 자리에서 격리되므로 마지막 대기는 쓰이지 않는다 — 기본값(상한 3·기준 30초)에서 창은 `30 + 60 = 약 90초`다. 창을 늘리려면 상한이나 기준 대기를 올린다.
 - `markProcessed`는 대기 시각을 지운다. 집기 인덱스(`idx_bcm_whk_pick_next`)도 대기 시각을 포함하며 온라인으로 만든다.
 - **제공자 중립이다** — Fireblocks 경로의 일시 실패 재시도도 같은 규율을 따른다.
 
@@ -792,6 +793,7 @@ CREATE TABLE bcm_whk_l (
   err_msg       VARCHAR(1000) NULL,          -- 마지막 실패 요약 (격리 사유)
   prcs_dttm     VARCHAR(16)   NULL,          -- 처리 일시
   vndr_cmpl_yn  VARCHAR(1)    NOT NULL DEFAULT 'N', -- 성공 처리한 원문의 data.status=COMPLETED 여부
+  next_attmpt_dttm VARCHAR(16) NULL,          -- V29 다음 시도 가능 시각. NULL = 지금 바로
   -- 감사 4컬럼
   frst_reg_empno  VARCHAR(6)  NOT NULL,
   frst_reg_brcd   VARCHAR(4)  NOT NULL,
@@ -800,7 +802,9 @@ CREATE TABLE bcm_whk_l (
   CHECK (vndr_cmpl_yn IN ('Y', 'N')),
   CHECK (vndr_cmpl_yn IS NOT NULL)       -- 온라인 NOT NULL 검증 증명 — V18 재실행 안전을 위해 유지
 );
-CREATE INDEX idx_bcm_whk_pick ON bcm_whk_l (prcs_stcd, rcv_dttm);  -- 판단 워커의 집기 — 미처리(P) 오래된 순
+CREATE INDEX idx_bcm_whk_pick ON bcm_whk_l (prcs_stcd, rcv_dttm);  -- V1. V29 이후 집기는 아래를 쓴다(둘 다 남는다)
+CREATE INDEX idx_bcm_whk_pick_next
+  ON bcm_whk_l (prcs_stcd, next_attmpt_dttm, rcv_dttm);  -- V29 판단 워커의 집기 — 대기 시각이 지난 미처리(P) 오래된 순
 CREATE INDEX idx_bcm_whk_completed_archive
   ON bcm_whk_l (vndr_tx_id, rcv_dttm DESC, noti_id DESC)
   WHERE prcs_stcd = 'S' AND vndr_cmpl_yn = 'Y' AND vndr_tx_id IS NOT NULL; -- 미보관 COMPLETED 선별

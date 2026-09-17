@@ -218,7 +218,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 `wallet.blockchain_event.transfer.included`("included in a block but is not yet confirmed on chain", 일부 네트워크만)와 두 사건의
 `data.blockchainEvent`(`WalletHistoryEvent`)·`data.wallet`(`Wallet`), 그리고 위 [알림 메타](#웹훅-전송-사건-관찰--구현)와 같은 `WebhookEnvelopeBase`다.
 구현은 도메인 출력 포트 `NetworkChainEventParser`(+`NetworkChainEvent`·`NetworkChainEventKind`·`NetworkChainTransfer`·`NetworkChainDirection`·`NetworkChainTransferStatus`)와
-`DfnsNetworkChainEventParser`(infra/client)다. **`dfns`에서 조립되어 입금 판단 경로가 소비한다**([판단 워커 조립](#판단-워커-조립--구현)).
+`DfnsNetworkChainEventParser`(infra/client)다. **`dfns`에서 조립되어 입금 판단과 [발신 이동 대조](#발신-이동-대조--구현)가 함께 소비한다**([판단 워커 조립](#판단-워커-조립--구현)).
 
 | 항목 | 명세로 확인한 사실 | BCM 규칙 |
 |---|---|---|
@@ -252,7 +252,7 @@ Dfns 원천은 카탈로그가 없어 운영자가 발행사 자료와 대조해
 명세 쪽 사실은 위 [온체인 이동 사건](#웹훅-온체인-이동-사건-관찰--구현)과 [전송 상태](#전송-제출조회-계약--구현) 표에 있다 —
 Dfns는 **컨펌 수를 주지 않고** `Included`/`Confirmed`와 `blockNumber`만 준다. `Confirmed`의 설명은 "confirmed on chain by our indexing pipeline"이며
 네트워크별 확인 지연은 벤더 문서의 별도 표에 있다.
-구현은 도메인 `ChainHeadPort`·`BlockDepthFinality`와 `EvmChainHeadClient`(infra/client)다. **Webhook 앱의 `dfns` 조립에서만 만들어 입금 판단이 쓴다**([판단 워커 조립](#판단-워커-조립--구현)).
+구현은 도메인 `ChainHeadPort`·`BlockDepthFinality`와 `EvmChainHeadClient`(infra/client)다. **Webhook 앱의 `dfns` 조립에서만 만들어 입금 판단과 [발신 이동 대조](#발신-이동-대조--구현)가 쓴다** — 출금의 확정도 같은 깊이 판정이다.
 
 | 항목 | 근거 | BCM 규칙 |
 |---|---|---|
@@ -270,7 +270,7 @@ Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블�
 
 근거: [02의 TxStatus 다섯과 전이 표](02-bcm-flow.md#상태-enum), [CLAUDE.md 3절의 확정 결정](../../CLAUDE.md), 그리고 위
 [전송 상태](#전송-제출조회-계약--구현)·[온체인 이동 상태](#웹훅-온체인-이동-사건-관찰--구현) 표의 명세 사실.
-구현은 `DfnsStatusTranslator`(infra/client)이며 기존 도메인 포트 `VendorStatusTranslator`를 그대로 구현한다. **Webhook 앱의 `dfns` 조립에서만 만들어 입금 판단이 쓴다**([판단 워커 조립](#판단-워커-조립--구현)).
+구현은 `DfnsStatusTranslator`(infra/client)이며 기존 도메인 포트 `VendorStatusTranslator`를 그대로 구현한다. **Webhook 앱의 `dfns` 조립에서만 만들어 입금 판단·전송 알림 판단·발신 이동 대조가 함께 쓴다**.
 
 | 벤더 원어 | TxStatus | 근거 |
 |---|---|---|
@@ -298,7 +298,7 @@ Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블�
 
 | 판정 순서 | 조건 | 결과 | 근거 |
 |---|---|---|---|
-| 1 | `direction = Out` | `Outgoing` | 02는 우리 발신을 주소가 아니라 **제출 원장**으로 가른다. 대조는 후속이다 |
+| 1 | `direction = Out` | `Outgoing` | 02는 우리 발신을 주소가 아니라 **제출 원장**으로 가른다. 그 대조는 [발신 이동 대조](#발신-이동-대조--구현)가 한다 |
 | 2 | 모델링하지 않은 이동 종류(`vendorAssetId`가 없다) | `UnsupportedAsset` | 등록할 수 있는 자산이 아니다 |
 | 3 | 등록 매핑 없음 | `UnmappedAsset` | Dfns 조직 지갑은 등록하지 않은 토큰도 받는다 |
 | 4 | 매핑 network ≠ 관찰 network | **중단(데이터 결함)** | 자산 키가 벤더 network를 포함하므로 어긋날 수 없다 — 어긋나면 등록 데이터가 깨진 것이다 |
@@ -347,7 +347,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 | 단계 | 규칙 |
 |---|---|
 | 해석 | 온체인 이동 사건이 아니면 이 판단의 대상이 아니다(전송 알림·지갑/정책 사건은 각자의 경로) |
-| 귀속 | `NetworkChainAttribution` 결과를 그대로 따른다. 입금만 원장·outbox를 쓰고 발신·미지원·미등록·미귀속은 **원장을 쓰지 않고 결과로만** 돌려준다 — 무엇을 경보로 올릴지는 워커가 정한다 |
+| 귀속 | `NetworkChainAttribution` 결과를 그대로 따른다. 입금은 여기서, **발신은 [발신 이동 대조](#발신-이동-대조--구현)가** 원장·outbox를 쓴다. 미지원·미등록·미귀속은 **원장을 쓰지 않고 결과로만** 돌려준다 — 무엇을 경보로 올릴지는 워커가 정한다 |
 | 정밀도 | 등록 매핑에 정밀도가 없으면(V27 이전 등록 행) 금액을 지어내지 않고 `MissingDecimals`로 멈춘다. 0이나 최소 단위를 그대로 싣지 않는다 |
 | 확정 | 체인 head를 읽어 깊이를 관찰 컨펌 수로 담고 `VendorStatusTranslator`가 임계와 비교한다. **head 조회 실패는 예외로 올라가 확정을 보류**하고 인박스가 재시도한다 |
 | 거래 ID | hash·순번 파생(03 V26). 순번이 없으면 고유 키를 만들 수 없어 실패한다 |
@@ -373,7 +373,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 | 확정 임계 | `ConfiguredFinalityPolicy`를 제공자 중립 위치로 옮겼다 — `bcm.finality-confirmations.<network>`는 두 제공자가 **같은 설정**을 쓴다(Fireblocks는 벤더 컨펌 수, Dfns는 블록 깊이와 비교) |
 | 조립 위치 | 상태 번역기·체인 head는 **판단 경로에서만** 필요하므로 Webhook 앱에서만 만든다. 사건 해석기(`NetworkChainEventParser`)는 envelope 해석과 같이 모든 앱에서 만들 수 있다 |
 | 인박스 상태 | 입금 판단 완료·미귀속(경보 후)·미확인 전송은 처리 완료, payload 결함은 재시도/격리, **한 제출 키에 두 전송이 붙은 충돌은 상한을 기다리지 않고 즉시 격리**, 확정 임계 설정 오류는 `P`로 남겨 복구 뒤 재처리한다 — Fireblocks 경로와 같은 규율이다. **`vndr_cmpl_yn`은 남기지 않는다**(항상 `N`) — 03이 정의한 이 표식은 Fireblocks `data.status=COMPLETED`이며 원본 보관(`bcm_raw_tx_l`)의 `vndr_tx_id` 부분 index를 위한 값이다. Dfns 온체인 사건은 인박스 `vndr_tx_id`가 null이라 그 index의 대상이 아니고 Dfns 원본 보관 경로도 없다 — 의미 없는 표식을 남기지 않으며 보관 계약은 후속이다 |
-| 판단 범위 | 전송 알림은 [전송 알림 판단](#전송-알림-판단--구현), 발신 이동은 [발신 이동 대조](#발신-이동-대조--구현)가 맡는다. 원장을 쓰지 않고 처리 완료로만 남기는 것은 **미지원/미등록 자산·정밀도 없음·발신 주소 없음**과 대조에 실패한 발신(후보 없음·대응 없음)이다 |
+| 판단 범위 | 전송 알림은 [전송 알림 판단](#전송-알림-판단--구현), 발신 이동은 [발신 이동 대조](#발신-이동-대조--구현)가 맡는다. 원장을 쓰지 않는 것은 **미지원/미등록 자산·정밀도 없음·발신 주소 없음**(처리 완료)과 대조에 실패한 발신이다 — 후보 없음은 **재시도**, 대응 없음·관찰 불일치는 **즉시 격리**다 |
 | 범위 밖 | 미등록 자산·미지원 종류·미확인 전송·대조 실패의 경보 포트, `WebhookTransactionParser`의 Dfns 구현, 이력 복구, 기동 차단 해제. 출금 유스케이스·전송 알림 판단·발신 이동 대조는 이후 구현했다 |
 
 수용 항목: 미판단 계열(발신 이동·미지원/미등록 자산)을 처리 완료로 남기는 동안 잃는 정보의 운영 영향(이력 복구로 회수 가능한지), 그 경보 수준, Dfns 원본 보관(`bcm_raw_tx_l`) 경로와 그 색인 키.
@@ -422,7 +422,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 | 인박스 | 붙였으면 처리 완료. **후보 여럿·대응 없음·관찰 불일치는 상한을 기다리지 않고 즉시 격리**한다. **후보 없음만 재시도**로 남기고 상한에 닿으면 격리된다 | 앞 셋은 시간이 지나도 해소되지 않는 이상 신호다. 후보 없음은 도착 순서 때문일 수 있어 재시도가 실제로 결과를 바꾼다 — 어느 경우도 조용히 처리 완료로 닫지 않는다 |
 | 범위 밖 | 후보 없음·대응 없음의 **경보 포트**, RBF(`replacementId`) 계열, `FAILED` 재시도의 새 제출 키 발급 | |
 
-수용 항목: 전송 알림과 온체인 이동 사건의 **도착 순서와 그 간격**. 재시도는 [03 V29](03-bcm-db.md#v29-인박스-재시도-대기--물리-저장-계약)의 backoff(기본 30초→최대 10분, 상한 3회)를 따르므로 그 창 안에 전송 알림이 오면 붙고, 넘으면 격리돼 운영이 본다. 실제 간격이 그 창보다 길다는 것이 확인되면 `bcm.webhook-worker.retry-base-seconds`·상한을 조정하거나 재처리 경로(이력 복구)를 붙인다.
+수용 항목: 전송 알림과 온체인 이동 사건의 **도착 순서와 그 간격**. 재시도는 [03 V29](03-bcm-db.md#v29-인박스-재시도-대기--물리-저장-계약)의 backoff를 따른다 — 기본값(상한 3회·기준 30초)에서 실제 대기 창은 `30 + 60 = 약 90초`다(상한에 닿는 시도는 그 자리에서 격리되므로 마지막 대기는 쓰이지 않는다). 그 창 안에 전송 알림이 오면 붙고, 넘으면 격리돼 운영이 본다. 실제 간격이 그 창보다 길다는 것이 확인되면 `bcm.webhook-worker.retry-base-seconds`·상한을 조정하거나 재처리 경로(이력 복구)를 붙인다.
 Dfns가 대체 제출에서 hash를 어떻게 바꾸는지와 그때 기존 거래의 유지 규칙, 후보 없음·대응 없음의 운영 경보 수준.
 
 ### 출금 제출 계약 — 확정

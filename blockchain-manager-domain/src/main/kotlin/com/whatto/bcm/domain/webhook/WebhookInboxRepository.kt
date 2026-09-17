@@ -18,12 +18,15 @@ interface WebhookInboxRepository {
 
     /**
      * 실패 횟수를 올리고 상한에 닿으면 F로 격리한다.
-     * [nextAttemptAt]은 다음 시도 가능 시각이며 null이면 즉시 대상이다(격리되는 경우처럼 의미가 없을 때).
+     * 다음 시도 시각은 **저장소가 이번 시도 횟수로 계산한다**([WebhookRetryBackoff]와 같은 식) —
+     * 호출자가 미리 계산하면 시도 횟수를 모르는 경로(롤백 뒤 별도 기록)가 매번 첫 대기를 쓰게 된다.
+     * [baseSeconds]가 `0`이면 대기 없이 즉시 재시도한다.
      */
     fun recordFailure(
         notificationId: String,
         errorMessage: String,
         maxAttempts: Int,
-        nextAttemptAt: String?,
+        now: String,
+        baseSeconds: Long,
     ): WebhookFailureResult
 }

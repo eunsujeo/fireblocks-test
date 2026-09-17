@@ -29,7 +29,6 @@ import com.whatto.bcm.domain.webhook.WebhookFailureResult
 import com.whatto.bcm.domain.webhook.WebhookInboxItem
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookPayloadException
-import com.whatto.bcm.domain.webhook.WebhookRetryBackoff
 import com.whatto.bcm.domain.webhook.WebhookTransaction
 import com.whatto.bcm.domain.webhook.WebhookTransactionParser
 import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
@@ -117,7 +116,7 @@ class WebhookDecisionTransaction(
     override fun recordUnexpectedFailure(notificationId: String): WebhookDecisionOutcome =
         transactionRunner.run {
             inboxRepository
-                .recordFailure(notificationId, UNEXPECTED_FAILURE_REASON, maxAttempts, nextAttemptAt(1))
+                .recordFailure(notificationId, UNEXPECTED_FAILURE_REASON, maxAttempts, CoreDateTimes.now(clock), retryBaseSeconds)
                 .toOutcome(notificationId)
         }
 
@@ -396,9 +395,8 @@ class WebhookDecisionTransaction(
                 inboxItem.notificationId,
                 safeReason,
                 maxAttempts,
-                nextAttemptAt(
-                    inboxItem.retryCount + 1,
-                ),
+                CoreDateTimes.now(clock),
+                retryBaseSeconds,
             )
         return failure.toOutcome(inboxItem.notificationId)
     }
@@ -408,7 +406,14 @@ class WebhookDecisionTransaction(
         inboxItem: WebhookInboxItem,
         safeReason: String,
     ): WebhookDecisionOutcome {
-        val failure = inboxRepository.recordFailure(inboxItem.notificationId, safeReason, IMMEDIATE_QUARANTINE, null)
+        val failure =
+            inboxRepository.recordFailure(
+                inboxItem.notificationId,
+                safeReason,
+                IMMEDIATE_QUARANTINE,
+                CoreDateTimes.now(clock),
+                retryBaseSeconds,
+            )
         return failure.toOutcome(inboxItem.notificationId)
     }
 
@@ -431,13 +436,6 @@ class WebhookDecisionTransaction(
     }
 
     private fun TxStatus.isTerminal(): Boolean = this == TxStatus.FINALIZED || this == TxStatus.REJECTED || this == TxStatus.FAILED
-
-    /**
-     * [attempt]번째 실패 뒤 다음 시도 시각. backoff가 없으면 워커 주기(기본 500ms)마다 다시 집혀
-     * 상한을 몇 초 만에 소진하고, 일시적 사정으로 실패한 건이 해소될 시간을 얻지 못한다(03 V29).
-     */
-    private fun nextAttemptAt(attempt: Int): String =
-        CoreDateTimes.format(CoreDateTimes.current(clock).plusSeconds(WebhookRetryBackoff.delaySeconds(attempt, retryBaseSeconds)))
 
     private companion object {
         const val UNEXPECTED_FAILURE_REASON = "decision processing failed"

@@ -6,8 +6,9 @@
 -- 재시도가 사실상 무의미했다 — Dfns 발신 이동이 전송 알림보다 먼저 온 경우가 그 예다(계약13).
 -- 다음 시도 시각을 두어 실패마다 대기 구간을 늘리고, 워커는 그 시각이 지난 행만 집는다.
 -- NULL 허용 추가 전용이라 기존 행은 즉시 대상이다(NULL = 지금 바로).
+-- 트랜잭션 밖에서 실행하므로 중간 실패 뒤 재실행될 수 있다 — 컬럼 추가도 재실행 안전해야 한다.
 ALTER TABLE bcm_whk_l
-  ADD COLUMN next_attmpt_dttm VARCHAR(16) NULL;
+  ADD COLUMN IF NOT EXISTS next_attmpt_dttm VARCHAR(16) NULL;
 
 -- 집기 인덱스도 대기 시각을 포함한다 — 그러지 않으면 대기 중인 행까지 매번 훑는다.
 -- 일반 CREATE INDEX는 만드는 동안 쓰기를 막으므로 온라인으로 만든다(V18·V26과 같은 패턴).

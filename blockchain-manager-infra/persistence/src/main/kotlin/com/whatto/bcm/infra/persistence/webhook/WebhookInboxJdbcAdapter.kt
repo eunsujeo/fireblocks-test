@@ -6,6 +6,7 @@ import com.whatto.bcm.domain.webhook.WebhookInboxItem
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookInsertResult
 import com.whatto.bcm.domain.webhook.WebhookNotification
+import com.whatto.bcm.domain.webhook.WebhookRetryBackoff
 import com.whatto.bcm.support.audit.SystemAudit
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -108,16 +109,33 @@ class WebhookInboxJdbcAdapter(
         notificationId: String,
         errorMessage: String,
         maxAttempts: Int,
-        nextAttemptAt: String?,
+        now: String,
+        baseSeconds: Long,
     ): WebhookFailureResult {
         require(maxAttempts > 0) { "maxAttempts must be positive" }
+        require(baseSeconds >= 0) { "baseSeconds must not be negative" }
         return jdbc
             .query(
                 """
                 UPDATE bcm_whk_l
                    SET rtry_cnt = rtry_cnt + 1,
                        prcs_stcd = CASE WHEN rtry_cnt + 1 >= :maxAttempts THEN 'F' ELSE 'P' END,
-                       next_attmpt_dttm = :nextAttemptAt,
+                       -- 이번 시도 횟수로 대기를 계산한다(WebhookRetryBackoff와 같은 식: base * 2^(n-1), 상한 MAX).
+                       -- 격리(F)되는 행에는 의미가 없으므로 NULL이다.
+                       next_attmpt_dttm =
+                           CASE
+                               WHEN rtry_cnt + 1 >= :maxAttempts OR :baseSeconds = 0 THEN NULL
+                               ELSE to_char(
+                                   to_timestamp(:now, 'YYYYMMDDHH24MISS')
+                                       + make_interval(
+                                           secs => LEAST(
+                                               :maxSeconds::bigint,
+                                               :baseSeconds::bigint * power(2, rtry_cnt)::bigint
+                                           )
+                                       ),
+                                   'YYYYMMDDHH24MISS'
+                               )
+                           END,
                        err_msg = :errorMessage,
                        last_chng_empno = :employeeNo,
                        last_chng_brcd = :branchCode
@@ -127,7 +145,9 @@ class WebhookInboxJdbcAdapter(
                 mapOf(
                     "notificationId" to notificationId,
                     "errorMessage" to errorMessage.take(1000),
-                    "nextAttemptAt" to nextAttemptAt,
+                    "now" to now,
+                    "baseSeconds" to baseSeconds,
+                    "maxSeconds" to WebhookRetryBackoff.MAX_SECONDS,
                     "maxAttempts" to maxAttempts,
                     "employeeNo" to SystemAudit.EMPNO,
                     "branchCode" to SystemAudit.BRCD,
