@@ -22,6 +22,7 @@ import com.whatto.bcm.domain.vendor.VendorTransactionDestination
 import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.domain.vendor.VendorTransactionRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import com.whatto.bcm.support.submission.SubmissionRequestFingerprint
 import com.whatto.bcm.support.submission.SubmissionRequestHashes
 import com.whatto.bcm.support.time.CoreDateTimes
@@ -33,7 +34,12 @@ import java.time.Clock
 import java.time.Duration
 import java.util.UUID
 
+/**
+ * Fireblocks·로컬 경로의 제출 유스케이스. 회수는 `externalTxId` 단건 조회다(02 "벤더에 나갔는데 우리 기록이 없을 때").
+ * Dfns 경로는 같은 경계의 [DfnsTransferSubmissionService]가 맡는다 — 제공자마다 하나만 조립된다.
+ */
 @Service
+@ConditionalOnFireblocksProtocol
 class TransactionSubmissionService(
     private val submissions: SubmissionRecordRepository,
     private val accounts: AccountQueryService,
@@ -44,8 +50,8 @@ class TransactionSubmissionService(
     private val properties: TransactionSubmissionProperties,
     private val conflictAlerts: SubmissionConflictAlertPort,
     private val executionGates: ExecutionGateRepository,
-) {
-    fun submit(command: TransactionSubmissionCommand): TransactionSubmissionResult {
+) : TransactionSubmissionWork {
+    override fun submit(command: TransactionSubmissionCommand): TransactionSubmissionResult {
         val prepared = prepare(command)
         enforceExecutionGate(command, prepared)
         return submit(command, prepared)

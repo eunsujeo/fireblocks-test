@@ -3,7 +3,7 @@ package com.whatto.bcm.app.api.transaction
 import com.whatto.bcm.app.api.web.ApiResponse
 import com.whatto.bcm.app.api.web.Pagination
 import com.whatto.bcm.app.api.web.RequestIdFilter
-import com.whatto.bcm.app.application.submission.TransactionSubmissionService
+import com.whatto.bcm.app.application.submission.TransactionSubmissionWork
 import com.whatto.bcm.app.application.transaction.TransactionPageQuery
 import com.whatto.bcm.app.application.transaction.TransactionQueryService
 import jakarta.servlet.http.HttpServletRequest
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 class TransactionController(
-    private val submissionService: TransactionSubmissionService,
+    private val submissionService: TransactionSubmissionWork,
     private val queryService: TransactionQueryService,
 ) {
     @PostMapping("/transactions")

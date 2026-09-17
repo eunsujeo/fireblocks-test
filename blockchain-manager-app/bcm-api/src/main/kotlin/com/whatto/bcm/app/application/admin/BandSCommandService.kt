@@ -32,6 +32,7 @@ import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.vendor.VendorTransactionDestination
+import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.nio.charset.StandardCharsets
@@ -41,7 +42,9 @@ import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+/** Fireblocks 경로 전용 — 밴드S 실행은 `TransactionSubmissionService`의 관리 제출에 의존한다. */
 @Service
+@ConditionalOnFireblocksProtocol
 class BandSCommandService(
     private val bands: BandSRepository,
     private val policies: AdminPolicyRepository,
