@@ -179,11 +179,11 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         submissions.insert(requestedSubmission())
         receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
 
-        withFailingOutbox {
+        withRejectingTrigger("INSERT", "bcm_outbox_l") {
             // outbox 적재까지 실제로 도달했는지 확인한다 — 그 앞에서 멈췄다면 아래 롤백 단언이 공허하게 통과한다.
             assertThatThrownBy { work.processNext() }
                 .isInstanceOf(WebhookDecisionProcessingException::class.java)
-                .hasStackTraceContaining(OUTBOX_REJECTED)
+                .hasStackTraceContaining(WRITE_REJECTED)
         }
 
         // 하나라도 남으면 원장과 발행이 어긋난다 — 발행 없는 확정이나 원장 없는 이벤트가 된다(CLAUDE.md 3절).
@@ -197,6 +197,27 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         work.recordUnexpectedFailure(TRANSFER_NOTIFICATION_ID)
 
         assertThat(inboxRow(TRANSFER_NOTIFICATION_ID)).containsEntry("prcs_stcd", "P").containsEntry("rtry_cnt", 1)
+    }
+
+    @Test
+    fun `인박스 처리 완료가 실패해도 제출 연결·거래 행·outbox 적재가 되돌아온다`() {
+        // 인박스 S는 이 트랜잭션의 **마지막** 쓰기다 — outbox 에서 실패시키면 S 갱신은 아예 시도되지 않아
+        // "인박스가 P" 단언이 롤백의 증거가 되지 못한다. 마지막 쓰기를 실패시켜야 경계가 S까지 닿는지 드러난다.
+        submissions.insert(requestedSubmission())
+        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
+
+        withRejectingTrigger("UPDATE", "bcm_whk_l", "NEW.prcs_stcd = 'S'") {
+            assertThatThrownBy { work.processNext() }
+                .isInstanceOf(WebhookDecisionProcessingException::class.java)
+                .hasStackTraceContaining(WRITE_REJECTED)
+        }
+
+        // markProcessed 가 별도 트랜잭션으로 빠지면 여기서 제출·거래·outbox 가 남아 실패한다.
+        assertThat(submissionRow()).containsEntry("sbmt_stcd", "REQUESTED")
+        assertThat(submissionRow()["vndr_tx_id"]).isNull()
+        assertThat(txRows()).isEmpty()
+        assertThat(outboxRows()).isEmpty()
+        assertThat(inboxRow(TRANSFER_NOTIFICATION_ID)).containsEntry("prcs_stcd", "P").containsEntry("rtry_cnt", 0)
     }
 
     @Test
@@ -239,21 +260,29 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         assertThat(inboxRow(CHAIN_NOTIFICATION_ID)).containsEntry("prcs_stcd", "S")
     }
 
-    /** outbox 적재만 실패시켜 같은 트랜잭션의 나머지 쓰기가 되돌아오는지 본다 — 테스트 전용 trigger이며 끝나면 반드시 지운다. */
-    private fun withFailingOutbox(block: () -> Unit) {
+    /**
+     * 한 쓰기만 실패시켜 같은 트랜잭션의 나머지가 되돌아오는지 본다 — 테스트 전용 trigger이며 끝나면 반드시 지운다.
+     * [condition]은 trigger 의 `WHEN` 절이다 — 같은 테이블의 다른 쓰기까지 막지 않으려면 필요하다.
+     */
+    private fun withRejectingTrigger(
+        event: String,
+        table: String,
+        condition: String? = null,
+        block: () -> Unit,
+    ) {
         jdbc.execute(
-            "CREATE OR REPLACE FUNCTION bcm_test_reject_outbox() RETURNS trigger AS " +
-                "'BEGIN RAISE EXCEPTION ''$OUTBOX_REJECTED''; END;' LANGUAGE plpgsql",
+            "CREATE OR REPLACE FUNCTION bcm_test_reject() RETURNS trigger AS " +
+                "'BEGIN RAISE EXCEPTION ''$WRITE_REJECTED''; END;' LANGUAGE plpgsql",
         )
         jdbc.execute(
-            "CREATE TRIGGER trg_bcm_test_reject_outbox BEFORE INSERT ON bcm_outbox_l " +
-                "FOR EACH ROW EXECUTE FUNCTION bcm_test_reject_outbox()",
+            "CREATE TRIGGER trg_bcm_test_reject BEFORE $event ON $table FOR EACH ROW " +
+                (condition?.let { "WHEN ($it) " } ?: "") + "EXECUTE FUNCTION bcm_test_reject()",
         )
         try {
             block()
         } finally {
-            jdbc.execute("DROP TRIGGER trg_bcm_test_reject_outbox ON bcm_outbox_l")
-            jdbc.execute("DROP FUNCTION bcm_test_reject_outbox()")
+            jdbc.execute("DROP TRIGGER trg_bcm_test_reject ON $table")
+            jdbc.execute("DROP FUNCTION bcm_test_reject()")
         }
     }
 
@@ -366,7 +395,7 @@ class DfnsWebhookDecisionSliceIntegrationTest {
 
         /** 임계 12를 정확히 채우는 head — 블록 자체가 1컨펌이다(계약13). */
         const val HEAD_BLOCK_NUMBER = 8452130L
-        const val OUTBOX_REJECTED = "outbox insert rejected by test"
+        const val WRITE_REJECTED = "write rejected by test"
         const val TRANSFER_NOTIFICATION_ID = "whe-544ul-uqgad-jkgltj5p6fvd04cj"
         const val RETRY_NOTIFICATION_ID = "whe-544ul-uqgad-aaaaaaaaaaaaaaaa"
         const val CHAIN_NOTIFICATION_ID = "whe-544ul-uqgad-bbbbbbbbbbbbbbbb"

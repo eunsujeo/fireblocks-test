@@ -76,7 +76,6 @@ class TxPersistenceTest : PersistenceTestSupport() {
         val template = TransactionTemplate(transactionManager)
         val executor = Executors.newFixedThreadPool(2)
         val holderReady = CountDownLatch(1)
-        val contenderStarted = CountDownLatch(1)
         val holderRelease = CountDownLatch(1)
 
         try {
@@ -95,17 +94,16 @@ class TxPersistenceTest : PersistenceTestSupport() {
             val inserted =
                 executor.submit<Boolean> {
                     template.execute {
-                        // 경계를 실제로 요청하기 직전임을 알린다 — sleep 이 아니라 이 신호로 대기를 판정한다.
-                        contenderStarted.countDown()
                         txRecords.lockNetworkTransactionHash(network, hash)
                         txRecords.insert(txRecord(vendorTxId = "tx-lock-b", transactionHash = hash))
                         true
                     } ?: false
                 }
 
-            assertThat(contenderStarted.await(5, TimeUnit.SECONDS)).isTrue()
+            // 대기를 **DB에서** 확인한다 — 신호를 보낸 직후 스레드가 멈춰도 timeout 은 똑같이 통과하므로 대기의 증거가 못 된다.
+            assertThat(awaitAdvisoryLockWait()).describedAs("contender must be blocked on the advisory lock").isTrue()
             // 경계를 쥔 쪽이 커밋하기 전에는 같은 hash의 새 행이 들어오지 못한다.
-            assertThatThrownBy { inserted.get(1, TimeUnit.SECONDS) }.isInstanceOf(java.util.concurrent.TimeoutException::class.java)
+            assertThat(inserted.isDone).isFalse()
 
             holderRelease.countDown()
             holder.get(5, TimeUnit.SECONDS)
@@ -124,6 +122,20 @@ class TxPersistenceTest : PersistenceTestSupport() {
         // 경계가 너무 넓으면 무관한 이동끼리 줄을 서게 된다.
         assertThat(lockAcquiredWhileHeld("ETHEREUM", "0xaaa", "ETHEREUM", "0xbbb")).isTrue()
         assertThat(lockAcquiredWhileHeld("ETHEREUM", "0xaaa", "ETHEREUM_SEPOLIA", "0xaaa")).isTrue()
+    }
+
+    /** 다른 세션이 advisory 잠금을 **실제로 기다리는 중**인지 DB에 물어본다. 테스트는 한 번에 한 클래스만 돈다. */
+    private fun awaitAdvisoryLockWait(): Boolean {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (System.nanoTime() < deadline) {
+            val waiting =
+                jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted",
+                    Int::class.java,
+                ) ?: 0
+            if (waiting > 0) return true
+        }
+        return false
     }
 
     /** [heldNetwork]·[heldHash] 경계를 쥔 채로 다른 키의 경계를 잡을 수 있는지. */
