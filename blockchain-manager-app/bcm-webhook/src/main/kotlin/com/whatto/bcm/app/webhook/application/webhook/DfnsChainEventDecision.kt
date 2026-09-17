@@ -110,7 +110,7 @@ class DfnsChainEventDecision(
             is NetworkChainAttachmentResult.Mismatched ->
                 DfnsChainDecisionOutcome.OutgoingUnattachable(observation, OutgoingAttachMiss.MISMATCH)
 
-            // 같은 값의 제출이 아직 hash를 못 받았다 — 그쪽 전송 알림이 오면 해소되므로 보류한다.
+            // 같은 값의 제출이 아직 hash를 못 받았다 — 그쪽 알림이 hash와 함께 오면 해소된다(보장은 아니다·계약13). 보류한다.
             is NetworkChainAttachmentResult.Unresolved -> DfnsChainDecisionOutcome.OutgoingPending(observation)
 
             is NetworkChainAttachmentResult.Attach -> attachOutgoing(notificationId, observation, attached)

@@ -74,8 +74,9 @@ class TxPersistenceTest : PersistenceTestSupport() {
         val network = "ETHEREUM"
         txRecords.insert(txRecord(vendorTxId = "tx-lock-a", transactionHash = hash))
         val template = TransactionTemplate(transactionManager)
-        val executor = Executors.newSingleThreadExecutor()
+        val executor = Executors.newFixedThreadPool(2)
         val holderReady = CountDownLatch(1)
+        val contenderStarted = CountDownLatch(1)
         val holderRelease = CountDownLatch(1)
 
         try {
@@ -92,17 +93,19 @@ class TxPersistenceTest : PersistenceTestSupport() {
             assertThat(holderReady.await(5, TimeUnit.SECONDS)).isTrue()
 
             val inserted =
-                Executors.newSingleThreadExecutor().submit<Boolean> {
+                executor.submit<Boolean> {
                     template.execute {
+                        // 경계를 실제로 요청하기 직전임을 알린다 — sleep 이 아니라 이 신호로 대기를 판정한다.
+                        contenderStarted.countDown()
                         txRecords.lockNetworkTransactionHash(network, hash)
                         txRecords.insert(txRecord(vendorTxId = "tx-lock-b", transactionHash = hash))
                         true
                     } ?: false
                 }
 
-            Thread.sleep(500)
+            assertThat(contenderStarted.await(5, TimeUnit.SECONDS)).isTrue()
             // 경계를 쥔 쪽이 커밋하기 전에는 같은 hash의 새 행이 들어오지 못한다.
-            assertThat(inserted.isDone).isFalse()
+            assertThatThrownBy { inserted.get(1, TimeUnit.SECONDS) }.isInstanceOf(java.util.concurrent.TimeoutException::class.java)
 
             holderRelease.countDown()
             holder.get(5, TimeUnit.SECONDS)
@@ -117,32 +120,39 @@ class TxPersistenceTest : PersistenceTestSupport() {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    fun `다른 network나 hash의 경계는 서로를 막지 않는다`() {
+    fun `hash나 network가 다르면 경계가 서로를 막지 않는다`() {
         // 경계가 너무 넓으면 무관한 이동끼리 줄을 서게 된다.
+        assertThat(lockAcquiredWhileHeld("ETHEREUM", "0xaaa", "ETHEREUM", "0xbbb")).isTrue()
+        assertThat(lockAcquiredWhileHeld("ETHEREUM", "0xaaa", "ETHEREUM_SEPOLIA", "0xaaa")).isTrue()
+    }
+
+    /** [heldNetwork]·[heldHash] 경계를 쥔 채로 다른 키의 경계를 잡을 수 있는지. */
+    private fun lockAcquiredWhileHeld(
+        heldNetwork: String,
+        heldHash: String,
+        otherNetwork: String,
+        otherHash: String,
+    ): Boolean {
         val template = TransactionTemplate(transactionManager)
-        val executor = Executors.newSingleThreadExecutor()
+        val executor = Executors.newFixedThreadPool(2)
         val holderReady = CountDownLatch(1)
         val holderRelease = CountDownLatch(1)
-
         try {
             executor.submit {
                 template.execute {
-                    txRecords.lockNetworkTransactionHash("ETHEREUM", "0xaaa")
+                    txRecords.lockNetworkTransactionHash(heldNetwork, heldHash)
                     holderReady.countDown()
                     holderRelease.await(5, TimeUnit.SECONDS)
                 }
             }
-            assertThat(holderReady.await(5, TimeUnit.SECONDS)).isTrue()
-
-            val other =
-                Executors.newSingleThreadExecutor().submit<Boolean> {
+            check(holderReady.await(5, TimeUnit.SECONDS)) { "holder did not acquire the lock" }
+            return executor
+                .submit<Boolean> {
                     template.execute {
-                        txRecords.lockNetworkTransactionHash("ETHEREUM", "0xbbb")
+                        txRecords.lockNetworkTransactionHash(otherNetwork, otherHash)
                         true
                     } ?: false
-                }
-
-            assertThat(other.get(5, TimeUnit.SECONDS)).isTrue()
+                }.get(5, TimeUnit.SECONDS)
         } finally {
             holderRelease.countDown()
             executor.shutdownNow()

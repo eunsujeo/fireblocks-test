@@ -36,6 +36,21 @@ class DfnsWebhookDecisionTransactionTest {
         }
 
     @Test
+    fun `제출 원장에 없는 전송은 처리 완료로 소거하지 않고 격리한다`() {
+        // 우리 지갑에서 우리가 내지 않은 전송이 나갔다는 뜻이다 — 소거하면 원문이 사라져 같은 트랜잭션의 이동을
+        // 나중에 판단할 근거도 없어진다(계약13).
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
+        every { transferDecision.decide(any(), any()) } returns
+            DfnsTransferDecisionOutcome.UnknownSubmission(mockk(relaxed = true))
+        every {
+            inbox.recordFailure(NOTIFICATION_ID, "transfer notification has no submission ledger entry", 1, any(), any())
+        } returns WebhookFailureResult(quarantined = true, retryCount = 1)
+
+        assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Quarantined::class.java)
+        verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
+    }
+
+    @Test
     fun `붙일 수 없는 발신은 즉시 격리하고 아직 못 붙이는 발신은 재시도로 남긴다`() {
         // 대응 없음·불일치는 시간이 지나도 해소되지 않는다. 반대로 후보 없음은 전송 알림이 늦은 것일 수 있어
         // 처리 완료로 닫으면 그 출금이 영영 확정되지 않는다 — 재시도로 남겨 알림이 오면 붙는다.

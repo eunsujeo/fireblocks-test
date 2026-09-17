@@ -124,8 +124,8 @@ sealed interface NetworkChainAttachmentResult {
 
     /**
      * 값은 맞지만 **이 제출의 것이라고 증명하지 못한다** — 같은 canonical의 제출이 아직 hash를 받지 못한 채 남아 있다.
-     * 그쪽의 전송 알림이 오면 해소되므로(그 hash가 같으면 후보가 둘이 되어 [Ambiguous], 다르면 이 모호함이 사라진다)
-     * 격리가 아니라 **보류·재시도**다.
+     * 그쪽 전송 알림이 **hash와 함께** 오면 해소되므로(그 hash가 같으면 후보가 둘이 되어 [Ambiguous], 다르면 이 모호함이 사라진다)
+     * 격리가 아니라 **보류·재시도**다. 다만 해소가 보장되지는 않는다 — 전송 알림의 hash는 선택이고 장기 미결도 남는다(계약13).
      */
     data class Unresolved(
         val record: TxRecord,

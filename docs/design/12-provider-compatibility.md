@@ -866,5 +866,11 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   입금 판단도 같은 경계를 잡는지는 판단 단위 테스트로 고정했다.
   **아직 없는 것**: `markSubmitted → bcm_tx_l → outbox → inbox S`의 실제 일괄 커밋·롤백과 중복 알림의 outbox 중복 방지를
   한 컨텍스트에서 보는 결합 테스트 — Webhook 슬라이스 harness(`@DataJdbcTest` + 명시 `@Import`)를 만드는 후속이다.
-- 검증: 전체 1,361 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+- **code-reviewer 2차 Critical 1건**: 발신 귀속이 **가정이 깨질 때 fail-closed가 아니었다**. 원장 밖 전송 알림이 처리 완료로 소거되어 배제 증거가 남지 않고,
+  벤더가 원장 밖 요청 B를 우리 제출 A와 같은 트랜잭션으로 합치면 B의 이동이 A에 붙는다 — 제출 원장만 보는 배제 조회로는 막지 못한다.
+  ① **원장 밖 전송 알림을 격리**해 원문과 사실을 남긴다(소거하면 같은 트랜잭션의 이동을 나중에 판단할 근거도 사라진다).
+  ② 이 가정을 운영 수용 항목이 아니라 **`BCM_PROVIDER=dfns` 기동 차단 해제의 선행 검증 조건**으로 올렸다 — 이력 조회로 확인하기 전에는 발신 확정을 운영에 열지 않는다.
+- **Improvement 반영**: 배제 조회의 case-fold를 **EVM 주소 형태일 때만** 적용한다(base58까지 접으면 서로 다른 Solana 주소가 같아져 정상 건이 부당하게 막힌다).
+  직렬화 테스트의 실행기 누수와 `sleep` 의존을 없애고 contender-ready latch로 결정적으로 바꿨으며, network가 다른 경우도 함께 고정했다.
+- 검증: 전체 1,364 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
   (`DepositEventKafkaIntegrationTest`가 한 번 Kafka 컨테이너 타이밍으로 실패했고 재실행에서 통과했다 — 환경 플레이크다.)

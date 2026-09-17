@@ -77,12 +77,10 @@ class DfnsWebhookDecisionTransaction(
             // 상한을 기다리지 않고 **즉시 격리**한다(03 `sbmt_stcd` 전이 표·계약13). 처리 완료로 소거하면 신호가 사라진다.
             is DfnsTransferDecisionOutcome.Conflicting -> quarantineNow(inboxItem, CONFLICTING_TRANSFER_REASON)
 
-            // 제출 원장에 없는 전송은 우리가 만든 게 아니다 — 원장·이벤트를 만들지 않는다.
-            // 경보 포트 연결은 후속이라 지금은 처리 완료로 남긴다(계약13 범위 밖).
-            is DfnsTransferDecisionOutcome.UnknownSubmission -> {
-                markProcessed(inboxItem)
-                WebhookDecisionOutcome.Ignored(inboxItem.notificationId)
-            }
+            // 우리 지갑에서 **우리가 내지 않은 전송**이 나갔다는 뜻이다 — 그 자체로 이상 신호이고,
+            // 처리 완료로 소거하면 원문이 인박스에서 사라져 나중에 같은 트랜잭션의 이동을 판단할 근거도 없어진다.
+            // 원장·이벤트는 만들지 않되 **격리해 원문과 사실을 남긴다**(계약13).
+            is DfnsTransferDecisionOutcome.UnknownSubmission -> quarantineNow(inboxItem, UNKNOWN_TRANSFER_REASON)
         }
     }
 
@@ -182,6 +180,8 @@ class DfnsWebhookDecisionTransaction(
         const val CONFLICTING_TRANSFER_REASON = "submission key linked to another transfer"
 
         const val AMBIGUOUS_OUTGOING_REASON = "outgoing transfer matches multiple transactions"
+
+        const val UNKNOWN_TRANSFER_REASON = "transfer notification has no submission ledger entry"
 
         const val PENDING_OUTGOING_REASON = "outgoing transfer has no matching transaction yet"
 
