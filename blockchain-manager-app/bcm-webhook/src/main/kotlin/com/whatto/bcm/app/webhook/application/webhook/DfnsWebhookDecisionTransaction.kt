@@ -8,6 +8,7 @@ import com.whatto.bcm.domain.webhook.WebhookFailureResult
 import com.whatto.bcm.domain.webhook.WebhookInboxItem
 import com.whatto.bcm.domain.webhook.WebhookInboxRepository
 import com.whatto.bcm.domain.webhook.WebhookPayloadException
+import com.whatto.bcm.domain.webhook.WebhookRetryBackoff
 import com.whatto.bcm.infra.client.config.ConditionalOnDfnsProtocol
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.springframework.beans.factory.annotation.Value
@@ -35,18 +36,19 @@ class DfnsWebhookDecisionTransaction(
     private val transferDecision: DfnsTransferEventDecision,
     private val clock: Clock,
     @param:Value("\${bcm.webhook-worker.max-attempts:3}") private val maxAttempts: Int,
+    @param:Value("\${bcm.webhook-worker.retry-base-seconds:30}") private val retryBaseSeconds: Long,
 ) : WebhookDecisionWork {
     override fun processNext(): WebhookDecisionOutcome = transactionRunner.run { processNextInTransaction() }
 
     override fun recordUnexpectedFailure(notificationId: String): WebhookDecisionOutcome =
         transactionRunner.run {
             inboxRepository
-                .recordFailure(notificationId, UNEXPECTED_FAILURE_REASON, maxAttempts)
+                .recordFailure(notificationId, UNEXPECTED_FAILURE_REASON, maxAttempts, nextAttemptAt(1))
                 .toOutcome(notificationId)
         }
 
     private fun processNextInTransaction(): WebhookDecisionOutcome {
-        val inboxItem = inboxRepository.findNextPendingForUpdate() ?: return WebhookDecisionOutcome.NoWork
+        val inboxItem = inboxRepository.findNextPendingForUpdate(CoreDateTimes.now(clock)) ?: return WebhookDecisionOutcome.NoWork
         return try {
             process(inboxItem)
         } catch (exception: WebhookPayloadException) {
@@ -141,14 +143,20 @@ class DfnsWebhookDecisionTransaction(
         safeReason: String,
     ): WebhookDecisionOutcome =
         inboxRepository
-            .recordFailure(inboxItem.notificationId, safeReason, IMMEDIATE_QUARANTINE)
+            .recordFailure(inboxItem.notificationId, safeReason, IMMEDIATE_QUARANTINE, null)
             .toOutcome(inboxItem.notificationId)
 
     private fun failed(
         inboxItem: WebhookInboxItem,
         safeReason: String,
     ): WebhookDecisionOutcome =
-        inboxRepository.recordFailure(inboxItem.notificationId, safeReason, maxAttempts).toOutcome(inboxItem.notificationId)
+        inboxRepository
+            .recordFailure(
+                inboxItem.notificationId,
+                safeReason,
+                maxAttempts,
+                nextAttemptAt(inboxItem.retryCount + 1),
+            ).toOutcome(inboxItem.notificationId)
 
     private fun WebhookFailureResult.toOutcome(notificationId: String): WebhookDecisionOutcome =
         if (quarantined) {
@@ -166,6 +174,13 @@ class DfnsWebhookDecisionTransaction(
     private fun markProcessed(inboxItem: WebhookInboxItem) {
         inboxRepository.markProcessed(inboxItem.notificationId, CoreDateTimes.now(clock), vendorCompleted = false)
     }
+
+    /**
+     * [attempt]번째 실패 뒤 다음 시도 시각. backoff가 없으면 워커 주기(기본 500ms)마다 다시 집혀
+     * 상한을 몇 초 만에 소진하고, 일시적 사정으로 실패한 건이 해소될 시간을 얻지 못한다(03 V29).
+     */
+    private fun nextAttemptAt(attempt: Int): String =
+        CoreDateTimes.format(CoreDateTimes.current(clock).plusSeconds(WebhookRetryBackoff.delaySeconds(attempt, retryBaseSeconds)))
 
     private companion object {
         const val IMMEDIATE_QUARANTINE = 1

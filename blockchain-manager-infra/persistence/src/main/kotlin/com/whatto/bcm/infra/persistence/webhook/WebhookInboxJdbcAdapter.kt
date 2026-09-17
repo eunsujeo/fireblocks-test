@@ -60,18 +60,19 @@ class WebhookInboxJdbcAdapter(
         return if (inserted == 1) WebhookInsertResult.INSERTED else WebhookInsertResult.DUPLICATE
     }
 
-    override fun findNextPendingForUpdate(): WebhookInboxItem? =
+    override fun findNextPendingForUpdate(now: String): WebhookInboxItem? =
         jdbc
             .query(
                 """
                 SELECT noti_id, evnt_typ, vndr_tx_id, payload, rcv_dttm, rtry_cnt
                   FROM bcm_whk_l
                  WHERE prcs_stcd = 'P'
+                   AND (next_attmpt_dttm IS NULL OR next_attmpt_dttm <= :now)
                  ORDER BY rcv_dttm, noti_id
                  FOR UPDATE SKIP LOCKED
                  LIMIT 1
                 """.trimIndent(),
-                emptyMap<String, Any>(),
+                mapOf("now" to now),
                 inboxItemMapper,
             ).firstOrNull()
 
@@ -86,6 +87,7 @@ class WebhookInboxJdbcAdapter(
                 UPDATE bcm_whk_l
                    SET prcs_stcd = 'S',
                        prcs_dttm = :processedAt,
+                       next_attmpt_dttm = NULL,
                        vndr_cmpl_yn = :vendorCompleted,
                        err_msg = NULL,
                        last_chng_empno = :employeeNo, last_chng_brcd = :branchCode
@@ -106,6 +108,7 @@ class WebhookInboxJdbcAdapter(
         notificationId: String,
         errorMessage: String,
         maxAttempts: Int,
+        nextAttemptAt: String?,
     ): WebhookFailureResult {
         require(maxAttempts > 0) { "maxAttempts must be positive" }
         return jdbc
@@ -114,6 +117,7 @@ class WebhookInboxJdbcAdapter(
                 UPDATE bcm_whk_l
                    SET rtry_cnt = rtry_cnt + 1,
                        prcs_stcd = CASE WHEN rtry_cnt + 1 >= :maxAttempts THEN 'F' ELSE 'P' END,
+                       next_attmpt_dttm = :nextAttemptAt,
                        err_msg = :errorMessage,
                        last_chng_empno = :employeeNo,
                        last_chng_brcd = :branchCode
@@ -123,6 +127,7 @@ class WebhookInboxJdbcAdapter(
                 mapOf(
                     "notificationId" to notificationId,
                     "errorMessage" to errorMessage.take(1000),
+                    "nextAttemptAt" to nextAttemptAt,
                     "maxAttempts" to maxAttempts,
                     "employeeNo" to SystemAudit.EMPNO,
                     "branchCode" to SystemAudit.BRCD,
