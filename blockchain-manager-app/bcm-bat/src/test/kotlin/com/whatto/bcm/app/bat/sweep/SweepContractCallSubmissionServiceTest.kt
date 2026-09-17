@@ -276,6 +276,19 @@ private class FakeContractCallSubmissions(
             ).also { row = it }
     }
 
+    override fun tryClaimRequested(
+        externalTransactionId: String,
+        claimId: String,
+        claimExpiresAt: String,
+        now: String,
+    ): SubmissionRecord? {
+        // REQUESTED 전용 — 이 대역은 종결 행을 되살리지 않는다.
+        val current = row ?: return null
+        if (current.externalTransactionId != externalTransactionId || current.status != SubmissionStatus.REQUESTED) return null
+        if (requireNotNull(current.claimExpiresAt) > now) return null
+        return current
+    }
+
     override fun markSubmitted(
         externalTransactionId: String,
         vendorTransactionId: String,

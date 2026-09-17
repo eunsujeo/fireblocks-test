@@ -359,6 +359,13 @@ private class SingleSubmissionRepository(
         now: String,
     ) = error("not used")
 
+    override fun tryClaimRequested(
+        externalTransactionId: String,
+        claimId: String,
+        claimExpiresAt: String,
+        now: String,
+    ) = error("not used")
+
     override fun markSubmitted(
         externalTransactionId: String,
         vendorTransactionId: String,

@@ -166,7 +166,7 @@ class DfnsTransferSubmissionServiceTest {
     @Test
     fun `REQUESTED로 남은 건은 조회가 아니라 같은 본문 재제출로 회수한다`() {
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns requested()
-        every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } answers {
+        every { submissions.tryClaimRequested(EXTERNAL_ID, any(), any(), NOW) } answers {
             requested().copy(claimId = secondArg(), claimExpiresAt = thirdArg())
         }
         val request = slot<NetworkTransferRequest>()
@@ -192,20 +192,34 @@ class DfnsTransferSubmissionServiceTest {
     @Test
     fun `제출 시점 값이 없는 행은 본문을 지어내지 않고 거절해 다른 본문이 나가지 않게 한다`() {
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns requested().copy(vendorCanonical = null)
-        every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } answers {
-            requested().copy(vendorCanonical = null, claimId = secondArg(), claimExpiresAt = thirdArg())
-        }
 
         assertThatThrownBy { service.submit(command()) }
             .isInstanceOf(UnprocessableRequestException::class.java)
 
         verify(exactly = 0) { vendor.submit(any()) }
+        // 어차피 거절할 요청에 진행 중 소유권을 남기면 다음 요청이 만료까지 503을 받는다.
+        verify(exactly = 0) { submissions.tryClaimRequested(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `읽은 뒤 다른 요청이 FAILED로 바꿨으면 금지된 재제출을 열지 않고 거절한다`() {
+        // 공용 tryClaim은 FAILED를 REQUESTED로 되살린다 — Dfns는 REQUESTED 전용 소유권만 쓰고,
+        // 못 잡았을 때 최신 상태가 FAILED면 그 사실을 그대로 알린다.
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returnsMany
+            listOf(requested(), requested().copy(status = SubmissionStatus.FAILED))
+        every { submissions.tryClaimRequested(EXTERNAL_ID, any(), any(), NOW) } returns null
+
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOf(UnprocessableRequestException::class.java)
+
+        verify(exactly = 0) { vendor.submit(any()) }
+        verify(exactly = 0) { submissions.tryClaim(any(), any(), any(), any()) }
     }
 
     @Test
     fun `회수 재제출의 409는 FAILED로 굳히지 않고 REQUESTED를 유지한다`() {
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns requested()
-        every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } answers {
+        every { submissions.tryClaimRequested(EXTERNAL_ID, any(), any(), NOW) } answers {
             requested().copy(claimId = secondArg(), claimExpiresAt = thirdArg())
         }
         every { vendor.submit(any()) } returns NetworkTransferSubmission.Conflict("xfr-other", ByteArray(0))
@@ -220,7 +234,7 @@ class DfnsTransferSubmissionServiceTest {
     fun `소유권을 못 잡으면 기다리지 않고 재시도 안내로 즉시 답한다`() {
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
             requested().copy(claimId = "other", claimExpiresAt = "20260917090030")
-        every { submissions.tryClaim(EXTERNAL_ID, any(), any(), NOW) } returns null
+        every { submissions.tryClaimRequested(EXTERNAL_ID, any(), any(), NOW) } returns null
 
         assertThatThrownBy { service.submit(command()) }
             .isInstanceOfSatisfying(SubmissionInProgressException::class.java) {
@@ -241,7 +255,7 @@ class DfnsTransferSubmissionServiceTest {
 
         // 새 키를 자동 발급해 다시 보내지 않는다 — 벤더 Failed는 체인 제출 여부를 확정하지 못한다.
         verify(exactly = 0) { vendor.submit(any()) }
-        verify(exactly = 0) { submissions.tryClaim(any(), any(), any(), any()) }
+        verify(exactly = 0) { submissions.tryClaimRequested(any(), any(), any(), any()) }
     }
 
     @Test

@@ -36,6 +36,31 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
     lateinit var dataSource: DataSource
 
     @Test
+    fun `REQUESTED 전용 소유권은 FAILED 행을 되살리지 않는다`() {
+        // 공용 tryClaim은 FAILED를 REQUESTED로 되돌리지만(02 Fireblocks 규칙), Dfns는 그 전이를 금지한다(03 전이 표).
+        val failed =
+            fixture(externalTransactionId = "wd-claim-failed", status = SubmissionStatus.FAILED, claimId = null, claimExpiresAt = null)
+        submissions.insert(failed)
+
+        val claimed = submissions.tryClaimRequested("wd-claim-failed", "claim-1", "20260917090030", "20260917090000")
+
+        assertThat(claimed).isNull()
+        assertThat(submissions.findByExternalTransactionId("wd-claim-failed")?.status).isEqualTo(SubmissionStatus.FAILED)
+    }
+
+    @Test
+    fun `REQUESTED 전용 소유권은 만료된 소유권만 뺏는다`() {
+        val requested = fixture(externalTransactionId = "wd-claim-req", claimId = "old", claimExpiresAt = "20260917090030")
+        submissions.insert(requested)
+
+        // 아직 살아 있는 소유권은 못 뺏는다.
+        assertThat(submissions.tryClaimRequested("wd-claim-req", "claim-2", "20260917090100", "20260917090000")).isNull()
+        // 만료 뒤에는 뺏는다.
+        val claimed = submissions.tryClaimRequested("wd-claim-req", "claim-2", "20260917090100", "20260917090031")
+        assertThat(claimed?.claimId).isEqualTo("claim-2")
+    }
+
+    @Test
     fun `제출 시점의 벤더 canonical 값을 함께 저장하고 그대로 되찾는다`() {
         // Dfns 회수는 이 값들로만 본문을 다시 만든다 — 저장·복원이 어긋나면 "같은 본문"이 깨진다(03 V28).
         val canonical =
