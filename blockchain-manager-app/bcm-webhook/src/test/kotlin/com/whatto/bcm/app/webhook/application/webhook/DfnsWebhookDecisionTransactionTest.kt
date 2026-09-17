@@ -46,7 +46,7 @@ class DfnsWebhookDecisionTransactionTest {
                 OutgoingAttachMiss.MISMATCH,
             )
         every {
-            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer cannot be attached: MISMATCH", 1, null)
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer cannot be attached: MISMATCH", 1, any(), any())
         } returns WebhookFailureResult(quarantined = true, retryCount = 1)
 
         assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Quarantined::class.java)
@@ -54,7 +54,7 @@ class DfnsWebhookDecisionTransactionTest {
         every { decision.decide(any(), any()) } returns
             DfnsChainDecisionOutcome.OutgoingPending(transfer(direction = NetworkChainDirection.OUT))
         every {
-            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer has no matching transaction yet", 3, any())
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer has no matching transaction yet", 3, any(), any())
         } returns WebhookFailureResult(quarantined = false, retryCount = 1)
 
         assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
@@ -68,7 +68,7 @@ class DfnsWebhookDecisionTransactionTest {
         every { decision.decide(any(), any()) } returns
             DfnsChainDecisionOutcome.OutgoingAmbiguous(transfer(direction = NetworkChainDirection.OUT), 2)
         every {
-            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer matches multiple transactions", 1, null)
+            inbox.recordFailure(NOTIFICATION_ID, "outgoing transfer matches multiple transactions", 1, any(), any())
         } returns WebhookFailureResult(quarantined = true, retryCount = 1)
 
         val outcome = transaction().processNext()
@@ -85,7 +85,7 @@ class DfnsWebhookDecisionTransactionTest {
             DfnsTransferDecisionOutcome.Conflicting(mockk(relaxed = true), "ext-1")
         // 격리 사유는 인박스에 남는 값이라 원문·전송 ID·제출 키·주소·금액을 담지 않는다.
         every {
-            inbox.recordFailure(NOTIFICATION_ID, "submission key linked to another transfer", 1, null)
+            inbox.recordFailure(NOTIFICATION_ID, "submission key linked to another transfer", 1, any(), any())
         } returns WebhookFailureResult(quarantined = true, retryCount = 1)
 
         val outcome = transaction().processNext()
@@ -180,11 +180,11 @@ class DfnsWebhookDecisionTransactionTest {
     fun `payload 결함은 재시도로, 상한에 닿으면 격리로 남긴다`() {
         every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
         every { decision.decide(any(), any()) } throws WebhookPayloadException("Dfns 웹훅 결손: id")
-        every { inbox.recordFailure(NOTIFICATION_ID, "Dfns 웹훅 결손: id", 3, any()) } returns WebhookFailureResult(1, false)
+        every { inbox.recordFailure(NOTIFICATION_ID, "Dfns 웹훅 결손: id", 3, any(), any()) } returns WebhookFailureResult(1, false)
 
         assertThat(transaction().processNext()).isEqualTo(WebhookDecisionOutcome.Retrying(NOTIFICATION_ID, 1))
 
-        every { inbox.recordFailure(NOTIFICATION_ID, "Dfns 웹훅 결손: id", 3, any()) } returns WebhookFailureResult(3, true)
+        every { inbox.recordFailure(NOTIFICATION_ID, "Dfns 웹훅 결손: id", 3, any(), any()) } returns WebhookFailureResult(3, true)
         assertThat(transaction().processNext()).isEqualTo(WebhookDecisionOutcome.Quarantined(NOTIFICATION_ID, 3))
         verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
     }
@@ -203,13 +203,13 @@ class DfnsWebhookDecisionTransactionTest {
         every { decision.decide(any(), any()) } throws IllegalStateException("boom")
         assertThatThrownBy { transaction().processNext() }.isInstanceOf(WebhookDecisionProcessingException::class.java)
 
-        verify(exactly = 0) { inbox.recordFailure(any(), any(), any(), any()) }
+        verify(exactly = 0) { inbox.recordFailure(any(), any(), any(), any(), any()) }
         verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
     }
 
     @Test
     fun `예기치 못한 실패 기록은 워커가 따로 요청한다`() {
-        every { inbox.recordFailure(NOTIFICATION_ID, "decision processing failed", 3, any()) } returns WebhookFailureResult(2, false)
+        every { inbox.recordFailure(NOTIFICATION_ID, "decision processing failed", 3, any(), any()) } returns WebhookFailureResult(2, false)
 
         assertThat(transaction().recordUnexpectedFailure(NOTIFICATION_ID))
             .isEqualTo(WebhookDecisionOutcome.Retrying(NOTIFICATION_ID, 2))

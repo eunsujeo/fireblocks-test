@@ -2,6 +2,7 @@ package com.whatto.bcm.infra.persistence.webhook
 
 import com.whatto.bcm.domain.webhook.WebhookInboxItem
 import com.whatto.bcm.domain.webhook.WebhookNotification
+import com.whatto.bcm.domain.webhook.WebhookRetryBackoff
 import com.whatto.bcm.infra.persistence.support.PersistenceTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -34,10 +35,37 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
     lateinit var transactionManager: PlatformTransactionManager
 
     @Test
+    fun `대기는 시도마다 두 배로 늘고 도메인 규칙과 같은 값을 쓴다`() {
+        // 대기 계산이 SQL에 있으므로 도메인 규칙(WebhookRetryBackoff)과 어긋나지 않는지 고정한다.
+        inbox.insertIfAbsent(notification("noti-backoff-grow", "20260917085900"))
+        val base = 30L
+
+        inbox.recordFailure("noti-backoff-grow", "transient", 5, "20260917090000", base)
+        assertThat(nextAttemptOf("noti-backoff-grow"))
+            .isEqualTo("20260917" + "0900" + "%02d".format(WebhookRetryBackoff.delaySeconds(1, base)))
+
+        inbox.recordFailure("noti-backoff-grow", "transient", 5, "20260917090000", base)
+        assertThat(nextAttemptOf("noti-backoff-grow"))
+            .isEqualTo("20260917090" + "1" + "00")
+        assertThat(WebhookRetryBackoff.delaySeconds(2, base)).isEqualTo(60)
+    }
+
+    @Test
+    fun `격리되는 시도에는 대기 시각을 두지 않는다`() {
+        // 재시도가 결과를 바꾸지 못하는 행에 대기 시각을 남기면 의미 없이 조회 조건만 복잡해진다.
+        inbox.insertIfAbsent(notification("noti-backoff-final", "20260917085900"))
+
+        val result = inbox.recordFailure("noti-backoff-final", "transient", 1, "20260917090000", 30)
+
+        assertThat(result.quarantined).isTrue()
+        assertThat(nextAttemptOf("noti-backoff-final")).isNull()
+    }
+
+    @Test
     fun `대기 시각이 지나지 않은 행은 집지 않는다`() {
         // backoff가 있어도 워커가 그 시각을 무시하면 무의미하다 — 조회 조건이 그 값을 봐야 한다(03 V29).
         inbox.insertIfAbsent(notification("noti-backoff", "20260917085900"))
-        inbox.recordFailure("noti-backoff", "transient", 5, "20301231235959")
+        inbox.recordFailure("noti-backoff", "transient", 5, "20301231235900", baseSeconds = 30)
 
         assertThat(inbox.findNextPendingForUpdate("20260917090000")).isNull()
         assertThat(inbox.findNextPendingForUpdate("20310101000000")?.notificationId).isEqualTo("noti-backoff")
@@ -84,8 +112,8 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
     fun `실패는 횟수와 안전한 사유를 남기고 상한에 닿으면 F로 격리한다`() {
         inbox.insertIfAbsent(notification("noti-poison", "20260807120000"))
 
-        val first = inbox.recordFailure("noti-poison", "missing data.assetId", 2, null)
-        val second = inbox.recordFailure("noti-poison", "missing data.assetId", 2, null)
+        val first = inbox.recordFailure("noti-poison", "missing data.assetId", 2, pickAt, baseSeconds = 0)
+        val second = inbox.recordFailure("noti-poison", "missing data.assetId", 2, pickAt, baseSeconds = 0)
 
         assertThat(first.retryCount).isEqualTo(1)
         assertThat(first.quarantined).isFalse()
@@ -131,6 +159,13 @@ class WebhookInboxPersistenceTest : PersistenceTestSupport() {
             jdbc.update("DELETE FROM bcm_whk_l WHERE noti_id IN ('noti-old', 'noti-new')")
         }
     }
+
+    private fun nextAttemptOf(notificationId: String): String? =
+        jdbc.queryForObject(
+            "SELECT next_attmpt_dttm FROM bcm_whk_l WHERE noti_id = ?",
+            String::class.java,
+            notificationId,
+        )
 
     private fun notification(
         id: String,
