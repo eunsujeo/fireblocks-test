@@ -60,4 +60,39 @@ class AssetDecimalsTest {
             registeredByBranchCode = "0001",
             decimals = decimals,
         )
+
+    @Test
+    fun `사람 단위 금액은 등록 정밀도로 최소 단위 정수가 되고 왕복해도 값이 변하지 않는다`() {
+        assertThat(AssetDecimals.baseUnitsOf("1", 6)).isEqualTo("1000000")
+        assertThat(AssetDecimals.baseUnitsOf("1.5", 6)).isEqualTo("1500000")
+        assertThat(AssetDecimals.baseUnitsOf("0.000001", 6)).isEqualTo("1")
+        assertThat(AssetDecimals.baseUnitsOf("0", 6)).isEqualTo("0")
+        assertThat(AssetDecimals.baseUnitsOf("12", 0)).isEqualTo("12")
+        // 표기가 달라도 같은 금액이면 같은 최소 단위다 — 회수의 "같은 본문"이 표기 차이로 어긋나지 않는다.
+        assertThat(AssetDecimals.baseUnitsOf("1.500", 6)).isEqualTo("1500000")
+        listOf("1", "1.5", "0.000001").forEach { amount ->
+            assertThat(AssetDecimals.amountOf(AssetDecimals.baseUnitsOf(amount, 6), 6))
+                .describedAs(amount)
+                .isEqualTo(
+                    java.math
+                        .BigDecimal(amount)
+                        .stripTrailingZeros()
+                        .toPlainString(),
+                )
+        }
+    }
+
+    @Test
+    fun `정밀도보다 자릿수가 많거나 음수인 금액은 반올림하지 않고 거절한다`() {
+        assertThatThrownBy { AssetDecimals.baseUnitsOf("1.0000001", 6) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { AssetDecimals.baseUnitsOf("0.1", 0) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { AssetDecimals.baseUnitsOf("-1", 6) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { AssetDecimals.baseUnitsOf("abc", 6) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { AssetDecimals.baseUnitsOf("1", 256) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+    }
 }
