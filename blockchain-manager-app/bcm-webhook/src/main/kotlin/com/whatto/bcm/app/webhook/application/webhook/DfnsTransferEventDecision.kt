@@ -32,8 +32,8 @@ import java.time.Instant
  * 원장에 없는 전송은 우리가 만든 게 아니므로 원장·이벤트를 만들지 않고 결과로만 돌려준다.
  *
  * **확정은 여기서 내지 않는다.** 전송 알림에는 `blockNumber`가 없어 블록 깊이를 계산할 수 없다(CLAUDE.md 3절) —
- * 관찰 컨펌 수를 0으로 두면 번역기가 확정을 내지 않는다. 발신의 확정은 온체인 이동 사건을 이 거래에 붙일 때 난다
- * ([DfnsChainEventDecision]의 발신 대조).
+ * 관찰 컨펌 수를 0으로 두면 번역기가 확정을 내지 않는다. 발신의 확정은 온체인 이동 사건이 알려준 `txHash`의 블록 좌표로 난다
+ * ([DfnsChainEventDecision]의 발신 분기).
  */
 class DfnsTransferEventDecision(
     private val parser: NetworkTransferEventParser,
@@ -75,7 +75,7 @@ class DfnsTransferEventDecision(
             submissions.markSubmitted(submission.externalTransactionId, observation.transferId, CoreDateTimes.now(clock))
         }
 
-        // 거래를 만드는 쪽도 같은 경계를 잡는다 — 발신 붙임의 후보 조회와 직렬화되어야 팬텀 삽입이 생기지 않는다.
+        // 거래를 만드는 쪽도 같은 경계를 잡는다 — 발신 좌표의 후보 조회와 직렬화되어야 팬텀 삽입이 생기지 않는다.
         observation.transactionHash?.let { txStates.lockNetworkTransactionHash(submission.network, it) }
 
         val status =

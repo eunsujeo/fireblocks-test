@@ -30,7 +30,8 @@ object NetworkTransferSubmissionPolicy {
      * `FAILED`에서 02는 "소유권을 잡고 다시 제출한다"지만 Dfns에서는 그렇게 할 수 없다 — 같은 키 재제출은 멱등 계약상
      * **기존 실패 엔티티를 그대로 돌려줄 뿐**이라 새 전송이 만들어지지 않는다(공식 문서가 종결 뒤 영구 결속으로 규정한 부분이다). 새 키를 발급하는 길은 열지 않는다:
      * 벤더 `Failed`는 시스템 실패와 **온체인 실행 실패**를 함께 뜻해(`onChainSubmitted = null`) 체인에 이미 나갔을 수 있고,
-     * 그 상태에서 새 키로 보내면 같은 자금이 두 번 나간다. 체인 미제출을 확인할 수단(발신 이동 대조)이 생긴 뒤에 연다.
+     * 그 상태에서 새 키로 보내면 같은 자금이 두 번 나간다. **체인 미제출을 확인할 수단이 아직 없다** —
+     * 발신 사건의 블록 좌표는 관찰된 hash의 깊이만 말하고 사건이 오지 않았다는 사실은 웹훅 유실·지연과 구분되지 않는다. 그 수단이 계약된 뒤에 연다(계약13).
      */
     fun decide(current: SubmissionRecord?): NetworkTransferSubmissionAction =
         when (current?.status) {
