@@ -146,6 +146,7 @@ CREATE TABLE bcm_vndr_ast_chng_l (
 | `PRIMARY KEY (ntwk_cd, tkn_smbl)` | 같은 자산이 두 줄로 갈라지는 것 |
 | `uk_bcm_vndr_ast_active_vendor` (활성 행 부분 UNIQUE) | **활성인** 한 벤더 자산이 여러 (네트워크, 토큰)에 붙는 것. 비활성 행은 제외되므로 과거 매핑의 벤더 ID는 재사용할 수 있다 |
 | `ck_bcm_vndr_ast_actv` | `actv_yn` 이 Y/N 밖의 값이 되는 것 |
+| `ck_bcm_vndr_ast_dcml` | 소수 자릿수가 0..255(ERC-20 uint8·SPL u8의 한계) 밖으로 들어오는 것 |
 | `FOREIGN KEY (ntwk_cd)` | 채택하지 않은 네트워크로 매핑이 생기는 것 |
 | `UNIQUE (ntwk_cd)` (카탈로그) | 우리 이름 하나가 두 벤더 체인을 가리키는 것 |
 | 자산 카탈로그 검색 인덱스 | 심볼·표시명 exact/prefix·단어 검색이 전체 행 순회로 느려지는 것 |

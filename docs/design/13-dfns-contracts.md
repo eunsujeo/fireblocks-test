@@ -328,7 +328,7 @@ Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블�
 | 표기 정규화 | EVM `txHash`는 16진수, Solana 서명은 base58 | **EVM hash만** 소문자로 맞춘다(대소문자에 정보가 없다). base58처럼 대소문자가 값의 일부인 형식은 건드리지 않는다 |
 | 원문 보존 | — | 실제 hash는 기존 `bcm_tx_l.tx_hash`에 그대로 남긴다. 파생 ID로는 벤더 콘솔·체인 탐색기를 검색할 수 없으므로 운영 조사는 hash로 하고, 그 조회를 위해 V26 index를 추가했다 |
 | 출금의 온체인 사건 | 같은 이동이 전송 알림과 온체인 이동 사건 양쪽으로 온다 | 발신(`direction: Out`) 사건은 **새 거래를 만들지 않는다** — `(ntwk_cd, tx_hash)`로 기존 거래를 찾아 그 거래의 전이로 반영한다. hash는 유일하지 않으므로 **후보가 정확히 하나이고 제출 원장(`bcm_sbmt_l`)에 대응할 때만** 붙이고, 여럿이거나 대응이 없으면 중단해 운영 신호로 남긴다 — 02의 "제출 원장이 기준"을 hash 추정으로 바꾸지 않는다. 확정을 블록 깊이로 판정하므로 이 연결이 있어야 출금도 확정된다 |
-| 범위 밖 | — | 원장 쓰기·`tx_hash` 조회 Repository·판단 워커 조립·RBF 계열 대응(Dfns `replacementId` 계약 미정) |
+| 범위 밖 | — | 발신 사건의 `tx_hash` 조회 Repository와 제출 원장 대조·RBF 계열 대응(Dfns `replacementId` 계약 미정). 입금의 원장 쓰기·outbox와 판단 워커 조립은 [입금 판단](#입금-판단--구현)·[판단 워커 조립](#판단-워커-조립--구현)으로 이후 구현했다 |
 
 - 세 형태(Fireblocks UUID · Dfns 출금 `xfr-` · Dfns 입금 `dfns-`)가 공존한다. 원장 동작에는 영향이 없지만 운영자가 형태로 출처를 구분할 수 있어야 하므로 접두사를 남긴다.
 - 파생 ID는 원문을 드러내지 않는다 — 요약값이라 hash를 되돌릴 수 없다. 조사 동선은 항상 `tx_hash`다.
@@ -355,7 +355,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 | 발신 주소 | [02](02-bcm-flow.md#상태-enum)는 **입금 이벤트에 발신 주소가 항상 실린다**고 확정했고 DAW-CORE의 입금 판별 게이트가 그 값을 쓴다. 그런데 명세상 `Native`·`Spl` 변형의 `from`은 선택이다 — 없으면 이벤트를 만들지 않고 `MissingSender`로 멈춘다. 공개 계약을 비운 채 내보내거나 빈 문자열을 지어내지 않는다 |
 | 금액 | 등록 정밀도로 사람 단위 금액을 만든다(`AssetDecimals.amountOf`) — 제공자와 무관하게 02 이벤트 금액의 단위는 하나다 |
 | 발행 | 전이 표가 발행할 상태만 outbox에 적재하고(`EventType.DEPOSIT`) 알림 ID를 `traceId`로 남긴다. 발행할 상태가 없으면 이벤트도 없다 |
-| 범위 밖 | 경보 포트 연결·발신(제출 원장 대조)·`WebhookTransactionParser`의 Dfns 구현·이력 복구. 인박스 P/S/F 처리와 워커 조립은 [판단 워커 조립](#판단-워커-조립--구현)으로 이후 구현했다 |
+| 범위 밖 | **미판단 결과(미등록·미지원 자산 등)의 경보**·발신(제출 원장 대조)·`WebhookTransactionParser`의 Dfns 구현·이력 복구. 인박스 P/S/F 처리와 워커 조립은 [판단 워커 조립](#판단-워커-조립--구현)으로 이후 구현했고, 미귀속·poison 경보 포트는 기존 Webhook 경보 어댑터에 이미 연결돼 있다 |
 
 수용 항목: **실제 입금 사건에 `from`이 채워져 오는지**(오지 않는 변형이 있으면 02의 공개 이벤트 계약을 바꿀지 그 입금을 보류할지 결정해야 한다), 입금 사건이 `Included`→`Confirmed`로 두 번 올 때의 전이(같은 거래 ID로 합류하는지), 미등록 자산 입금의 운영 경보 수준,
 정밀도 없는 기존 매핑이 실제로 남아 있는지, 체인 head 조회 주기·캐시와 재시도 상한.
@@ -547,7 +547,7 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 5. 회수는 호출당 한 페이지만 읽어 저장한다. 진행 중 scan은 저장 cursor에서 이어가고, 끝난 대기는 새 scan으로 조회한다.
    새 scan에서 known ID가 있으면 단건 read, 없으면 후보 조회를 사용한다. 진행 중 목록 scan은 known ID를 얻어도 그 cursor를 끝까지 따른다.
    조회 실패·증적 보관 실패에는 cursor를 전진시키지 않는다. 0건/404는 재생성 허가가 아니다.
-6. COMPLETED/CONFLICT는 외부 호출 없이 저장 상태를 반환한다. Pending/Conflict의 공개 HTTP 매핑은 위 [보류·충돌 HTTP 계약](#보류충돌-http-계약--구현)으로 고정했고, 공개 주소 API의 Dfns 연결은 [계정·주소 API의 Dfns 연결](#계정주소-api의-dfns-연결--구현)로 구현했다. 자산 수신 주소 완료는 후속이다.
+6. COMPLETED/CONFLICT는 외부 호출 없이 저장 상태를 반환한다. Pending/Conflict의 공개 HTTP 매핑은 위 [보류·충돌 HTTP 계약](#보류충돌-http-계약--구현)으로 고정했고, 공개 주소 API의 Dfns 연결은 [계정·주소 API의 Dfns 연결](#계정주소-api의-dfns-연결--구현)로 구현했다. 준비된 지갑 주소는 `DfnsAccountService`가 `bcm_addr_m`에 저장한다 — 후속은 03에 적은 지갑 FK와 발급 시점 자산 snapshot 컬럼이다.
 7. 벤더 호출이 2xx가 아닌 응답이나 해석 불가한 2xx 응답으로 실패해도 수신 바이트가 있으면 같은 작업 종류로 먼저 보관한 뒤 오류를 전파한다.
    원장 페이지·cursor·연결은 기록하지 않는다. 응답을 받지 못한 실패(연결·timeout)는 보관할 바이트가 없다. 보관 자체가 실패하면 그 실패를 벤더 오류에 suppressed로 붙여 함께 전파한다.
 
@@ -632,9 +632,9 @@ Dfns가 대체 제출(`replacementId`)에서 hash를 어떻게 바꾸는지와 �
 
 | 확인 항목 | 필요한 증거 | 그 전에도 가능한 작업 |
 |---|---|---|
-| 실제 Baseline 릴리스와 공개 schema의 일치 | 릴리스/이미지와 채택 명세 버전의 연결, 배포 지원 범위, clientData의 `origin` 요구 여부, `userAction` 유효기간 | 공식 버전별 OpenAPI에 근거한 인증/HTTP 어댑터·계약 테스트는 구현 완료. 남은 것은 공개 주소 API 연결과 조건부 조립 |
+| 실제 Baseline 릴리스와 공개 schema의 일치 | 릴리스/이미지와 채택 명세 버전의 연결, 배포 지원 범위, clientData의 `origin` 요구 여부, `userAction` 유효기간 | 공식 버전별 OpenAPI에 근거한 인증/HTTP 어댑터·계약 테스트와 공개 계정·주소 API의 조건부 조립까지 구현 완료. 남은 것은 실제 Baseline 릴리스 대조이며 전체 기동 차단은 유지된다 |
 | createWallet 중복·회수 | 동시 동일요청·응답 유실·조회 지연·충돌·재시작 결과와 보장 범위, 429 동작 | 목록/단건 조회 HTTP 어댑터·계약 테스트 완료. 최초 POST 1회·원장/증적 결합 복구는 내부 대역과 HTTP 어댑터 모두로 검증 완료 |
-| 웹훅 원문·서명·retry | 서명된 바이트(재직렬화 없이 수신 바이트로 검증되는지), timestamp 단위·오차, kind별 `data` 형식, 실제 retry/이력 응답과 ID 연결 | Dfns HMAC 검증기·envelope 해석·Webhook 앱 조립 조건 구현 완료(위 "Dfns 웹훅 수신 프로토콜 — 구현"). 판단 워커·이력 복구는 후속 |
+| 웹훅 원문·서명·retry | 서명된 바이트(재직렬화 없이 수신 바이트로 검증되는지), timestamp 단위·오차, kind별 `data` 형식, 실제 retry/이력 응답과 ID 연결 | Dfns HMAC 검증기·envelope 해석·Webhook 앱 조립 조건과 **입금 판단 워커** 구현 완료(위 "Dfns 웹훅 수신 프로토콜 — 구현"·"판단 워커 조립 — 구현"). 전송·발신 경로와 이력 복구는 후속 |
 | 조직 Wallet·초기 체인/USDC·KRWK | 지원 조합·자산 locator·소유·정책/가스 권한 | 체인 식별/확정/대납 인터페이스 설계; 추가 체인 실구현은 후속 |
 | 자산 등록의 온체인 대조 | 채택 명세 `POST /networks/{network}/call-function`의 실제 응답 형식(ERC-20 `decimals()`·`symbol()` read), Solana mint 소유 프로그램 확인 원천 | Dfns 데이터셋 등록 관문(설정·네트워크 행·모델·주소/mint 형식·키 길이)은 구현 완료. 온체인 대조·Token Program은 발행사 공식 자료로 운영자가 확인 |
 | Solana owner 주소 수신 | Baseline이 owner 주소로 받은 SPL/Token-2022 입금을 지갑 자산(`Spl`/`Spl2022`)으로 관찰하는지, 비ATA token account·동결 계정 반영, ATA 생성 rent 부담 주체 | 등록 관문·자산 키·잔액 관찰 구현 완료. `account-address-networks`에 Solana를 넣는 것은 이 확인 뒤 운영 결정 |
