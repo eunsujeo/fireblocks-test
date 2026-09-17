@@ -761,4 +761,20 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   새 키는 체인 미제출이 확인된 경우로 제한하며 그 확인 수단(발신 이동 대조)이 생긴 뒤에 연다 — 그때까지 `UNPROCESSABLE_ENTITY`로 거절한다.
 - **범위 밖**: 발신 이동 대조(`(ntwk_cd, tx_hash)` 단일 후보 + 제출 원장 대응), 새 제출 키 발급 규칙, 미결 제출 점검의 Dfns 동작,
   내부이체·Sweep·대납·수수료·Travel Rule·memo. `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
-- 검증: 전체 1,308 테스트 0 실패(이번 슬라이스 22건 추가), 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+- **반영(1차 design-sync Critical 2)**: ① 회수 본문이 저장값에서 재구성되지 않고 회수 시점의 매핑·정밀도를 다시 읽었다 —
+  V28로 제출 시점의 벤더 canonical 한 벌을 보관하고 그 값으로만 본문을 만든다. 저장값이 없으면 재구성하지 않고 `422`로 거절한다.
+  원장을 먼저 읽어 이미 `SUBMITTED`인 건은 현재 매핑을 읽지 않는다. ② 회수 재제출의 표식 있는 `409`를 `FAILED`로 굳혔다 —
+  최초 제출에서만 확정 거절로 두고 회수에서는 `REQUESTED`를 유지한다(진행 중 응답이 수용 항목이라 종결로 적으면 나간 전송에 확정 거절이 나간다).
+- **반영(2차 Critical 1·Major 6)**: **상태를 읽고 소유권을 잡는 사이 다른 요청이 `FAILED`로 바꾸면 공용 `tryClaim`이 그 행을 되살려
+  Dfns가 금지한 `FAILED → REQUESTED`가 다시 열렸다** — 판정과 전이가 같은 조건으로 원자적이어야 한다. `tryClaimRequested`(REQUESTED 전용)를 더해
+  Dfns가 그것만 쓰고, 못 잡았을 때 최신 상태가 `FAILED`면 재시도 불가로 답한다. 그 밖에 `base_amt` 폭(정밀도 255면 최소 단위가 256자를 넘는다),
+  V28의 즉시 검증 CHECK(→ `NOT VALID` + 별도 `VALIDATE`, 트랜잭션 밖), 03 정본 DDL 누락, 02·03 전이 표의 Dfns 예외, canonical 결손 거절의 순서를 고쳤다.
+- **반영(3~5차 Major 7)**: 코드 설명과 계약 문구가 수용 항목 경계를 넘어 단정하던 곳 — "`FAILED` 판정은 같고 회수 수단만 다르다",
+  "같은 본문 재제출은 기존 엔티티 `200`"(명확한 보장은 **종결 뒤**이고 진행 중은 수용 항목), `externalId` 결속의 강제 지점(어댑터가 강제하고
+  도메인의 `null` 관용은 **조회 관찰**용) — 을 코드·KDoc·02·03·12·13에서 일치시켰다.
+- **독립 converge(Codex gpt-5.6-sol high, 별도 reviewer 세션 — 컨텍스트가 찬 세션은 판정 근거가 얕아져 중간에 새 세션으로 교체했다)**:
+  design-sync 5라운드(Critical 2 → Critical 1·Major 6 → Major 4 → Major 2 → Major 1·Minor 1) 뒤 **통과**(Critical 0·Major 0·Minor 1),
+  이어서 **code-reviewer 공식 판정 "커밋 가능"**(Critical 0, Improvement 2, Minor 1).
+  Improvement 2건도 반영했다 — 회수 `409`에서 벤더 상태·응답 원문을 버리지 않고 예외에 실어 자금 불확실 구간의 조사 정보를 남기고,
+  Critical의 직접 원인이던 경합을 **실제 PostgreSQL 두 연결**로 재현해 고정했다(잠금 대기 뒤 조건 재평가로 되살리지 않음).
+- 검증: 전체 **1,317 테스트 0 실패**, 전체 ktlintCheck·`git diff --check`·생성물 2종 통과. 벤더 실호출 없음.
