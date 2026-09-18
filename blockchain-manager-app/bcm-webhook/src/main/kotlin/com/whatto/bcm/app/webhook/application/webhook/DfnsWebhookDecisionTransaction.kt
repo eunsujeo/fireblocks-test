@@ -22,6 +22,7 @@ import java.time.Clock
  *
  * 발신 이동 사건은 그 `txHash`의 **우리 발신 거래에 블록 좌표를 적용**해 확정까지 낸다. 그 거래가 아직 없으면
  * **재시도로 남긴다** — 전송 알림이 늦을 수 있고, 처리 완료로 닫으면 그 출금은 영영 확정되지 않는다.
+ * 수신 이동이 **우리 내부이체의 수신측**이면 입금을 만들지 않고 닫으며, 결속 전이면 같은 이유로 재시도로 남긴다(계약13).
  * 미지원/미등록 자산·정밀도 없음·발신 주소 없음만 원장을 쓰지 않고 처리 완료로 남긴다(계약13).
  *
  * 실패 처리는 Fireblocks 경로와 같다 — payload 결함은 재시도/격리, 설정 오류는 P로 남겨 복구 뒤 다시 처리, 그 밖의 오류는 워커가 기록한다.
@@ -105,6 +106,15 @@ class DfnsWebhookDecisionTransaction(
             // 재시도로 남겨 알림이 오면 적용되고, 상한까지 안 오면 격리돼 운영이 본다.
             is DfnsChainDecisionOutcome.OutgoingPending -> failed(inboxItem, PENDING_OUTGOING_REASON)
 
+            // 우리 내부이체의 수신측이다 — 업무 이벤트는 제출 원장 쪽에서 이미 났다. 원장·이벤트를 만들지 않고 닫는다.
+            is DfnsChainDecisionOutcome.InternalReceipt -> {
+                markProcessed(inboxItem)
+                WebhookDecisionOutcome.Ignored(inboxItem.notificationId)
+            }
+
+            // 발신이 우리 지갑인데 그 hash의 발신 거래가 아직 없다 — 입금으로 확정하면 되돌릴 수 없다. 재시도로 남긴다.
+            is DfnsChainDecisionOutcome.IncomingUnresolved -> failed(inboxItem, UNRESOLVED_INCOMING_REASON)
+
             is DfnsChainDecisionOutcome.Unattributed -> {
                 markProcessed(inboxItem)
                 WebhookDecisionOutcome.Unattributed(
@@ -174,6 +184,8 @@ class DfnsWebhookDecisionTransaction(
         const val UNKNOWN_TRANSFER_REASON = "transfer notification has no submission ledger entry"
 
         const val PENDING_OUTGOING_REASON = "outgoing transaction is not recorded yet"
+
+        const val UNRESOLVED_INCOMING_REASON = "incoming transfer from our own wallet is not linked yet"
 
         const val UNEXPECTED_FAILURE_REASON = "decision processing failed"
     }

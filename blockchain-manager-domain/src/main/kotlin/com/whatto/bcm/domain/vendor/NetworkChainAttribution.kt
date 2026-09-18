@@ -53,6 +53,15 @@ interface NetworkChainLedgerLookup {
         network: String,
         symbol: String,
     ): String?
+
+    /**
+     * 그 주소가 **우리 네트워크 지갑의 주소인가**. 계정·자산을 묻지 않고 소유권만 본다 —
+     * 수신측 중복 입금 방지가 쓴다([NetworkChainIncomingReceipt]).
+     */
+    fun ownsWalletAddress(
+        network: String,
+        address: String,
+    ): Boolean
 }
 
 data class LedgerAsset(

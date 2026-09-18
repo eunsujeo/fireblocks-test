@@ -273,6 +273,25 @@ class NetworkWalletProvisioningJdbcAdapter(
                 ),
         ) == 1
 
+    override fun ownsWalletAddress(
+        origin: ProviderOrigin,
+        network: String,
+        address: String,
+    ): Boolean {
+        origin.requireMatch(origins.findBinding())
+        // 계정·자산을 묻지 않는다 — 소유권만 본다. 완료되지 않은 의도의 지갑도 주소가 있으면 우리 것이다.
+        return jdbc
+            .query(
+                """
+                SELECT 1 FROM bcm_ntwk_wlt_m
+                 WHERE orgn_id = :originId AND ntwk_cd = :network AND lower(wlt_addr) = lower(:address)
+                 LIMIT 1
+                """.trimIndent(),
+                mapOf("originId" to origin.originId, "network" to network, "address" to address),
+            ) { _, _ -> true }
+            .isNotEmpty()
+    }
+
     private fun verifyOrigin(scope: NetworkWalletScope) = scope.origin.requireMatch(origins.findBinding())
 
     private fun requireIntent(scope: NetworkWalletScope): NetworkWalletCreationIntent =

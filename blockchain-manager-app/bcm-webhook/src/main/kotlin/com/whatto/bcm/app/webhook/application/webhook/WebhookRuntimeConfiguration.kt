@@ -10,6 +10,7 @@ import com.whatto.bcm.app.application.sweep.SweepObservationService
 import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
 import com.whatto.bcm.app.application.tx.BoostObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
+import com.whatto.bcm.app.application.wallet.NetworkWalletQueryService
 import com.whatto.bcm.app.config.ClockConfig
 import com.whatto.bcm.app.config.ProviderOriginConfiguration
 import com.whatto.bcm.app.webhook.application.event.OutboxRelayJob
@@ -31,6 +32,7 @@ import org.springframework.context.annotation.Import
     SweepOutboxEventPublisher::class,
     BoostObservationService::class,
     TxStateService::class,
+    NetworkWalletQueryService::class,
     ClockConfig::class,
     ProviderOriginConfiguration::class,
 )

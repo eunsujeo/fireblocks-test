@@ -5,8 +5,10 @@ import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
+import com.whatto.bcm.app.application.wallet.NetworkWalletQueryService
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
+import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.tx.ChainHeadPort
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.vendor.LedgerAsset
@@ -52,6 +54,8 @@ class DfnsWebhookDecisionConfig {
     fun dfnsNetworkChainLedgerLookup(
         assetMappings: VendorAssetMappingQueryService,
         depositAddresses: DepositAddressQueryService,
+        networkWallets: NetworkWalletQueryService,
+        origin: ProviderOrigin,
     ): NetworkChainLedgerLookup =
         object : NetworkChainLedgerLookup {
             override fun assetOf(vendorAssetId: String): LedgerAsset? =
@@ -62,6 +66,12 @@ class DfnsWebhookDecisionConfig {
                 network: String,
                 symbol: String,
             ): String? = depositAddresses.findByAddress(address, network, symbol)?.accountId
+
+            // 자산 발급 기록이 아니라 **소유권**으로 묻는다 — 제출은 그 자산의 주소 발급을 요구하지 않는다(계약13).
+            override fun ownsWalletAddress(
+                network: String,
+                address: String,
+            ): Boolean = networkWallets.ownsAddress(origin, network, address)
         }
 
     @Bean

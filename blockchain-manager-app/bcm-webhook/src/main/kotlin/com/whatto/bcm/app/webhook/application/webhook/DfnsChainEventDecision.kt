@@ -22,6 +22,8 @@ import com.whatto.bcm.domain.vendor.NetworkChainAttributionMiss
 import com.whatto.bcm.domain.vendor.NetworkChainAttributionResult
 import com.whatto.bcm.domain.vendor.NetworkChainCoordinateResult
 import com.whatto.bcm.domain.vendor.NetworkChainEventParser
+import com.whatto.bcm.domain.vendor.NetworkChainIncomingReceipt
+import com.whatto.bcm.domain.vendor.NetworkChainIncomingResult
 import com.whatto.bcm.domain.vendor.NetworkChainLedgerLookup
 import com.whatto.bcm.domain.vendor.NetworkChainOutgoingCoordinate
 import com.whatto.bcm.domain.vendor.NetworkChainTransfer
@@ -201,6 +203,18 @@ class DfnsChainEventDecision(
         deposit: NetworkChainAttributionResult.Deposit,
     ): DfnsChainDecisionOutcome {
         val observation = deposit.observation
+        // 우리 내부이체의 수신측이면 입금을 만들지 않는다 — 업무 이벤트는 제출 원장 쪽에서 이미 났다(계약13).
+        // 경계는 decide 진입부에서 이미 잡았다.
+        val receipt =
+            NetworkChainIncomingReceipt.judge(
+                txStates.findByNetworkAndTransactionHash(observation.network, observation.transactionHash),
+                senderIsOurWallet = observation.fromAddress?.let { ledger.ownsWalletAddress(observation.network, it) } == true,
+            )
+        when (receipt) {
+            is NetworkChainIncomingResult.OurOutgoing -> return DfnsChainDecisionOutcome.InternalReceipt(observation)
+            is NetworkChainIncomingResult.Unresolved -> return DfnsChainDecisionOutcome.IncomingUnresolved(observation)
+            is NetworkChainIncomingResult.External -> Unit
+        }
         // 금액이 없는 관찰은 모델링한 자산이 아니므로 귀속 단계에서 이미 갈린다 — 여기 오면 계약 위반이다.
         val baseUnits = checkNotNull(observation.amountBaseUnits) { "deposit observation must carry base units" }
         // 정밀도가 없으면 사람 단위 금액을 만들 수 없다. 0이나 최소 단위를 그대로 싣지 않는다 — 단위가 뒤섞이면 조용한 금액 사고다.
@@ -341,6 +355,22 @@ sealed interface DfnsChainDecisionOutcome {
         val miss: NetworkChainAttributionMiss,
         val network: String,
         val symbol: String,
+    ) : DfnsChainDecisionOutcome
+
+    /**
+     * 우리 내부이체의 **수신측**이다 — 같은 hash에 우리 발신 거래가 있다. 업무 이벤트는 제출 원장 쪽에서 이미 났으므로
+     * 입금을 만들지 않는다. 만들면 한 번의 이동에 `INTERNAL`과 `DEPOSIT`이 둘 다 나가 없는 입금이 인정된다(계약13).
+     */
+    data class InternalReceipt(
+        val observation: NetworkChainTransfer,
+    ) : DfnsChainDecisionOutcome
+
+    /**
+     * 발신이 우리 지갑인데 그 hash의 발신 거래가 아직 없다. **입금으로 확정하지 않고 보류한다** —
+     * 전송 알림이 늦을 수 있고, 이벤트는 취소가 안 되므로 확정보다 보류가 맞다.
+     */
+    data class IncomingUnresolved(
+        val observation: NetworkChainTransfer,
     ) : DfnsChainDecisionOutcome
 
     /** 등록 자산인데 정밀도가 없어 이벤트 금액을 만들 수 없다(03 V27 이전 등록 행). */

@@ -2,6 +2,7 @@ package com.whatto.bcm.domain.wallet
 
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.ProvisioningPendingException
+import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.vendor.NetworkWalletCreationRequest
 import com.whatto.bcm.domain.vendor.NetworkWalletObservation
 import com.whatto.bcm.domain.vendor.NetworkWalletRecoveryDecision
@@ -37,6 +38,18 @@ interface NetworkWalletProvisioningRepository {
     ): NetworkWalletCreationIntent
 
     fun findWallet(scope: NetworkWalletScope): NetworkWalletObservation?
+
+    /**
+     * 그 주소가 **우리 네트워크 지갑의 주소인가**(03 V30 index). 계정·자산을 묻지 않고 **소유권만** 본다 —
+     * 제출은 그 자산의 주소 발급을 요구하지 않으므로 발급 기록으로 물으면 우리 지갑을 못 알아본다(계약13 "내부이체").
+     *
+     * 현재 Dfns 범위는 EVM이라 대소문자를 무시한다. base58 네트워크가 열리면 비교 규칙을 다시 정한다.
+     */
+    fun ownsWalletAddress(
+        origin: ProviderOrigin,
+        network: String,
+        address: String,
+    ): Boolean
 }
 
 data class NetworkWalletSubmissionSpec(
