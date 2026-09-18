@@ -237,15 +237,15 @@ class TransactionSubmissionService(
     ): SubmissionAttempt =
         try {
             transactionRunner.run {
-                if (logical.transactionType == SubmissionTransactionType.WITHDRAWAL) {
-                    val gate = executionGates.lockAndFindCurrent(command.network, ExecutionGateType.WITHDRAWAL)
-                    val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
-                    if (existing != null) {
-                        if (existing.status == SubmissionStatus.FAILED) ExecutionGatePolicy.requireOpen(gate)
-                        return@run SubmissionAttempt(existing, isNew = false, prepared = null)
-                    }
-                    ExecutionGatePolicy.requireOpen(gate)
+                val withdrawal = logical.transactionType == SubmissionTransactionType.WITHDRAWAL
+                val gate = if (withdrawal) executionGates.lockAndFindCurrent(command.network, ExecutionGateType.WITHDRAWAL) else null
+                // **거래 구분과 무관하게** 기존 행을 먼저 본다 — 내부이체·밴드S도 기존 키면 자원을 읽지 않고 되돌아가야 한다.
+                val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
+                if (existing != null) {
+                    if (withdrawal && existing.status == SubmissionStatus.FAILED) ExecutionGatePolicy.requireOpen(gate)
+                    return@run SubmissionAttempt(existing, isNew = false, prepared = null)
                 }
+                if (withdrawal) ExecutionGatePolicy.requireOpen(gate)
                 val prepared = prepare()
                 SubmissionAttempt(submissions.insert(requested), isNew = true, prepared = prepared)
             }

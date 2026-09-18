@@ -5,6 +5,7 @@ import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.asset.AssetDecimals
+import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.RelayRejectedException
@@ -71,7 +72,9 @@ class DfnsTransferSubmissionService(
 
         // 여기부터는 **새 키**다. 원장에 행을 만들기 전에 막을 것을 막는다.
         SubmissionRequestPolicy.requireDistinctAccounts(command.senderAccountId, command.recipient.type, command.recipient.value)
-        val prepared = prepare(command, destinationAddressOf(command))
+        // 자산 지원 여부(`400`)를 목적지 준비 상태(`422`)보다 먼저 본다 — 미지원 자산은 주소를 발급해도 해소되지 않는다(02).
+        val mapping = mappings.requiredCurrentMapping(command.network, command.symbol)
+        val prepared = prepare(command, mapping, destinationAddressOf(command))
         val claim = newClaim()
         val attempt = insertOrFind(requestedRecord(command, prepared, fingerprint, claim))
         if (!attempt.isNew) return resume(command, fingerprint, attempt.record)
@@ -140,9 +143,9 @@ class DfnsTransferSubmissionService(
     /** 최초 제출의 본문을 만든다. 여기서 확정한 값은 원장에 함께 적혀 회수 때 그대로 다시 쓰인다(03 V28). */
     private fun prepare(
         command: TransactionSubmissionCommand,
+        mapping: VendorAssetMapping,
         destinationAddress: String,
     ): PreparedNetworkTransfer {
-        val mapping = mappings.requiredCurrentMapping(command.network, command.symbol)
         // 정밀도가 없으면 최소 단위를 만들 수 없다. 0이나 사람 단위를 그대로 보내지 않는다 — 단위가 뒤섞이면 조용한 금액 사고다.
         val decimals = mapping.decimals ?: throw InvalidRequestException("decimals")
         val scope = NetworkWalletScope(origin, command.senderAccountId, command.network)
