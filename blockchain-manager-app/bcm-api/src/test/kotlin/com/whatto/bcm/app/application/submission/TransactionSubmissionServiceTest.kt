@@ -594,6 +594,7 @@ class TransactionSubmissionServiceTest {
                 transactionType = SubmissionTransactionType.BAND_S,
                 senderAccountId = "omnibus-base",
                 network = "BASE",
+                externalTransactionId = "band-exec-1-1",
             )
         every { mappings.requiredMapping(any(), any()) } throws AssetNotSupportedException("BASE", "USDC")
 
@@ -662,9 +663,10 @@ class TransactionSubmissionServiceTest {
         transactionType: SubmissionTransactionType = SubmissionTransactionType.WITHDRAWAL,
         senderAccountId: String = SENDER_ID,
         network: String = "ETHEREUM",
+        externalTransactionId: String = EXTERNAL_ID,
     ): SubmissionRecord =
         SubmissionRecord(
-            externalTransactionId = EXTERNAL_ID,
+            externalTransactionId = externalTransactionId,
             requestHash = "unused-for-cross-version-comparison",
             hashVersion = "v0",
             status = status,
