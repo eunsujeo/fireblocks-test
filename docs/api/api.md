@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.14.0`
+`v0.15.0`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -901,6 +901,10 @@ _응답_
 
 제출 응답을 못 받았을 때의 확인, 그리고 대사에서 우리 기록과 벤더 기록을 잇는 데 쓴다.
 
+**아직 제출 중이면 `503 SUBMIT_IN_PROGRESS`** 와 `Retry-After` 가 온다 — 제출 API 와 같은 뜻이다.
+그 키를 접수했지만 `txId` 가 아직 확정되지 않았다는 것이고, 오류가 아니라 지연이다.
+`404` 는 "벤더에 없다"가 아니라 **"BCM 이 수용한 거래가 없다"** 는 뜻이다.
+
 ```bash
 curl "https://{baseUrl}/blockchain/manage-api/transactions/external/wd-260713-0042"
 ```
@@ -951,6 +955,28 @@ _응답_
   "error": {
     "code": "NOT_FOUND",
     "message": "transaction not found"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
+`503` — 같은 `externalTxId` 의 앞선 제출이 처리 중이다. 중복 제출이 아니라 아직 결과를 모른다는 뜻이고,
+`Retry-After` 초 뒤에 같은 요청을 그대로 다시 보내면 된다.
+
+
+```json
+{
+  "error": {
+    "code": "SUBMIT_IN_PROGRESS",
+    "message": "submission for this externalTxId is in progress"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -4086,6 +4112,9 @@ Dfns Solana `{ "network": "SOLANA_DEVNET", "symbol": "USDC", "contractAddress": 
 RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값을 유지하고,
 `txHash`는 root 계열에서 실제로 채굴된 승자 거래 값으로 바뀔 수 있다.
 
+**응답은 BCM 이 검증하고 수용한 상태다.** 벤더의 최신값을 그때그때 덮어 보여주지 않는다 —
+같은 거래를 두 번 물으면 상태는 전진만 하고, 아직 우리가 받아들이지 않은 관찰은 나타나지 않는다.
+
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `txId` | string | 필수 | 최초 root 거래의 벤더 tx id |
@@ -4098,8 +4127,8 @@ RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값�
 | `to` | string \\| null | 필수 | 목적지 (확정 온체인 주소). `from` 과 같은 이유로 `SUBMITTED` 구간에는 비어 있을 수 있다. |
 | `status` | TxStatus | 필수 | `SUBMITTED` `CONFIRMED` `FINALIZED` `REJECTED` `FAILED` |
 | `numOfConfirmations` | integer | 필수 | 누적 컨펌 수 |
-| `createdAt` | string (ISO 8601) | 필수 | 거래 생성 시각 (목록 정렬·기간 필터 기준) |
-| `lastUpdated` | string (ISO 8601) | 필수 | 마지막 상태 변경 시각 |
+| `createdAt` | string (ISO 8601) | 필수 | **BCM 이 그 거래를 처음 원장에 수용한 시각.** 목록 정렬·기간 필터의 기준이다. 벤더가 거래를 만든 시각이 아니다 — 벤더 시간축은 제공자마다 뜻이 달라(출금 접수 시각 · 입금 알림 시각) 공개 계약의 기준으로 쓰지 않는다. 벤더 시각은 내부 대사에만 쓴다.  |
+| `lastUpdated` | string (ISO 8601) | 필수 | BCM 이 마지막 유효 관찰을 반영한 시각 |
 
 
 ### ChainEvent

@@ -696,6 +696,21 @@ DAW-CORE가 있지도 않은 입금을 인정하게 된다([호환 계획](../df
 - **조립 범위**: `ConditionalOnDfnsProtocol`로 `DfnsClientConfig`(`bcm.dfns.*` 바인딩·서명기·HTTP 어댑터, 자격 누락은 빈 생성에서 실패)와
   `DfnsAccountConfig`(논리 계정·지갑 생성 서비스·주소 정책·`DfnsAccountService`)를 만들고, Fireblocks 쪽은 `FireblocksAccountConfig`·`WalletProvisioningConfig`가
   `ConditionalOnFireblocksProtocol`로 `AccountService`를 만든다. 이 절은 API 앱의 계정·주소 조립이며,
+### 거래 조회 — 공통 원장을 읽는다 (2026-09-18 사용자 확정)
+
+Dfns 조회를 따로 만들지 않는다. [02 거래 조회](02-bcm-flow.md#거래-조회--제공자-공통-2026-09-18-사용자-확정)가
+**공개 조회를 BCM 원장만 읽도록** 확정했고, 그 이유의 절반이 Dfns에서 나왔다.
+
+| 왜 벤더 조회로 못 하는가 | 근거 |
+|---|---|
+| 전송 목록에 `externalId` 필터가 없다 | 공식 OpenAPI 1.1018.3의 `GET /wallets/{walletId}/transfers`는 `limit`·`paginationToken`뿐이다([제공자별 회수 절차](#출금-제출-계약)) |
+| 단건 조회가 `(walletId, transferId)`를 요구한다 | 공개 `txId` 하나로 부를 수 없다. 어느 지갑인지 먼저 알아야 하고 그건 우리 원장에만 있다 |
+| **입금의 공개 `txId`가 벤더 ID가 아니다** | 입금은 전송 요청이 아니라 관찰이라 벤더 전송 ID가 없다. BCM이 `txHash`+index로 결정적 ID를 만든다 — 그 값으로 벤더를 되물을 수 없다 |
+
+세 번째가 결정적이다. 앞의 둘은 "불편"이지만 이건 **되돌릴 경로가 없다**.
+
+그래서 Dfns 경로는 조회용 벤더 포트를 늘리지 않는다. `NetworkTransferPort`의 조회는 **회수와 대사**에만 쓴다.
+
   Webhook 앱의 Dfns **입금** 판단 조립은 [판단 워커 조립](#판단-워커-조립--구현)에서 따로 구현했다. 출금 제출은 `DfnsSubmissionConfig`가 따로 조립하며, 거래 조회·Sweep·Admin 조회의 Dfns 조립은 후속이고,
   조립 여부와 무관하게 전체 컨텍스트의 `BCM_PROVIDER=dfns` 기동 차단(`ProviderConfiguration`)은 유지한다. 차단 해제는 Baseline 수용 뒤 사용자 결정이다.
 - **후속**: tag/memo 체인 주소 모델, 이력 복구·RBF 계열. 자산 매핑 등록·잔액은 아래 두 절로, 웹훅의 입금·전송 알림·발신 확정의 블록 좌표는 위 세 절로 구현했다.

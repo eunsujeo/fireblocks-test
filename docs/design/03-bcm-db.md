@@ -425,6 +425,65 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
   보관 위치는 아래 V24 원장이며 참조는 보관 어댑터가 발급한 형식만 유효하다. 본 원장의 후보 행은 BCM 정규화 값이며 벤더 JSON을 창작하지 않는다.
   릴리스별 실제 응답 schema 대조는 Dfns HTTP 어댑터 연결 시 수용한다.
 
+### V32 거래 조회 원장 — 물리 저장 계약 (2026-09-18 사용자 확정)
+
+[02 거래 조회](02-bcm-flow.md#거래-조회--제공자-공통-2026-09-18-사용자-확정)가 공개 조회를 **BCM 원장만** 읽도록 확정했다.
+그런데 `bcm_tx_l`에는 공개 응답이 요구하는 **금액·발신 주소·수신 주소**가 없다. 나머지(`txId`·`txHash`·`externalTxId`·
+`network`·`symbol`·상태·컨펌 수·시각)는 이미 있다.
+
+**별도 테이블을 만들지 않고 `bcm_tx_l`을 넓힌다.** 이 표가 이미 "논리 거래 한 행"이고 root `txId`·active hash·계정·자산·
+상태·컨펌·시각을 갖고 있어, 조회 응답과 1:1이다. 나누면 모든 조회가 join 하나를 더 타면서 두 표의 생명주기를 맞춰야 한다.
+
+| 컬럼 | 타입 | 뜻 |
+|---|---|---|
+| `trsf_amt` | `NUMERIC` NULL | 공개 응답의 금액. **사람 단위 정규화 값**이다 |
+| `src_addr` | `VARCHAR(256)` NULL | 발신 온체인 주소. 체인에 오르기 전에는 `NULL` |
+| `dst_addr` | `VARCHAR(256)` NULL | 수신 온체인 주소. 같은 이유로 `NULL`일 수 있다 |
+
+#### 금액은 typmod 없는 `NUMERIC`이다
+
+공개 계약의 `amount`는 **사람 단위 decimal 문자열**이다. 최소 단위 정수는 벤더 요청을 재생하거나 원문 증적을 남길 때의
+값이지 공개 조회값의 단위가 아니다. 그래서 조회 원장은 정규화 값을 적는다.
+
+`NUMERIC(36,18)`로 **제한하지 않는다** — 제출 API는 18+18 범위지만 Dfns 자산 정밀도는 `0..255`이고 `base_amt` 폭은 320이다.
+자릿수를 고정하면 **정상적으로 수용한 입금이 조회 원장 기록 단계에서 실패한다**. 관찰을 받아들이고 나서 적지 못하면
+그 거래는 공개 조회에서 사라진다. 읽을 때 `stripTrailingZeros().toPlainString()`으로 문자열을 만든다.
+
+최소 단위와 정밀도가 감사상 더 필요하면 관찰 증적에 남기고, **조회용 금액을 그 둘로 매번 재계산하지 않는다** —
+정밀도 매핑이 교체되면 과거 거래의 표시 금액이 바뀐다.
+
+#### 병합 규칙
+
+한 거래에 여러 관찰이 순서 없이 온다. 무엇을 덮고 무엇을 덮지 않는지 정한다.
+
+| 값 | 규칙 |
+|---|---|
+| 금액 | **최초값 불변**. 제출 원장과 관찰이 다르면 덮지 않고 **충돌로 격리**한다 |
+| 주소 | `NULL → 값`만 허용. 이미 있는 비`NULL` 주소와 **다른** 값이 오면 임의로 덮지 않는다 |
+| RBF | root 행의 금액·목적지를 **유지**하고 `tx_hash`·`actv_tx_id`만 바꾼다 |
+
+`cnfm_cnt`가 "큰 값으로만 갱신"인 것과 같은 규율이다 — 늦게 온 관찰이 기록을 역행시키면 안 된다.
+
+#### 목록 인덱스
+
+02가 목록 정렬을 `(frst_dtct_dttm, vndr_tx_id)` keyset으로 정했고, 귀속은 계정이다.
+
+```sql
+CREATE INDEX idx_bcm_tx_account_listing
+  ON bcm_tx_l (acnt_id, frst_dtct_dttm, vndr_tx_id);
+```
+
+#### 백필과 전환 순서
+
+세 컬럼은 **nullable 추가 전용**으로 먼저 열고, 기존 행을 채운 뒤에야 공개 read를 전환한다.
+
+- 출금·내부이체·sweep·밴드S는 `bcm_sbmt_l`에서 채운다 — `trsf_amt`, 목적지는 `vndr_dst_addr`(없으면 `rcv_vl`이 주소인 경우만).
+- 입금은 제출 원장이 없다. `bcm_outbox_l` payload와 `bcm_raw_tx_l` 원문에서 채운다.
+- `src_addr`는 제출 원장에 없다 — 발신 계정의 `bcm_ntwk_wlt_m.wlt_addr`(Dfns)나 관찰 원문에서 얻는다.
+
+**0이나 빈 문자열로 메우지 않는다.** 금액이 없는 행은 "금액 0"이 아니라 "아직 모른다"이고, 둘을 섞으면 회계 대사가 틀린 값을
+정상으로 읽는다. 금액 미백필 건이 **0이 되기 전에는 공개 read를 전환하지 않는다** — 남은 건은 Fireblocks 벤더 조회로 회수한다.
+
 ### V30 제출 목적지 주소 보관 — 물리 저장 계약
 
 내부이체(`rcv_dvcd = ACCOUNT`)는 목적지가 계정이라 `rcv_vl`에 accountId가 들어간다.
@@ -922,6 +981,9 @@ CREATE TABLE bcm_tx_l (
   ntwk_cd         VARCHAR(20)  NOT NULL,      -- 네트워크 코드
   tkn_smbl        VARCHAR(16)  NOT NULL,      -- 토큰 심볼
   tx_hash         VARCHAR(128) NULL,          -- actv_tx_id의 온체인 hash — boost 접수 시 NULL, 새 거래 웹훅에서 채움
+  trsf_amt        NUMERIC      NULL,          -- V32 공개 조회 금액 — 사람 단위 정규화. 자릿수를 고정하지 않는다(정밀도 0..255)
+  src_addr        VARCHAR(256) NULL,          -- V32 발신 온체인 주소 — 체인에 오르기 전에는 NULL
+  dst_addr        VARCHAR(256) NULL,          -- V32 수신 온체인 주소 — 같은 이유로 NULL일 수 있다
   last_pub_stcd   VARCHAR(16)  NOT NULL,      -- 마지막으로 발행한 TxStatus — 이 값과 다를 때만 새 이벤트를 낸다
   cnfm_cnt        INT          NOT NULL,      -- 마지막으로 본 confirmation 수 — 큰 값으로만 갱신(감소 금지)
                                               -- 늦게 온 알림은 낮은 값을 담고 있어, 그대로 쓰면 기록이 역행한다
@@ -944,6 +1006,8 @@ CREATE INDEX idx_bcm_tx_stall ON bcm_tx_l (last_pub_stcd, last_chng_dttm)
   WHERE stall_alrt_dttm IS NULL AND last_pub_stcd IN ('SUBMITTED', 'CONFIRMED');
 CREATE INDEX idx_bcm_tx_rcnc ON bcm_tx_l (last_pub_stcd, rcnc_stop_dttm, rcnc_chck_dttm, frst_dtct_dttm)
   WHERE last_pub_stcd IN ('SUBMITTED', 'CONFIRMED');
+-- V32 계정별 목록 — 02가 정한 (frst_dtct_dttm, vndr_tx_id) keyset 정렬을 그대로 탄다.
+CREATE INDEX idx_bcm_tx_account_listing ON bcm_tx_l (acnt_id, frst_dtct_dttm, vndr_tx_id);
 ```
 
 | 컬럼 | 뜻 |
