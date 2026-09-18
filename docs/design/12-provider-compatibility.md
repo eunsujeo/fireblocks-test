@@ -980,3 +980,18 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   `REQUESTED`·`SUBMITTED`는 통과시키고 `FAILED` 재시도만 막는다.
 - **범위 밖**: 수신측 `In` 중복 입금 방지(다음 슬라이스), 화이트리스트 목적지, 대납. `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
 - 검증: 신규 13건 포함 전체 1,374 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
+
+## Dfns 수신측 중복 입금 방지 구현 (2026-09-18)
+
+- 계약은 [계약13 내부이체](13-dfns-contracts.md#내부이체--확정)의 "수신측 중복 입금 방지". 구현은 도메인 순수 규칙 `NetworkChainIncomingReceipt`와 `DfnsChainEventDecision`의 입금 분기다.
+- **무엇이 문제였나**: 벤더는 관리 계정 간 이동을 **송신 `Out`·수신 `In` 양쪽**으로 알리는데 [귀속](13-dfns-contracts.md#온체인-이동의-귀속--구현)은 발급 주소로 들어온 모든 `In`을 입금으로 가른다.
+  내부이체를 여는 순간 한 번의 이동에 `INTERNAL`과 `DEPOSIT`이 둘 다 나가 **DAW-CORE가 있지도 않은 입금을 인정**한다.
+- 같은 `(ntwk_cd, tx_hash)`에 **우리 발신 거래**(`ext_tx_id`가 있는 행)가 있으면 입금을 만들지 않고 닫는다. 판정은 발신 좌표와 같은 규칙을 재사용한다(`NetworkChainOutgoingCoordinate`) — "우리 발신 거래"의 정의를 한 곳에 둔다.
+- 아직 결속이 없는데 **발신 주소가 우리 네트워크 지갑**이면 **보류(재시도)**다. 이벤트는 취소가 안 되므로 확정보다 보류가 맞다 — 전송 알림이 오면 위 분기로 해소되고 상한까지 안 오면 격리된다.
+- **발신 판정은 소유권으로 한다.** 자산 발급 기록(`bcm_addr_m`)으로 물으면 다른 토큰으로 지갑만 만들어진 계정의 내부이체를 **외부 입금으로 확정해 버린다** — 제출은 그 `symbol`의 주소 발급을 요구하지 않는다.
+  조회는 V30의 `(orgn_id, ntwk_cd, lower(wlt_addr))` index를 쓰고 현재 범위가 EVM이라 대소문자를 무시한다.
+- 저장소 직접 참조를 피하려고 `NetworkWalletQueryService`를 두고 조립이 그 서비스를 연결한다(`docs/standards/architecture.md`).
+- **도착 순서 검증**: 슬라이스에 두 순서를 넣었다 — 수신 사건이 먼저 와서 보류됐다가 전송 알림 뒤 닫히는 경우와, 전송 알림이 먼저인 경우. 둘 다 outbox에 `internal-events`만 남는다.
+  대기가 0인 슬라이스에서는 재시도가 즉시 다시 집혀 순서가 고정되지 않으므로 **실제 설정의 V29 대기를 테스트가 흉내 낸다**.
+- **범위 밖**: 화이트리스트 목적지, 대납, Sweep. `BCM_PROVIDER=dfns` 전체 기동 차단도 그대로다.
+- 검증: 신규 12건 포함 전체 1,386 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. 벤더 실호출 없음.
