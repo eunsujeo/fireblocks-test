@@ -322,6 +322,28 @@ class DfnsWebhookDecisionSliceIntegrationTest {
     }
 
     @Test
+    fun `발신 이동 사건이 전송 알림보다 먼저 와도 뒤에 붙어 확정된다`() {
+        // 세 번째 도착 순서다. 처리 완료로 닫으면 뒤늦은 알림이 거래를 만들어도 이 사건을 다시 실행할 트리거가 없다(계약13).
+        submissions.insert(requestedSubmission())
+        receive(CHAIN_NOTIFICATION_ID, "wallet.blockchainevent.detected", outgoingChainEvent())
+
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
+        assertThat(txRows()).isEmpty()
+
+        // 이 슬라이스는 대기 0이라 재시도가 즉시 다시 집힌다 — 실제 설정의 V29 대기를 흉내 내 전송 알림이 먼저 처리되게 한다.
+        deferRetry(CHAIN_NOTIFICATION_ID)
+        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
+        work.processNext()
+        assertThat(txRow()).containsEntry("last_pub_stcd", "CONFIRMED")
+
+        releaseRetry(CHAIN_NOTIFICATION_ID)
+
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
+        assertThat(txRow()).containsEntry("last_pub_stcd", "FINALIZED").containsEntry("cnfm_cnt", 12)
+        assertThat(inboxRow(CHAIN_NOTIFICATION_ID)).containsEntry("prcs_stcd", "S")
+    }
+
+    @Test
     fun `내부이체의 수신 사건은 전송 알림보다 먼저 와도 입금을 만들지 않는다`() {
         // 벤더는 관리 계정 간 이동을 송신 Out·수신 In 양쪽으로 알린다. 그대로 두면 한 번의 이동에 INTERNAL 과 DEPOSIT 이 둘 다 나간다(계약13).
         seedInternalTransferFixtures()

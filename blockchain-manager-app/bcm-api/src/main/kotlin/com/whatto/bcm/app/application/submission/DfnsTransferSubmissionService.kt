@@ -101,8 +101,11 @@ class DfnsTransferSubmissionService(
                 }
             }
 
-            NetworkTransferSubmissionAction.RetryNotAllowed ->
+            NetworkTransferSubmissionAction.RetryNotAllowed -> {
+                // 자기 계정 재시도는 제공자와 무관하게 `400`이다 — 요청값 자체의 모순이라 제공자별 재시도 규칙보다 앞선다(02).
+                SubmissionRequestPolicy.requireDistinctAccounts(command.senderAccountId, command.recipient.type, command.recipient.value)
                 NetworkTransferSubmissionPolicy.rejectRetry(command.externalTransactionId)
+            }
 
             // 행이 있는데 Submit이 나올 수 없다 — decide는 null에서만 Submit을 낸다.
             NetworkTransferSubmissionAction.Submit -> error("existing submission decided as new submit")

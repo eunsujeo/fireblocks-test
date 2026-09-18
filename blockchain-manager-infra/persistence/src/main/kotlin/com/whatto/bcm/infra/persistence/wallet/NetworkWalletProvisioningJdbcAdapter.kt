@@ -279,7 +279,7 @@ class NetworkWalletProvisioningJdbcAdapter(
         address: String,
     ): Boolean {
         origin.requireMatch(origins.findBinding())
-        // 계정·자산을 묻지 않는다 — 소유권만 본다. 완료되지 않은 의도의 지갑도 주소가 있으면 우리 것이다.
+        // 계정·자산을 묻지 않는다 — 소유권만 본다. 이 표는 완료된 지갑만 담으므로 주소가 있으면 우리 것이다.
         return jdbc
             .query(
                 """

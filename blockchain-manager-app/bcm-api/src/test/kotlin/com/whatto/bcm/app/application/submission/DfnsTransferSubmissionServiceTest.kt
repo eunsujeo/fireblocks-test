@@ -371,6 +371,26 @@ class DfnsTransferSubmissionServiceTest {
     }
 
     @Test
+    fun `자기 계정의 FAILED 재시도는 제공자 재시도 규칙보다 앞서 400으로 답한다`() {
+        // 자기 계정은 요청값 자체의 모순이라 제공자와 무관하게 400이다 — Dfns의 일반 FAILED 422와 갈리지 않는다(02).
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
+            requested().copy(
+                status = SubmissionStatus.FAILED,
+                transactionType = SubmissionTransactionType.INTERNAL,
+                recipientType = SubmissionRecipientType.ACCOUNT,
+                recipientValue = SENDER_ID,
+                requestHash = SELF_TRANSFER_HASH,
+            )
+
+        assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account(SENDER_ID))) }
+            .isInstanceOfSatisfying(InvalidRequestException::class.java) {
+                assertThat(it.field).isEqualTo("recipient")
+            }
+
+        verify(exactly = 0) { vendor.submit(any()) }
+    }
+
+    @Test
     fun `화이트리스트 지갑 목적지는 아직 받지 않는다`() {
         assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Whitelisted("wl-1"))) }
             .isInstanceOfSatisfying(InvalidRequestException::class.java) {
@@ -471,6 +491,10 @@ class DfnsTransferSubmissionServiceTest {
         const val ASSET_KEY = "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
         const val ADDRESS = "0x1111111111111111111111111111111111111111"
         const val OTHER_ADDRESS = "0x2222222222222222222222222222222222222222"
+        val SELF_TRANSFER_HASH =
+            com.whatto.bcm.support.submission.SubmissionRequestHashes
+                .v1("ACCOUNT", SENDER_ID, "ACCOUNT", SENDER_ID, NETWORK, "USDC", "1")
+                .requestHash
         const val NOW = "20260917090000"
         val CONFLICT_BODY: ByteArray = """{"error":{"details":{"duplicate":{"id":"xfr-other"}}}}""".toByteArray()
         val REQUEST_HASH =

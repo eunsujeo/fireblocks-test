@@ -69,9 +69,18 @@ class TransactionSubmissionService(
     private fun enforceDistinctAccounts(command: TransactionSubmissionCommand) {
         // 자기 전송이 아니면 여기서 끝난다 — 거의 모든 요청이 그렇고, 원장을 읽지 않는다.
         if (!SubmissionRequestPolicy.isSelfTransfer(command.senderAccountId, command.recipient.type, command.recipient.value)) return
-        val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
-        if (existing?.status == SubmissionStatus.REQUESTED || existing?.status == SubmissionStatus.SUBMITTED) return
+        // **행이 있으면 여기서 답하지 않는다** — 같은 키·다른 내용의 `409`가 이 `400`에 가려지면 안 된다(02 멱등 표).
+        // 기존 행의 처리는 내용 대조 뒤 상태별로 갈린다([rejectSelfTransferRetry]).
+        if (submissions.findByExternalTransactionId(command.externalTransactionId) != null) return
         throw InvalidRequestException("recipient")
+    }
+
+    /**
+     * 기존 `FAILED` 행의 자기 계정 재시도를 막는다. **내용 대조(`409`) 뒤에** 부른다 —
+     * 회수는 이미 벌어진 일의 불확실성 해소라 열어 두고, 재시도는 **새 자금 이동**이라 막는다(02).
+     */
+    private fun rejectSelfTransferRetry(command: TransactionSubmissionCommand) {
+        SubmissionRequestPolicy.requireDistinctAccounts(command.senderAccountId, command.recipient.type, command.recipient.value)
     }
 
     fun submitManaged(command: ManagedTransactionSubmissionCommand): TransactionSubmissionResult {
@@ -147,6 +156,7 @@ class TransactionSubmissionService(
             }
 
             SubmissionStatus.FAILED -> {
+                rejectSelfTransferRetry(command)
                 val acquired = acquireClaim(command, prepared, claim, requireOpenForFailed = true)
                 if (acquired.status == SubmissionStatus.SUBMITTED) {
                     TransactionSubmissionResult(

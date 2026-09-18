@@ -514,11 +514,30 @@ class TransactionSubmissionServiceTest {
                 recipientValue = SENDER_ID,
                 transactionType = SubmissionTransactionType.INTERNAL,
             )
+        // 내용 대조를 통과한 뒤 상태별로 갈린다 — PK 충돌이 이미 받은 키임을 알린다.
+        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
 
         assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account(SENDER_ID))) }
             .isInstanceOf(InvalidRequestException::class.java)
 
         verify(exactly = 0) { vendor.submitTransaction(any()) }
+    }
+
+    @Test
+    fun `같은 키에 내용이 달라졌으면 자기 계정이어도 충돌이 먼저다`() {
+        // 같은 키·다른 내용은 상태와 무관하게 409여야 한다 — 새 400 검사가 그 판정을 가리면 안 된다(02 멱등 표).
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
+            existing(
+                status = SubmissionStatus.FAILED,
+                amount = "2.5",
+                recipientType = SubmissionRecipientType.ACCOUNT,
+                recipientValue = SENDER_ID,
+                transactionType = SubmissionTransactionType.INTERNAL,
+            )
+        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
+
+        assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account(SENDER_ID))) }
+            .isInstanceOf(ConflictException::class.java)
     }
 
     private fun command(
