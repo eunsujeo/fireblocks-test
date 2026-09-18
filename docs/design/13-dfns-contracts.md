@@ -531,7 +531,26 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 
 그래서 재시도 계약의 형태는 **취소 → 그 nonce의 결말 확정 대기 → 새 제출 키 발급**이며, 확정 전에는 보류한다.
 
-**미해결(구현 전 결정)**: 취소 대체 트랜잭션의 **가스 부담 주체**와 `replacementId` 추적 여부, `externalId` 50자 안에서 새 키를 만드는 규칙
+**2차 문의 결과(2026-09-18, 같은 출처)**
+
+| 항목 | 답 | 우리 쪽 해석 |
+|---|---|---|
+| 브로드캐스트 전 실패의 nonce 소각 | 취소 문서의 3단계가 "Consume the nonce that was reserved but not used (if the transfer failed off-chain)"이고, **"success is not guaranteed" 단서는 브로드캐스트된 경우에만 붙는다** | 명시적 보장 문구가 아니라 **단서가 없다는 서술**이다. 설계는 이 서술에 기대되, 실제 확인은 Baseline 수용 항목으로 남긴다 |
+| 이미 브로드캐스트된 전송에 취소를 부르면 | **거절하지 않는다.** 한 엔드포인트가 두 경우를 모두 받아 같은 nonce로 대체를 시도한다 | 취소 호출의 성공/실패로 두 경우를 가릴 수 없다. **결말은 체인에서 읽어야 한다**는 설계가 그대로 유지된다 |
+| `replacementId` | 트랜잭션/전송 객체에 있으며 "The id of the replacement transaction (cancel or speed-up)"로 문서화 | 대체를 원 전송에서 따라갈 수 있다 |
+| 가스 부담 주체·대납 적용 | **문서에 없다** | 미해결로 남긴다 |
+| `externalId`로 전송 조회 | **없다.** 목록은 `limit`·`paginationToken`뿐이고 별도 조회 엔드포인트도 없다. 문서화된 회수 절차는 **같은 본문 재제출**이다 | DF3.24의 결정이 벤더 쪽 확인으로 굳었다 |
+| 서로 다른 전송이 한 온체인 트랜잭션으로 합쳐지는가 | **문서가 긍정도 부정도 하지 않는다.** 다만 batching은 `UserOperations`(Sign & Broadcast API)의 구성이고 **Transfer API의 `TransferRequest`에 적용된다는 문서는 없다** | 기동 차단 해제 선행 조건은 **유지**한다. 다만 우리는 Sign & Broadcast 경로를 쓰지 않으므로 위험 표면이 그만큼 좁다 |
+| `details`의 nonce | 설명의 **예시**일 뿐 네트워크별 구체 스키마는 문서화되지 않았다(`object`/`any`) | 여기에 기대지 않는다. 취소가 nonce를 내부에서 다루므로 필요도 없다 |
+| `wallet.transfer.failed` 웹훅 payload | `data.transferRequest`가 **Get Transfer 응답과 같은 전체 `TransferRequest`**다 | `txHash`·`dateBroadcasted`·`reason`이 알림에 실려 온다 — 판정을 위해 되조회할 필요가 없다 |
+
+**답변자의 논리 하나는 채택하지 않는다.** 어시스턴트는 브로드캐스트 전 실패를 "never signed/broadcast in the first place"라고 설명했는데,
+취소 문서의 1단계는 "Extracting the nonce from **the original transfer's signed data**"다 — **서명은 됐고 브로드캐스트만 안 된 상태**가 있다는 뜻이다.
+그 경우 서명된 트랜잭션이 존재하므로 "서명이 없어서 안전하다"는 설명은 성립하지 않는다. 안전의 근거는 **nonce 소각** 하나이며, 우리 설계도 그것만 쓴다.
+
+**미해결(구현 전 결정)**: 취소 대체 트랜잭션의 **가스 부담 주체**(문서에 없음), 취소가 **지갑 정책 승인**을 거치는지와 대체가 `Rejected`될 때 예약 nonce의 운명,
+대체 `TransactionRequest`의 추적 경로(**`wallet.transaction.*`는 우리가 파싱하지 않는 계열이다** — 관찰 경로를 새로 만들어야 하는지),
+취소 호출 자체의 멱등성, 이미 채굴된 건에 취소를 불렀을 때의 응답, `externalId` 50자 안에서 새 키를 만드는 규칙
 (공식 권장은 `-retry-N` 접미사인데 기존 키가 길면 들어가지 않는다), 벤더에 보내는 키가 `ext_tx_id`와 달라질 때의 원장 컬럼 분리,
 그리고 **비EVM(Solana) 경로** — 취소 대응물이 없으므로 그 네트워크의 `FAILED` 재시도는 별도 계약 전까지 계속 막는다.
 

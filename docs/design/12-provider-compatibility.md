@@ -920,3 +920,13 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   세 경우가 모두 안전해진다 — 예약 nonce 소각 / mempool 대체 / 이미 채굴됐다면 그 `Failed`는 revert 종결이라 자금이 움직이지 않았다.
 - **미해결**: 취소 대체 트랜잭션의 가스 부담 주체와 `replacementId` 추적, `externalId` 50자 안의 새 키 규칙, 벤더 키와 `ext_tx_id`의 원장 분리, 비EVM 경로.
 - 코드 변경 없음 — 현재도 `FAILED` 재시도는 `422`로 거절한다.
+- **2차 문의(2026-09-18, 같은 출처)**: 취소의 nonce 소각은 브로드캐스트 전 경우에 **단서 없이** 서술돼 있고("success is not guaranteed"는 브로드캐스트된 경우 한정),
+  이미 브로드캐스트된 전송에도 **취소가 거절되지 않고 같은 nonce로 대체를 시도**한다 — 호출 결과로 두 경우를 가릴 수 없으므로 **결말을 체인에서 읽는** 설계가 그대로 유지된다.
+  `externalId` 조회는 **없음**이 확인돼 DF3.24의 "같은 본문 재제출이 회수 수단" 결정이 굳었다. 전송이 한 온체인 트랜잭션으로 합쳐지는지는 **문서가 긍정도 부정도 하지 않아**
+  기동 차단 해제 선행 조건을 유지하되, batching은 우리가 쓰지 않는 Sign & Broadcast(`UserOperations`) 구성이라 위험 표면은 좁다.
+  `wallet.transfer.failed` 웹훅이 **Get Transfer와 같은 전체 `TransferRequest`**를 실어 오므로 판정에 되조회가 필요 없다.
+- **답변자의 논리 하나는 채택하지 않았다** — 브로드캐스트 전 실패를 "never signed"라고 설명했는데 취소 문서 1단계는 "the original transfer's **signed data**"에서 nonce를 꺼낸다고 한다.
+  서명된 트랜잭션이 존재하는 경우가 있다는 뜻이라 "서명이 없어 안전하다"는 설명은 성립하지 않는다. 안전의 근거는 **nonce 소각** 하나다.
+- **새로 드러난 구현 범위**: 취소 응답은 `TransferRequest`가 아니라 **`TransactionRequest`**이고 생명주기가 **`wallet.transaction.*`** 계열이다 —
+  현재 파서는 `wallet.transfer.*`와 `wallet.blockchainevent.*`만 읽으므로 대체를 추적하려면 **관찰 경로를 하나 더** 만들어야 한다.
+- **여전히 미해결**: 취소의 가스 부담 주체, 정책 승인 경유 여부와 대체가 거절될 때 예약 nonce의 운명, 취소 호출의 멱등성, 이미 채굴된 건의 응답, 비EVM 경로.
