@@ -22,8 +22,10 @@ UPDATE bcm_sbmt_l
    AND rcv_dvcd = 'ADDRESS';
 
 -- 넷만 검사하면 목적지만 빠진 불완전한 회수 snapshot 을 DB 가 계속 허용한다 — 다섯 값 all-or-none 으로 넓힌다.
--- **옛 제약을 끝까지 남겨 둔 채 새 이름으로 만든다.** 지우고 만들면 그 사이에 죽었을 때 canonical 제약이
--- 아예 없는 상태가 남고, 재실행은 이미 사라진 제약을 지우려다 또 죽는다.
+-- **옛 제약(넷)은 지우지 않고 그대로 둔다.** 두 제약은 충돌하지 않는다 — 다섯 값을 만족하면 넷도 반드시 만족한다.
+-- transaction=off 라 문장마다 커밋되므로, 지우는 문장을 두면 그 뒤에 죽었을 때 재실행이 유일하게 남은
+-- 제약을 지우고 다시 만들다 또 죽어 canonical 제약이 하나도 없는 상태가 될 수 있다. 정리가 필요하면
+-- 이 마이그레이션의 성공이 확정된 뒤 별도 후속으로 한다.
 -- 앞선 실행이 남긴 미검증 제약이 있을 수 있어 먼저 지운다 — 이 시점엔 옛 제약이 여전히 지키고 있다.
 ALTER TABLE bcm_sbmt_l DROP CONSTRAINT IF EXISTS ck_bcm_sbmt_vndr_canonical_v30;
 
@@ -34,7 +36,5 @@ ALTER TABLE bcm_sbmt_l
         AND vndr_dst_addr IS NOT NULL)
   ) NOT VALID;
 
--- 검증이 끝나야 옛 제약을 놓는다. 이미 검증된 제약을 다시 검증하는 것은 무해하다.
+-- 이미 검증된 제약을 다시 검증하는 것은 무해하다.
 ALTER TABLE bcm_sbmt_l VALIDATE CONSTRAINT ck_bcm_sbmt_vndr_canonical_v30;
-
-ALTER TABLE bcm_sbmt_l DROP CONSTRAINT IF EXISTS ck_bcm_sbmt_vndr_canonical;

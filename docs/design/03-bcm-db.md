@@ -473,14 +473,13 @@ ALTER TABLE bcm_sbmt_l
   ) NOT VALID;
 
 ALTER TABLE bcm_sbmt_l VALIDATE CONSTRAINT ck_bcm_sbmt_vndr_canonical_v30;
-
--- 검증이 끝나야 옛 제약을 놓는다.
-ALTER TABLE bcm_sbmt_l DROP CONSTRAINT IF EXISTS ck_bcm_sbmt_vndr_canonical;
 ```
 
-**옛 제약을 끝까지 남겨 둔 채 새 이름으로 만든다.** `transaction=off`라 문장마다 커밋되므로, 지우고 만들면
-그 사이에 죽었을 때 canonical 제약이 **아예 없는 상태**가 남고 재실행은 이미 사라진 제약을 지우려다 또 죽는다.
-그래서 이름을 `_v30`으로 바꿔 새로 만들고, 검증이 끝난 뒤에야 옛 이름을 놓는다. 모든 문장이 다시 돌려도 안전하다.
+**옛 제약(넷)은 지우지 않는다.** 두 제약은 충돌하지 않는다 — 다섯 값 all-or-none을 만족하면 넷도 반드시 만족한다.
+`transaction=off`라 문장마다 커밋되므로 지우는 문장을 두면, 그 뒤에 죽었을 때 재실행이 **유일하게 남은** `_v30`을
+지우고 다시 만들다 또 죽어 canonical 제약이 하나도 없는 상태가 될 수 있다. 정리가 필요하면 이 마이그레이션의
+성공이 확정된 뒤 별도 후속으로 한다. 이름이 `_v30`으로 남는 것은 그대로 둔다 — 마지막 `RENAME`을 덧붙이면
+`DROP`과 같은 비원자 조합이라 같은 문제가 생긴다.
 
 **지갑 주소 조회 index는 V31로 나눈다** — `CREATE INDEX CONCURRENTLY`는 같은 파일의 제약 교체와 재시도 성질이 달라,
 실패 후 남은 invalid index를 먼저 지우고 다시 만드는 V26 패턴을 따로 써야 한다.
@@ -536,7 +535,7 @@ Dfns의 회수는 벤더 조회가 아니라 **같은 본문 재제출**이라(�
 | `base_amt` | `VARCHAR(320)` NULL | 최소 단위 정수 문자열 — 선행 0 금지(`ck_bcm_sbmt_base_amt`). 폭은 공개 금액의 정수부 18자리 + 정밀도 상한 255자리에 여유를 둔 값이다 |
 | `dcml_cnt` | `SMALLINT` NULL | 환산에 쓴 정밀도 0..255(`ck_bcm_sbmt_dcml`) |
 
-- **넷은 한 벌이다** — 일부만 있으면 본문을 재구성할 수 없으므로 전부 있거나 전부 없어야 한다(`ck_bcm_sbmt_vndr_canonical_v30`).
+- **넷은 한 벌이다** — 일부만 있으면 본문을 재구성할 수 없으므로 전부 있거나 전부 없어야 한다(`ck_bcm_sbmt_vndr_canonical_v30`. V28의 네 값 제약도 함께 남아 있다).
 - Fireblocks·로컬은 벤더 조회로 회수하므로 넷 다 NULL이다. **NULL 허용 추가 전용**이라 기존 행은 그대로 둔다.
 - 저장값이 없는 행(V28 이전·다른 제공자)은 Dfns 회수가 **재구성하지 않고 거절**한다. 추측한 본문을 보내면 그게 곧 이중 전송이다.
 - 제약은 `NOT VALID`로 걸고 따로 `VALIDATE`한다. 즉시 검증하는 `ADD CONSTRAINT`는 기존 행 전체를 훑는 동안 강한 테이블 락을 잡아 Fireblocks 제출 경로까지 멈춘다 — `-- bcm:transaction=off`로 트랜잭션 밖에서 실행한다(V18·V26과 같은 온라인 적용 패턴).
