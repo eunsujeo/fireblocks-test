@@ -132,7 +132,8 @@ class DfnsTransferEventDecision(
                 accountId = submission.senderAccountId,
                 network = submission.network,
                 symbol = submission.symbol,
-                to = submission.recipientValue,
+                // **온체인 목적지 주소**다(02·공개 계약). 논리 목적지(recipientValue)는 내부이체에서 accountId라 그대로 실으면 안 된다(03 V30).
+                to = submission.vendorCanonical?.destinationAddress ?: submission.recipientValue,
                 // 발신은 우리 지갑이 보낸 것이라 from은 제출 원장이 아니라 관찰에서 읽을 값이 없다 — 02의 발신 이벤트는 to만 요구한다.
                 from = null,
                 // 금액은 원장의 사람 단위 값을 그대로 쓴다. 최소 단위 환산은 제출 때 이미 했고 여기서 다시 하지 않는다.

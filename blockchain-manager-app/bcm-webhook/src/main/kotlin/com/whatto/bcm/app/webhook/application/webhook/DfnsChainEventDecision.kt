@@ -175,7 +175,8 @@ class DfnsChainEventDecision(
                 accountId = submission.senderAccountId,
                 network = submission.network,
                 symbol = submission.symbol,
-                to = submission.recipientValue,
+                // **온체인 목적지 주소**다(02·공개 계약). 논리 목적지(recipientValue)는 내부이체에서 accountId라 그대로 실으면 안 된다(03 V30).
+                to = submission.vendorCanonical?.destinationAddress ?: submission.recipientValue,
                 from = null,
                 // 금액은 원장의 사람 단위 값이다 — 관찰의 최소 단위를 다시 환산하지 않는다(단위가 뒤섞이면 조용한 금액 사고다).
                 amount = submission.amount,

@@ -7,6 +7,7 @@ import com.whatto.bcm.domain.admin.ExecutionGatePolicy
 import com.whatto.bcm.domain.admin.ExecutionGateRepository
 import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import com.whatto.bcm.domain.exception.VendorApiException
@@ -15,6 +16,7 @@ import com.whatto.bcm.domain.submission.SubmissionConflictAlertPort
 import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
+import com.whatto.bcm.domain.submission.SubmissionRequestPolicy
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.vendor.VendorTransaction
@@ -53,8 +55,23 @@ class TransactionSubmissionService(
 ) : TransactionSubmissionWork {
     override fun submit(command: TransactionSubmissionCommand): TransactionSubmissionResult {
         val prepared = prepare(command)
+        enforceDistinctAccounts(command)
         enforceExecutionGate(command, prepared)
         return submit(command, prepared)
+    }
+
+    /**
+     * 자기 계정으로 보내는 요청을 막는다 — **제공자 공통 정책**이다(02 "신규 키 선행 검사").
+     *
+     * 이미 `REQUESTED`·`SUBMITTED`인 키는 그대로 둔다. 회수는 이미 벌어진 일의 불확실성 해소라 막으면 그 거래가 고립되고,
+     * `SUBMITTED`는 되돌릴 수도 없다. 반대로 `FAILED` 재시도는 **새 자금 이동**이라 막는다.
+     */
+    private fun enforceDistinctAccounts(command: TransactionSubmissionCommand) {
+        // 자기 전송이 아니면 여기서 끝난다 — 거의 모든 요청이 그렇고, 원장을 읽지 않는다.
+        if (!SubmissionRequestPolicy.isSelfTransfer(command.senderAccountId, command.recipient.type, command.recipient.value)) return
+        val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
+        if (existing?.status == SubmissionStatus.REQUESTED || existing?.status == SubmissionStatus.SUBMITTED) return
+        throw InvalidRequestException("recipient")
     }
 
     fun submitManaged(command: ManagedTransactionSubmissionCommand): TransactionSubmissionResult {

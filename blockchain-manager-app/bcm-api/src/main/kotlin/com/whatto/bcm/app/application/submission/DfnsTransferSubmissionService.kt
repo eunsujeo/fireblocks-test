@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.application.submission
 
+import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.asset.AssetDecimals
@@ -12,9 +13,9 @@ import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.submission.NetworkTransferSubmissionAction
 import com.whatto.bcm.domain.submission.NetworkTransferSubmissionPolicy
-import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
+import com.whatto.bcm.domain.submission.SubmissionRequestPolicy
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.domain.vendor.NetworkTransferPort
@@ -46,6 +47,7 @@ class DfnsTransferSubmissionService(
     private val submissions: SubmissionRecordRepository,
     private val wallets: NetworkWalletProvisioningRepository,
     private val mappings: VendorAssetMappingQueryService,
+    private val depositAddresses: DepositAddressQueryService,
     private val vendor: NetworkTransferPort,
     private val transactionRunner: TransactionRunner,
     private val origin: ProviderOrigin,
@@ -55,29 +57,32 @@ class DfnsTransferSubmissionService(
     override fun submit(command: TransactionSubmissionCommand): TransactionSubmissionResult {
         // 원장보다 먼저 본다 — 제출될 수 없는 키로 REQUESTED 행을 만들지 않기 위해서다(계약13).
         NetworkTransferSubmissionPolicy.requireSubmittableKey(command.externalTransactionId)
-        val destinationAddress = destinationAddressOf(command)
-        val fingerprint = fingerprint(command, destinationAddress)
+        // 해시는 **논리 목적지**로 만든다(02의 canonical 7값) — 해소한 주소가 아니다. 그래야 기존 키 판정이 주소 해소보다 앞설 수 있다.
+        val fingerprint = fingerprint(command)
 
         // 기존 행이 있으면 벤더 조회는 물론 자산 매핑도 읽지 않는다 — 결말은 원장이 이미 알고 있다.
+        // **주소 해소·선행 검사보다 먼저다**(02 "신규 키 선행 검사") — 뒤집으면 같은 키·다른 내용의 409가 가려지고
+        // 기존 REQUESTED가 현재 발급 상태 때문에 회수되지 못한다.
         submissions.findByExternalTransactionId(command.externalTransactionId)?.let { existing ->
-            return resume(command, destinationAddress, fingerprint, existing)
+            return resume(command, fingerprint, existing)
         }
 
-        val prepared = prepare(command, destinationAddress)
+        // 여기부터는 **새 키**다. 원장에 행을 만들기 전에 막을 것을 막는다.
+        SubmissionRequestPolicy.requireDistinctAccounts(command.senderAccountId, command.recipient.type, command.recipient.value)
+        val prepared = prepare(command, destinationAddressOf(command))
         val claim = newClaim()
         val attempt = insertOrFind(requestedRecord(command, prepared, fingerprint, claim))
-        if (!attempt.isNew) return resume(command, destinationAddress, fingerprint, attempt.record)
+        if (!attempt.isNew) return resume(command, fingerprint, attempt.record)
         return submitToVendor(prepared, command.externalTransactionId, claim.id, firstSubmission = true)
     }
 
     /** 이미 원장에 있는 키의 처리. 내용 대조를 먼저 하고 상태에 따라 갈린다. */
     private fun resume(
         command: TransactionSubmissionCommand,
-        destinationAddress: String,
         fingerprint: SubmissionRequestFingerprint,
         current: SubmissionRecord,
     ): TransactionSubmissionResult {
-        ensureSameRequest(current, command, destinationAddress, fingerprint)
+        ensureSameRequest(current, command, fingerprint)
         return when (NetworkTransferSubmissionPolicy.decide(current)) {
             NetworkTransferSubmissionAction.AlreadySubmitted -> result(current)
 
@@ -104,10 +109,22 @@ class DfnsTransferSubmissionService(
         }
     }
 
+    /**
+     * 벤더 본문의 `to`를 만든다. Dfns는 주소만 받으므로 **계정 목적지는 우리가 해소한다**(계약13 "내부이체").
+     *
+     * 발급 기록이 우리가 그 계정의 수신 주소라고 인정한 유일한 근거다. 없으면 보낼 곳이 없으므로 `422`다 —
+     * 요청 형식·계정·자산은 유효하고 **목적지의 준비 상태** 때문에 지금 못 보내는 것이라, 주소 발급 뒤 같은 키로 다시 제출할 수 있다.
+     * 그래서 이 거절은 원장에 행을 만들기 전에 난다. 여기서 주소를 발급해 주지는 않는다 — 발급은 별도 API 계약이다.
+     */
     private fun destinationAddressOf(command: TransactionSubmissionCommand): String =
-        // Dfns 경로의 목적지는 주소뿐이다 — 계정 간 내부이체·화이트리스트 지갑은 별도 계약 전이라 만들지 않는다.
         when (val recipient = command.recipient) {
             is TransactionSubmissionRecipient.Address -> recipient.address
+
+            is TransactionSubmissionRecipient.Account ->
+                depositAddresses.find(recipient.accountId, command.network, command.symbol)?.address
+                    ?: throw UnprocessableRequestException("recipient", recipient.accountId)
+
+            // 화이트리스트 지갑은 별도 계약 전이라 만들지 않는다.
             else -> throw InvalidRequestException("recipient")
         }
 
@@ -130,6 +147,8 @@ class DfnsTransferSubmissionService(
                     vendorAssetId = mapping.vendorAssetId,
                     amountBaseUnits = AssetDecimals.baseUnitsOf(command.amount, decimals),
                     decimals = decimals,
+                    // 회수는 이 값을 쓴다 — 논리 목적지(recipientValue)는 내부이체에서 accountId라 본문의 to 가 될 수 없다(03 V30).
+                    destinationAddress = destinationAddress,
                 ),
         )
     }
@@ -147,7 +166,8 @@ class DfnsTransferSubmissionService(
                 ?: throw UnprocessableRequestException("submission", record.externalTransactionId)
         return PreparedNetworkTransfer(
             scope = NetworkWalletScope(origin, record.senderAccountId, record.network),
-            destinationAddress = record.recipientValue,
+            // **저장한 주소**를 쓴다. recipientValue 는 논리 목적지라 내부이체에서는 accountId 다 — 그대로 보내면 주소 자리에 계정이 나간다(03 V30).
+            destinationAddress = canonical.destinationAddress,
             canonical = canonical,
         )
     }
@@ -259,15 +279,13 @@ class DfnsTransferSubmissionService(
             checkNotNull(record.vendorTransactionId) { "SUBMITTED submission has no vendor transaction id" },
         )
 
-    private fun fingerprint(
-        command: TransactionSubmissionCommand,
-        destinationAddress: String,
-    ): SubmissionRequestFingerprint =
+    /** 해시는 **논리 목적지**로 만든다 — 해소한 주소로 만들면 주소가 재발급될 때 같은 업무 요청이 다른 요청으로 보인다. */
+    private fun fingerprint(command: TransactionSubmissionCommand): SubmissionRequestFingerprint =
         SubmissionRequestHashes.v1(
             senderType = "ACCOUNT",
             senderAccountId = command.senderAccountId,
-            recipientType = SubmissionRecipientType.ADDRESS.name,
-            recipientValue = destinationAddress,
+            recipientType = command.recipient.type.name,
+            recipientValue = command.recipient.value,
             network = command.network,
             symbol = command.symbol,
             amount = command.amount,
@@ -286,11 +304,12 @@ class DfnsTransferSubmissionService(
             status = SubmissionStatus.REQUESTED,
             claimId = claim.id,
             claimExpiresAt = claim.expiresAt,
-            transactionType = SubmissionRecipientType.ADDRESS.transactionType(),
+            // 업무 계열은 **논리 목적지**가 정한다 — 계정 목적지는 내부이체다. 해소한 주소로 정하면 전부 출금이 된다.
+            transactionType = command.recipient.type.transactionType(),
             vendorTransactionId = null,
             senderAccountId = command.senderAccountId,
-            recipientType = SubmissionRecipientType.ADDRESS,
-            recipientValue = prepared.destinationAddress,
+            recipientType = command.recipient.type,
+            recipientValue = command.recipient.value,
             network = command.network,
             symbol = command.symbol,
             amount = fingerprint.normalizedAmount,
@@ -302,7 +321,6 @@ class DfnsTransferSubmissionService(
     private fun ensureSameRequest(
         existing: SubmissionRecord,
         command: TransactionSubmissionCommand,
-        destinationAddress: String,
         fingerprint: SubmissionRequestFingerprint,
     ) {
         val same =
@@ -310,8 +328,8 @@ class DfnsTransferSubmissionService(
                 existing.requestHash == fingerprint.requestHash
             } else {
                 existing.senderAccountId == command.senderAccountId &&
-                    existing.recipientType == SubmissionRecipientType.ADDRESS &&
-                    existing.recipientValue == destinationAddress &&
+                    existing.recipientType == command.recipient.type &&
+                    existing.recipientValue == command.recipient.value &&
                     existing.network == command.network &&
                     existing.symbol == command.symbol &&
                     BigDecimal(existing.amount).compareTo(BigDecimal(command.amount)) == 0

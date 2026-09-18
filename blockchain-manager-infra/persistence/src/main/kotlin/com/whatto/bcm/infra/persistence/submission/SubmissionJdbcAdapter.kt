@@ -35,14 +35,14 @@ class SubmissionJdbcAdapter(
                    tx_dvcd, vndr_tx_id, swp_exec_id,
                    snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
                    call_data, req_dttm, rsp_dttm,
-                   vndr_wlt_id, vndr_ast_id, base_amt, dcml_cnt,
+                   vndr_wlt_id, vndr_ast_id, base_amt, dcml_cnt, vndr_dst_addr,
                    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
                 VALUES
                   (:externalTransactionId, :requestHash, :hashVersion, :status, :claimId, :claimExpiresAt,
                    :transactionType,
                    :vendorTransactionId, :sweepExecutionId, :senderAccountId, :recipientType, :recipientValue,
                    :network, :symbol, :amount, :callData, :requestedAt, :respondedAt,
-                   :vendorWalletId, :vendorAssetId, :amountBaseUnits, :decimals,
+                   :vendorWalletId, :vendorAssetId, :amountBaseUnits, :decimals, :destinationAddress,
                    :employeeNo, :branchCode, :employeeNo, :branchCode)
                 """.trimIndent(),
                 parameters(record),
@@ -316,6 +316,7 @@ class SubmissionJdbcAdapter(
             "vendorAssetId" to record.vendorCanonical?.vendorAssetId,
             "amountBaseUnits" to record.vendorCanonical?.amountBaseUnits,
             "decimals" to record.vendorCanonical?.decimals,
+            "destinationAddress" to record.vendorCanonical?.destinationAddress,
             "employeeNo" to SystemAudit.EMPNO,
             "branchCode" to SystemAudit.BRCD,
         )
@@ -389,6 +390,7 @@ class SubmissionJdbcAdapter(
                                 vendorAssetId = rs.getString("vndr_ast_id"),
                                 amountBaseUnits = rs.getString("base_amt"),
                                 decimals = rs.getInt("dcml_cnt"),
+                                destinationAddress = rs.getString("vndr_dst_addr"),
                             )
                         },
                 )
@@ -400,7 +402,7 @@ class SubmissionJdbcAdapter(
                    tx_dvcd, vndr_tx_id, swp_exec_id,
                    snd_acnt_id, rcv_dvcd, rcv_vl, ntwk_cd, tkn_smbl, trsf_amt,
                    call_data, req_dttm, rsp_dttm,
-                   vndr_wlt_id, vndr_ast_id, base_amt, dcml_cnt
+                   vndr_wlt_id, vndr_ast_id, base_amt, dcml_cnt, vndr_dst_addr
             FROM bcm_sbmt_l
             """.trimIndent()
     }
