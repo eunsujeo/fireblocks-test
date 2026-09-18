@@ -444,12 +444,49 @@ V28 canonical이 "제출 본문을 재구성하는 재료 한 벌"인데 `to`가
 - `req_hash`의 canonical 7값은 바꾸지 않는다. 이 컬럼은 "같은 요청인가"의 기준이 아니라 **같은 본문을 다시 만들기 위한 재료**다(V28과 같은 규약).
 - **Dfns 이벤트의 `to`도 이 값을 쓴다** — 02와 Fireblocks 경로에서 `ChainEvent.to`는 온체인 목적지 주소다([계약13](13-dfns-contracts.md#내부이체--확정)).
 
+**기존 행을 백필한다.** 컬럼만 더하고 두면 V28로 만들어진 기존 Dfns `REQUESTED` 행은 `vndr_dst_addr`가 없어
+**회수가 불가능해진다** — 회수는 항상 이 컬럼을 읽기 때문이다. 기존 행은 전부 `ADDRESS` 수신자이므로(내부이체는 아직 열지 않았다)
+`rcv_vl`이 곧 보낸 주소다. **추측이 아니라 정확한 값**이라 그대로 옮긴다.
+
+그리고 canonical 제약을 **다섯 값의 all-or-none**으로 넓힌다. 넷만 검사하면 목적지 주소만 빠진 불완전한 회수 snapshot을 DB가 계속 허용해
+"본문을 재구성하는 재료 한 벌"이라는 규약이 깨진다.
+
 ```sql
+-- bcm:transaction=off
 ALTER TABLE bcm_sbmt_l
   ADD COLUMN vndr_dst_addr VARCHAR(256) NULL;
+
+-- 기존 Dfns 행은 모두 ADDRESS 수신자다 — rcv_vl 이 곧 보낸 주소다.
+UPDATE bcm_sbmt_l
+   SET vndr_dst_addr = rcv_vl
+ WHERE vndr_wlt_id IS NOT NULL
+   AND vndr_dst_addr IS NULL
+   AND rcv_dvcd = 'ADDRESS';
+
+ALTER TABLE bcm_sbmt_l DROP CONSTRAINT ck_bcm_sbmt_vndr_canonical;
+
+ALTER TABLE bcm_sbmt_l
+  ADD CONSTRAINT ck_bcm_sbmt_vndr_canonical CHECK (
+    (vndr_wlt_id IS NULL AND vndr_ast_id IS NULL AND base_amt IS NULL AND dcml_cnt IS NULL AND vndr_dst_addr IS NULL)
+    OR (vndr_wlt_id IS NOT NULL AND vndr_ast_id IS NOT NULL AND base_amt IS NOT NULL AND dcml_cnt IS NOT NULL AND vndr_dst_addr IS NOT NULL)
+  ) NOT VALID;
+
+ALTER TABLE bcm_sbmt_l VALIDATE CONSTRAINT ck_bcm_sbmt_vndr_canonical;
 ```
 
-컬럼 추가만이라 기존 행 전체를 훑지 않는다 — V28처럼 `NOT VALID` 제약을 붙이지 않으므로 트랜잭션 안에서 실행해도 된다.
+**지갑 주소 조회 index도 함께 만든다.** 내부이체의 수신측 `In` 사건은 "발신 주소가 우리 지갑인가"를 물어야 하는데
+(자산 발급 기록이 아니라 **소유권**으로 판정한다 — [계약13](13-dfns-contracts.md#내부이체--확정)), `bcm_ntwk_wlt_m`에는
+주소로 찾는 index가 없다. 현재 Dfns 범위는 EVM이라 **소문자 기준**으로 만든다 — 16진수 주소는 대소문자에 정보가 없고,
+벤더가 사건과 지갑 응답에서 다른 표기를 줘도 같은 주소로 찾아야 한다. base58 네트워크가 열리면 그때 다시 정한다.
+
+```sql
+CREATE INDEX CONCURRENTLY idx_bcm_ntwk_wlt_addr
+  ON bcm_ntwk_wlt_m (orgn_id, ntwk_cd, lower(wlt_addr));
+```
+
+제약은 V28과 같은 규율로 `NOT VALID` 뒤 따로 `VALIDATE` 한다 — 즉시 검증하는 `ADD CONSTRAINT`는 기존 행 전체를 훑는 동안
+강한 테이블 락을 잡아 Fireblocks 제출 경로까지 멈춘다. 그래서 트랜잭션 밖에서 실행한다(`-- bcm:transaction=off`).
+백필은 Dfns 행만 대상이고(`vndr_wlt_id IS NOT NULL`) Fireblocks·로컬 행은 다섯 값 모두 `NULL`로 남는다.
 
 ### V29 인박스 재시도 대기 — 물리 저장 계약
 

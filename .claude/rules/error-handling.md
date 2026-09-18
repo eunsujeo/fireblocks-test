@@ -4,12 +4,12 @@ paths:
 ---
 # Error Handling
 
-> HTTP 에러 응답 형식(envelope·`error.code` 6종)의 정본은 [docs/api/openapi.yaml](../../docs/api/openapi.yaml).
+> HTTP 에러 응답 형식(envelope·`error.code`)의 정본은 [docs/api/openapi.yaml](../../docs/api/openapi.yaml)이고 구현은 `ErrorCode.kt`다 — 개수는 늘어나므로 여기 적지 않는다.
 
 ## 에러 코드 체계
 
 - 모든 에러는 `CodeEnumType` 인터페이스를 구현하는 enum 으로 정의 (사내 표준 — docs/standards/architecture.md 의 `CodeEnumConfig`).
-- 프로젝트 에러 코드 enum 이름·값은 Phase 2(API 공통 규약)에서 openapi.yaml 의 `error.code` 6종과 매핑해 확정.
+- 프로젝트 에러 코드 enum 이름·값은 openapi.yaml 의 `error.code` 표와 1:1로 맞춘다. 코드를 더하면 양쪽을 함께 고친다.
 - 기능별로 에러 코드가 많아지면 feature 별 enum 분리 가능하되 `CodeEnumType` 구현 필수.
 
 ## 도메인 예외 (sealed class)
