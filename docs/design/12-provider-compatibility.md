@@ -1059,4 +1059,4 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   옛 이름을 **정확히**(닫는 따옴표까지) 단언해 그 이름이 나오는 것 자체를 옛 제약 생존의 증거로 삼고,
   `pg_constraint`에서 **두 제약의 공존을 직접 확인**하는 테스트를 따로 넣었다. **V30만이 막는 경우**
   (넷은 다 있고 목적지만 없는 행)도 그대로 고정한다.
-- 검증(code-reviewer 반영 후): 전체 1,400 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과.
+- 검증(code-reviewer 반영 후): 전체 1,401 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과. design-sync 4회·code-reviewer 3회를 거쳐 통과했다.
