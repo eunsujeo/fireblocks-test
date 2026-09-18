@@ -554,6 +554,33 @@ class TransactionSubmissionServiceTest {
         verify(exactly = 0) { vendor.submitTransaction(any()) }
     }
 
+    @Test
+    fun `새 키는 벤더 자원을 먼저 읽어 실패하면 원장에 행을 만들지 않는다`() {
+        // 새 키의 선행 검사는 **원장에 행을 만들기 전에** 끝난다(02 "신규 키 선행 검사").
+        // 뒤집히면 제출할 수 없는 REQUESTED 행과 살아 있는 소유권이 남아, 만료까지 그 키가 503으로 묶인다.
+        every { mappings.requiredMapping(any(), any()) } throws AssetNotSupportedException("ETHEREUM", "USDC")
+
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOf(AssetNotSupportedException::class.java)
+
+        verify(exactly = 0) { submissions.insert(any()) }
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
+    }
+
+    @Test
+    fun `기존 REQUESTED 회수는 벤더 조회를 자산 매핑보다 먼저 한다`() {
+        // 소유권을 뺏은 뒤엔 **벤더 조회부터** 한다(02 "만료 뒤 뺏은 소유자는 제출하기 전에 벤더 조회부터 한다").
+        // 자원을 먼저 읽으면 현재 매핑이 깨진 것만으로 이미 벤더에 있는 거래를 찾지도 못해 그 거래가 고립된다.
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns existing(status = SubmissionStatus.REQUESTED)
+        every { vendor.transactionByExternalTransactionId(EXTERNAL_ID) } returns null
+        every { mappings.requiredMapping(any(), any()) } throws AssetNotSupportedException("ETHEREUM", "USDC")
+
+        assertThatThrownBy { service.submit(command()) }
+            .isInstanceOf(AssetNotSupportedException::class.java)
+
+        verify(exactly = 1) { vendor.transactionByExternalTransactionId(EXTERNAL_ID) }
+    }
+
     private fun command(
         amount: String = "1.5",
         note: String? = null,

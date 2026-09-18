@@ -1,10 +1,13 @@
 package com.whatto.bcm.app.application.submission
 
+import com.whatto.bcm.app.application.account.AccountQueryService
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.app.application.account.fixture.AccountFixture
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.account.DepositAddress
 import com.whatto.bcm.domain.asset.VendorAssetMapping
+import com.whatto.bcm.domain.exception.AccountNotFoundException
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.RelayRejectedException
@@ -51,6 +54,9 @@ class DfnsTransferSubmissionServiceTest {
     lateinit var wallets: NetworkWalletProvisioningRepository
 
     @MockK
+    lateinit var accounts: AccountQueryService
+
+    @MockK
     lateinit var mappings: VendorAssetMappingQueryService
 
     @MockK
@@ -70,6 +76,7 @@ class DfnsTransferSubmissionServiceTest {
             DfnsTransferSubmissionService(
                 submissions,
                 wallets,
+                accounts,
                 mappings,
                 depositAddresses,
                 vendor,
@@ -327,6 +334,7 @@ class DfnsTransferSubmissionServiceTest {
         // Dfns 본문은 주소만 받으므로 우리가 해소한다. 원장의 논리 목적지까지 주소로 덮으면 어느 계정으로 보냈는지를 잃는다(계약13).
         val stored = slot<SubmissionRecord>()
         val sent = slot<NetworkTransferRequest>()
+        every { accounts.requiredAccount("acct-2") } returns AccountFixture.fixture("acct-2")
         every { depositAddresses.find("acct-2", NETWORK, "USDC") } returns
             DepositAddress("acct-2", NETWORK, "USDC", OTHER_ADDRESS, NOW)
         every { submissions.insert(capture(stored)) } answers { firstArg() }
@@ -349,10 +357,24 @@ class DfnsTransferSubmissionServiceTest {
     @Test
     fun `목적지 계정에 그 자산 주소가 없으면 원장을 만들지 않고 보류로 거절한다`() {
         // 형식·계정·자산은 유효하고 목적지의 준비 상태 때문에 못 보내는 것이다 — 주소 발급 뒤 같은 키로 다시 제출할 수 있어야 한다.
+        every { accounts.requiredAccount("acct-2") } returns AccountFixture.fixture("acct-2")
         every { depositAddresses.find("acct-2", NETWORK, "USDC") } returns null
 
         assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account("acct-2"))) }
             .isInstanceOf(UnprocessableRequestException::class.java)
+
+        verify(exactly = 0) { submissions.insert(any()) }
+        verify(exactly = 0) { vendor.submit(any()) }
+    }
+
+    @Test
+    fun `목적지 계정 자체가 없으면 주소 미발급과 달리 찾을 수 없음으로 거절한다`() {
+        // 계정 없음(404)과 주소 미발급(422)은 다른 답이다 — 계정이 없으면 주소를 발급해도 해소되지 않는다.
+        // Fireblocks는 이미 이렇게 답한다. 같은 요청이 제공자에 따라 다르게 답하면 안 된다(계약13).
+        every { accounts.requiredAccount("acct-2") } throws AccountNotFoundException("acct-2")
+
+        assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account("acct-2"))) }
+            .isInstanceOf(AccountNotFoundException::class.java)
 
         verify(exactly = 0) { submissions.insert(any()) }
         verify(exactly = 0) { vendor.submit(any()) }

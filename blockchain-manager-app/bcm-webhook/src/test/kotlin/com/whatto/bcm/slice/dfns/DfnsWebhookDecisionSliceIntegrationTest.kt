@@ -43,6 +43,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.MethodSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -343,74 +346,50 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         assertThat(inboxRow(CHAIN_NOTIFICATION_ID)).containsEntry("prcs_stcd", "S")
     }
 
-    @Test
-    fun `내부이체의 수신 사건은 전송 알림보다 먼저 와도 입금을 만들지 않는다`() {
-        // 벤더는 관리 계정 간 이동을 송신 Out·수신 In 양쪽으로 알린다. 그대로 두면 한 번의 이동에 INTERNAL 과 DEPOSIT 이 둘 다 나간다(계약13).
-        seedInternalTransferFixtures()
-        submissions.insert(internalSubmission())
-        receive(CHAIN_NOTIFICATION_ID, "wallet.blockchainevent.detected", incomingChainEvent())
-
-        // In 이 먼저 왔다 — 아직 그 hash 의 발신 거래가 없지만 발신이 우리 지갑이라 입금으로 확정하지 않는다.
-        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
-        assertThat(txRows()).isEmpty()
-        assertThat(outboxRows()).isEmpty()
-
-        // 이 슬라이스는 대기 0이라 재시도가 즉시 다시 집힌다 — 실제 설정의 V29 대기를 여기서 흉내 내 전송 알림이 먼저 처리되게 한다.
-        deferRetry(CHAIN_NOTIFICATION_ID)
-        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
-
-        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
-
-        // 대기가 풀린 수신 사건은 이제 우리 발신 거래를 찾아 입금을 만들지 않고 닫는다.
-        releaseRetry(CHAIN_NOTIFICATION_ID)
-
-        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
-        assertThat(txRows()).hasSize(1)
-        assertThat(outboxRows()).isNotEmpty()
-        // 입금 이벤트가 하나라도 있으면 없는 입금이 인정된 것이다.
-        assertThat(outboxRows()).allSatisfy { assertThat(it).containsEntry("topic", "internal-events") }
-        assertThat(inboxRow(CHAIN_NOTIFICATION_ID)).containsEntry("prcs_stcd", "S")
-        assertThat(inboxRow(TRANSFER_NOTIFICATION_ID)).containsEntry("prcs_stcd", "S")
-    }
-
-    @Test
-    fun `전송 알림이 먼저 와도 수신 사건은 입금을 만들지 않는다`() {
-        seedInternalTransferFixtures()
-        submissions.insert(internalSubmission())
-        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
-        work.processNext()
-        val afterTransfer = outboxRows().map { it["evnt_id"] }
-
-        receive(CHAIN_NOTIFICATION_ID, "wallet.blockchainevent.detected", incomingChainEvent())
-
-        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
-        assertThat(outboxRows().map { it["evnt_id"] }).isEqualTo(afterTransfer)
-        assertThat(txRows()).hasSize(1)
-    }
-
-    @Test
-    fun `내부이체는 발신 사건이 먼저 와도 세 사건 모두 처리돼 INTERNAL 한 계열만 남는다`() {
-        // 계약13이 요구하는 세 번째 도착 순서다 — 발신 사건 · 전송 알림 · 수신 사건이 어떤 순서로 와도 INTERNAL 한 계열만 나가야 한다.
+    @ParameterizedTest(name = "{0} → {1} → {2}")
+    @MethodSource("내부이체_도착_순서")
+    fun `내부이체 세 사건은 어떤 순서로 와도 INTERNAL 한 계열만 남긴다`(
+        first: String,
+        second: String,
+        third: String,
+    ) {
+        // 벤더는 관리 계정 간 이동을 발신 Out · 전송 알림 · 수신 In 세 번 알린다. 그대로 두면 한 번의 이동에
+        // INTERNAL 과 DEPOSIT 이 둘 다 나간다(계약13). 순서 독립은 **구조적 보장이 아니라 재시도로 수렴**하는 성질이라
+        // 사건이 셋뿐인 만큼 여섯 순열을 전부 고정한다 — 중복 입금은 되돌리기 어려운 회계 오류다.
         seedInternalTransferFixtures()
         submissions.insert(internalSubmission())
 
-        // ① 발신 사건이 먼저 — 아직 거래가 없어 재시도로 남는다.
-        receive(OUTGOING_NOTIFICATION_ID, "wallet.blockchainevent.detected", outgoingChainEvent(notificationId = OUTGOING_NOTIFICATION_ID))
-        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
-        assertThat(txRows()).isEmpty()
+        var transferSeen = false
+        val deferred = mutableListOf<String>()
+        listOf(first, second, third).forEach { name ->
+            val notificationId = notificationIdOf(name)
+            receive(notificationId, eventTypeOf(name), payloadOf(name))
+            val outcome = work.processNext()
+            when {
+                name == TRANSFER -> {
+                    // 전송 알림만이 제출 원장과 이어진 거래 행을 만든다 — 나머지 둘은 그 행을 읽는다.
+                    assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
+                    transferSeen = true
+                }
 
-        // ② 전송 알림 — 거래가 생기고 INTERNAL 이벤트가 난다.
-        deferRetry(OUTGOING_NOTIFICATION_ID)
-        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
-        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
+                !transferSeen -> {
+                    // 기준이 될 거래 행이 아직 없다. 입금으로 확정하지도, 실패로 버리지도 않고 재시도로 남긴다.
+                    assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
+                    assertThat(txRows()).isEmpty()
+                    assertThat(outboxRows()).isEmpty()
+                    // 이 슬라이스는 대기 0이라 재시도가 즉시 다시 집힌다 — 실제 설정의 V29 대기를 흉내 내 순서를 고정한다.
+                    deferRetry(notificationId)
+                    deferred += notificationId
+                }
 
-        // ③ 수신 사건 — 우리 발신 거래를 찾아 입금을 만들지 않는다.
-        receive(CHAIN_NOTIFICATION_ID, "wallet.blockchainevent.detected", incomingChainEvent())
-        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
+                name == OUTGOING -> assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
 
-        // ④ 재시도된 발신 사건 — 블록 좌표가 붙어 확정된다.
-        releaseRetry(OUTGOING_NOTIFICATION_ID)
-        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
+                else -> assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
+            }
+        }
+
+        deferred.forEach(::releaseRetry)
+        repeat(deferred.size) { work.processNext() }
 
         assertThat(txRows()).hasSize(1)
         assertThat(txRow()).containsEntry("last_pub_stcd", "FINALIZED")
@@ -421,6 +400,22 @@ class DfnsWebhookDecisionSliceIntegrationTest {
             assertThat(inboxRow(it)).containsEntry("prcs_stcd", "S")
         }
     }
+
+    private fun notificationIdOf(name: String): String =
+        when (name) {
+            OUTGOING -> OUTGOING_NOTIFICATION_ID
+            TRANSFER -> TRANSFER_NOTIFICATION_ID
+            else -> CHAIN_NOTIFICATION_ID
+        }
+
+    private fun eventTypeOf(name: String): String = if (name == TRANSFER) "wallet.transfer.confirmed" else "wallet.blockchainevent.detected"
+
+    private fun payloadOf(name: String): String =
+        when (name) {
+            OUTGOING -> outgoingChainEvent(notificationId = OUTGOING_NOTIFICATION_ID)
+            TRANSFER -> transferEvent()
+            else -> incomingChainEvent()
+        }
 
     /** V29 재시도 대기를 흉내 낸다 — 이 슬라이스는 즉시 재시도라 순서를 고정하려면 필요하다. */
     private fun deferRetry(notificationId: String) {
@@ -684,6 +679,23 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         const val RETRY_NOTIFICATION_ID = "whe-544ul-uqgad-aaaaaaaaaaaaaaaa"
         const val CHAIN_NOTIFICATION_ID = "whe-544ul-uqgad-bbbbbbbbbbbbbbbb"
         const val OUTGOING_NOTIFICATION_ID = "whe-544ul-uqgad-cccccccccccccccc"
+        const val OUTGOING = "발신"
+        const val TRANSFER = "전송알림"
+        const val INCOMING = "수신"
+
+        /** 세 사건의 여섯 순열. 순서 독립이 재시도로 수렴하는 성질이라 대표값이 아니라 전수로 고정한다. */
+        @JvmStatic
+        fun `내부이체_도착_순서`(): List<Arguments> =
+            listOf(OUTGOING, TRANSFER, INCOMING)
+                .permutations()
+                .map { Arguments.of(it[0], it[1], it[2]) }
+
+        private fun <T> List<T>.permutations(): List<List<T>> =
+            if (size <= 1) {
+                listOf(this)
+            } else {
+                flatMap { head -> (this - head).permutations().map { listOf(head) + it } }
+            }
 
         @JvmStatic
         @DynamicPropertySource
