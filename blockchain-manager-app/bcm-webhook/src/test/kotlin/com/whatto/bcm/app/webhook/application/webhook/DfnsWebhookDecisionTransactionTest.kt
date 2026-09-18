@@ -65,6 +65,29 @@ class DfnsWebhookDecisionTransactionTest {
     }
 
     @Test
+    fun `우리 내부이체의 수신측은 원장을 쓰지 않고 처리 완료로 닫는다`() {
+        // 업무 이벤트는 제출 원장 쪽에서 이미 났다 — 여기서 또 만들면 없는 입금이 인정된다(계약13).
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
+        every { decision.decide(any(), any()) } returns DfnsChainDecisionOutcome.InternalReceipt(transfer())
+
+        assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
+        verify(exactly = 1) { inbox.markProcessed(NOTIFICATION_ID, any(), false) }
+    }
+
+    @Test
+    fun `발신이 우리 지갑인데 결속이 없는 수신은 재시도로 남긴다`() {
+        // 처리 완료로 닫으면 뒤늦은 전송 알림이 와도 이 사건을 다시 실행할 트리거가 없다.
+        every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()
+        every { decision.decide(any(), any()) } returns DfnsChainDecisionOutcome.IncomingUnresolved(transfer())
+        every {
+            inbox.recordFailure(NOTIFICATION_ID, "incoming transfer from our own wallet is not linked yet", 3, any(), any())
+        } returns WebhookFailureResult(quarantined = false, retryCount = 1)
+
+        assertThat(transaction().processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
+        verify(exactly = 0) { inbox.markProcessed(any(), any(), any()) }
+    }
+
+    @Test
     fun `한 제출 키에 두 전송이 붙은 충돌은 상한을 기다리지 않고 즉시 격리한다`() {
         // 이중 제출 신호다 — 재시도가 결과를 바꾸지 못하므로 처리 완료로 소거하면 신호가 사라진다(03 전이 표).
         every { inbox.findNextPendingForUpdate(any()) } returns inboxItem()

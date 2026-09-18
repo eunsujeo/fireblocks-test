@@ -6,12 +6,14 @@ import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.id.UuidV7EventIdGenerator
 import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
+import com.whatto.bcm.app.application.wallet.NetworkWalletQueryService
 import com.whatto.bcm.app.config.ClockConfig
 import com.whatto.bcm.app.webhook.application.webhook.DfnsWebhookDecisionConfig
 import com.whatto.bcm.app.webhook.application.webhook.DfnsWebhookDecisionTransaction
 import com.whatto.bcm.app.webhook.application.webhook.WebhookDecisionOutcome
 import com.whatto.bcm.app.webhook.application.webhook.WebhookDecisionProcessingException
 import com.whatto.bcm.app.webhook.application.webhook.WebhookDecisionWork
+import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionRecordRepository
@@ -32,8 +34,10 @@ import com.whatto.bcm.infra.persistence.account.DepositAddressJdbcAdapter
 import com.whatto.bcm.infra.persistence.asset.VendorAssetMappingJdbcAdapter
 import com.whatto.bcm.infra.persistence.config.SpringTransactionRunner
 import com.whatto.bcm.infra.persistence.event.OutboxJdbcAdapter
+import com.whatto.bcm.infra.persistence.provider.ProviderOriginJdbcAdapter
 import com.whatto.bcm.infra.persistence.submission.SubmissionJdbcAdapter
 import com.whatto.bcm.infra.persistence.tx.TxJdbcAdapter
+import com.whatto.bcm.infra.persistence.wallet.NetworkWalletProvisioningJdbcAdapter
 import com.whatto.bcm.infra.persistence.webhook.WebhookInboxJdbcAdapter
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -91,6 +95,9 @@ import java.security.MessageDigest
     SubmissionObservationService::class,
     DepositAddressQueryService::class,
     VendorAssetMappingQueryService::class,
+    NetworkWalletQueryService::class,
+    ProviderOriginJdbcAdapter::class,
+    NetworkWalletProvisioningJdbcAdapter::class,
     WebhookInboxJdbcAdapter::class,
     TxJdbcAdapter::class,
     OutboxJdbcAdapter::class,
@@ -117,6 +124,22 @@ class DfnsWebhookDecisionSliceIntegrationTest {
 
         @Bean
         fun restClientBuilder(): RestClient.Builder = RestClient.builder()
+
+        /**
+         * 데이터셋에 등록된 Dfns 원천과 **같은 값**이다(`ProviderOriginTestDatabase.createDfns`).
+         * 기동 시 대조하는 `ProviderOriginConfiguration`을 여기서 열지 않는 이유는 그 검증이 이 슬라이스의 대상이 아니기 때문이다 —
+         * 값이 어긋나면 지갑 소유권 조회가 `requireMatch`에서 바로 실패하므로 대조 자체는 여전히 산다.
+         */
+        @Bean
+        fun providerOrigin(): ProviderOrigin =
+            ProviderOrigin(
+                originId = "test-dfns-origin",
+                executionMode = "dfns",
+                protocolProvider = "dfns",
+                platformInstanceId = "test-dfns-platform",
+                vendorOrganizationId = "test-dfns-organization",
+                chainMode = "TESTNET",
+            )
 
         /**
          * 파서는 실제 구현이다. `DfnsProperties`를 **빈으로 두지 않는다** — 이 값은 `VendorExecutionLimits`이기도 해서
@@ -150,6 +173,13 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         jdbc.update("DELETE FROM bcm_tx_l")
         jdbc.update("DELETE FROM bcm_sbmt_l")
         jdbc.update("DELETE FROM bcm_whk_l")
+        jdbc.update("DELETE FROM bcm_addr_m")
+        jdbc.update("DELETE FROM bcm_ntwk_wlt_m")
+        jdbc.update("DELETE FROM bcm_ntwk_wlt_obs_l")
+        jdbc.update("DELETE FROM bcm_ntwk_wlt_crtn_l")
+        jdbc.update("DELETE FROM bcm_acnt_m")
+        jdbc.update("DELETE FROM bcm_vndr_ast_m")
+        jdbc.update("DELETE FROM bcm_blkc_m")
     }
 
     @Test
@@ -291,6 +321,144 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         assertThat(inboxRow(CHAIN_NOTIFICATION_ID)).containsEntry("prcs_stcd", "S")
     }
 
+    @Test
+    fun `내부이체의 수신 사건은 전송 알림보다 먼저 와도 입금을 만들지 않는다`() {
+        // 벤더는 관리 계정 간 이동을 송신 Out·수신 In 양쪽으로 알린다. 그대로 두면 한 번의 이동에 INTERNAL 과 DEPOSIT 이 둘 다 나간다(계약13).
+        seedInternalTransferFixtures()
+        submissions.insert(internalSubmission())
+        receive(CHAIN_NOTIFICATION_ID, "wallet.blockchainevent.detected", incomingChainEvent())
+
+        // In 이 먼저 왔다 — 아직 그 hash 의 발신 거래가 없지만 발신이 우리 지갑이라 입금으로 확정하지 않는다.
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
+        assertThat(txRows()).isEmpty()
+        assertThat(outboxRows()).isEmpty()
+
+        // 이 슬라이스는 대기 0이라 재시도가 즉시 다시 집힌다 — 실제 설정의 V29 대기를 여기서 흉내 내 전송 알림이 먼저 처리되게 한다.
+        deferRetry(CHAIN_NOTIFICATION_ID)
+        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
+
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
+
+        // 대기가 풀린 수신 사건은 이제 우리 발신 거래를 찾아 입금을 만들지 않고 닫는다.
+        releaseRetry(CHAIN_NOTIFICATION_ID)
+
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
+        assertThat(txRows()).hasSize(1)
+        assertThat(outboxRows()).isNotEmpty()
+        // 입금 이벤트가 하나라도 있으면 없는 입금이 인정된 것이다.
+        assertThat(outboxRows()).allSatisfy { assertThat(it).containsEntry("topic", "internal-events") }
+        assertThat(inboxRow(CHAIN_NOTIFICATION_ID)).containsEntry("prcs_stcd", "S")
+        assertThat(inboxRow(TRANSFER_NOTIFICATION_ID)).containsEntry("prcs_stcd", "S")
+    }
+
+    @Test
+    fun `전송 알림이 먼저 와도 수신 사건은 입금을 만들지 않는다`() {
+        seedInternalTransferFixtures()
+        submissions.insert(internalSubmission())
+        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
+        work.processNext()
+        val afterTransfer = outboxRows().map { it["evnt_id"] }
+
+        receive(CHAIN_NOTIFICATION_ID, "wallet.blockchainevent.detected", incomingChainEvent())
+
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
+        assertThat(outboxRows().map { it["evnt_id"] }).isEqualTo(afterTransfer)
+        assertThat(txRows()).hasSize(1)
+    }
+
+    /** V29 재시도 대기를 흉내 낸다 — 이 슬라이스는 즉시 재시도라 순서를 고정하려면 필요하다. */
+    private fun deferRetry(notificationId: String) {
+        jdbc.update("UPDATE bcm_whk_l SET next_attmpt_dttm = '20991231235959' WHERE noti_id = ?", notificationId)
+    }
+
+    private fun releaseRetry(notificationId: String) {
+        jdbc.update("UPDATE bcm_whk_l SET next_attmpt_dttm = NULL WHERE noti_id = ?", notificationId)
+    }
+
+    /** 내부이체 한 건에 필요한 원장 — 네트워크·자산 매핑, 두 계정, 발신 지갑 주소, 수신 입금 주소. */
+    private fun seedInternalTransferFixtures() {
+        jdbc.update(
+            """
+            INSERT INTO bcm_blkc_m (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
+                                    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, 11155111, 'Ethereum Sepolia (test)', 'Y', 'N', '20260918000000', 'EVM', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            VENDOR_NETWORK,
+            NETWORK,
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_vndr_ast_m (ntwk_cd, tkn_smbl, vndr_ast_id, cntr_addr, dcml_cnt, actv_yn, reg_dttm,
+                                        frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, 'USDC', ?, ?, 6, 'Y', '20260918000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            NETWORK,
+            ASSET_KEY,
+            CONTRACT,
+        )
+        listOf(ACCOUNT_ID to "sender", RECEIVER_ACCOUNT_ID to "receiver").forEach { (accountId, ref) ->
+            jdbc.update(
+                """
+                INSERT INTO bcm_acnt_m (acnt_id, acnt_typ_dvcd, ref, vndr_vlt_id, acnt_mdl, reg_dttm,
+                                        frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+                VALUES (?, 'CU', ?, NULL, 'LOGICAL', '20260918000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+                """.trimIndent(),
+                accountId,
+                ref,
+            )
+        }
+        // 발신 지갑 — 수신 사건의 from 이 우리 지갑인지 이 행으로 판정한다(소유권, 자산 발급 기록이 아니다).
+        jdbc.update(
+            """
+            INSERT INTO bcm_ntwk_wlt_crtn_l (crtn_id, orgn_id, acnt_id, ntwk_cd, corr_id, req_hash, req_vrsn, vndr_ntwk,
+                                             crtn_stcd, rvsn, post_prep_dttm, vndr_wlt_id, scan_id, scan_done_yn,
+                                             reg_dttm, last_chng_dttm,
+                                             frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('crtn-sender', ?, ?, ?, 'corr-sender', ?, 'v1', ?, 'COMPLETED', 1,
+                    '20260918000000', ?, 'scan-sender', 'Y',
+                    '20260918000000', '20260918000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            ORIGIN_ID,
+            ACCOUNT_ID,
+            NETWORK,
+            "0".repeat(64),
+            VENDOR_NETWORK,
+            WALLET_ID,
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_ntwk_wlt_obs_l (page_id, crtn_id, scan_id, page_no, evdc_ref, evdc_hash, obs_dttm,
+                                            frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('page-sender', 'crtn-sender', 'scan-sender', 0, 'evidence://sender', ?, '20260918000000',
+                    'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            "0".repeat(64),
+        )
+        jdbc.update(
+            """
+            INSERT INTO bcm_ntwk_wlt_m (crtn_id, orgn_id, acnt_id, ntwk_cd, vndr_wlt_id, wlt_addr, page_id, reg_dttm,
+                                        frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES ('crtn-sender', ?, ?, ?, ?, ?, 'page-sender', '20260918000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            ORIGIN_ID,
+            ACCOUNT_ID,
+            NETWORK,
+            WALLET_ID,
+            WALLET_ADDRESS,
+        )
+        // 수신 입금 주소 — 귀속이 이 행으로 입금 후보를 만든다.
+        jdbc.update(
+            """
+            INSERT INTO bcm_addr_m (acnt_id, ntwk_cd, tkn_smbl, dpst_addr, reg_dttm,
+                                    frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+            VALUES (?, ?, 'USDC', ?, '20260918000000', 'SYSTEM', '9999', 'SYSTEM', '9999')
+            """.trimIndent(),
+            RECEIVER_ACCOUNT_ID,
+            NETWORK,
+            DESTINATION,
+        )
+    }
+
     /**
      * 한 쓰기만 실패시켜 같은 트랜잭션의 나머지가 되돌아오는지 본다 — 테스트 전용 trigger이며 끝나면 반드시 지운다.
      * [condition]은 trigger 의 `WHEN` 절이다 — 같은 테이블의 다른 쓰기까지 막지 않으려면 필요하다.
@@ -364,6 +532,27 @@ class DfnsWebhookDecisionSliceIntegrationTest {
                 ),
         )
 
+    private fun internalSubmission() =
+        requestedSubmission().copy(
+            transactionType = SubmissionTransactionType.INTERNAL,
+            recipientType = SubmissionRecipientType.ACCOUNT,
+            recipientValue = RECEIVER_ACCOUNT_ID,
+        )
+
+    /** 수신 지갑에서 본 같은 이동 — 방향이 In 이고 목적지가 우리 발급 주소다. */
+    private fun incomingChainEvent(): String =
+        buildString {
+            append("""{"data":{"blockchainEvent":{"network":"$VENDOR_NETWORK","direction":"In","index":"4"""")
+            append(""","metadata":{"asset":{"symbol":"USDC","decimals":6}}""")
+            append(""","from":"$WALLET_ADDRESS","to":"$DESTINATION","symbol":"USDC","decimals":6""")
+            append(""","walletId":"$RECEIVER_WALLET_ID","kind":"Erc20Transfer","contract":"$CONTRACT"""")
+            append(""","status":"Confirmed","value":"$BASE_UNITS","txHash":"$TX_HASH"""")
+            append(""","timestamp":"1758099600","blockNumber":$BLOCK_NUMBER}""")
+            append(""","wallet":{"id":"$RECEIVER_WALLET_ID","network":"$VENDOR_NETWORK","address":"$DESTINATION"}}""")
+            append(""","id":"$CHAIN_NOTIFICATION_ID","date":"2026-09-18T09:01:05.000Z"""")
+            append(""","kind":"wallet.blockchainevent.detected","deliveryAttempt":1}""")
+        }
+
     private fun transferEvent(
         notificationId: String = TRANSFER_NOTIFICATION_ID,
         retryOf: String? = null,
@@ -414,8 +603,11 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         const val NETWORK = "ETHEREUM_TEST"
         const val VENDOR_NETWORK = "EthereumSepolia"
         const val ACCOUNT_ID = "acnt-slice-1"
+        const val RECEIVER_ACCOUNT_ID = "acnt-slice-2"
+        const val ORIGIN_ID = "test-dfns-origin"
         const val EXTERNAL_TX_ID = "wd-slice-1"
         const val WALLET_ID = "wa-1f04s-lqc9q-xxxxxxxxxxxxxxxx"
+        const val RECEIVER_WALLET_ID = "wa-1f04s-lqc9q-yyyyyyyyyyyyyyyy"
         const val WALLET_ADDRESS = "0x9c7d4b196cb0c7b01d743fbc6116a902379c7999"
         const val TRANSFER_ID = "xfr-20g4k-nsdpo-mg6arrifgvid4orn"
         const val CONTRACT = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"

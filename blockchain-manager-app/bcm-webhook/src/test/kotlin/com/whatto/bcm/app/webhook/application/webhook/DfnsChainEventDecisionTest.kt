@@ -45,6 +45,8 @@ class DfnsChainEventDecisionTest {
     private val txStates =
         mockk<TxStateService> {
             every { lockNetworkTransactionHash(any(), any()) } returns Unit
+            // 기본은 '그 hash의 거래 없음' — 입금 경로도 수신측 중복 입금 방지를 위해 후보를 읽는다(계약13).
+            every { findByNetworkAndTransactionHash(any(), any()) } returns emptyList()
         }
     private val outboxEvents = mockk<OutboxEventService>(relaxed = true)
     private val chainHeads = mockk<ChainHeadPort>()
@@ -207,6 +209,32 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
+    fun `우리 내부이체의 수신측은 입금을 만들지 않는다`() {
+        // 같은 hash에 우리 발신 거래가 있으면 업무 이벤트는 제출 원장 쪽에서 이미 났다 — 또 만들면 없는 입금이 인정된다(계약13).
+        val deposit = transfer()
+        every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns listOf(txRecord())
+
+        assertThat(decision(event = event(deposit)).decide(NOTIFICATION_ID, PAYLOAD))
+            .isEqualTo(DfnsChainDecisionOutcome.InternalReceipt(deposit))
+
+        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { outboxEvents.enqueue(any()) }
+        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
+    }
+
+    @Test
+    fun `발신이 우리 지갑인데 결속이 없으면 입금으로 확정하지 않고 보류한다`() {
+        // 전송 알림이 늦을 수 있다. 이벤트는 취소가 안 되므로 확정보다 보류가 맞다.
+        val deposit = transfer()
+
+        assertThat(decision(event = event(deposit), senderIsOurWallet = true).decide(NOTIFICATION_ID, PAYLOAD))
+            .isEqualTo(DfnsChainDecisionOutcome.IncomingUnresolved(deposit))
+
+        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
+    }
+
+    @Test
     fun `입금 판단도 같은 직렬화 경계에 참여한다`() {
         // 입금도 같은 (network, tx_hash)로 거래 행을 만든다 — 한 경로라도 빠지면 발신 좌표의 후보 조회에 팬텀 삽입이 남는다.
         val deposit = transfer()
@@ -303,6 +331,7 @@ class DfnsChainEventDecisionTest {
         event: NetworkChainEvent? = event(transfer()),
         asset: LedgerAsset? = LedgerAsset(NETWORK, "USDC", 6),
         accountId: String? = ACCOUNT_ID,
+        senderIsOurWallet: Boolean = false,
     ) = DfnsChainEventDecision(
         parser = NetworkChainEventParser { event },
         ledger =
@@ -314,6 +343,11 @@ class DfnsChainEventDecisionTest {
                     network: String,
                     symbol: String,
                 ) = accountId
+
+                override fun ownsWalletAddress(
+                    network: String,
+                    address: String,
+                ) = senderIsOurWallet
             },
         submissions = submissions,
         chainHeads = chainHeads,

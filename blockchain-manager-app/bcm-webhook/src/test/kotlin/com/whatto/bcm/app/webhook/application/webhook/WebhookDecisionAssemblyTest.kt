@@ -5,9 +5,11 @@ import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.tx.TxStateService
+import com.whatto.bcm.app.application.wallet.NetworkWalletQueryService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
+import com.whatto.bcm.domain.provider.ProviderOrigin
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.vendor.NetworkChainEventParser
 import com.whatto.bcm.domain.vendor.NetworkTransferEventParser
@@ -43,6 +45,8 @@ class WebhookDecisionAssemblyTest {
             })
             .withBean(VendorAssetMappingQueryService::class.java, { mockk<VendorAssetMappingQueryService>() })
             .withBean(DepositAddressQueryService::class.java, { mockk<DepositAddressQueryService>() })
+            .withBean(NetworkWalletQueryService::class.java, { mockk<NetworkWalletQueryService>() })
+            .withBean(ProviderOrigin::class.java, { mockk<ProviderOrigin>() })
             .withBean(TxStateService::class.java, { mockk<TxStateService>() })
             .withBean(OutboxEventService::class.java, { mockk<OutboxEventService>() })
             .withBean(EventIdGenerator::class.java, { EventIdGenerator { "evt" } })

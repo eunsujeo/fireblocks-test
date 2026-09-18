@@ -145,6 +145,24 @@ class NetworkWalletPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `지갑 주소 소유권은 계정·자산을 묻지 않고 네트워크 안에서만 찾는다`() {
+        // 제출은 그 자산의 주소 발급을 요구하지 않는다 — 발급 기록으로 물으면 우리 지갑을 못 알아본다(계약13 "내부이체").
+        val scan = startScan()
+        val wallet = NetworkWalletLedgerFixture.wallet(seed.request)
+        repository.recordPage(seed.request.scope, scan.revision, NetworkWalletLedgerFixture.page(candidates = listOf(wallet)), NOW)
+        val origin = seed.request.scope.origin
+        val network = seed.request.scope.network
+        val address = requireNotNull(wallet.address)
+
+        assertThat(repository.ownsWalletAddress(origin, network, address)).isTrue()
+        // EVM 주소는 대소문자에 정보가 없다 — 벤더가 사건과 지갑 응답에서 다른 표기를 줘도 같은 주소로 찾아야 한다.
+        assertThat(repository.ownsWalletAddress(origin, network, address.uppercase())).isTrue()
+        // 네트워크가 다르면 같은 문자열이라도 우리 지갑이 아니다.
+        assertThat(repository.ownsWalletAddress(origin, "OTHER_NETWORK", address)).isFalse()
+        assertThat(repository.ownsWalletAddress(origin, network, "address-not-ours")).isFalse()
+    }
+
+    @Test
     fun `cursor 반복은 페이지 저장과 cursor 전진 없이 거절한다`() {
         val scan = startScan()
         val first = repository.recordPage(seed.request.scope, scan.revision, NetworkWalletLedgerFixture.page(next = "next-page"), NOW)
