@@ -1,6 +1,6 @@
 # Blockchain Manager API
 
-`v0.13.0`
+`v0.14.0`
 
 블록체인 매니저는 사내의 별도 서비스로, 온체인 거래(노드 연동)를 담당한다.
 호출 쪽 백엔드(Service·Admin)는 이 HTTP API 로 계정·주소·잔액·거래를 다루고,
@@ -103,7 +103,7 @@ DAW-CORE 연동의 최소 구현 범위는 다음 네 가지다.
 | `ASSET_NOT_SUPPORTED` | 400 | 우리가 지원하지 않는 (네트워크, 토큰) — 요청 형식은 맞다 |
 | `NOT_FOUND` | 404 | 그 밖의 리소스 없음 |
 | `CONFLICT` | 409 | 같은 멱등 키에 다른 내용이 왔다 (예: 이미 쓴 externalTxId 로 금액·목적지가 다른 제출) |
-| `UNPROCESSABLE_ENTITY` | 422 | 요청 형식은 맞지만 source event가 FINALIZED/완료 조건을 충족하지 않음 |
+| `UNPROCESSABLE_ENTITY` | 422 | 요청 형식·값은 맞지만 **현재 리소스 상태나 선행 조건** 때문에 처리할 수 없음 (예: source event가 FINALIZED/완료 조건 미충족, 목적지 계정에 수신 주소 미발급). 조건이 갖춰지면 **같은 요청이 그대로 유효**하다 |
 | `SUBMIT_IN_PROGRESS` | 503 | 같은 `externalTxId` 의 앞선 제출이 처리 중이다 — **오류가 아니라 지연**이다. `Retry-After` 뒤에 같은 요청을 그대로 다시 보낸다 |
 | `CREATION_RETRY_LATER` | 503 | vault·wallet 생성의 새 키 호출을 보수적으로 미룬다. `retryAfterSeconds` 뒤 같은 업무 요청을 다시 보낸다 |
 | `PROVISIONING_PENDING` | 503 | 네트워크 지갑의 생성·조회 회수가 아직 진행 중이다 — **오류가 아니라 지연**이다. 매니저는 새 생성이나 키 회전 없이 조회만 재개하므로 `retryAfterSeconds` 뒤 같은 업무 요청을 그대로 다시 보낸다 |
@@ -829,6 +829,28 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
+`422` — 요청 형식·값은 맞지만 현재 리소스 상태나 선행 조건 때문에 처리할 수 없다.
+조건이 갖춰지면 같은 요청이 그대로 유효하다 — 요청을 고쳐야 하는 `400` 과 구분한다.
+
+
+```json
+{
+  "error": {
+    "code": "UNPROCESSABLE_ENTITY",
+    "message": "request cannot be processed in the current resource state"
+  },
+  "meta": {
+    "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
+  }
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `error` | ErrorBody | 필수 |  |
+| `meta` | Meta | 필수 |  |
+
+
 `502` — relay 가 전송을 대지 못함·거절 (대납 구성)
 
 ```json
@@ -1402,7 +1424,9 @@ _응답_
 | `meta` | Meta | 필수 |  |
 
 
-`422` — source event가 현재 sweep 요청 조건을 충족하지 않음
+`422` — 요청 형식·값은 맞지만 현재 리소스 상태나 선행 조건 때문에 처리할 수 없다.
+조건이 갖춰지면 같은 요청이 그대로 유효하다 — 요청을 고쳐야 하는 `400` 과 구분한다.
+
 
 ```json
 {
