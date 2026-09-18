@@ -189,7 +189,7 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
 
         // 일부만 채우면 본문을 재구성할 수 없다.
         assertThatThrownBy { jdbc.update(base, "v28-partial", "wa-1", null, null, null) }
-            .hasMessageContaining("ck_bcm_sbmt_vndr_canonical")
+            .hasMessageContaining("ck_bcm_sbmt_vndr_canonical_v30")
         // 선행 0이 있는 최소 단위는 같은 금액의 표기를 둘로 만든다.
         assertThatThrownBy { jdbc.update(base, "v28-zero", "wa-1", "key", "0100", 6) }
             .hasMessageContaining("ck_bcm_sbmt_base_amt")
