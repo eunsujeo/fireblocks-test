@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.application.submission
 
+import com.whatto.bcm.app.application.account.AccountQueryService
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.TransactionRunner
@@ -46,6 +47,7 @@ import java.util.UUID
 class DfnsTransferSubmissionService(
     private val submissions: SubmissionRecordRepository,
     private val wallets: NetworkWalletProvisioningRepository,
+    private val accounts: AccountQueryService,
     private val mappings: VendorAssetMappingQueryService,
     private val depositAddresses: DepositAddressQueryService,
     private val vendor: NetworkTransferPort,
@@ -123,9 +125,13 @@ class DfnsTransferSubmissionService(
         when (val recipient = command.recipient) {
             is TransactionSubmissionRecipient.Address -> recipient.address
 
-            is TransactionSubmissionRecipient.Account ->
+            is TransactionSubmissionRecipient.Account -> {
+                // 계정이 없는 것과 주소가 아직 없는 것은 다른 답이다 — 계정 자체가 없으면 `404`이고,
+                // 그건 주소 발급으로도 해소되지 않는다. Fireblocks는 `requiredAccount`가 이미 그렇게 답한다.
+                accounts.requiredAccount(recipient.accountId)
                 depositAddresses.find(recipient.accountId, command.network, command.symbol)?.address
                     ?: throw UnprocessableRequestException("recipient", recipient.accountId)
+            }
 
             // 화이트리스트 지갑은 별도 계약 전이라 만들지 않는다.
             else -> throw InvalidRequestException("recipient")

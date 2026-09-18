@@ -976,6 +976,7 @@ CREATE TABLE bcm_sbmt_l (
   vndr_ast_id   VARCHAR(128) NULL,          -- V28 제출에 쓴 벤더 자산 키
   base_amt      VARCHAR(320) NULL,          -- V28 최소 단위 정수 문자열 (선행 0 금지)
   dcml_cnt      SMALLINT     NULL,          -- V28 환산에 쓴 정밀도 0..255
+  vndr_dst_addr VARCHAR(256) NULL,          -- V30 벤더 본문에 실제로 보낸 목적지 주소 (rcv_vl은 논리 목적지라 다를 수 있다)
   last_chck_dttm VARCHAR(16) NULL,           -- 미결 점검이 마지막으로 벤더 조회한 일시
   chck_cnt      INTEGER      NOT NULL DEFAULT 0, -- 미결 조회 횟수 — 백오프·경보 기준
   -- 감사 4컬럼
@@ -985,10 +986,11 @@ CREATE TABLE bcm_sbmt_l (
   last_chng_brcd  VARCHAR(4)  NOT NULL,
   CHECK ((tx_dvcd IN ('SWEEP_APPROVE', 'SWEEP_BATCH')) = (call_data IS NOT NULL)),
   CHECK (call_data IS NULL OR call_data ~ '^0x([0-9a-f][0-9a-f])+$'),
-  -- V28 — 넷은 한 벌이다. 일부만 있으면 회수 본문을 재구성할 수 없다.
+  -- V28·V30 — 다섯은 한 벌이다. 일부만 있으면 회수 본문을 재구성할 수 없다.
   CONSTRAINT ck_bcm_sbmt_vndr_canonical CHECK (
-    (vndr_wlt_id IS NULL AND vndr_ast_id IS NULL AND base_amt IS NULL AND dcml_cnt IS NULL)
-    OR (vndr_wlt_id IS NOT NULL AND vndr_ast_id IS NOT NULL AND base_amt IS NOT NULL AND dcml_cnt IS NOT NULL)
+    (vndr_wlt_id IS NULL AND vndr_ast_id IS NULL AND base_amt IS NULL AND dcml_cnt IS NULL AND vndr_dst_addr IS NULL)
+    OR (vndr_wlt_id IS NOT NULL AND vndr_ast_id IS NOT NULL AND base_amt IS NOT NULL AND dcml_cnt IS NOT NULL
+        AND vndr_dst_addr IS NOT NULL)
   ),
   CONSTRAINT ck_bcm_sbmt_base_amt CHECK (base_amt IS NULL OR base_amt ~ '^(0|[1-9][0-9]*)$'),
   CONSTRAINT ck_bcm_sbmt_dcml CHECK (dcml_cnt IS NULL OR dcml_cnt BETWEEN 0 AND 255)

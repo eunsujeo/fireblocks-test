@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.config
 
+import com.whatto.bcm.app.application.account.AccountQueryService
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.submission.DfnsTransferSubmissionService
@@ -29,6 +30,7 @@ class DfnsSubmissionConfig {
     fun dfnsTransferSubmissionService(
         submissions: SubmissionRecordRepository,
         wallets: NetworkWalletProvisioningRepository,
+        accounts: AccountQueryService,
         mappings: VendorAssetMappingQueryService,
         depositAddresses: DepositAddressQueryService,
         vendor: NetworkTransferPort,
@@ -40,6 +42,7 @@ class DfnsSubmissionConfig {
         DfnsTransferSubmissionService(
             submissions,
             wallets,
+            accounts,
             mappings,
             depositAddresses,
             vendor,

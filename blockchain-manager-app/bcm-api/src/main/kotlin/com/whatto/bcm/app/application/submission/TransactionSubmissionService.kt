@@ -94,7 +94,6 @@ class TransactionSubmissionService(
     }
 
     fun submitManaged(command: ManagedTransactionSubmissionCommand): TransactionSubmissionResult {
-        val mapping = mappings.requiredMapping(command.network, command.symbol)
         val logicalCommand =
             TransactionSubmissionCommand(
                 externalTransactionId = command.externalTransactionId,
@@ -106,17 +105,24 @@ class TransactionSubmissionService(
                 note = command.note,
                 travelRuleMessage = null,
             )
-        val managed =
+        val logical =
+            LogicalSubmission(
+                recipientType = command.recipientType,
+                recipientValue = command.recipientValue,
+                transactionType = SubmissionTransactionType.BAND_S,
+            )
+        // 자산 매핑도 제출 시점에 읽는다 — 밴드S 키의 멱등 응답이 현재 매핑 오류에 가려지면 안 된다.
+        return submit(logicalCommand, logical) {
             PreparedSubmission(
                 sourceVaultId = command.sourceVaultId,
-                vendorAssetId = mapping.vendorAssetId,
+                vendorAssetId = mappings.requiredMapping(command.network, command.symbol).vendorAssetId,
                 recipientType = command.recipientType,
                 recipientValue = command.recipientValue,
                 vendorDestination = command.vendorDestination,
                 transactionType = SubmissionTransactionType.BAND_S,
                 useGasless = command.useGasless,
             )
-        return submit(logicalCommand, LogicalSubmission(managed)) { managed }
+        }
     }
 
     private fun enforceExecutionGate(
@@ -138,12 +144,12 @@ class TransactionSubmissionService(
         val fingerprint = fingerprint(command, logical)
         val claim = newClaim()
         val requested = requestedRecord(command, logical, fingerprint, claim)
-        val attempt = initialAttempt(command, logical, requested)
+        val attempt = initialAttempt(command, logical, requested, prepare)
 
         val current = attempt.record
         ensureSameRequest(current, command, logical, fingerprint)
         if (attempt.isNew) {
-            return submitToVendor(command, prepare(), claim.id)
+            return submitToVendor(command, checkNotNull(attempt.prepared) { "new submission prepared nothing" }, claim.id)
         }
         return when (current.status) {
             SubmissionStatus.SUBMITTED -> {
@@ -161,7 +167,7 @@ class TransactionSubmissionService(
                         },
                     )
                 } else {
-                    recoverOrSubmit(command, prepare(), claim.id)
+                    recoverOrSubmit(command, prepare, claim.id)
                 }
             }
 
@@ -218,10 +224,16 @@ class TransactionSubmissionService(
         throw SubmissionInProgressException(command.externalTransactionId, retryAfterSeconds(current))
     }
 
+    /**
+     * 그 키의 첫 행을 만든다. **벤더 자원은 행을 넣기 직전, 같은 트랜잭션 안에서 읽는다**(02 "신규 키 선행 검사") —
+     * 읽다 실패하면 행이 생기지 않아, 제출할 수 없는 `REQUESTED`와 살아 있는 소유권이 남지 않는다.
+     * 기존 행을 찾은 갈래에서는 읽지 않는다 — 멱등 응답과 회수가 현재 자원 오류에 가려지면 안 된다.
+     */
     private fun initialAttempt(
         command: TransactionSubmissionCommand,
         logical: LogicalSubmission,
         requested: SubmissionRecord,
+        prepare: () -> PreparedSubmission,
     ): SubmissionAttempt =
         try {
             transactionRunner.run {
@@ -230,30 +242,37 @@ class TransactionSubmissionService(
                     val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
                     if (existing != null) {
                         if (existing.status == SubmissionStatus.FAILED) ExecutionGatePolicy.requireOpen(gate)
-                        return@run SubmissionAttempt(existing, isNew = false)
+                        return@run SubmissionAttempt(existing, isNew = false, prepared = null)
                     }
                     ExecutionGatePolicy.requireOpen(gate)
                 }
-                SubmissionAttempt(submissions.insert(requested), isNew = true)
+                val prepared = prepare()
+                SubmissionAttempt(submissions.insert(requested), isNew = true, prepared = prepared)
             }
         } catch (conflict: ConflictException) {
             SubmissionAttempt(
                 submissions.findByExternalTransactionId(command.externalTransactionId) ?: throw conflict,
                 isNew = false,
+                prepared = null,
             )
         }
 
+    /**
+     * 소유권을 뺏은 뒤의 회수. **벤더 조회가 먼저다**(02 "만료 뒤 뺏은 소유자는 제출하기 전에 벤더 조회부터 한다") —
+     * 앞 소유자가 죽기 직전에 제출을 마쳤을 수 있고, 조회를 건너뛰면 그게 곧 이중 출금이다.
+     * 벤더 자원은 조회 **뒤에** 읽는다. 순서를 뒤집으면 현재 매핑이 깨진 것만으로 조회 자체를 못 한다.
+     */
     private fun recoverOrSubmit(
         command: TransactionSubmissionCommand,
-        prepared: PreparedSubmission,
+        prepare: () -> PreparedSubmission,
         claimId: String,
     ): TransactionSubmissionResult {
         val recovered =
             vendor.transactionByExternalTransactionId(command.externalTransactionId)
         return if (recovered == null) {
-            submitToVendor(command, prepared, claimId)
+            submitToVendor(command, prepare(), claimId)
         } else {
-            completeRecovered(command, prepared, claimId, recovered)
+            completeRecovered(command, prepare(), claimId, recovered)
         }
     }
 
@@ -604,9 +623,7 @@ private data class LogicalSubmission(
     val recipientType: SubmissionRecipientType,
     val recipientValue: String,
     val transactionType: SubmissionTransactionType,
-) {
-    constructor(prepared: PreparedSubmission) : this(prepared.recipientType, prepared.recipientValue, prepared.transactionType)
-}
+)
 
 private data class PreparedSubmission(
     val sourceVaultId: String,
@@ -621,4 +638,6 @@ private data class PreparedSubmission(
 private data class SubmissionAttempt(
     val record: SubmissionRecord,
     val isNew: Boolean,
+    /** 새 행을 만든 갈래에서만 채운다 — 그 갈래만 벤더 자원을 읽는다. */
+    val prepared: PreparedSubmission?,
 )
