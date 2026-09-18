@@ -12,6 +12,7 @@ import com.whatto.bcm.domain.submission.SubmissionRecipientType
 import com.whatto.bcm.domain.submission.SubmissionRecord
 import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
+import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStateChange
@@ -254,9 +255,46 @@ class DfnsTransferEventDecisionTest {
                 ),
         )
 
+    @Test
+    fun `내부이체 이벤트의 to 는 계정이 아니라 해소한 온체인 주소다`() {
+        // 02·공개 계약에서 to 는 온체인 목적지 주소다. 논리 목적지(recipientValue)는 내부이체에서 accountId라 그대로 실으면 안 된다(03 V30).
+        val internal =
+            record(
+                transactionType = SubmissionTransactionType.INTERNAL,
+                recipientType = SubmissionRecipientType.ACCOUNT,
+                recipientValue = "acct-receiver",
+                vendorCanonical =
+                    SubmissionVendorCanonical(
+                        vendorWalletId = "wa-1",
+                        vendorAssetId = "EthereumSepolia:Native",
+                        amountBaseUnits = "1000000",
+                        decimals = 6,
+                        destinationAddress = ADDRESS,
+                    ),
+            )
+        every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns internal
+        every { txStates.observe(any()) } returns stateChange(TxStatus.CONFIRMED)
+        every { outboxEvents.enqueue(any()) } returns Unit
+
+        val serialized = mutableListOf<ChainEvent>()
+
+        decision(
+            serializer =
+                ChainEventSerializer {
+                    serialized += it
+                    "{}"
+                },
+        ).decide(NOTIFICATION_ID, PAYLOAD)
+
+        assertThat(serialized).singleElement().satisfies({ event -> assertThat(event.to).isEqualTo(ADDRESS) })
+    }
+
     private fun record(
         vendorTransactionId: String? = TRANSFER_ID,
         transactionType: SubmissionTransactionType = SubmissionTransactionType.WITHDRAWAL,
+        recipientType: SubmissionRecipientType = SubmissionRecipientType.ADDRESS,
+        recipientValue: String = ADDRESS,
+        vendorCanonical: SubmissionVendorCanonical? = null,
     ) = SubmissionRecord(
         externalTransactionId = EXTERNAL_ID,
         requestHash = "0".repeat(64),
@@ -267,13 +305,14 @@ class DfnsTransferEventDecisionTest {
         transactionType = transactionType,
         vendorTransactionId = vendorTransactionId,
         senderAccountId = "acct-1",
-        recipientType = SubmissionRecipientType.ADDRESS,
-        recipientValue = ADDRESS,
+        recipientType = recipientType,
+        recipientValue = recipientValue,
         network = "ETHEREUM_SEPOLIA",
         symbol = "USDC",
         amount = "1",
         requestedAt = "20260917090000",
         respondedAt = null,
+        vendorCanonical = vendorCanonical,
     )
 
     private fun stateChange(status: TxStatus) =

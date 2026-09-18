@@ -108,12 +108,60 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
                 vendorAssetId = "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
                 amountBaseUnits = "1500000",
                 decimals = 6,
+                destinationAddress = "0xabc",
             )
         val requested = fixture(externalTransactionId = "wd-v28-canonical", vendorCanonical = canonical)
 
         submissions.insert(requested)
 
         assertThat(submissions.findByExternalTransactionId("wd-v28-canonical")?.vendorCanonical).isEqualTo(canonical)
+    }
+
+    @Test
+    fun `목적지 주소는 논리 목적지와 따로 저장한다`() {
+        // 내부이체는 논리 목적지가 accountId다 — 회수가 그걸 to 로 쓰면 주소 자리에 계정이 나간다(03 V30).
+        val canonical =
+            SubmissionVendorCanonical(
+                vendorWalletId = "wa-1",
+                vendorAssetId = "EthereumSepolia:Native",
+                amountBaseUnits = "1000000",
+                decimals = 6,
+                destinationAddress = "0xdead00000000000000000000000000000000beef",
+            )
+        val requested =
+            fixture(
+                externalTransactionId = "wd-v30-internal",
+                recipientType = SubmissionRecipientType.ACCOUNT,
+                recipientValue = "acct-receiver",
+                vendorCanonical = canonical,
+            )
+
+        submissions.insert(requested)
+
+        val stored = submissions.findByExternalTransactionId("wd-v30-internal")
+        assertThat(stored?.recipientValue).isEqualTo("acct-receiver")
+        assertThat(stored?.vendorCanonical?.destinationAddress).isEqualTo("0xdead00000000000000000000000000000000beef")
+    }
+
+    @Test
+    fun `목적지 주소만 빠진 canonical 은 DB 가 받지 않는다`() {
+        // 다섯은 한 벌이다 — 넷만 검사하면 본문을 재구성할 수 없는 반쪽 snapshot 이 남는다(03 V30 CHECK).
+        assertThatThrownBy {
+            jdbc.update(
+                """
+                INSERT INTO bcm_sbmt_l
+                  (ext_tx_id, req_hash, hash_vrsn, sbmt_stcd, tx_dvcd, snd_acnt_id, rcv_dvcd, rcv_vl,
+                   ntwk_cd, tkn_smbl, trsf_amt, req_dttm,
+                   vndr_wlt_id, vndr_ast_id, base_amt, dcml_cnt,
+                   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+                VALUES ('wd-v30-partial', ?, 'v1', 'REQUESTED', 'WITHDRAWAL', 'acct-1', 'ADDRESS', '0xabc',
+                        'ETHEREUM', 'USDC', 1, '20260918000000',
+                        'wa-1', 'EthereumSepolia:Native', '1000000', 6,
+                        'SYSTEM', '9999', 'SYSTEM', '9999')
+                """.trimIndent(),
+                "0".repeat(64),
+            )
+        }.isInstanceOf(DataIntegrityViolationException::class.java)
     }
 
     @Test

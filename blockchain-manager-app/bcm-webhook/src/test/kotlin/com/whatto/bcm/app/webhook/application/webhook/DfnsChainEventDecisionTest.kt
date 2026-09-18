@@ -429,6 +429,7 @@ class DfnsChainEventDecisionTest {
                     vendorAssetId = ASSET_KEY,
                     amountBaseUnits = amountBaseUnits,
                     decimals = 6,
+                    destinationAddress = DESTINATION,
                 ),
         )
 

@@ -360,6 +360,7 @@ class DfnsWebhookDecisionSliceIntegrationTest {
                     vendorAssetId = ASSET_KEY,
                     amountBaseUnits = BASE_UNITS,
                     decimals = 6,
+                    destinationAddress = DESTINATION,
                 ),
         )
 

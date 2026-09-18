@@ -1,7 +1,9 @@
 package com.whatto.bcm.app.application.submission
 
+import com.whatto.bcm.app.application.account.DepositAddressQueryService
 import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.domain.TransactionRunner
+import com.whatto.bcm.domain.account.DepositAddress
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidRequestException
@@ -52,6 +54,9 @@ class DfnsTransferSubmissionServiceTest {
     lateinit var mappings: VendorAssetMappingQueryService
 
     @MockK
+    lateinit var depositAddresses: DepositAddressQueryService
+
+    @MockK
     lateinit var vendor: NetworkTransferPort
 
     private lateinit var runner: RecordingRunner
@@ -66,6 +71,7 @@ class DfnsTransferSubmissionServiceTest {
                 submissions,
                 wallets,
                 mappings,
+                depositAddresses,
                 vendor,
                 runner,
                 ORIGIN,
@@ -317,8 +323,56 @@ class DfnsTransferSubmissionServiceTest {
     }
 
     @Test
-    fun `주소가 아닌 목적지는 받지 않는다`() {
+    fun `계정 목적지는 발급된 주소로 해소해 보내고 원장에는 계정을 남긴다`() {
+        // Dfns 본문은 주소만 받으므로 우리가 해소한다. 원장의 논리 목적지까지 주소로 덮으면 어느 계정으로 보냈는지를 잃는다(계약13).
+        val stored = slot<SubmissionRecord>()
+        val sent = slot<NetworkTransferRequest>()
+        every { depositAddresses.find("acct-2", NETWORK, "USDC") } returns
+            DepositAddress("acct-2", NETWORK, "USDC", OTHER_ADDRESS, NOW)
+        every { submissions.insert(capture(stored)) } answers { firstArg() }
+        every { vendor.submit(capture(sent)) } returns
+            NetworkTransferSubmission.Accepted(observation(destinationAddress = OTHER_ADDRESS))
+        every { submissions.markSubmittedByClaim(EXTERNAL_ID, any(), TRANSFER_ID, NOW) } answers {
+            stored.captured.copy(status = SubmissionStatus.SUBMITTED, vendorTransactionId = TRANSFER_ID)
+        }
+
+        service.submit(command(recipient = TransactionSubmissionRecipient.Account("acct-2")))
+
+        assertThat(sent.captured.destinationAddress).isEqualTo(OTHER_ADDRESS)
+        assertThat(stored.captured.recipientType).isEqualTo(SubmissionRecipientType.ACCOUNT)
+        assertThat(stored.captured.recipientValue).isEqualTo("acct-2")
+        assertThat(stored.captured.transactionType).isEqualTo(SubmissionTransactionType.INTERNAL)
+        // 회수가 읽을 자리다 — 논리 목적지가 accountId라 그대로 두면 주소 자리에 계정이 나간다(03 V30).
+        assertThat(stored.captured.vendorCanonical?.destinationAddress).isEqualTo(OTHER_ADDRESS)
+    }
+
+    @Test
+    fun `목적지 계정에 그 자산 주소가 없으면 원장을 만들지 않고 보류로 거절한다`() {
+        // 형식·계정·자산은 유효하고 목적지의 준비 상태 때문에 못 보내는 것이다 — 주소 발급 뒤 같은 키로 다시 제출할 수 있어야 한다.
+        every { depositAddresses.find("acct-2", NETWORK, "USDC") } returns null
+
         assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account("acct-2"))) }
+            .isInstanceOf(UnprocessableRequestException::class.java)
+
+        verify(exactly = 0) { submissions.insert(any()) }
+        verify(exactly = 0) { vendor.submit(any()) }
+    }
+
+    @Test
+    fun `자기 계정으로 보내는 요청은 원장을 만들기 전에 거절한다`() {
+        // 같은 주소로 가는 온체인 전송이라 잔액은 그대로고 가스만 태운다. 시간이 지나도 해소되지 않는 요청값 모순이다(02 공통 정책).
+        assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account(SENDER_ID))) }
+            .isInstanceOfSatisfying(InvalidRequestException::class.java) {
+                assertThat(it.field).isEqualTo("recipient")
+            }
+
+        verify(exactly = 0) { submissions.insert(any()) }
+        verify(exactly = 0) { vendor.submit(any()) }
+    }
+
+    @Test
+    fun `화이트리스트 지갑 목적지는 아직 받지 않는다`() {
+        assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Whitelisted("wl-1"))) }
             .isInstanceOfSatisfying(InvalidRequestException::class.java) {
                 assertThat(it.field).isEqualTo("recipient")
             }
@@ -416,6 +470,7 @@ class DfnsTransferSubmissionServiceTest {
         const val TRANSFER_ID = "xfr-1"
         const val ASSET_KEY = "EthereumSepolia:Erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
         const val ADDRESS = "0x1111111111111111111111111111111111111111"
+        const val OTHER_ADDRESS = "0x2222222222222222222222222222222222222222"
         const val NOW = "20260917090000"
         val CONFLICT_BODY: ByteArray = """{"error":{"details":{"duplicate":{"id":"xfr-other"}}}}""".toByteArray()
         val REQUEST_HASH =
@@ -442,6 +497,7 @@ class DfnsTransferSubmissionServiceTest {
                 vendorAssetId = ASSET_KEY,
                 amountBaseUnits = "1000000",
                 decimals = 6,
+                destinationAddress = ADDRESS,
             )
         val WALLET =
             NetworkWalletObservation(

@@ -9,6 +9,7 @@ import com.whatto.bcm.domain.admin.ExecutionGateRepository
 import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.ConflictException
+import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.SubmissionInProgressException
 import com.whatto.bcm.domain.exception.VendorApiException
@@ -469,14 +470,66 @@ class TransactionSubmissionServiceTest {
         }
     }
 
+    @Test
+    fun `자기 계정으로 보내는 요청은 제공자와 무관하게 거절한다`() {
+        // Fireblocks vault↔vault도 온체인 전송이라 같은 계정이면 가스만 태운다. 요청값 자체의 모순이라 원장을 만들기 전에 막는다(02 공통 정책).
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns null
+
+        assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account(SENDER_ID))) }
+            .isInstanceOfSatisfying(InvalidRequestException::class.java) {
+                assertThat(it.field).isEqualTo("recipient")
+            }
+
+        verify(exactly = 0) { submissions.insert(any()) }
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
+    }
+
+    @Test
+    fun `자기 계정이어도 미결 제출의 회수는 막지 않는다`() {
+        // 이미 나갔는지 모르는 구간이다 — 새 요청은 막되 회수까지 막으면 그 거래가 고립된다(02).
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
+            existing(
+                status = SubmissionStatus.SUBMITTED,
+                vendorId = "tx-live",
+                recipientType = SubmissionRecipientType.ACCOUNT,
+                recipientValue = SENDER_ID,
+                transactionType = SubmissionTransactionType.INTERNAL,
+            )
+        // 선행 검사를 통과한 뒤에는 기존 키 경로가 그대로 돈다 — PK 충돌이 이미 받은 키임을 알린다.
+        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
+
+        assertThat(service.submit(command(recipient = TransactionSubmissionRecipient.Account(SENDER_ID))).transactionId)
+            .isEqualTo("tx-live")
+
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
+    }
+
+    @Test
+    fun `자기 계정의 FAILED 재시도는 막는다`() {
+        // 회수는 벌어진 일의 불확실성 해소이고 재시도는 새 자금 이동이다 — 지금 금지한 요청을 다시 보낼 이유가 없다(02).
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
+            existing(
+                status = SubmissionStatus.FAILED,
+                recipientType = SubmissionRecipientType.ACCOUNT,
+                recipientValue = SENDER_ID,
+                transactionType = SubmissionTransactionType.INTERNAL,
+            )
+
+        assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account(SENDER_ID))) }
+            .isInstanceOf(InvalidRequestException::class.java)
+
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
+    }
+
     private fun command(
         amount: String = "1.5",
         note: String? = null,
         travelRule: Map<String, Any?>? = null,
+        recipient: TransactionSubmissionRecipient = TransactionSubmissionRecipient.Address("0x9fE2"),
     ) = TransactionSubmissionCommand(
         externalTransactionId = EXTERNAL_ID,
         senderAccountId = SENDER_ID,
-        recipient = TransactionSubmissionRecipient.Address("0x9fE2"),
+        recipient = recipient,
         network = "ETHEREUM",
         symbol = "USDC",
         amount = amount,
@@ -490,6 +543,9 @@ class TransactionSubmissionServiceTest {
         amount: String = "1.5",
         claimId: String? = null,
         claimExpiresAt: String? = null,
+        recipientType: SubmissionRecipientType = SubmissionRecipientType.ADDRESS,
+        recipientValue: String = "0x9fE2",
+        transactionType: SubmissionTransactionType = SubmissionTransactionType.WITHDRAWAL,
     ): SubmissionRecord =
         SubmissionRecord(
             externalTransactionId = EXTERNAL_ID,
@@ -498,11 +554,11 @@ class TransactionSubmissionServiceTest {
             status = status,
             claimId = claimId,
             claimExpiresAt = claimExpiresAt,
-            transactionType = SubmissionTransactionType.WITHDRAWAL,
+            transactionType = transactionType,
             vendorTransactionId = vendorId,
             senderAccountId = SENDER_ID,
-            recipientType = SubmissionRecipientType.ADDRESS,
-            recipientValue = "0x9fE2",
+            recipientType = recipientType,
+            recipientValue = recipientValue,
             network = "ETHEREUM",
             symbol = "USDC",
             amount = amount,
