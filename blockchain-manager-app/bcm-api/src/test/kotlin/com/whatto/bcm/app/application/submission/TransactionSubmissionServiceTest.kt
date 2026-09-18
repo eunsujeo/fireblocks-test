@@ -405,6 +405,7 @@ class TransactionSubmissionServiceTest {
         val inserted = slot<SubmissionRecord>()
         val vendorRequest = slot<com.whatto.bcm.domain.vendor.VendorTransactionRequest>()
         every { submissions.insert(capture(inserted)) } answers { firstArg() }
+        every { submissions.findByExternalTransactionId("band-exec-1-1") } returns null
         every { mappings.requiredMapping("BASE", "USDC") } returns MAPPING.copy(network = "BASE", vendorAssetId = "USDC_BASE")
         every { vendor.submitTransaction(capture(vendorRequest)) } returns VendorTransactionSubmission.Accepted("tx-band-s")
         every { submissions.markSubmittedByClaim("band-exec-1-1", any(), "tx-band-s", NOW) } returns
@@ -581,6 +582,59 @@ class TransactionSubmissionServiceTest {
         verify(exactly = 1) { vendor.transactionByExternalTransactionId(EXTERNAL_ID) }
     }
 
+    @Test
+    fun `기존 밴드S 키도 현재 자산 매핑이 사라지면 가려지지 않고 최초 txId로 답한다`() {
+        // 기존 키 판정은 거래 구분과 무관하게 앞선다(02). 밴드S만 예외로 두면 같은 계약이 경로에 따라 갈린다.
+        every { submissions.findByExternalTransactionId("band-exec-1-1") } returns
+            existing(
+                status = SubmissionStatus.SUBMITTED,
+                vendorId = "tx-band-s",
+                amount = "100.00",
+                recipientValue = "cold-base-usdc",
+                transactionType = SubmissionTransactionType.BAND_S,
+                senderAccountId = "omnibus-base",
+                network = "BASE",
+            )
+        every { mappings.requiredMapping(any(), any()) } throws AssetNotSupportedException("BASE", "USDC")
+
+        val result =
+            service.submitManaged(
+                ManagedTransactionSubmissionCommand(
+                    externalTransactionId = "band-exec-1-1",
+                    sourceVaultId = "omnibus-base",
+                    recipientType = SubmissionRecipientType.ADDRESS,
+                    recipientValue = "cold-base-usdc",
+                    vendorDestination = VendorTransactionDestination.Address("cold-base-usdc"),
+                    network = "BASE",
+                    symbol = "USDC",
+                    amount = "100.00",
+                    useGasless = true,
+                    note = "band S execution exec-1 item 1",
+                ),
+            )
+
+        assertThat(result.transactionId).isEqualTo("tx-band-s")
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
+    }
+
+    @Test
+    fun `기존 내부이체 키도 현재 자산 매핑이 사라지면 가려지지 않고 최초 txId로 답한다`() {
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
+            existing(
+                status = SubmissionStatus.SUBMITTED,
+                vendorId = "tx-first",
+                recipientType = SubmissionRecipientType.ACCOUNT,
+                recipientValue = "acct-2",
+                transactionType = SubmissionTransactionType.INTERNAL,
+            )
+        every { mappings.requiredMapping(any(), any()) } throws AssetNotSupportedException("ETHEREUM", "USDC")
+
+        val result = service.submit(command(recipient = TransactionSubmissionRecipient.Account("acct-2")))
+
+        assertThat(result.transactionId).isEqualTo("tx-first")
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
+    }
+
     private fun command(
         amount: String = "1.5",
         note: String? = null,
@@ -606,6 +660,8 @@ class TransactionSubmissionServiceTest {
         recipientType: SubmissionRecipientType = SubmissionRecipientType.ADDRESS,
         recipientValue: String = "0x9fE2",
         transactionType: SubmissionTransactionType = SubmissionTransactionType.WITHDRAWAL,
+        senderAccountId: String = SENDER_ID,
+        network: String = "ETHEREUM",
     ): SubmissionRecord =
         SubmissionRecord(
             externalTransactionId = EXTERNAL_ID,
@@ -616,10 +672,10 @@ class TransactionSubmissionServiceTest {
             claimExpiresAt = claimExpiresAt,
             transactionType = transactionType,
             vendorTransactionId = vendorId,
-            senderAccountId = SENDER_ID,
+            senderAccountId = senderAccountId,
             recipientType = recipientType,
             recipientValue = recipientValue,
-            network = "ETHEREUM",
+            network = network,
             symbol = "USDC",
             amount = amount,
             requestedAt = NOW,

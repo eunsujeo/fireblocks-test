@@ -8,6 +8,7 @@ import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.account.DepositAddress
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.exception.AccountNotFoundException
+import com.whatto.bcm.domain.exception.AssetNotSupportedException
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.RelayRejectedException
@@ -362,6 +363,20 @@ class DfnsTransferSubmissionServiceTest {
 
         assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account("acct-2"))) }
             .isInstanceOf(UnprocessableRequestException::class.java)
+
+        verify(exactly = 0) { submissions.insert(any()) }
+        verify(exactly = 0) { vendor.submit(any()) }
+    }
+
+    @Test
+    fun `자산이 미지원이면 주소가 없어도 보류가 아니라 미지원으로 거절한다`() {
+        // 미지원 자산은 주소를 발급해도 해소되지 않는다 — 목적지 준비 상태(422)가 아니라 요청값이 지원 범위 밖(400)이다(02).
+        every { accounts.requiredAccount("acct-2") } returns AccountFixture.fixture("acct-2")
+        every { mappings.requiredCurrentMapping(NETWORK, "USDC") } throws AssetNotSupportedException(NETWORK, "USDC")
+        every { depositAddresses.find("acct-2", NETWORK, "USDC") } returns null
+
+        assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account("acct-2"))) }
+            .isInstanceOf(AssetNotSupportedException::class.java)
 
         verify(exactly = 0) { submissions.insert(any()) }
         verify(exactly = 0) { vendor.submit(any()) }

@@ -364,6 +364,7 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         listOf(first, second, third).forEach { name ->
             val notificationId = notificationIdOf(name)
             receive(notificationId, eventTypeOf(name), payloadOf(name))
+            val before = outboxEventIds()
             val outcome = work.processNext()
             when {
                 name == TRANSFER -> {
@@ -384,12 +385,22 @@ class DfnsWebhookDecisionSliceIntegrationTest {
 
                 name == OUTGOING -> assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
 
-                else -> assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
+                // 수신 사건은 우리 발신 거래를 찾아 닫기만 한다 — 이벤트를 하나도 더하지 않는다.
+                else -> assertIncomingAddedNothing(outcome, before)
             }
         }
 
-        deferred.forEach(::releaseRetry)
-        repeat(deferred.size) { work.processNext() }
+        // 보류를 하나씩 풀어 처리 순서를 고정한다 — 수신 사건이 이벤트를 더하지 않는지 그 건에서 직접 봐야 한다.
+        deferred.forEach { notificationId ->
+            releaseRetry(notificationId)
+            val before = outboxEventIds()
+            val outcome = work.processNext()
+            if (notificationId == CHAIN_NOTIFICATION_ID) {
+                assertIncomingAddedNothing(outcome, before)
+            } else {
+                assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
+            }
+        }
 
         assertThat(txRows()).hasSize(1)
         assertThat(txRow()).containsEntry("last_pub_stcd", "FINALIZED")
@@ -400,6 +411,17 @@ class DfnsWebhookDecisionSliceIntegrationTest {
             assertThat(inboxRow(it)).containsEntry("prcs_stcd", "S")
         }
     }
+
+    /** 수신 사건이 이벤트를 만들면 한 번의 이동이 두 계열로 나간다 — 개수가 아니라 **같은 목록**인지로 본다. */
+    private fun assertIncomingAddedNothing(
+        outcome: WebhookDecisionOutcome,
+        before: List<Any?>,
+    ) {
+        assertThat(outcome).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
+        assertThat(outboxEventIds()).isEqualTo(before)
+    }
+
+    private fun outboxEventIds(): List<Any?> = outboxRows().map { it["evnt_id"] }
 
     private fun notificationIdOf(name: String): String =
         when (name) {
