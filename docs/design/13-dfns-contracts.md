@@ -495,7 +495,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 | 단계 | 규칙 | 근거 |
 |---|---|---|
 | 제출 키 검사 | **원장에 적기 전에** 50자 초과를 거절한다(`VALIDATION_FAILED`). 자르지 않는다 | 원장 `ext_tx_id`는 VARCHAR(128), 벤더 `externalId`는 1~50자다. 그 사이 길이는 원장에는 들어가지만 벤더에 영영 나갈 수 없어, 제출되지 않는 `REQUESTED` 행이 남는다 |
-| 본문 준비 | 목적지는 **주소만** 받는다(계정 간 내부이체는 [내부이체](#내부이체--확정)에서 우리가 주소로 해소해 넣는다 — **구현 완료**). 금액은 등록 정밀도(03 V27)로 최소 단위 정수로 환산하고, 정밀도가 없으면 거절한다 | 계정 간 내부이체·화이트리스트 지갑은 별도 계약 전이다. 단위가 뒤섞이면 조용한 금액 사고다 |
+| 본문 준비 | 목적지는 **주소만** 받는다(계정 간 내부이체는 [내부이체](#내부이체--확정)에서 우리가 주소로 해소해 넣는다 — **구현 완료**). 금액은 등록 정밀도(03 V27)로 최소 단위 정수로 환산하고, 정밀도가 없으면 거절한다 | 화이트리스트 지갑은 별도 계약 전이다. 단위가 뒤섞이면 조용한 금액 사고다 |
 | 금액 환산 | `AssetDecimals.baseUnitsOf` — 자릿수가 정밀도보다 많으면 **반올림하지 않고 거절**한다 | 반올림은 곧 사용자가 지시하지 않은 금액을 보내는 것이고, 버리든 올리든 원장과 실제 이동이 어긋난다 |
 | 선기록·소유권 | 제출 원장에 `REQUESTED`를 먼저 넣고 소유권(토큰+만료)을 함께 잡는다. 못 잡은 후발 요청은 기다리지 않고 `503` + `Retry-After` | 02 그대로. 기다리면 벤더 지연이 API 전체를 막는다 |
 | 같은 키·다른 내용 | `req_hash`(hash 버전이 다르면 canonical 7값)로 대조해 어긋나면 `409` | 02 그대로 |
@@ -587,7 +587,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 
 ### 내부이체 — 확정
 
-근거: 02의 [제출 계약](02-bcm-flow.md)과 위 [출금 제출 유스케이스](#출금-제출-유스케이스--구현). 아직 구현하지 않았다.
+근거: 02의 [제출 계약](02-bcm-flow.md)과 위 [출금 제출 유스케이스](#출금-제출-유스케이스--구현). **구현 완료**(목적지 해소·수신측 중복 입금 방지).
 
 Fireblocks는 목적지를 **vault ID**로 넘겨 벤더가 주소를 고르지만(`VendorTransactionDestination.Account`),
 Dfns 전송 본문은 `to`(주소)뿐이다. 그래서 **우리가 목적지 계정의 주소를 해소해 넣는다**.
@@ -742,7 +742,7 @@ DAW-CORE가 있지도 않은 입금을 인정하게 된다([호환 계획](../df
 
 근거: 채택 명세 1.1018.3 `POST /wallets/{walletId}/transfers`(Transfer Asset)·`GET /wallets/{walletId}/transfers/{transferId}`(Get Transfer)와
 공식 [Idempotency](https://docs.dfns.co/api-reference/idempotency)(`.md` SHA-256 `6de82575a0cb361689df4221ad6f6e8d195ed3927d5fbb5e23c79e7fe0817507`, 2026-09-16 확인).
-구현은 도메인 출력 포트 `NetworkTransferPort`와 `DfnsNetworkTransferClient`(infra/client)다. **출금 제출 유스케이스가 이 포트를 쓴다**([출금 제출 유스케이스 — 구현](#출금-제출-유스케이스--구현)) — 내부이체·Sweep 연결은 후속이다.
+구현은 도메인 출력 포트 `NetworkTransferPort`와 `DfnsNetworkTransferClient`(infra/client)다. **출금 제출 유스케이스가 이 포트를 쓴다**([출금 제출 유스케이스 — 구현](#출금-제출-유스케이스--구현)) — Sweep 연결은 후속이다.
 
 | 항목 | 명세·문서로 확인한 사실 | BCM 규칙 |
 |---|---|---|

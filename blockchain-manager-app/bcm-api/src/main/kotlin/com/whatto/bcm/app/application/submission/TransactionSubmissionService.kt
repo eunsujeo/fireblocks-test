@@ -54,11 +54,21 @@ class TransactionSubmissionService(
     private val executionGates: ExecutionGateRepository,
 ) : TransactionSubmissionWork {
     override fun submit(command: TransactionSubmissionCommand): TransactionSubmissionResult {
-        val prepared = prepare(command)
+        // 벤더 자원(vault·자산 매핑·수신 계정)은 **실제로 제출할 때만** 읽는다 — 먼저 읽으면 기존 키의 멱등 응답과 회수가
+        // 현재 자원 오류에 가려진다(02 "신규 키 선행 검사"). 판정에 필요한 값은 요청만으로 정해진다.
+        val logical = logical(command)
         enforceDistinctAccounts(command)
-        enforceExecutionGate(command, prepared)
-        return submit(command, prepared)
+        enforceExecutionGate(command, logical)
+        return submit(command, logical) { prepare(command) }
     }
+
+    /** 요청만으로 정해지는 값 — 벤더를 읽지 않는다. */
+    private fun logical(command: TransactionSubmissionCommand) =
+        LogicalSubmission(
+            recipientType = command.recipient.type,
+            recipientValue = command.recipient.value,
+            transactionType = command.recipient.type.transactionType(),
+        )
 
     /**
      * 자기 계정으로 보내는 요청을 막는다 — **제공자 공통 정책**이다(02 "신규 키 선행 검사").
@@ -96,8 +106,7 @@ class TransactionSubmissionService(
                 note = command.note,
                 travelRuleMessage = null,
             )
-        return submit(
-            logicalCommand,
+        val managed =
             PreparedSubmission(
                 sourceVaultId = command.sourceVaultId,
                 vendorAssetId = mapping.vendorAssetId,
@@ -106,15 +115,15 @@ class TransactionSubmissionService(
                 vendorDestination = command.vendorDestination,
                 transactionType = SubmissionTransactionType.BAND_S,
                 useGasless = command.useGasless,
-            ),
-        )
+            )
+        return submit(logicalCommand, LogicalSubmission(managed)) { managed }
     }
 
     private fun enforceExecutionGate(
         command: TransactionSubmissionCommand,
-        prepared: PreparedSubmission,
+        logical: LogicalSubmission,
     ) {
-        if (prepared.transactionType != SubmissionTransactionType.WITHDRAWAL) return
+        if (logical.transactionType != SubmissionTransactionType.WITHDRAWAL) return
         val currentGate = executionGates.findCurrent(command.network, ExecutionGateType.WITHDRAWAL) ?: return
         val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
         if (existing?.status == SubmissionStatus.REQUESTED || existing?.status == SubmissionStatus.SUBMITTED) return
@@ -123,17 +132,18 @@ class TransactionSubmissionService(
 
     private fun submit(
         command: TransactionSubmissionCommand,
-        prepared: PreparedSubmission,
+        logical: LogicalSubmission,
+        prepare: () -> PreparedSubmission,
     ): TransactionSubmissionResult {
-        val fingerprint = fingerprint(command, prepared)
+        val fingerprint = fingerprint(command, logical)
         val claim = newClaim()
-        val requested = requestedRecord(command, prepared, fingerprint, claim)
-        val attempt = initialAttempt(command, prepared, requested)
+        val requested = requestedRecord(command, logical, fingerprint, claim)
+        val attempt = initialAttempt(command, logical, requested)
 
         val current = attempt.record
-        ensureSameRequest(current, command, prepared, fingerprint)
+        ensureSameRequest(current, command, logical, fingerprint)
         if (attempt.isNew) {
-            return submitToVendor(command, prepared, claim.id)
+            return submitToVendor(command, prepare(), claim.id)
         }
         return when (current.status) {
             SubmissionStatus.SUBMITTED -> {
@@ -143,7 +153,7 @@ class TransactionSubmissionService(
             }
 
             SubmissionStatus.REQUESTED -> {
-                val acquired = acquireClaim(command, prepared, claim, requireOpenForFailed = false)
+                val acquired = acquireClaim(command, logical, claim, requireOpenForFailed = false)
                 if (acquired.status == SubmissionStatus.SUBMITTED) {
                     TransactionSubmissionResult(
                         checkNotNull(acquired.vendorTransactionId) {
@@ -151,13 +161,13 @@ class TransactionSubmissionService(
                         },
                     )
                 } else {
-                    recoverOrSubmit(command, prepared, claim.id)
+                    recoverOrSubmit(command, prepare(), claim.id)
                 }
             }
 
             SubmissionStatus.FAILED -> {
                 rejectSelfTransferRetry(command)
-                val acquired = acquireClaim(command, prepared, claim, requireOpenForFailed = true)
+                val acquired = acquireClaim(command, logical, claim, requireOpenForFailed = true)
                 if (acquired.status == SubmissionStatus.SUBMITTED) {
                     TransactionSubmissionResult(
                         checkNotNull(acquired.vendorTransactionId) {
@@ -165,7 +175,7 @@ class TransactionSubmissionService(
                         },
                     )
                 } else {
-                    submitToVendor(command, prepared, claim.id)
+                    submitToVendor(command, prepare(), claim.id)
                 }
             }
         }
@@ -173,13 +183,13 @@ class TransactionSubmissionService(
 
     private fun acquireClaim(
         command: TransactionSubmissionCommand,
-        prepared: PreparedSubmission,
+        logical: LogicalSubmission,
         claim: SubmissionClaim,
         requireOpenForFailed: Boolean,
     ): SubmissionRecord {
         val acquisition =
             transactionRunner.run {
-                if (requireOpenForFailed && prepared.transactionType == SubmissionTransactionType.WITHDRAWAL) {
+                if (requireOpenForFailed && logical.transactionType == SubmissionTransactionType.WITHDRAWAL) {
                     val current = submissions.findByExternalTransactionId(command.externalTransactionId)
                     if (current?.status == SubmissionStatus.FAILED) {
                         ExecutionGatePolicy.requireOpen(
@@ -210,12 +220,12 @@ class TransactionSubmissionService(
 
     private fun initialAttempt(
         command: TransactionSubmissionCommand,
-        prepared: PreparedSubmission,
+        logical: LogicalSubmission,
         requested: SubmissionRecord,
     ): SubmissionAttempt =
         try {
             transactionRunner.run {
-                if (prepared.transactionType == SubmissionTransactionType.WITHDRAWAL) {
+                if (logical.transactionType == SubmissionTransactionType.WITHDRAWAL) {
                     val gate = executionGates.lockAndFindCurrent(command.network, ExecutionGateType.WITHDRAWAL)
                     val existing = submissions.findByExternalTransactionId(command.externalTransactionId)
                     if (existing != null) {
@@ -426,13 +436,13 @@ class TransactionSubmissionService(
 
     private fun fingerprint(
         command: TransactionSubmissionCommand,
-        prepared: PreparedSubmission,
+        logical: LogicalSubmission,
     ): SubmissionRequestFingerprint =
         SubmissionRequestHashes.v1(
             senderType = "ACCOUNT",
             senderAccountId = command.senderAccountId,
-            recipientType = prepared.recipientType.name,
-            recipientValue = prepared.recipientValue,
+            recipientType = logical.recipientType.name,
+            recipientValue = logical.recipientValue,
             network = command.network,
             symbol = command.symbol,
             amount = command.amount,
@@ -440,7 +450,7 @@ class TransactionSubmissionService(
 
     private fun requestedRecord(
         command: TransactionSubmissionCommand,
-        prepared: PreparedSubmission,
+        logical: LogicalSubmission,
         fingerprint: SubmissionRequestFingerprint,
         claim: SubmissionClaim,
     ): SubmissionRecord =
@@ -451,11 +461,11 @@ class TransactionSubmissionService(
             status = SubmissionStatus.REQUESTED,
             claimId = claim.id,
             claimExpiresAt = claim.expiresAt,
-            transactionType = prepared.transactionType,
+            transactionType = logical.transactionType,
             vendorTransactionId = null,
             senderAccountId = command.senderAccountId,
-            recipientType = prepared.recipientType,
-            recipientValue = prepared.recipientValue,
+            recipientType = logical.recipientType,
+            recipientValue = logical.recipientValue,
             network = command.network,
             symbol = command.symbol,
             amount = fingerprint.normalizedAmount,
@@ -489,17 +499,17 @@ class TransactionSubmissionService(
     private fun ensureSameRequest(
         existing: SubmissionRecord,
         command: TransactionSubmissionCommand,
-        prepared: PreparedSubmission,
+        logical: LogicalSubmission,
         fingerprint: SubmissionRequestFingerprint,
     ) {
         val same =
-            existing.transactionType == prepared.transactionType &&
+            existing.transactionType == logical.transactionType &&
                 if (existing.hashVersion == fingerprint.hashVersion) {
                     existing.requestHash == fingerprint.requestHash
                 } else {
                     existing.senderAccountId == command.senderAccountId &&
-                        existing.recipientType == prepared.recipientType &&
-                        existing.recipientValue == prepared.recipientValue &&
+                        existing.recipientType == logical.recipientType &&
+                        existing.recipientValue == logical.recipientValue &&
                         existing.network == command.network &&
                         existing.symbol == command.symbol &&
                         BigDecimal(existing.amount).compareTo(BigDecimal(command.amount)) == 0
@@ -584,6 +594,19 @@ sealed interface TransactionSubmissionRecipient {
 data class TransactionSubmissionResult(
     val transactionId: String,
 )
+
+/**
+ * 벤더 조회 없이 **요청만으로** 정해지는 값. 멱등 판정(`req_hash`·내용 대조)·업무 계열·게이트가 이것만 쓴다.
+ * 벤더 자원(vault·자산·목적지)은 실제로 제출할 때만 필요하므로 [PreparedSubmission]으로 따로 만든다 —
+ * 그래야 **기존 키 판정이 현재 자원 상태보다 앞설 수 있다**(02 "신규 키 선행 검사").
+ */
+private data class LogicalSubmission(
+    val recipientType: SubmissionRecipientType,
+    val recipientValue: String,
+    val transactionType: SubmissionTransactionType,
+) {
+    constructor(prepared: PreparedSubmission) : this(prepared.recipientType, prepared.recipientValue, prepared.transactionType)
+}
 
 private data class PreparedSubmission(
     val sourceVaultId: String,

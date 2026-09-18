@@ -388,6 +388,40 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         assertThat(txRows()).hasSize(1)
     }
 
+    @Test
+    fun `내부이체는 발신 사건이 먼저 와도 세 사건 모두 처리돼 INTERNAL 한 계열만 남는다`() {
+        // 계약13이 요구하는 세 번째 도착 순서다 — 발신 사건 · 전송 알림 · 수신 사건이 어떤 순서로 와도 INTERNAL 한 계열만 나가야 한다.
+        seedInternalTransferFixtures()
+        submissions.insert(internalSubmission())
+
+        // ① 발신 사건이 먼저 — 아직 거래가 없어 재시도로 남는다.
+        receive(OUTGOING_NOTIFICATION_ID, "wallet.blockchainevent.detected", outgoingChainEvent(notificationId = OUTGOING_NOTIFICATION_ID))
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Retrying::class.java)
+        assertThat(txRows()).isEmpty()
+
+        // ② 전송 알림 — 거래가 생기고 INTERNAL 이벤트가 난다.
+        deferRetry(OUTGOING_NOTIFICATION_ID)
+        receive(TRANSFER_NOTIFICATION_ID, "wallet.transfer.confirmed", transferEvent())
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
+
+        // ③ 수신 사건 — 우리 발신 거래를 찾아 입금을 만들지 않는다.
+        receive(CHAIN_NOTIFICATION_ID, "wallet.blockchainevent.detected", incomingChainEvent())
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Ignored::class.java)
+
+        // ④ 재시도된 발신 사건 — 블록 좌표가 붙어 확정된다.
+        releaseRetry(OUTGOING_NOTIFICATION_ID)
+        assertThat(work.processNext()).isInstanceOf(WebhookDecisionOutcome.Processed::class.java)
+
+        assertThat(txRows()).hasSize(1)
+        assertThat(txRow()).containsEntry("last_pub_stcd", "FINALIZED")
+        // 입금 이벤트가 하나라도 있으면 없는 입금이 인정된 것이다.
+        assertThat(outboxRows()).isNotEmpty()
+        assertThat(outboxRows()).allSatisfy { assertThat(it).containsEntry("topic", "internal-events") }
+        listOf(OUTGOING_NOTIFICATION_ID, TRANSFER_NOTIFICATION_ID, CHAIN_NOTIFICATION_ID).forEach {
+            assertThat(inboxRow(it)).containsEntry("prcs_stcd", "S")
+        }
+    }
+
     /** V29 재시도 대기를 흉내 낸다 — 이 슬라이스는 즉시 재시도라 순서를 고정하려면 필요하다. */
     private fun deferRetry(notificationId: String) {
         jdbc.update("UPDATE bcm_whk_l SET next_attmpt_dttm = '20991231235959' WHERE noti_id = ?", notificationId)
@@ -591,7 +625,10 @@ class DfnsWebhookDecisionSliceIntegrationTest {
             append("}")
         }
 
-    private fun outgoingChainEvent(txHash: String = TX_HASH): String =
+    private fun outgoingChainEvent(
+        txHash: String = TX_HASH,
+        notificationId: String = CHAIN_NOTIFICATION_ID,
+    ): String =
         buildString {
             append("""{"data":{"blockchainEvent":{"network":"$VENDOR_NETWORK","direction":"Out","index":"3"""")
             append(""","metadata":{"asset":{"symbol":"USDC","decimals":6}}""")
@@ -600,7 +637,7 @@ class DfnsWebhookDecisionSliceIntegrationTest {
             append(""","status":"Confirmed","value":"$BASE_UNITS","txHash":"$txHash"""")
             append(""","timestamp":"1758099600","blockNumber":$BLOCK_NUMBER}""")
             append(""","wallet":{"id":"$WALLET_ID","network":"$VENDOR_NETWORK","address":"$WALLET_ADDRESS"}}""")
-            append(""","id":"$CHAIN_NOTIFICATION_ID","date":"2026-09-17T09:01:05.000Z"""")
+            append(""","id":"$notificationId","date":"2026-09-17T09:01:05.000Z"""")
             append(""","kind":"wallet.blockchainevent.detected","deliveryAttempt":1}""")
         }
 
@@ -646,6 +683,7 @@ class DfnsWebhookDecisionSliceIntegrationTest {
         const val TRANSFER_NOTIFICATION_ID = "whe-544ul-uqgad-jkgltj5p6fvd04cj"
         const val RETRY_NOTIFICATION_ID = "whe-544ul-uqgad-aaaaaaaaaaaaaaaa"
         const val CHAIN_NOTIFICATION_ID = "whe-544ul-uqgad-bbbbbbbbbbbbbbbb"
+        const val OUTGOING_NOTIFICATION_ID = "whe-544ul-uqgad-cccccccccccccccc"
 
         @JvmStatic
         @DynamicPropertySource

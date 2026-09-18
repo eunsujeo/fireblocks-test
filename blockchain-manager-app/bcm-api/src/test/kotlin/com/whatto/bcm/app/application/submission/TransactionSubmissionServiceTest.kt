@@ -8,6 +8,7 @@ import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.admin.ExecutionGateRepository
 import com.whatto.bcm.domain.admin.ExecutionGateType
 import com.whatto.bcm.domain.asset.VendorAssetMapping
+import com.whatto.bcm.domain.exception.AssetNotSupportedException
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.InvalidRequestException
 import com.whatto.bcm.domain.exception.RelayRejectedException
@@ -538,6 +539,19 @@ class TransactionSubmissionServiceTest {
 
         assertThatThrownBy { service.submit(command(recipient = TransactionSubmissionRecipient.Account(SENDER_ID))) }
             .isInstanceOf(ConflictException::class.java)
+    }
+
+    @Test
+    fun `기존 SUBMITTED는 현재 자산 매핑이 사라져도 최초 txId로 답한다`() {
+        // 벤더 자원은 제출할 때만 읽는다 — 먼저 읽으면 기존 키의 멱등 응답이 현재 자원 오류에 가려진다(02 "신규 키 선행 검사").
+        every { mappings.requiredMapping(any(), any()) } throws AssetNotSupportedException("ETHEREUM", "USDC")
+        every { submissions.insert(any()) } throws ConflictException("submission", EXTERNAL_ID)
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns
+            existing(status = SubmissionStatus.SUBMITTED, vendorId = "tx-first")
+
+        assertThat(service.submit(command()).transactionId).isEqualTo("tx-first")
+
+        verify(exactly = 0) { vendor.submitTransaction(any()) }
     }
 
     private fun command(
