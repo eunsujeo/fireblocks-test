@@ -273,6 +273,13 @@ class NetworkWalletProvisioningJdbcAdapter(
                 ),
         ) == 1
 
+    /**
+     * 소유권 조회만 **바깥 트랜잭션에 참여한다**(`docs/standards/architecture.md`). 이 클래스의 `REQUIRES_NEW`는
+     * 지갑 발급 상태를 바깥 실패와 무관하게 남기려는 것이고, 조회에는 그 이유가 없다.
+     * 수신 사건 판정은 이미 인박스 행과 `(network, txHash)` 잠금을 쥔 채 부르므로, 새 트랜잭션을 열면
+     * 그 잠금을 쥔 채 커넥션을 하나 더 요구해 풀이 마른다.
+     */
+    @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
     override fun ownsWalletAddress(
         origin: ProviderOrigin,
         network: String,

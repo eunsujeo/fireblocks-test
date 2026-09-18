@@ -29,3 +29,4 @@ V27__vendor_asset_decimals.sql
 V28__submission_vendor_canonical.sql
 V29__webhook_inbox_retry_backoff.sql
 V30__submission_destination_address.sql
+V31__network_wallet_address_index.sql

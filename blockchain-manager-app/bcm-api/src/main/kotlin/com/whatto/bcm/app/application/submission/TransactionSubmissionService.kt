@@ -116,10 +116,7 @@ class TransactionSubmissionService(
             PreparedSubmission(
                 sourceVaultId = command.sourceVaultId,
                 vendorAssetId = mappings.requiredMapping(command.network, command.symbol).vendorAssetId,
-                recipientType = command.recipientType,
-                recipientValue = command.recipientValue,
                 vendorDestination = command.vendorDestination,
-                transactionType = SubmissionTransactionType.BAND_S,
                 useGasless = command.useGasless,
             )
         }
@@ -445,10 +442,7 @@ class TransactionSubmissionService(
         return PreparedSubmission(
             sourceVaultId = source.requireVendorVaultId(),
             vendorAssetId = mapping.vendorAssetId,
-            recipientType = recipient.type,
-            recipientValue = recipient.value,
             vendorDestination = destination,
-            transactionType = recipient.type.transactionType(),
             useGasless = recipient.type.transactionType() != SubmissionTransactionType.INTERNAL,
         )
     }
@@ -625,13 +619,11 @@ private data class LogicalSubmission(
     val transactionType: SubmissionTransactionType,
 )
 
+/** 벤더 본문에만 쓰이는 값. 판정에 쓰이는 논리값은 [LogicalSubmission]이 갖는다 — 둘을 섞으면 분리한 이유가 흐려진다. */
 private data class PreparedSubmission(
     val sourceVaultId: String,
     val vendorAssetId: String,
-    val recipientType: SubmissionRecipientType,
-    val recipientValue: String,
     val vendorDestination: VendorTransactionDestination,
-    val transactionType: SubmissionTransactionType,
     val useGasless: Boolean,
 )
 

@@ -1039,3 +1039,15 @@ BeanFactoryPostProcessor는 빈을 생성하지 않고 API/Webhook/BAT의 실행
   ③ 순열 파라미터화에서 **"전송 알림 뒤 수신 사건이 outbox를 늘리지 않는다"는 event-id 동일성 단언이 빠져** topic만 보고 있었다.
   보류를 하나씩 풀어 처리 순서를 고정하고, 수신 사건 전후의 event-id 목록이 같은지 그 건에서 직접 본다.
 - 검증(4차 반영 후): 전체 1,400 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과.
+- **code-reviewer 반영(2026-09-18)**: design-sync 통과 뒤 code-reviewer가 Critical 2건·Minor 1건을 냈다.
+  ① **V30이 `transaction=off`인데 옛 CHECK를 먼저 지우고 새것을 만들었다** — 문장마다 커밋되므로 중간에 죽으면
+  canonical 제약이 **아예 없는 상태**가 남고, 재실행은 이미 사라진 제약을 지우려다 또 죽는다.
+  옛 제약을 끝까지 남긴 채 `ck_bcm_sbmt_vndr_canonical_v30`을 새로 만들어 `VALIDATE`한 뒤에야 옛 이름을 놓도록 바꾸고,
+  모든 문장을 재실행 안전하게(`IF NOT EXISTS`·`IF EXISTS`) 만들었다.
+  `CREATE INDEX CONCURRENTLY`는 **V31로 분리**했다 — `IF NOT EXISTS`는 실패로 남은 invalid index를 "있음"으로 보고 건너뛰어
+  마이그레이션은 성공했는데 쓰이지 않는 인덱스가 남는다. V26처럼 먼저 지우고 다시 만든다.
+  ② **`ownsWalletAddress`가 클래스의 `REQUIRES_NEW`를 그대로 물려받았다** — 수신 사건 판정은 이미 인박스 행과
+  `(network, txHash)` 잠금을 쥔 채 부르므로, 새 트랜잭션을 열면 그 잠금을 쥔 채 커넥션을 하나 더 요구해 풀이 마른다.
+  "피처 서비스는 바깥 트랜잭션에 참여한다"(`docs/standards/architecture.md`)에도 어긋난다. 이 조회만 `REQUIRED`·read-only로 재정의했다.
+  ③ Minor — `PreparedSubmission`이 읽히지 않는 논리값 세 개를 들고 있어 `LogicalSubmission`과의 분리를 흐렸다. 벤더 본문에 필요한 값만 남겼다.
+- 검증(code-reviewer 반영 후): 전체 1,400 테스트 0 실패, 전체 ktlintCheck·`git diff --check` 통과.

@@ -454,7 +454,7 @@ V28 canonical이 "제출 본문을 재구성하는 재료 한 벌"인데 `to`가
 ```sql
 -- bcm:transaction=off
 ALTER TABLE bcm_sbmt_l
-  ADD COLUMN vndr_dst_addr VARCHAR(256) NULL;
+  ADD COLUMN IF NOT EXISTS vndr_dst_addr VARCHAR(256) NULL;
 
 -- 기존 Dfns 행은 모두 ADDRESS 수신자다 — rcv_vl 이 곧 보낸 주소다.
 UPDATE bcm_sbmt_l
@@ -463,23 +463,37 @@ UPDATE bcm_sbmt_l
    AND vndr_dst_addr IS NULL
    AND rcv_dvcd = 'ADDRESS';
 
-ALTER TABLE bcm_sbmt_l DROP CONSTRAINT ck_bcm_sbmt_vndr_canonical;
+-- 앞선 실행이 남긴 미검증 제약을 먼저 지운다 — 이 시점엔 옛 제약이 여전히 지키고 있다.
+ALTER TABLE bcm_sbmt_l DROP CONSTRAINT IF EXISTS ck_bcm_sbmt_vndr_canonical_v30;
 
 ALTER TABLE bcm_sbmt_l
-  ADD CONSTRAINT ck_bcm_sbmt_vndr_canonical CHECK (
+  ADD CONSTRAINT ck_bcm_sbmt_vndr_canonical_v30 CHECK (
     (vndr_wlt_id IS NULL AND vndr_ast_id IS NULL AND base_amt IS NULL AND dcml_cnt IS NULL AND vndr_dst_addr IS NULL)
     OR (vndr_wlt_id IS NOT NULL AND vndr_ast_id IS NOT NULL AND base_amt IS NOT NULL AND dcml_cnt IS NOT NULL AND vndr_dst_addr IS NOT NULL)
   ) NOT VALID;
 
-ALTER TABLE bcm_sbmt_l VALIDATE CONSTRAINT ck_bcm_sbmt_vndr_canonical;
+ALTER TABLE bcm_sbmt_l VALIDATE CONSTRAINT ck_bcm_sbmt_vndr_canonical_v30;
+
+-- 검증이 끝나야 옛 제약을 놓는다.
+ALTER TABLE bcm_sbmt_l DROP CONSTRAINT IF EXISTS ck_bcm_sbmt_vndr_canonical;
 ```
 
-**지갑 주소 조회 index도 함께 만든다.** 내부이체의 수신측 `In` 사건은 "발신 주소가 우리 지갑인가"를 물어야 하는데
+**옛 제약을 끝까지 남겨 둔 채 새 이름으로 만든다.** `transaction=off`라 문장마다 커밋되므로, 지우고 만들면
+그 사이에 죽었을 때 canonical 제약이 **아예 없는 상태**가 남고 재실행은 이미 사라진 제약을 지우려다 또 죽는다.
+그래서 이름을 `_v30`으로 바꿔 새로 만들고, 검증이 끝난 뒤에야 옛 이름을 놓는다. 모든 문장이 다시 돌려도 안전하다.
+
+**지갑 주소 조회 index는 V31로 나눈다** — `CREATE INDEX CONCURRENTLY`는 같은 파일의 제약 교체와 재시도 성질이 달라,
+실패 후 남은 invalid index를 먼저 지우고 다시 만드는 V26 패턴을 따로 써야 한다.
+내부이체의 수신측 `In` 사건은 "발신 주소가 우리 지갑인가"를 물어야 하는데
 (자산 발급 기록이 아니라 **소유권**으로 판정한다 — [계약13](13-dfns-contracts.md#내부이체--확정)), `bcm_ntwk_wlt_m`에는
 주소로 찾는 index가 없다. 현재 Dfns 범위는 EVM이라 **소문자 기준**으로 만든다 — 16진수 주소는 대소문자에 정보가 없고,
 벤더가 사건과 지갑 응답에서 다른 표기를 줘도 같은 주소로 찾아야 한다. base58 네트워크가 열리면 그때 다시 정한다.
 
 ```sql
+-- bcm:transaction=off
+-- IF NOT EXISTS 는 실패로 남은 invalid index 를 "있음"으로 보고 건너뛴다 — 마이그레이션은 성공했는데
+-- 쓰이지 않는 인덱스가 남는다. 그래서 먼저 지운다(V26 과 같은 패턴).
+DROP INDEX CONCURRENTLY IF EXISTS idx_bcm_ntwk_wlt_addr;
 CREATE INDEX CONCURRENTLY idx_bcm_ntwk_wlt_addr
   ON bcm_ntwk_wlt_m (orgn_id, ntwk_cd, lower(wlt_addr));
 ```
@@ -522,7 +536,7 @@ Dfns의 회수는 벤더 조회가 아니라 **같은 본문 재제출**이라(�
 | `base_amt` | `VARCHAR(320)` NULL | 최소 단위 정수 문자열 — 선행 0 금지(`ck_bcm_sbmt_base_amt`). 폭은 공개 금액의 정수부 18자리 + 정밀도 상한 255자리에 여유를 둔 값이다 |
 | `dcml_cnt` | `SMALLINT` NULL | 환산에 쓴 정밀도 0..255(`ck_bcm_sbmt_dcml`) |
 
-- **넷은 한 벌이다** — 일부만 있으면 본문을 재구성할 수 없으므로 전부 있거나 전부 없어야 한다(`ck_bcm_sbmt_vndr_canonical`).
+- **넷은 한 벌이다** — 일부만 있으면 본문을 재구성할 수 없으므로 전부 있거나 전부 없어야 한다(`ck_bcm_sbmt_vndr_canonical_v30`).
 - Fireblocks·로컬은 벤더 조회로 회수하므로 넷 다 NULL이다. **NULL 허용 추가 전용**이라 기존 행은 그대로 둔다.
 - 저장값이 없는 행(V28 이전·다른 제공자)은 Dfns 회수가 **재구성하지 않고 거절**한다. 추측한 본문을 보내면 그게 곧 이중 전송이다.
 - 제약은 `NOT VALID`로 걸고 따로 `VALIDATE`한다. 즉시 검증하는 `ADD CONSTRAINT`는 기존 행 전체를 훑는 동안 강한 테이블 락을 잡아 Fireblocks 제출 경로까지 멈춘다 — `-- bcm:transaction=off`로 트랜잭션 밖에서 실행한다(V18·V26과 같은 온라인 적용 패턴).
@@ -987,7 +1001,7 @@ CREATE TABLE bcm_sbmt_l (
   CHECK ((tx_dvcd IN ('SWEEP_APPROVE', 'SWEEP_BATCH')) = (call_data IS NOT NULL)),
   CHECK (call_data IS NULL OR call_data ~ '^0x([0-9a-f][0-9a-f])+$'),
   -- V28·V30 — 다섯은 한 벌이다. 일부만 있으면 회수 본문을 재구성할 수 없다.
-  CONSTRAINT ck_bcm_sbmt_vndr_canonical CHECK (
+  CONSTRAINT ck_bcm_sbmt_vndr_canonical_v30 CHECK (
     (vndr_wlt_id IS NULL AND vndr_ast_id IS NULL AND base_amt IS NULL AND dcml_cnt IS NULL AND vndr_dst_addr IS NULL)
     OR (vndr_wlt_id IS NOT NULL AND vndr_ast_id IS NOT NULL AND base_amt IS NOT NULL AND dcml_cnt IS NOT NULL
         AND vndr_dst_addr IS NOT NULL)
