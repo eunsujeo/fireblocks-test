@@ -175,6 +175,26 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `V28 네 값 제약과 V30 다섯 값 제약이 함께 남아 있다`() {
+        // V30은 transaction=off라 문장마다 커밋된다. 옛 제약을 지우는 문장을 두면 그 뒤에 죽었을 때
+        // 재실행이 유일하게 남은 _v30을 지우고 다시 만들다 또 죽어 canonical 제약이 하나도 없는 상태가 될 수 있다.
+        // 그래서 둘을 함께 남긴다(03 V30) — 오류 메시지가 아니라 카탈로그로 직접 확인한다.
+        val names =
+            jdbc.queryForList(
+                """
+                SELECT conname FROM pg_constraint
+                 WHERE conrelid = 'bcm_sbmt_l'::regclass
+                   AND contype = 'c'
+                   AND conname LIKE 'ck_bcm_sbmt_vndr_canonical%'
+                """.trimIndent(),
+                String::class.java,
+            )
+
+        assertThat(names).containsExactlyInAnyOrder("ck_bcm_sbmt_vndr_canonical", "ck_bcm_sbmt_vndr_canonical_v30")
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     fun `벤더 canonical 값은 한 벌이어야 하고 최소 단위·정밀도 형식을 DB가 막는다`() {
         val base =
             """
@@ -187,10 +207,10 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
                     'ETHEREUM', 'USDC', 1, '20260917090000', ?, ?, ?, ?, 'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent()
 
-        // 일부만 채우면 본문을 재구성할 수 없다. V28의 네 값 제약과 V30의 다섯 값 제약이 함께 남아 있어
-        // 둘 다 위반하는 이 행은 어느 이름으로 거절될지 정해져 있지 않다 — 공통 접두사로 본다.
+        // 일부만 채우면 본문을 재구성할 수 없다. 두 제약을 다 위반하지만 CHECK는 이름 알파벳순으로 평가되므로
+        // 접미사 없는 V28 제약이 먼저 걸린다 — 그래서 이 이름이 나온다는 것 자체가 옛 제약이 살아 있다는 증거다.
         assertThatThrownBy { jdbc.update(base, "v28-partial", "wa-1", null, null, null) }
-            .hasMessageContaining("ck_bcm_sbmt_vndr_canonical")
+            .hasMessageContaining("ck_bcm_sbmt_vndr_canonical\"")
         // 넷은 다 있는데 목적지 주소만 없다 — V28 제약은 통과하므로 V30 제약만이 이 행을 막는다(03 V30).
         assertThatThrownBy { jdbc.update(base, "v30-missing-dst", "wa-1", "key", "100", 6) }
             .hasMessageContaining("ck_bcm_sbmt_vndr_canonical_v30")
