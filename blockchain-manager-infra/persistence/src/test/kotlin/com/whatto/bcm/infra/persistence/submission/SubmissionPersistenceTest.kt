@@ -187,8 +187,12 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
                     'ETHEREUM', 'USDC', 1, '20260917090000', ?, ?, ?, ?, 'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent()
 
-        // 일부만 채우면 본문을 재구성할 수 없다.
+        // 일부만 채우면 본문을 재구성할 수 없다. V28의 네 값 제약과 V30의 다섯 값 제약이 함께 남아 있어
+        // 둘 다 위반하는 이 행은 어느 이름으로 거절될지 정해져 있지 않다 — 공통 접두사로 본다.
         assertThatThrownBy { jdbc.update(base, "v28-partial", "wa-1", null, null, null) }
+            .hasMessageContaining("ck_bcm_sbmt_vndr_canonical")
+        // 넷은 다 있는데 목적지 주소만 없다 — V28 제약은 통과하므로 V30 제약만이 이 행을 막는다(03 V30).
+        assertThatThrownBy { jdbc.update(base, "v30-missing-dst", "wa-1", "key", "100", 6) }
             .hasMessageContaining("ck_bcm_sbmt_vndr_canonical_v30")
         // 선행 0이 있는 최소 단위는 같은 금액의 표기를 둘로 만든다.
         assertThatThrownBy { jdbc.update(base, "v28-zero", "wa-1", "key", "0100", 6) }
