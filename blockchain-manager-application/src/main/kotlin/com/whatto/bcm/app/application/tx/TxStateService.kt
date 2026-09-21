@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service
  *
  * **관찰을 반영하는 길은 동일성 검사를 지나는 것 하나다**(03 V32) — 검사를 건너뛰는 입구는 두지 않는다.
  * 한 행이면 [observeConsistently], 한 트랜잭션에서 여러 행이면 [lockAndCheck] 전부 → [applyChecked] 전부다.
+ * 판정과 전이 사이에 호출자가 같은 행을 바꾸는 경로는 [lockAndCheck] → 그 쓰기 → [applyCheckedReread]다.
  */
 @Service
 class TxStateService(
@@ -68,6 +69,29 @@ class TxStateService(
     ): TxStateChange =
         stateMachine.observeLocked(
             previous = checked.previous,
+            rootVendorTransactionId = checked.rootVendorTransactionId,
+            observation = checked.observation,
+            successEvidence = successEvidence,
+            deferFailure = deferFailure,
+            attributedType = attributedType,
+        )
+
+    /**
+     * [lockAndCheck]로 이미 판정한 관찰을, 그 사이 **호출자 자신이 바꾼 행** 위에 반영한다.
+     *
+     * 부스트 결속(`markSubmittedByObservation`)은 결속만 하는 게 아니라 root의 활성 거래를 갈아 끼우므로,
+     * 판정 때 읽은 행으로 전이하면 갈아 끼우기 전 상태를 되살린다. 그래서 여기서는 다시 읽는다.
+     * 잠금은 [lockAndCheck]가 트랜잭션 끝까지 잡고 있어 다른 쓰는 이가 끼어들지 않는다.
+     *
+     * 금액·주소는 그 쓰기가 건드리지 않으므로 판정은 다시 하지 않아도 유효하다.
+     */
+    fun applyCheckedReread(
+        checked: TxObservationCheck.Consistent,
+        successEvidence: Boolean,
+        deferFailure: Boolean = false,
+        attributedType: TxType? = null,
+    ): TxStateChange =
+        stateMachine.observeRoot(
             rootVendorTransactionId = checked.rootVendorTransactionId,
             observation = checked.observation,
             successEvidence = successEvidence,
