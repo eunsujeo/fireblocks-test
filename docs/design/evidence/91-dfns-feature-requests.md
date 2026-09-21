@@ -77,8 +77,6 @@ status: To Do
 - `Confirmed` 이후 재구성(reorg)으로 **뒤집히는 경우 알림**을 제공하실 계획이 있을까요?
 - `WalletHistoryEvent`에 **컨펌 수**를 실어 주실 수 있을까요? 현재 깊이를 알 수 없어 운영 조사에서 대조가 어렵습니다.
 
-> 저희는 수탁 자산이라 확정을 블록 깊이로 직접 계산하고 있습니다. 위 셋이 제공되면 그 계산을 대체할 수 있을지 검토하겠습니다.
-
 ## 3. `index`와 `from`이 실제로 항상 채워지나요
 
 스키마상 `WalletHistoryEvent.index`와 `NativeTransfer`·`SplTransfer`의 `from`이 optional인 것은 확인했습니다.
