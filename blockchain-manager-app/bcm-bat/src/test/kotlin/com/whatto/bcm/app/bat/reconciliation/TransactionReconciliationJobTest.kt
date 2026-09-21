@@ -311,6 +311,8 @@ class TransactionReconciliationJobTest {
         transactionHash = "0x$id",
         lastPublishedStatus = status,
         confirmationCount = if (status == TxStatus.FINALIZED) 1 else 0,
+        // 관찰을 이미 통과한 행이다 — 첫 관찰 전 행만 vendorCreatedAt 을 비운다(03 V32).
+        vendorCreatedAt = detectedAt,
         firstDetectedAt = detectedAt,
         lastChangedAt = detectedAt,
     )

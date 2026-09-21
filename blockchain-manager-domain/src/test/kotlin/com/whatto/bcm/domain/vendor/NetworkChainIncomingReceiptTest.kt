@@ -61,6 +61,8 @@ class NetworkChainIncomingReceiptTest {
             transactionHash = "0x" + "a".repeat(64),
             lastPublishedStatus = TxStatus.CONFIRMED,
             confirmationCount = 0,
+            // 관찰을 이미 통과한 행이다 — 첫 관찰 전 행만 vendorCreatedAt 을 비운다(03 V32).
+            vendorCreatedAt = "20260918090000",
             firstDetectedAt = "20260918090000",
             lastChangedAt = "20260918090000",
         )

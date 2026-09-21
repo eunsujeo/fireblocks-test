@@ -355,6 +355,8 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
                 transactionHash = completed.transactionHash,
                 lastPublishedStatus = TxStatus.CONFIRMED,
                 confirmationCount = 1,
+                // 관찰을 이미 통과한 행이다 — 첫 관찰 전 행만 vendorCreatedAt 을 비운다(03 V32).
+                vendorCreatedAt = RECONCILIATION_DETECTED_AT,
                 firstDetectedAt = RECONCILIATION_DETECTED_AT,
                 lastChangedAt = RECONCILIATION_DETECTED_AT,
             ),
