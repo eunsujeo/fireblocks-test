@@ -1143,6 +1143,11 @@ Q1이 실제로 돌려 보며 확정한다 — Q0 리뷰 3라운드에서 Major�
   또 **창 밖 미결 대사 배치**도 백필 행을 즉시 집는다는 지적을 받았다 — 과거 `frst_dtct_dttm` 때문에 바로 최대 추적 나이에 걸려
   추적 중단 경보가 대량 발생하고 이후 조회에서 빠진다. hold를 **두 조회 양쪽**에서 빼고, 분류는 기존 대사 경로가 아니라
   전용 백필 분류 작업이 맡도록 했다. Minor(게이트에 수치와 참/거짓이 섞임)도 나눴다.
+- **code-reviewer 3차 반영(2026-09-18)**: "대사 배치의 두 조회"라고 뭉뚱그린 것이 샜다 — 대사 배치는 단일 조회가 아니다.
+  `markExpiredPendingStopped`는 claim에서 빼도 **추적 중단 시각과 경보를 이미 기록**하고,
+  hold 중 첫 관찰이 `vndr_crt_dttm`을 채우면 `findCreatedBetween` 창 경로로 들어온다.
+  제외 대상을 **다섯 진입점**으로 이름을 붙여 적고 각각 통합 테스트를 두기로 했다.
+  Minor(hold 해제 시점이 "전환이 끝나면"과 "전환 전 0건 게이트"로 모순)도 "전환하기 전에"로 맞췄다.
   **리뷰어가 인용한 파일 경로 일부는 이 저장소 구조와 달랐다**(`blockchain-manager-infra/src/...`, `blockchain-manager-batch/src/...`).
   실제는 `blockchain-manager-infra/persistence/...`와 `blockchain-manager-app/bcm-bat/...`이며, 지적 내용 자체는 코드로 확인해 사실이었다.
 ### Q1 착수 조건 — 초안
@@ -1202,7 +1207,7 @@ Q0은 **공개 응답·상태 매핑·시각 의미**까지만 닫는다. 아래
 | 작업 | 조회 조건 | 백필 행에 일어나는 일 |
 |---|---|---|
 | 막힘 점검(`findStallCandidates`) | `last_pub_stcd IN ('SUBMITTED','CONFIRMED')` · `last_chng_dttm <= :changedBefore` · `stall_alrt_dttm IS NULL` | `StallDecision.BoostEligible`이면 `BoostSubmitter`가 **RBF를 실제 제출**한다 — 마이그레이션이 자금을 움직인다 |
-| 창 밖 미결 대사(`TransactionReconciliationJob`) | 오래된 `SUBMITTED`·`CONFIRMED`에 `rcnc_stop_dttm` 기록 후 claim | 과거 `frst_dtct_dttm` 때문에 **즉시 최대 추적 나이**에 걸려 추적 중단 경보가 대량 발생하고, 이후 `rcnc_stop_dttm IS NULL` 조건에서 빠진다 |
+| 창 밖 미결 대사(`TransactionReconciliationJob`) | 매 실행마다 오래된 `SUBMITTED`·`CONFIRMED`에 `rcnc_stop_dttm`을 먼저 기록한 뒤 claim | 과거 `frst_dtct_dttm` 때문에 **즉시 최대 추적 나이**에 걸려 추적 중단 경보가 대량 발생하고, 이후 `rcnc_stop_dttm IS NULL` 조건에서 빠진다 |
 
 **`stall_alrt_dttm`을 표식으로 쓰면 안 된다.** 그 컬럼은 "막힘 경보가 이미 났다"는 업무 값이고,
 상태·컨펌이 진전된 일반 관찰·`FAILED` 보류 분기·RBF 승자 교체가 모두 이를 `NULL`로 되돌린다(`TxStateMachine`).
@@ -1213,11 +1218,23 @@ Q0은 **공개 응답·상태 매핑·시각 의미**까지만 닫는다. 아래
 
 | 규칙 | 내용 |
 |---|---|
-| 저장 | 백필 대상 `vndr_tx_id`를 담는 **별도 제어 표**. `bcm_tx_l`의 업무 컬럼을 빌리지 않는다. 전환이 끝나면 비운다 |
+| 저장 | 백필 대상 `vndr_tx_id`를 담는 **별도 제어 표**. `bcm_tx_l`의 업무 컬럼을 빌리지 않는다. 분류와 사람 결정이 끝나고 **전환하기 전에** 비운다 |
 | 등록 시점 | **거래 행 생성과 같은 트랜잭션**. 행만 생기고 hold가 없는 순간이 있으면 그 사이에 작업이 집어 간다 |
-| 제외 | `findStallCandidates`와 대사 배치의 두 조회 **양쪽**에서 hold 대상을 뺀다. 한쪽만 빼면 다른 쪽이 집는다 |
+| 제외 | 아래 **다섯 진입점 전부**에서 hold 대상을 뺀다. 하나만 남아도 그쪽이 집는다 |
 | 분류 | 기존 대사 경로를 쓰지 않고 **전용 백필 분류 작업**으로 벤더 단건 조회를 돌린다. `rcnc_*` 초기값과 재개 정책도 그 작업이 정한다 |
 | 재개 | 분류 결과로 **자동 boost 대상 건수를 세고**, 사람이 보고 결정한 행만 hold에서 뺀다. 한 번에 다 빼지 않는다 |
+
+**대사 배치는 조회가 하나가 아니다.** "대사 배치 조회"라고 뭉뚱그리면 새는 경로가 생긴다.
+
+| 제외할 진입점 | 빠뜨리면 |
+|---|---|
+| `findStallCandidates` | 자동 boost가 RBF를 제출한다 |
+| `markExpiredPendingStopped` | claim에서 빼도 **추적 중단 시각과 경보는 이미 기록된다** |
+| `claimPendingForReconciliation` | 창 밖 미결 단건 조회가 백필 행을 집는다 |
+| `findCreatedBetween` | hold 중 첫 관찰이 `vndr_crt_dttm`을 채우면 **벤더 시각 창 경로로 들어온다** |
+| `findByPhysicalVendorTransactionId` | 벤더 창 결과와 root 매칭에서 백필 행이 잡힌다 |
+
+상태를 결정하는 것은 **전용 분류 작업뿐**이라는 뜻이다. 다섯 경로 각각에 대해 통합 테스트를 둔다.
 
 `bcm.stall-check.enabled=false`로 잠그는 것은 **보조 수단**이다 — 끄는 것을 잊거나 다른 인스턴스가 돌면 막지 못한다. hold가 1차 방어다.
 
