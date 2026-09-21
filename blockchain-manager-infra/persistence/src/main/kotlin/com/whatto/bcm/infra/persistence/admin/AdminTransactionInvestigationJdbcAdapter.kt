@@ -362,6 +362,31 @@ class AdminTransactionInvestigationJdbcAdapter(
     )
 
     companion object {
+        /**
+         * `bcm_tx_l`의 조회 컬럼. **조인에서 `*`를 쓰지 않는다** — 양쪽 테이블에 같은 이름이 생기면
+         * `ResultSet`이 첫 매치를 집어 값이 조용히 바뀐다. V32에서 `tx_dvcd`·`trsf_amt`를 더했을 때 실제로 그랬다.
+         */
+        private val TX_COLUMNS =
+            listOf(
+                "vndr_tx_id",
+                "actv_tx_id",
+                "ext_tx_id",
+                "acnt_id",
+                "ntwk_cd",
+                "tkn_smbl",
+                "tx_hash",
+                "last_pub_stcd",
+                "cnfm_cnt",
+                "vndr_sub_stcd",
+                "vndr_ntwk_stcd",
+                "vndr_crt_dttm",
+                "rcnc_chck_dttm",
+                "rcnc_chck_cnt",
+                "rcnc_stop_dttm",
+                "frst_dtct_dttm",
+                "last_chng_dttm",
+            ).joinToString(", ") { "tx.$it" }
+
         private const val MAX_DETAIL_ROWS = 100
 
         private val SUMMARY_SQL =
@@ -398,7 +423,7 @@ class AdminTransactionInvestigationJdbcAdapter(
                   OR execution.ext_tx_id = :identifier
                   OR execution.vndr_tx_id = :identifier
             )
-            SELECT tx.*,
+            SELECT ${TX_COLUMNS},
                    submission.tx_dvcd AS sbmt_tx_dvcd, submission.sbmt_stcd,
                    COALESCE(submission.trsf_amt, event_amount.trsf_amt) AS rslv_trsf_amt,
                    submission.snd_acnt_id, submission.rcv_dvcd, submission.rcv_vl,

@@ -212,7 +212,7 @@ class TxJdbcAdapter(
         jdbc
             .query(
                 """
-                SELECT tx.*, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
+                SELECT ${txColumns("tx")}, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
                 FROM bcm_tx_l tx
                 LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
                 LEFT JOIN bcm_boost_l boost
@@ -232,7 +232,7 @@ class TxJdbcAdapter(
     ): List<TxReconciliationRecord> =
         jdbc.query(
             """
-            SELECT tx.*, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
+            SELECT ${txColumns("tx")}, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
             FROM bcm_tx_l tx
             LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
             WHERE tx.vndr_crt_dttm >= :createdAtOrAfter
@@ -306,9 +306,9 @@ class TxJdbcAdapter(
                   last_chng_brcd = :branchCode
               FROM candidates
               WHERE tx.vndr_tx_id = candidates.vndr_tx_id
-              RETURNING tx.*
+              RETURNING ${txColumns("tx")}
             )
-            SELECT claimed.*, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
+            SELECT ${txColumns("claimed")}, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
             FROM claimed
             LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = claimed.vndr_tx_id
             ORDER BY claimed.rcnc_chck_dttm, claimed.last_chng_dttm, claimed.vndr_tx_id
@@ -335,9 +335,9 @@ class TxJdbcAdapter(
         require(limit > 0) { "stall candidate limit must be positive" }
         return jdbc.query(
             """
-            SELECT candidate.*, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
+            SELECT ${txColumns("candidate")}, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
             FROM (
-              SELECT *
+              SELECT ${TX_COLUMN_NAMES.joinToString(", ")}
               FROM bcm_tx_l
               WHERE last_pub_stcd IN ('SUBMITTED', 'CONFIRMED')
                 AND last_chng_dttm <= :changedBefore
@@ -408,10 +408,35 @@ class TxJdbcAdapter(
         )
 
     private companion object {
-        const val TX_COLUMNS =
-            """SELECT vndr_tx_id, actv_tx_id, ext_tx_id, acnt_id, ntwk_cd, tkn_smbl, tx_hash,
-                      last_pub_stcd, cnfm_cnt, vndr_sub_stcd, vndr_ntwk_stcd, stall_alrt_dttm,
-                      vndr_crt_dttm, rcnc_chck_dttm, rcnc_chck_cnt, rcnc_stop_dttm,
-                      frst_dtct_dttm, last_chng_dttm"""
+        /**
+         * `bcm_tx_l`의 조회 컬럼. **조인에서 `*`를 쓰지 않는다** — 양쪽 테이블에 같은 이름이 생기면
+         * `ResultSet`이 첫 매치를 집어 값이 조용히 바뀐다. V32에서 `tx_dvcd`·`trsf_amt`를 더했을 때 실제로 그랬다.
+         */
+        val TX_COLUMN_NAMES =
+            listOf(
+                "vndr_tx_id",
+                "actv_tx_id",
+                "ext_tx_id",
+                "acnt_id",
+                "ntwk_cd",
+                "tkn_smbl",
+                "tx_hash",
+                "last_pub_stcd",
+                "cnfm_cnt",
+                "vndr_sub_stcd",
+                "vndr_ntwk_stcd",
+                "stall_alrt_dttm",
+                "vndr_crt_dttm",
+                "rcnc_chck_dttm",
+                "rcnc_chck_cnt",
+                "rcnc_stop_dttm",
+                "frst_dtct_dttm",
+                "last_chng_dttm",
+            )
+
+        val TX_COLUMNS = "SELECT " + TX_COLUMN_NAMES.joinToString(", ")
+
+        /** 조인·서브쿼리에서 쓸 한정 컬럼 목록. */
+        fun txColumns(alias: String) = TX_COLUMN_NAMES.joinToString(", ") { "$alias.$it" }
     }
 }
