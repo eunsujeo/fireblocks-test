@@ -14,6 +14,22 @@ status: To Do
 
 ---
 
+## 한눈에 — 다른 수탁 벤더(Fireblocks) 대비
+
+저희는 같은 업무를 Fireblocks로도 운영합니다. 아래 대부분은 **거기서는 벤더가 주는 값**이라,
+Dfns 경로에서만 저희가 대신 만들거나 우회하고 있습니다.
+
+| # | 요청 | Fireblocks | Dfns |
+|---|---|---|---|
+| 1 | 실패가 체인에 나갔는지 | `subStatus`(`SMART_CONTRACT_EXECUTION_FAILED` 등)와 `txHash` 유무로 구분됨 | 구분 필드 없음 |
+| 2 | 확정 판정 | 알림에 `numOfConfirmations` — 임계와 비교만 함 | 컨펌 수 없음 → **우리가 RPC 운영** |
+| 3 | 온체인 이동의 ID | 입금도 벤더 tx id를 줌 | ID 없음 → **우리가 파생 ID 생성** |
+| 4 | 요청 키로 조회 | `GET /v1/transactions/external_tx_id/{externalTxId}` | 필터·경로 없음 → 재제출로 회수 |
+| 5 | 금액·주소 필드 | `amountInfo.amount`·`source`·`destination` 제공 | 일부 변형에서 선택 |
+| 7 | 웹훅 재전송 | `POST /v1/webhooks/{id}/notifications/resend_failed` | 수동 retry 없음(보존 31일) |
+
+6번(명세 보완)만 Fireblocks 비교 대상이 아닙니다.
+
 ## 1. [스키마] `TransferRequest` — `Failed`가 체인에 나갔는지 알려 주세요
 
 **고칠 곳**: `TransferRequest` 스키마 — 필드 하나를 더하면 아래 **네 자리가 함께** 해결됩니다.
