@@ -439,6 +439,13 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
 | `trsf_amt` | `NUMERIC` NULL | 공개 응답의 금액. **사람 단위 정규화 값**이다 |
 | `src_addr` | `VARCHAR(256)` NULL | 발신 온체인 주소. 체인에 오르기 전에는 `NULL` |
 | `dst_addr` | `VARCHAR(256)` NULL | 수신 온체인 주소. 같은 이유로 `NULL`일 수 있다 |
+| `tx_dvcd` | `VARCHAR(16)` NULL | 공개 노출 판정용 거래 구분. `DEPOSIT`·`WITHDRAWAL`·`INTERNAL`·`SWEEP_APPROVE`·`SWEEP_BATCH`·`BAND_S` |
+
+#### `tx_dvcd`를 비정규화하는 이유
+
+02가 공개 조회 대상을 `DEPOSIT`·`WITHDRAWAL`·`INTERNAL`로 한정했는데, 거래 구분은 `bcm_sbmt_l`에만 있다.
+**입금은 제출 행이 아예 없어** join으로는 거를 수 없다 — outer join의 `NULL`을 "입금"으로 읽는 것은 없는 근거로 판정하는 것이다.
+목록 predicate가 매번 조인을 타는 것도 `(acnt_id, frst_dtct_dttm, vndr_tx_id)` keyset의 이점을 지운다. 그래서 거래 행이 자기 구분을 갖는다.
 
 #### 금액은 typmod 없는 `NUMERIC`이다
 
@@ -458,18 +465,53 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
 
 | 값 | 규칙 |
 |---|---|
-| 금액 | **최초값 불변**. 제출 원장과 관찰이 다르면 덮지 않고 **충돌로 격리**한다 |
-| 주소 | `NULL → 값`만 허용. 이미 있는 비`NULL` 주소와 **다른** 값이 오면 임의로 덮지 않는다 |
+| 금액 | **최초값 불변**. 제출 원장과 관찰이 다르면 덮지 않고 **그 관찰을 격리**한다 |
+| 주소 | `NULL → 값`만 허용. 이미 있는 비`NULL` 주소와 **다른** 값이 오면 **그 관찰을 격리**한다 |
 | RBF | root 행의 금액·목적지를 **유지**하고 `tx_hash`·`actv_tx_id`만 바꾼다 |
 
 `cnfm_cnt`가 "큰 값으로만 갱신"인 것과 같은 규율이다 — 늦게 온 관찰이 기록을 역행시키면 안 된다.
+
+#### 충돌한 관찰은 통째로 격리한다 (fail-closed)
+
+격리 대상은 **거래가 아니라 그 관찰 하나**다. 상태·컨펌·`tx_hash`·주소·outbox를 **아무것도 적용하지 않고**
+마지막으로 일관됐던 행을 그대로 둔다. 충돌 원문과 양쪽 값을 운영 증적으로 남기고 경보한다.
+원인(매핑·어댑터)을 해소한 뒤 같은 관찰을 재처리한다.
+
+주소만 빼고 상태를 진행시키면 **`FINALIZED`를 수용하면서 공개 응답에는 실제 관찰과 다른 목적지를 내보내게 된다**.
+확정 이벤트가 늦는 것보다 나쁜 내부 모순이다. 금액 불일치를 격리하는 것과 같은 방향이다.
+
+#### 주소 동일성 비교
+
+전역 `lower()` 한 규칙으로 만들지 않는다 — 체인마다 대소문자의 뜻이 다르다.
+
+| 체인 모델 | 비교 |
+|---|---|
+| EVM | 형식 검증 뒤 20바이트 값(또는 소문자 hex) 기준. 저장·응답 표기는 최초값을 유지해도 된다 |
+| base58(Solana 등) | **대소문자를 포함한 정확한 값**. 정규화하지 않는다 |
+| 지원하지 않는 주소 모델 | 임의로 정규화하지 않고 **fail-closed** |
+
+`src_addr`·`dst_addr` 모두 같은 체인별 비교기를 쓴다. 정규화 뒤 같은 값이면 무변경, 다르면 관찰 전체 격리다.
+
+#### `vndr_crt_dttm`은 NULL을 허용한다
+
+02가 **제출 마감 트랜잭션에서 거래 행을 만들도록** 했는데, 그 시점에 벤더 시각을 모른다 —
+Fireblocks 제출 응답은 `txId`만 준다. BCM 수용 시각으로 대신 채우면 **벤더 시각끼리 비교한다**는 대사 계약이 깨진다.
+
+그래서 `NOT NULL`을 풀고 **첫 벤더 관찰에서 채운다**(채운 뒤에는 set-once 그대로).
+대사는 `vndr_crt_dttm IS NOT NULL`인 행만 대상으로 한다 — 아직 관찰이 없는 거래는 원래도 대사 대상이 아니었다.
 
 #### 목록 인덱스
 
 02가 목록 정렬을 `(frst_dtct_dttm, vndr_tx_id)` keyset으로 정했고, 귀속은 계정이다.
 
+운영 원장은 이미 크므로 **온라인 생성**이다 — 일반 `CREATE INDEX`는 만드는 동안 쓰기를 막아 Fireblocks 경로까지 멈춘다.
+V26·V31과 같은 규율을 쓴다: 트랜잭션 밖(`-- bcm:transaction=off`)에서, 실패로 남은 invalid index를 먼저 지운 뒤 다시 만든다.
+컬럼 추가·백필은 그 문장들과 재시도 성질이 달라 **별도 파일**로 나눈다.
+
 ```sql
-CREATE INDEX idx_bcm_tx_account_listing
+-- bcm:transaction=off
+DROP INDEX CONCURRENTLY IF EXISTS idx_bcm_tx_account_listing;
+CREATE INDEX CONCURRENTLY idx_bcm_tx_account_listing
   ON bcm_tx_l (acnt_id, frst_dtct_dttm, vndr_tx_id);
 ```
 
@@ -974,7 +1016,8 @@ transaction 밖 `CREATE INDEX CONCURRENTLY` 순서로 수행한다. 호환 trigg
 
 ```sql
 CREATE TABLE bcm_tx_l (
-  vndr_tx_id      VARCHAR(64)  PRIMARY KEY,   -- 최초 벤더 tx id = 고객에게 보이는 논리 거래 id
+  vndr_tx_id      VARCHAR(64)  PRIMARY KEY,   -- 최초 거래의 공개 id = 고객에게 보이는 논리 거래 id
+                                              -- 제출 건은 벤더 tx id, 입금처럼 벤더 id 가 없는 건은 BCM 이 만든 결정적 id
   actv_tx_id      VARCHAR(64)  NOT NULL UNIQUE, -- 현재 RBF head 또는 먼저 채굴된 승자 tx — 최초에는 vndr_tx_id
   ext_tx_id       VARCHAR(128) NULL UNIQUE,   -- 제출 건의 백엔드 요청 키 — 재제출 중복 차단, 입금 감지 건은 NULL
   acnt_id         VARCHAR(64)  NOT NULL,      -- 귀속 계정 — 이벤트 파티션 키
@@ -984,13 +1027,16 @@ CREATE TABLE bcm_tx_l (
   trsf_amt        NUMERIC      NULL,          -- V32 공개 조회 금액 — 사람 단위 정규화. 자릿수를 고정하지 않는다(정밀도 0..255)
   src_addr        VARCHAR(256) NULL,          -- V32 발신 온체인 주소 — 체인에 오르기 전에는 NULL
   dst_addr        VARCHAR(256) NULL,          -- V32 수신 온체인 주소 — 같은 이유로 NULL일 수 있다
+  tx_dvcd         VARCHAR(16)  NULL,          -- V32 공개 노출 판정용 거래 구분 — 입금은 제출 행이 없어 join 으로 거를 수 없다
+                                              -- DEPOSIT · WITHDRAWAL · INTERNAL · SWEEP_APPROVE · SWEEP_BATCH · BAND_S
   last_pub_stcd   VARCHAR(16)  NOT NULL,      -- 마지막으로 발행한 TxStatus — 이 값과 다를 때만 새 이벤트를 낸다
   cnfm_cnt        INT          NOT NULL,      -- 마지막으로 본 confirmation 수 — 큰 값으로만 갱신(감소 금지)
                                               -- 늦게 온 알림은 낮은 값을 담고 있어, 그대로 쓰면 기록이 역행한다
   vndr_sub_stcd   VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 subStatus 원어 — 운영 조사용, 이벤트 미탑재
   vndr_ntwk_stcd  VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 networkStatus 원어 — 운영 조사용, 이벤트 미탑재
   stall_alrt_dttm VARCHAR(16)  NULL,          -- 막힘 경보 올린 일시 — 있으면 다음 주기 건너뜀 · 해소 전이 시 NULL
-  vndr_crt_dttm   VARCHAR(16)  NOT NULL,      -- 벤더 시간축을 UTC 초 단위로 변환 — 대사 시간축, set-once (제공자별 의미는 아래 표)
+  vndr_crt_dttm   VARCHAR(16)  NULL,          -- 벤더 시간축을 UTC 초 단위로 변환 — 대사 시간축, set-once (제공자별 의미는 아래 표)
+                                              -- V32에서 NULL 허용: 제출 마감이 거래 행을 먼저 만들 때는 벤더 시각을 아직 모른다
   rcnc_chck_dttm  VARCHAR(16)  NULL,          -- 창 밖 미결 거래의 마지막 단건 조회 claim/확인 일시
   rcnc_chck_cnt   INT          NOT NULL DEFAULT 0, -- 단건 조회 횟수 — 영속 백오프 단계
   rcnc_stop_dttm  VARCHAR(16)  NULL,          -- 최대 추적 나이 도달 시각 — 이후 자동 단건 조회 중단

@@ -679,7 +679,7 @@ _응답_
 
 - `externalTxId` 가 멱등 키다. **같은 키 + 같은 내용**을 다시 보내면 처음의 `txId` 를 돌려주므로 **재시도가 안전**하다.
 - 같은 키인데 **내용이 다르면** `409` 다.
-- 제출한 건은 `GET /transactions/external/{externalTxId}` 로 찾는다 — 출금은 출금 풀 vault 에서 나가 계정별 목록에는 없다.
+- 제출한 건은 `GET /transactions/external/{externalTxId}` 로 찾는다 — 출금은 출금 풀 vault 에서 나가 **고객 계정 목록에는 없다**.
 
 **"같은 내용"의 범위** — 자금이 어디서 어디로 얼마나 움직이는지를 규정하는 값만 본다:
 `from.type` · `from.accountId` · `to.type` · `to` 의 식별값(`address`·`accountId`·`walletId` 중 채워진 하나) · `network` · `symbol` · `amount`.
@@ -897,7 +897,8 @@ _응답_
 
 **우리 요청 키로 거래 조회**
 
-`externalTxId` 로 제출한 건을 찾는다. 출금은 고객 계정이 아니라 **출금 풀 vault 에서 나가므로** 계정별 목록 조회로는 찾을 수 없다 — 호출 쪽이 자기 출금을 아는 유일한 키가 `externalTxId` 라 이 경로가 필요하다.
+`externalTxId` 로 제출한 건을 찾는다. 출금은 고객 계정이 아니라 **출금 풀 vault 에서 나가므로 고객 계정 목록에는 나타나지 않는다**
+(출금 풀 계정에 귀속된다) — 호출 쪽이 자기 출금을 아는 키가 `externalTxId` 라 이 경로가 기본이다.
 
 제출 응답을 못 받았을 때의 확인, 그리고 대사에서 우리 기록과 벤더 기록을 잇는 데 쓴다.
 
@@ -994,7 +995,11 @@ _응답_
 
 **거래 단건 조회**
 
-벤더 tx id(`txId`)로 거래 1건을 조회한다. `txId` 는 출금 제출 응답이나 큐 이벤트에서 얻는다.
+공개 거래 id(`txId`)로 거래 1건을 조회한다. `txId` 는 출금 제출 응답이나 큐 이벤트에서 얻는다.
+
+`txId` 는 **BCM 이 정하는 공개 식별자**다. 제출한 거래는 벤더 tx id 를 그대로 쓰지만,
+입금처럼 벤더 거래 id 가 없는 건은 BCM 이 온체인 값에서 만든 결정적 id 를 쓴다.
+어느 쪽이든 같은 논리 거래에 대해 값이 바뀌지 않는다.
 
 ```bash
 curl "https://{baseUrl}/blockchain/manage-api/transactions/tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a"
@@ -1004,7 +1009,7 @@ _파라미터_
 
 | 이름 | 위치 | 타입 | 필수 | 예시 | 설명 |
 |---|---|---|---|---|---|
-| `txId` | path | string | 필수 | tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a | 벤더 tx id |
+| `txId` | path | string | 필수 | tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a | 공개 거래 id |
 
 
 _응답_
@@ -1088,7 +1093,7 @@ _파라미터_
 | `order` | query | string | - | desc | 정렬 방향 — 거래 시각(createdAt) 기준. 기본 desc(최신순). 마지막 커서를 보관해 새 내역을 이어받는 증분 폴링은 `asc` 조회에서만 성립한다. |
 | `status` | query | TxStatus | - | FINALIZED | 상태 필터 (선택) |
 | `limit` | query | integer | - | 200 | 페이지 크기 — 기본 200, 최대 500 (벤더 한도). 1 미만이거나 500 초과면 `400 VALIDATION_FAILED`. |
-| `cursor` | query | string | - | eyJsYXN0IjoxNzUxMzM2MDAwMDAwfQ | 다음 위치 커서 — 이전 응답의 `pagination.nextCursor` 를 그대로 넣는다. 불투명 토큰이라 직접 만들거나 해석하지 않는다. 첫 요청엔 생략. cursor 가 있으면 조회 조건은 토큰이 우선이라 함께 보낸 `after`/`before`·`status`·`order`·`limit` 는 무시된다. |
+| `cursor` | query | string | - | eyJsYXN0IjoxNzUxMzM2MDAwMDAwfQ | 다음 위치 커서 — 이전 응답의 `pagination.nextCursor` 를 그대로 넣는다. 불투명 토큰이라 직접 만들거나 해석하지 않는다. 첫 요청엔 생략. cursor 가 있으면 조회 조건은 토큰이 우선이라 함께 보낸 `after`/`before`·`status`·`order`·`limit` 는 무시된다.  **정렬 기준이 바뀌는 배포에서는 그 전에 발급한 커서를 `400 VALIDATION_FAILED` 로 거절한다.** 옛 위치를 새 정렬에 그대로 적용하면 건을 빠뜨리거나 겹쳐 준다. 그때는 커서 없이 처음부터 다시 받는다.  |
 
 
 _응답_
@@ -4113,11 +4118,11 @@ RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값�
 `txHash`는 root 계열에서 실제로 채굴된 승자 거래 값으로 바뀔 수 있다.
 
 **응답은 BCM 이 검증하고 수용한 상태다.** 벤더의 최신값을 그때그때 덮어 보여주지 않는다 —
-같은 거래를 두 번 물으면 상태는 전진만 하고, 아직 우리가 받아들이지 않은 관찰은 나타나지 않는다.
+허용 전이만 반영하고 늦게 온 관찰로 역행하지 않으며, 아직 우리가 받아들이지 않은 관찰은 나타나지 않는다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `txId` | string | 필수 | 최초 root 거래의 벤더 tx id |
+| `txId` | string | 필수 | 최초 root 거래의 **공개 거래 id**. 제출한 거래는 벤더 tx id 이고, 입금처럼 벤더 거래 id 가 없는 건은 BCM 이 온체인 값에서 만든 결정적 id 다.  |
 | `txHash` | string \\| null | - | 온체인 거래해시 — 전파 후 채워짐 |
 | `externalTxId` | string \\| null | - | 우리 요청 키 |
 | `network` | string | 필수 | 네트워크 코드 |
@@ -4141,7 +4146,7 @@ RBF 대체 거래가 생겨도 `txId`·`externalTxId`는 최초 root 거래 값�
 |---|---|---|---|
 | `eventId` | string | 필수 | 이벤트 고유 id (UUID v7) — 컨슈머 중복 제거 기준 |
 | `type` | EventType | 필수 | `DEPOSIT` `WITHDRAWAL` `INTERNAL` |
-| `txId` | string | 필수 | 최초 root 거래의 벤더 tx id |
+| `txId` | string | 필수 | 최초 root 거래의 **공개 거래 id**. 제출한 거래는 벤더 tx id 이고, 입금처럼 벤더 거래 id 가 없는 건은 BCM 이 온체인 값에서 만든 결정적 id 다.  |
 | `txHash` | string \\| null | - | 온체인 거래해시 — 전파 후 채워짐 |
 | `externalTxId` | string \\| null | - | 우리 요청 키 (출금·내부이체) |
 | `accountId` | string | 필수 | 파티션 키 (BCM이 발급한 계정 ID) |
