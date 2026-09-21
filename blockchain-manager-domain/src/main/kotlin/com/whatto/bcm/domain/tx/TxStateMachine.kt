@@ -45,8 +45,28 @@ class TxStateMachine(
         observation: TxObservation,
         successEvidence: Boolean,
         deferFailure: Boolean = false,
+    ): TxStateChange =
+        observeLocked(
+            previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId),
+            rootVendorTransactionId = rootVendorTransactionId,
+            observation = observation,
+            successEvidence = successEvidence,
+            deferFailure = deferFailure,
+        )
+
+    /**
+     * **이미 잠근 행**으로 전이를 반영한다. 호출자가 잠근 뒤 [TxObservationConsistency]로 먼저 묻고
+     * 일치한 관찰만 여기 넘긴다 — 여기서 다시 읽으면 이중 조회이거나 그 사이가 벌어진다(TOCTOU).
+     *
+     * 이 함수는 **격리를 모른다.** 충돌 판정과 인박스 격리는 호출자 쪽 책임이다.
+     */
+    fun observeLocked(
+        previous: TxRecord?,
+        rootVendorTransactionId: String,
+        observation: TxObservation,
+        successEvidence: Boolean,
+        deferFailure: Boolean = false,
     ): TxStateChange {
-        val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
         if (previous == null) {
             check(rootVendorTransactionId == observation.vendorTransactionId) {
                 "root transaction not found: rootVendorTransactionId=$rootVendorTransactionId"

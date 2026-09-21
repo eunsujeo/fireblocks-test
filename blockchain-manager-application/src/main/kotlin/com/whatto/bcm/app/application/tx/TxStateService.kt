@@ -1,6 +1,8 @@
 package com.whatto.bcm.app.application.tx
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.tx.TxObservation
+import com.whatto.bcm.domain.tx.TxObservationConsistency
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStateChange
 import com.whatto.bcm.domain.tx.TxStateMachine
@@ -36,4 +38,39 @@ class TxStateService(
         successEvidence: Boolean,
         deferFailure: Boolean = false,
     ): TxStateChange = stateMachine.observeRoot(rootVendorTransactionId, observation, successEvidence, deferFailure)
+
+    /**
+     * 잠금 → **동일성 검사** → 전이 순서로 관찰을 반영한다(03 V32 "충돌한 관찰은 통째로 격리한다").
+     *
+     * 검사가 전이보다 **먼저**여야 한다 — 뒤에서 잡으면 상태·컨펌·hash가 이미 바뀐 뒤다.
+     * 잠근 행을 그대로 상태 머신에 넘겨 이중 조회와 그 사이의 틈을 없앤다.
+     * 충돌을 인박스 격리로 옮기는 것은 호출자(웹훅 워커) 몫이다 — 이 경계는 인박스를 모른다.
+     */
+    fun observeConsistently(
+        rootVendorTransactionId: String,
+        observation: TxObservation,
+        chainModel: ChainModel?,
+        successEvidence: Boolean,
+        deferFailure: Boolean = false,
+    ): TxObservationOutcome {
+        val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
+        return when (val consistency = TxObservationConsistency.check(previous, observation, chainModel)) {
+            is TxObservationConsistency.Result.Conflict -> TxObservationOutcome.Conflict(consistency)
+            TxObservationConsistency.Result.Consistent ->
+                TxObservationOutcome.Applied(
+                    stateMachine.observeLocked(previous, rootVendorTransactionId, observation, successEvidence, deferFailure),
+                )
+        }
+    }
+}
+
+/** [TxStateService.observeConsistently]의 결과. 충돌은 예외가 아니라 값이다 — 호출자가 격리로 번역한다. */
+sealed interface TxObservationOutcome {
+    data class Applied(
+        val change: TxStateChange,
+    ) : TxObservationOutcome
+
+    data class Conflict(
+        val detail: TxObservationConsistency.Result.Conflict,
+    ) : TxObservationOutcome
 }
