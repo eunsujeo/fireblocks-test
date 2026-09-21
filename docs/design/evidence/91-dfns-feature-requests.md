@@ -15,20 +15,23 @@ status: To Do
 | # | 문의 | 없어서 생긴 비용 | 우선순위 근거 |
 |---|---|---|---|
 | 1 | `Failed`의 체인 도달 여부 | 실패한 출금의 **재시도를 못 연다**. `422`로 거절하고 사람이 개입 | 자금 |
-| 2 | `Confirmed`의 final 기준 | **위탁 RPC를 직접 운영**해 블록 깊이 계산. head 실패 시 확정 보류 | 자금·운영 |
+| 2 | 임계 설정·reorg 알림·컨펌 수 | **위탁 RPC를 직접 운영**해 블록 깊이 계산. head 실패 시 확정 보류 | 자금·운영 |
 | 3 | `WalletHistoryEvent`의 ID | 파생 ID를 만들어 고객에 노출 — **벤더 콘솔에서 검색 불가** | 운영 |
 | 4 | `externalId` 조회 | 조회가 없어 **재제출이 회수 수단**. 백그라운드에 열지 못함 | 운영 |
 | 5 | 두 필드 required | `index`·`from` 없으면 **처리 보류**(자금 멈춤) | 정합성 |
 | 6 | `timestamp`·`value` 명세 | envelope `date`로 대체, 단위는 가정 | 정합성 |
 | 7 | 웹훅 재전송 | 이력 조회로 회수하는 경로를 **따로 만들어야 함**(미구현) | 운영 |
 
-## 2번 주의 — 문서를 먼저 읽을 것
+## 2번 이력 — 문서를 먼저 읽을 것
 
-Dfns 문서는 `Confirmed`를 **final로 명시**한다. "확정을 알려 달라"고 쓰면 이미 주는 것을 요구하는 꼴이다.
-우리가 그 표기를 안 믿기로 한 것은 [CLAUDE.md 3절 확정 결정](../../../CLAUDE.md)이고 이유는 reorg 가능성이다.
-그래서 물을 것은 **final의 기준**(컨펌 수·네트워크별 차이·설정 가능 여부)과 **뒤집힐 때의 알림**이다.
+초안은 "확정을 알려 달라"였는데 Dfns는 이미 준다. `Confirmed`는 [네트워크별 고정 confirmation delay](https://docs.dfns.co/networks)
+경과를 뜻한다(Ethereum 12 · Base 50 · Solana 8 · Bitcoin 2). **Tier-2는 인덱싱 대상이 아니라 delay가 `N/A`다.**
 
-계약13·02와 도메인 KDoc 둘의 `Confirmed` 서술이 벤더 문서보다 약했던 것은 **고쳤다**("벤더가 final로 표시하지만 기준 깊이가 없다").
+2026-09-21 벤더 회신으로 확인된 것: 임계는 **고객이 설정할 수 없고**, reorg 되돌림 알림은 **없으며**, 컨펌 수 필드도 **없다**.
+그래서 남은 셋만 묻는다. 벤더도 이 셋은 문서에 없는 기능 요청 영역이라 support 채널을 안내했다.
+
+계약13·02·도메인 KDoc의 `Confirmed` 서술은 **이 사실대로 고쳤다** — 예전 "인덱싱 파이프라인 확인"도, 그 뒤 내가 쓴
+"기준 깊이가 어느 출처에도 없다"도 틀렸다.
 
 ## 다른 수탁 벤더(Fireblocks)에서는
 
@@ -63,22 +66,19 @@ Dfns 문서는 `Confirmed`를 **final로 명시**한다. "확정을 알려 달�
 > 저희는 실패한 출금의 재시도 가능 여부를 판단해야 하는데, 구분이 안 되면 이미 체인에 나간 건에 새 키를
 > 발급해 이중 지급이 될 수 있습니다. 지금은 보수적으로 재시도를 막고 사람이 확인하는 방식입니다.
 
-## 2. `Confirmed`가 뜻하는 final의 기준
+## 2. 확정 임계와 reorg 알림
 
-[Webhook Events 문서](https://docs.dfns.co/api-reference/webhook-events)에서 `Included`는 pre-confirmation,
-`Confirmed`는 **final**로 표시된다고 읽었습니다. 그 기준을 좀 더 알고 싶습니다.
+[Supported Networks](https://docs.dfns.co/networks)의 네트워크별 Confirmation Delay와
+[Automate Deposits](https://docs.dfns.co/solutions/automate-deposits)의 `Included`/`Confirmed` 설명은 확인했습니다.
+그 기준으로도 저희 쪽에서 남는 것이 세 가지 있어 문의드립니다.
 
-다만 채택 명세 `dfns-openapi-1.1018.3`에서는 같은 값이 `"confirmed on chain by our indexing pipeline"`으로 적혀 있어,
-두 문서의 뉘앙스가 조금 다르게 읽힙니다.
+- **임계를 고객이 설정**할 수 있을까요? 저희는 네트워크별 자체 임계를 운영하는데 Dfns 값(Ethereum 12 · Base 50)과 다를 수 있습니다.
+- `Confirmed` 이후 재구성(reorg)으로 **뒤집히는 경우 알림**이 있을까요? 문서에서는 찾지 못했습니다.
+- `WalletHistoryEvent`에 **컨펌 수**를 실어 주실 수 있을까요? 지금은 `Included`/`Confirmed` 두 값뿐이라 현재 깊이를 알 수 없습니다.
 
-- `Confirmed`가 **final이라는 것과 indexing pipeline 확인이라는 것** 중 어느 쪽이 정확한 서술인가요?
-- final이라면 **컨펌 몇 개** 기준인가요? 네트워크마다 다른가요?
-- `Confirmed` 이후 재구성(reorg)으로 **뒤집히는 경우** 어떤 알림이 오나요? 지금까지 그런 사건을 받아 본 적이 없습니다.
-- `WalletHistoryEvent`에 **컨펌 수**를 함께 실어 주실 수 있을까요? 있으면 운영 조사에서 저희 판정과 대조하기 쉽습니다.
-
-> 저희는 수탁 자산이라 확정을 **블록 깊이로 직접 계산**합니다(사건의 `blockNumber`와 체인 head의 깊이를
-> 자체 임계와 비교). 이 방식은 유지할 예정이고, 위 질문은 **저희 문서에 벤더 동작을 정확히 적기 위한** 것입니다.
-> reorg 알림은 받을 수 있으면 저희 판정을 되돌리는 데 쓰겠습니다.
+> 저희는 수탁 자산이라 확정을 **블록 깊이로 직접 계산**합니다(사건의 `blockNumber`와 체인 head 깊이를 자체 임계와 비교).
+> 위 셋이 제공되면 그 계산을 Dfns 값으로 대체할 수 있을지 검토해 보겠습니다.
+> 특히 reorg 알림은 저희 판정을 되돌리는 데 바로 쓰겠습니다.
 
 ## 3. `WalletHistoryEvent`의 식별자
 

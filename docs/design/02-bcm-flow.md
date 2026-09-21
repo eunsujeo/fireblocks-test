@@ -219,7 +219,7 @@ Kafka offset을 커밋한다. 응답 유실 때 같은 요청을 반복하면 �
 ### Dfns 경로의 확정 근거 (2026-09-16 사용자 확정)
 
 Dfns는 컨펌 수를 주지 않는다. 웹훅 온체인 이동 사건은 `Included`/`Confirmed`와 `blockNumber`만 싣고,
-벤더 출처마다 `Confirmed`의 서술이 다르고(OpenAPI "indexing pipeline 확인" · Webhook Events "final") **어느 쪽도 기준 깊이를 밝히지 않으며**, 그 표기 뒤에도 reorg로 뒤집힐 수 있다. 그래서 **벤더의 확정 표기를 `FINALIZED`의 근거로 쓰지 않는다.**
+`Confirmed`는 **네트워크별 고정 confirmation delay**(Ethereum 12 · Base 50 등) 경과를 뜻한다. 그래도 그 표기를 쓰지 않는 것은 **임계를 우리가 정할 수 없고, reorg 되돌림 알림이 없으며, 컨펌 수가 오지 않아** 지금 몇 깊이인지 알 수 없기 때문이다([계약13](13-dfns-contracts.md)). 그래서 **벤더의 확정 표기를 `FINALIZED`의 근거로 쓰지 않는다.**
 
 - 확정 판정은 `blockNumber`와 위탁 RPC로 읽은 체인 head의 **깊이**(블록 자체가 1컨펌)를 위 DCCP 임계와 같은
   `bcm.finality-confirmations.<network>` 값과 비교한다. 규칙은 domain `BlockDepthFinality`, head 조회는 `ChainHeadPort`다.

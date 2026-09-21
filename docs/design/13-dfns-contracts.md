@@ -227,7 +227,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | 자산 키 | 모델 대상 변형의 locator 필드는 자산 조회·전송과 같은 이름이다 | 등록·잔액·전송과 **같은 키 규칙**(EVM 주소 형식·Solana base58 32바이트)으로 만든다. locator 형식이 깨졌으면 키를 만들지 않고 실패한다 |
 | 필수 필드 | 변형마다 required가 다르다. 모든 변형의 교집합은 `walletId`·`direction`·`network`·`blockNumber`·`txHash`·`timestamp`·`status`·`metadata`·`kind` 아홉이다. 변형별로는 `NativeTransfer`가 `value`·`symbol`·`decimals`, `Erc20Transfer`가 `contract`·`from`·`to`·`value`·`decimals`, `SplTransfer`/`Spl2022Transfer`가 `mint`·`value`를 더 요구한다(Solana 변형은 `from`·`to`를 요구하지 않는다) | 공통 필수 아홉은 모든 종류에서 검사하고, 모델 대상은 그 변형이 요구하는 필드까지 검사한다. **관찰값에 담지 않는 필드도 결손이면 명세를 만족하지 않으므로 거절한다** — `symbol`·`decimals`처럼 폐기 예정 표기가 붙었어도 required 목록에 남아 있는 동안은 요구한다(아래 수용 항목). 문서화된 미지원 종류는 공통 필수만 검사한다 — 그 변형의 locator를 대조에 쓰지 않으므로 형식을 판단하지 않는다 |
 | 지갑 결속 | 사건의 `walletId`와 함께 `data.wallet`(필수)이 온다. `Wallet`의 `id`·`network`는 필수이고 `address`는 **선택**이다 | `data.wallet`의 `id`·`network`가 사건의 `walletId`·`network`와 각각 같아야 한다 — 다르면 어느 지갑의 어느 네트워크 이동인지 증명하지 못하므로 거절한다. 지갑 주소는 있으면 담고 없으면 null이다(주소 대조·입금 귀속은 판단 워커) |
-| 방향·상태 | `direction`은 `In`/`Out`, `status`는 `Included`/`Confirmed`이며 `Confirmed`는 "confirmed on chain by our indexing pipeline"이다 | 원어 그대로 옮기고 그 밖의 값은 거절한다. **`Confirmed`를 BCM 확정(DCCP)으로 번역하지 않는다** — 종류와 상태가 고정 대응한다는 서술도 없으므로 상태는 사건 본문에서 읽는다 |
+| 방향·상태 | `direction`은 `In`/`Out`, `status`는 `Included`/`Confirmed`이며 `Confirmed`는 명세 문구로 "confirmed on chain by our indexing pipeline", 실제 기준은 **네트워크별 고정 confirmation delay 경과**다([그 기준](#confirmed의-기준--벤더-고정-confirmation-delay-2026-09-21-확인)) | 원어 그대로 옮기고 그 밖의 값은 거절한다. **`Confirmed`를 BCM 확정(DCCP)으로 번역하지 않는다** — 종류와 상태가 고정 대응한다는 서술도 없으므로 상태는 사건 본문에서 읽는다 |
 | 금액 | `value`는 문자열이고 모델 대상 변형에서 필수다. **단위를 서술한 곳이 없다** | 전송 요청과 같은 규칙으로 **최소 단위 정수**(선행 0 금지)로 읽는다. 이는 BCM 해석이며 정수 검사는 비정수만 걸러낼 뿐 단위를 증명하지 못한다(아래 수용 항목) |
 | 정밀도·심볼 | `metadata.asset`은 필수지만 그 안의 `symbol`·`decimals`·`verified`는 필수가 아니다. 최상위 동명 필드는 `@deprecated`이면서 일부 변형의 required 목록에 남아 있다 | 관찰값에 **담지 않는다** — 선택이자 폐기 예정인 벤더 필드에 업무 판단을 걸지 않는다. 담지 않는 것과 명세 필수 필드의 존재를 검사하는 것은 별개다(위 필수 필드 행). **정밀도의 출처는 등록 매핑이다**(03 V27의 `dcml_cnt`) — 관찰이 아니라 등록값으로 환산한다. Dfns 원천은 정밀도 없이 등록할 수 없다 |
 | 체인 좌표 | 필수 `blockNumber`(number)·`txHash`·`timestamp`(문자열, 형식 서술 없음), 선택 `index`(문자열) | `blockNumber`는 정수·음수 아님만 받는다. `timestamp`는 **파싱하지 않고 원문 그대로** 둔다 — `date`·`dateRequested`와 달리 형식·시간대 서술이 없다. `index`는 있으면 원문으로 담는다 |
@@ -250,7 +250,7 @@ Dfns 원천은 카탈로그가 없어 운영자가 발행사 자료와 대조해
 
 근거: [CLAUDE.md 3절 확정 결정](../../CLAUDE.md)(2026-09-16 사용자 확정)과 [02의 Dfns 경로 확정 근거](02-bcm-flow.md#dfns-경로의-확정-근거-2026-09-16-사용자-확정).
 명세 쪽 사실은 위 [온체인 이동 사건](#웹훅-온체인-이동-사건-관찰--구현)과 [전송 상태](#전송-제출조회-계약--구현) 표에 있다 —
-Dfns는 **컨펌 수를 주지 않고** `Included`/`Confirmed`와 `blockNumber`만 준다. `Confirmed`의 설명은 "confirmed on chain by our indexing pipeline"이며
+Dfns는 **컨펌 수를 주지 않고** `Included`/`Confirmed`와 `blockNumber`만 준다. `Confirmed`는 네트워크별 고정 delay 경과를 뜻하지만 지금 몇 깊이인지는 알 수 없으며
 네트워크별 확인 지연은 벤더 문서의 별도 표에 있다.
 구현은 도메인 `ChainHeadPort`·`BlockDepthFinality`와 `EvmChainHeadClient`(infra/client)다. **Webhook 앱의 `dfns` 조립에서만 만들어 입금 판단과 [발신 확정의 블록 좌표](#발신-확정의-블록-좌표--구현)가 쓴다** — 출금의 확정도 같은 깊이 판정이다.
 
@@ -275,10 +275,32 @@ Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블�
 | 벤더 원어 | TxStatus | 근거 |
 |---|---|---|
 | `Pending`(지갑 정책 승인 대기) · `Executing`(승인 후 실행 중) · `Broadcasted`(mempool 기록) | `SUBMITTED` | 02의 `SUBMITTED`는 "서명·전파 준비 중, 체인 미등장"이다. mempool은 블록에 들어가기 전이다 |
-| `Included`(블록 포함, **pre-confirmation**) · `Confirmed`(**출처에 따라 서술이 다르다** — 아래) | 깊이 ≥ 임계면 `FINALIZED`, 아니면 `CONFIRMED` | 둘 다 블록 좌표가 있는 온체인 관찰이라 **같은 깊이 판정**을 쓴다. **두 벤더 출처의 서술이 다르다** — 채택 OpenAPI는 `WalletHistoryEvent.status.Confirmed`를 "confirmed on chain by our indexing pipeline"이라 하고, [Webhook Events 문서](https://docs.dfns.co/api-reference/webhook-events)는 **final**이라고 한다. 어느 쪽이든 **확정 근거로 쓰지 않는다**(CLAUDE.md 3절) — 어떤 깊이를 기준으로 하는지 어느 출처에도 없고 reorg로 뒤집힐 수 있다. 확정은 오직 블록 깊이로 내며(`bcm.finality-confirmations.<network>`와 비교) 벤더 표기는 확정의 근거도 **추가 관문도 아니다** — 관문으로 두면 `Confirmed` 알림이 늦거나 유실될 때 깊이가 차도 확정이 영영 나오지 않는다. 깊이가 임계에 못 미치면 02의 `CONFIRMED`("체인에 등장, 컨펌 누적 중 — 미확정")다 |
+| `Included`(블록 포함, **confirmation delay 경과 전**) · `Confirmed`(**네트워크별 confirmation delay 경과 후**) | 깊이 ≥ 임계면 `FINALIZED`, 아니면 `CONFIRMED` | 둘 다 블록 좌표가 있는 온체인 관찰이라 **같은 깊이 판정**을 쓴다. `Confirmed`는 막연한 "인덱싱 확인"이 아니라 **벤더가 고정한 블록 깊이**를 넘긴 상태다(아래 표). 그래도 **확정 근거로 쓰지 않는다**(CLAUDE.md 3절) — 아래 세 가지 때문이다. 확정은 오직 블록 깊이로 내며(`bcm.finality-confirmations.<network>`와 비교) 벤더 표기는 확정의 근거도 **추가 관문도 아니다** — 관문으로 두면 `Confirmed` 알림이 늦거나 유실될 때 깊이가 차도 확정이 영영 나오지 않는다. 깊이가 임계에 못 미치면 02의 `CONFIRMED`("체인에 등장, 컨펌 누적 중 — 미확정")다 |
 | `Failed`(시스템 실패 또는 온체인 실행 실패) | `FAILED` | 02의 `FAILED`는 영구 실패 |
 | `Rejected`(정책 승인 거절) | `REJECTED` | 02의 `REJECTED`는 거부·차단이며 출금은 벤더 기준 종결 |
 | 그 밖의 원어 | — | 임의 상태로 바꾸지 않고 `WebhookPayloadException`으로 거절한다 |
+
+#### `Confirmed`의 기준 — 벤더 고정 confirmation delay (2026-09-21 확인)
+
+[Supported Networks](https://docs.dfns.co/networks)가 네트워크별 **Confirmation Delay(블록 수)** 를 명시한다.
+그만큼 블록이 더 쌓인 뒤에야 `Confirmed`로 인덱싱되고, 그때 `wallet.blockchainevent.detected`가 온다
+([Automate Deposits](https://docs.dfns.co/solutions/automate-deposits): `wallet.blockchain_event.transfer.included`는 delay 경과 **전**의 `Included`다).
+
+| 네트워크 | Dfns delay | BCM 기본 임계 |
+|---|---|---|
+| Ethereum · EthereumSepolia | 12 | `1` |
+| Base · BaseSepolia | 50 | `1` |
+| Solana · SolanaDevnet | 8 | — |
+| Bitcoin | 2 · ArbitrumOne 50 · Litecoin 12 · Dogecoin 40 | — |
+
+**Tier-2 네트워크는 인덱싱 대상이 아니라 delay가 `N/A`다** — 토큰·온체인 이력을 추적하지 않고 native 잔액만 준다.
+Tier-2를 채택하면 이 경로 자체가 성립하지 않으므로 네트워크 선정에서 먼저 확인한다.
+
+그럼에도 **블록 깊이를 직접 계산하는 결정은 그대로다**(CLAUDE.md 3절). 이유가 "기준을 모른다"에서 셋으로 바뀐다.
+
+1. **임계를 우리가 정할 수 없다** — Dfns 값은 고정이고 고객 설정 수단이 문서에 없다. 우리 임계가 그 값과 다르면 맞출 방법이 없다.
+2. **reorg 되돌림 알림이 없다** — 문서는 "unfinalized blocks can still reorg"까지만 말하고, `Confirmed` 이후 뒤집혔을 때의 후속 웹훅을 정의하지 않는다.
+3. **컨펌 수가 없다** — `WalletHistoryEvent`에 confirmation count 필드가 없어 지금 몇 블록 깊이인지 알 수 없다. `Included`/`Confirmed` 두 값뿐이다.
 
 - **전송 응답만으로는 확정이 나오지 않는다** — `TransferRequest`에는 `blockNumber`가 없어 깊이를 계산할 수 없다. 그래서 전송 경로의 `Confirmed`는 `CONFIRMED`에 머물고,
   출금의 확정도 같은 거래의 **온체인 이동 사건**(`direction: Out`)에서 판정한다. 깊이를 모르는 관찰의 컨펌 수는 0이다.
@@ -287,9 +309,7 @@ Solana 확정 모델(`finalized` commitment 사용 여부), reorg로 사건 블�
   `Confirmed`를 종결로 돌려주면 블록 깊이 확정 결정을 우회하게 된다. 포트 계약의 "대상 밖은 null"을 그대로 쓴다.
 - Fireblocks의 동결 subStatus(`AUTO_FREEZE` 등)에 해당하는 개념은 Dfns 문서에 없다 — 없는 것을 만들지 않는다. `FINALIZED → REJECTED`(확정 후 동결) 전이의 Dfns 관찰 경로는 수용 항목이다.
 
-수용 항목: **`Confirmed`의 서술이 출처마다 다른 이유와 그 기준**(OpenAPI의 "indexing pipeline" vs Webhook Events의 "final", 컨펌 수·네트워크별 차이) —
-확인 결과가 어떻든 **확정을 블록 깊이로 직접 계산하는 결정은 바뀌지 않는다**(CLAUDE.md 3절). 근거 서술을 정확히 하기 위한 확인이다([기능 문의 2번](evidence/91-dfns-feature-requests.md)),
-확정 후 동결·무효화에 해당하는 Dfns 관찰이 있는지(있다면 `REJECTED`·`FAILED` 역전이의 입구), `Rejected`가 정책 거절 외에도 쓰이는지,
+수용 항목: 확정 후 동결·무효화에 해당하는 Dfns 관찰이 있는지(있다면 `REJECTED`·`FAILED` 역전이의 입구), `Rejected`가 정책 거절 외에도 쓰이는지,
 `Broadcasted` 없이 `Confirmed`만 오는 경우가 있는지(02의 감지 이벤트 합성 규칙 적용 범위), 대사 경로를 만들 때의 Dfns 목록 조회 계약.
 
 ### 온체인 이동의 귀속 — 구현
