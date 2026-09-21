@@ -15,6 +15,17 @@ data class TxObservation(
     val vendorNetworkStatus: String?,
     val observedAt: String,
     val vendorCreatedAt: String = observedAt,
+    /**
+     * 관찰이 말하는 금액 — **사람 단위로 이미 환산된 값**이다. 환산은 판단 단계가 한 번만 하고
+     * 저장은 다시 읽지 않는다(03 V34). 모르면 null이다.
+     */
+    val observedAmount: String? = null,
+    /** 환산 근거. 최소 단위로 관찰된 경로만 채운다 — 사람 단위가 이미 오는 경로는 남길 근거가 없다. */
+    val observedAmountBaseUnits: String? = null,
+    val observedAmountDecimals: Int? = null,
+    /** 관찰이 말하는 발신·수신 온체인 주소. 체인에 오르기 전에는 null이다. */
+    val observedSourceAddress: String? = null,
+    val observedDestinationAddress: String? = null,
 )
 
 data class TxStateChange(
@@ -57,8 +68,13 @@ class TxStateMachine(
                 repository.update(
                     previous.copy(
                         stallAlertedAt = null,
-                        // 이 분기는 candidate()를 거치지 않는다 — 벤더 시각 병합을 여기서도 해야 첫 관찰이 이 경로일 때 값이 남는다.
+                        // 이 분기는 candidate()를 거치지 않는다 — 병합을 여기서도 해야 첫 관찰이 이 경로일 때 값이 남는다.
                         vendorCreatedAt = previous.vendorCreatedAt ?: observation.vendorCreatedAt,
+                        amount = previous.amount ?: observation.observedAmount,
+                        amountBaseUnits = previous.amountBaseUnits ?: observation.observedAmountBaseUnits,
+                        amountDecimals = previous.amountDecimals ?: observation.observedAmountDecimals,
+                        sourceAddress = previous.sourceAddress ?: observation.observedSourceAddress,
+                        destinationAddress = previous.destinationAddress ?: observation.observedDestinationAddress,
                         lastChangedAt = maxOf(previous.lastChangedAt, observation.observedAt),
                         reconciliationCheckedAt = previous.reconciliationCheckedAt.takeUnless { newerObservation },
                         reconciliationCheckCount = previous.reconciliationCheckCount.takeUnless { newerObservation } ?: 0,
@@ -137,6 +153,15 @@ class TxStateMachine(
         firstDetectedAt = previous?.firstDetectedAt ?: observation.observedAt,
         lastChangedAt = observation.observedAt,
         vendorCreatedAt = previous?.vendorCreatedAt ?: observation.vendorCreatedAt,
+        // 금액·주소는 최초값을 보존하고 null 자리만 채운다. 다른 값이 오는 경우는 여기 오기 전에
+        // [TxObservationConsistency]가 걸러 관찰 전체를 격리한다(03 V32).
+        amount = previous?.amount ?: observation.observedAmount,
+        amountBaseUnits = previous?.amountBaseUnits ?: observation.observedAmountBaseUnits,
+        amountDecimals = previous?.amountDecimals ?: observation.observedAmountDecimals,
+        sourceAddress = previous?.sourceAddress ?: observation.observedSourceAddress,
+        destinationAddress = previous?.destinationAddress ?: observation.observedDestinationAddress,
+        // 관찰로 정하지 않는다 — 거래 행을 만든 쪽이 확정한 권위 값이다.
+        transactionType = previous?.transactionType,
     )
 
     private fun madeProgress(

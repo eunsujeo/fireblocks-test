@@ -10,6 +10,7 @@ import com.whatto.bcm.domain.tx.TxReconciliationRepository
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.tx.TxType
 import com.whatto.bcm.support.audit.SystemAudit
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.data.jdbc.core.JdbcAggregateTemplate
@@ -19,6 +20,7 @@ import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.jdbc.support.SqlArrayValue
 import org.springframework.stereotype.Repository
+import java.math.BigDecimal
 
 /** bcm_tx_l 파생 쿼리 — 어댑터 내부 전용 */
 interface TxCrudRepository : CrudRepository<TxEntity, String> {
@@ -63,6 +65,12 @@ class TxJdbcAdapter(
                 reconciliationCheckedAt = rs.getString("rcnc_chck_dttm"),
                 reconciliationCheckCount = rs.getInt("rcnc_chck_cnt"),
                 reconciliationStoppedAt = rs.getString("rcnc_stop_dttm"),
+                amount = rs.getBigDecimal("trsf_amt")?.stripTrailingZeros()?.toPlainString(),
+                sourceAddress = rs.getString("src_addr"),
+                destinationAddress = rs.getString("dst_addr"),
+                amountBaseUnits = rs.getString("base_amt"),
+                amountDecimals = rs.getObject("dcml_cnt", Integer::class.java)?.toInt(),
+                transactionType = rs.getString("tx_dvcd")?.let(TxType::valueOf),
             )
         }
     private val reconciliationRowMapper =
@@ -102,6 +110,14 @@ class TxJdbcAdapter(
                        vndr_ntwk_stcd = :vendorNetworkStatus,
                        -- 첫 관찰이 NULL을 한 번 채운다(03 V32 set-once 예외). 행 조건으로 두면
                        -- 시각이 이미 있는 거래의 이후 갱신이 전부 0행이 되어 충돌로 처리된다.
+                       -- 금액·주소·구분은 최초값을 보존한다. 다른 값이 오는 경우는 TxObservationConsistency 가
+                       -- 앞에서 걸러 관찰 전체를 격리하므로, 여기서는 빈 자리만 채운다(03 V32·V34).
+                       trsf_amt = COALESCE(trsf_amt, :amount),
+                       src_addr = COALESCE(src_addr, :sourceAddress),
+                       dst_addr = COALESCE(dst_addr, :destinationAddress),
+                       base_amt = COALESCE(base_amt, :amountBaseUnits),
+                       dcml_cnt = COALESCE(dcml_cnt, :amountDecimals),
+                       tx_dvcd = COALESCE(tx_dvcd, :transactionType),
                        vndr_crt_dttm = COALESCE(vndr_crt_dttm, :vendorCreatedAt),
                        stall_alrt_dttm = :stallAlertedAt,
                        rcnc_chck_dttm = :reconciliationCheckedAt,
@@ -146,6 +162,14 @@ class TxJdbcAdapter(
                        cnfm_cnt = :confirmationCount,
                        vndr_sub_stcd = :vendorSubStatus,
                        vndr_ntwk_stcd = :vendorNetworkStatus,
+                       -- 금액·주소·구분은 최초값을 보존한다. 다른 값이 오는 경우는 TxObservationConsistency 가
+                       -- 앞에서 걸러 관찰 전체를 격리하므로, 여기서는 빈 자리만 채운다(03 V32·V34).
+                       trsf_amt = COALESCE(trsf_amt, :amount),
+                       src_addr = COALESCE(src_addr, :sourceAddress),
+                       dst_addr = COALESCE(dst_addr, :destinationAddress),
+                       base_amt = COALESCE(base_amt, :amountBaseUnits),
+                       dcml_cnt = COALESCE(dcml_cnt, :amountDecimals),
+                       tx_dvcd = COALESCE(tx_dvcd, :transactionType),
                        vndr_crt_dttm = COALESCE(vndr_crt_dttm, :vendorCreatedAt),
                        stall_alrt_dttm = NULL,
                        rcnc_chck_dttm = :reconciliationCheckedAt,
@@ -399,6 +423,12 @@ class TxJdbcAdapter(
             "vendorNetworkStatus" to vendorNetworkStatus,
             "stallAlertedAt" to stallAlertedAt,
             "vendorCreatedAt" to vendorCreatedAt,
+            "amount" to amount?.let { BigDecimal(it) },
+            "sourceAddress" to sourceAddress,
+            "destinationAddress" to destinationAddress,
+            "amountBaseUnits" to amountBaseUnits,
+            "amountDecimals" to amountDecimals,
+            "transactionType" to transactionType?.name,
             "reconciliationCheckedAt" to reconciliationCheckedAt,
             "reconciliationCheckCount" to reconciliationCheckCount,
             "reconciliationStoppedAt" to reconciliationStoppedAt,
@@ -432,6 +462,12 @@ class TxJdbcAdapter(
                 "rcnc_stop_dttm",
                 "frst_dtct_dttm",
                 "last_chng_dttm",
+                "trsf_amt",
+                "src_addr",
+                "dst_addr",
+                "base_amt",
+                "dcml_cnt",
+                "tx_dvcd",
             )
 
         val TX_COLUMNS = "SELECT " + TX_COLUMN_NAMES.joinToString(", ")

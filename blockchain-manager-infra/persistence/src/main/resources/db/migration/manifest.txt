@@ -32,3 +32,4 @@ V30__submission_destination_address.sql
 V31__network_wallet_address_index.sql
 V32__transaction_query_ledger.sql
 V33__transaction_account_listing_index.sql
+V34__transaction_amount_snapshot.sql

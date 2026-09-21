@@ -26,6 +26,23 @@ data class TxRecord(
     val vendorSubStatus: String? = null,
     /** 마지막 알림의 벤더 networkStatus 원어 — 운영 조사용, 이벤트 미탑재 */
     val vendorNetworkStatus: String? = null,
+    /**
+     * 공개 조회의 금액 — **사람 단위 정규화 값**(03 V32). 최초값 불변이고, 다른 금액이 관찰되면 덮지 않고 그 관찰을 격리한다.
+     * 체인에 오르기 전에도 제출이 아는 금액이 있으므로 제출 거래는 처음부터 채워진다.
+     */
+    val amount: String? = null,
+    /** 발신 온체인 주소. 체인에 오르기 전에는 null이고 `null → 값`으로만 채운다(03 V32). */
+    val sourceAddress: String? = null,
+    /** 수신 온체인 주소. `sourceAddress`와 같은 규칙이다. */
+    val destinationAddress: String? = null,
+    /**
+     * 관찰이 준 최소 단위 정수와 그때 환산에 쓴 정밀도(03 V34). 사람 단위 금액이 이미 오는 경로는 둘 다 null이다.
+     * **재처리는 현재 매핑이 아니라 이 값으로 재환산한다** — 매핑이 제자리에서 바뀌어도 같은 금액이어야 한다.
+     */
+    val amountBaseUnits: String? = null,
+    val amountDecimals: Int? = null,
+    /** 공개 노출을 가르는 거래 구분(03 V32). 관찰로 병합하지 않는 **권위 있는 분류값**이다. */
+    val transactionType: TxType? = null,
     /** 막힘 경보 일시 — 있으면 다음 주기 건너뜀, 해소 전이 시 null */
     val stallAlertedAt: String? = null,
     val firstDetectedAt: String,

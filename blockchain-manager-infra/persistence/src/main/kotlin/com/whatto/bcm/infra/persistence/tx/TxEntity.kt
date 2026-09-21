@@ -2,10 +2,12 @@ package com.whatto.bcm.infra.persistence.tx
 
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.tx.TxType
 import com.whatto.bcm.support.audit.SystemAudit
 import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
+import java.math.BigDecimal
 
 @Table("bcm_tx_l")
 data class TxEntity(
@@ -34,6 +36,18 @@ data class TxEntity(
     val vndrNtwkStcd: String?,
     @Column("stall_alrt_dttm")
     val stallAlrtDttm: String?,
+    @Column("trsf_amt")
+    val trsfAmt: BigDecimal?,
+    @Column("src_addr")
+    val srcAddr: String?,
+    @Column("dst_addr")
+    val dstAddr: String?,
+    @Column("base_amt")
+    val baseAmt: String?,
+    @Column("dcml_cnt")
+    val dcmlCnt: Int?,
+    @Column("tx_dvcd")
+    val txDvcd: String?,
     @Column("vndr_crt_dttm")
     val vndrCrtDttm: String?,
     @Column("rcnc_chck_dttm")
@@ -72,6 +86,12 @@ data class TxEntity(
             firstDetectedAt = frstDtctDttm,
             lastChangedAt = lastChngDttm,
             vendorCreatedAt = vndrCrtDttm,
+            amount = trsfAmt?.stripTrailingZeros()?.toPlainString(),
+            sourceAddress = srcAddr,
+            destinationAddress = dstAddr,
+            amountBaseUnits = baseAmt,
+            amountDecimals = dcmlCnt,
+            transactionType = txDvcd?.let(TxType::valueOf),
             reconciliationCheckedAt = rcncChckDttm,
             reconciliationCheckCount = rcncChckCnt,
             reconciliationStoppedAt = rcncStopDttm,
@@ -93,6 +113,12 @@ data class TxEntity(
                 vndrNtwkStcd = txRecord.vendorNetworkStatus,
                 stallAlrtDttm = txRecord.stallAlertedAt,
                 vndrCrtDttm = txRecord.vendorCreatedAt,
+                trsfAmt = txRecord.amount?.let { BigDecimal(it) },
+                srcAddr = txRecord.sourceAddress,
+                dstAddr = txRecord.destinationAddress,
+                baseAmt = txRecord.amountBaseUnits,
+                dcmlCnt = txRecord.amountDecimals,
+                txDvcd = txRecord.transactionType?.name,
                 rcncChckDttm = txRecord.reconciliationCheckedAt,
                 rcncChckCnt = txRecord.reconciliationCheckCount,
                 rcncStopDttm = txRecord.reconciliationStoppedAt,

@@ -425,6 +425,50 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
   보관 위치는 아래 V24 원장이며 참조는 보관 어댑터가 발급한 형식만 유효하다. 본 원장의 후보 행은 BCM 정규화 값이며 벤더 JSON을 창작하지 않는다.
   릴리스별 실제 응답 schema 대조는 Dfns HTTP 어댑터 연결 시 수용한다.
 
+### V34 관찰 금액의 환산 근거 — 물리 저장 계약 (2026-09-21 사용자 확정)
+
+V32가 공개 금액(`trsf_amt`)을 **사람 단위 정규화 값**으로 정했다. 입금은 벤더가 **최소 단위 정수**로만 주므로
+등록 매핑의 정밀도로 환산한다. 그런데 **매핑은 제자리에서 바뀐다**(07) — 변경 snapshot은 감사용이고 현재 조회에 쓰이지 않는다.
+
+그래서 같은 관찰을 나중에 재처리하면 **다른 금액이 나올 수 있다.** 덮으면 조용한 금액 사고이고,
+덮지 않고 격리하면 **잘못이 없는 정상 재처리가 막힌다.** 둘 다 답이 아니다.
+
+제출 거래는 이 문제가 없다 — `bcm_sbmt_l`이 V28로 `base_amt`·`dcml_cnt`를 이미 보관한다.
+**입금만 예외인 상태를 없앤다.**
+
+| 컬럼 | 타입 | 뜻 |
+|---|---|---|
+| `base_amt` | `VARCHAR(320)` NULL | 관찰이 준 최소 단위 정수 문자열. 선행 0 금지 |
+| `dcml_cnt` | `SMALLINT` NULL | **그때 환산에 쓴** 정밀도 0..255. 현재 매핑 값이 아니다 |
+
+- 이름·폭·제약은 `bcm_sbmt_l`의 V28과 **같게** 둔다. 같은 뜻의 값을 두 표에서 다르게 부르지 않는다.
+- **재처리는 현재 매핑이 아니라 이 값을 쓴다.** 그래야 매핑이 바뀌어도 같은 관찰이 같은 금액으로 해석된다.
+- 사람 단위 금액이 이미 오는 경로(Fireblocks `amountInfo.amount`)는 둘 다 `NULL`이다 — 환산한 적이 없으므로 남길 근거도 없다.
+- 두 값은 **한 벌**이다. 하나만 있으면 재환산할 수 없다.
+
+```sql
+ALTER TABLE bcm_tx_l
+  ADD COLUMN IF NOT EXISTS base_amt VARCHAR(320) NULL,
+  ADD COLUMN IF NOT EXISTS dcml_cnt SMALLINT     NULL;
+
+ALTER TABLE bcm_tx_l
+  ADD CONSTRAINT ck_bcm_tx_base_amt CHECK (base_amt IS NULL OR base_amt ~ '^(0|[1-9][0-9]*)$');
+ALTER TABLE bcm_tx_l
+  ADD CONSTRAINT ck_bcm_tx_dcml CHECK (dcml_cnt IS NULL OR dcml_cnt BETWEEN 0 AND 255);
+ALTER TABLE bcm_tx_l
+  ADD CONSTRAINT ck_bcm_tx_amt_snapshot CHECK ((base_amt IS NULL) = (dcml_cnt IS NULL));
+```
+
+#### 환산은 한 번만 한다
+
+| 단계 | 책임 |
+|---|---|
+| 파서 | **벤더 원래 단위를 그대로** 보존하고 형식만 검증한다 |
+| 판단 | 자산 매핑을 해소해 **한 번** 사람 단위로 환산하고, 쓴 정밀도를 함께 싣는다 |
+| 저장 | 정규화 금액과 환산 근거를 그대로 적는다. **매핑을 다시 읽지 않는다** |
+
+금액 비교는 문자열이 아니라 `BigDecimal.compareTo`다 — `1`·`1.0`·`1.00`은 같은 금액이다.
+
 ### V32 거래 조회 원장 — 물리 저장 계약 (2026-09-18 사용자 확정)
 
 [02 거래 조회](02-bcm-flow.md#거래-조회--제공자-공통-2026-09-18-사용자-확정)가 공개 조회를 **BCM 원장만** 읽도록 확정했다.
@@ -1032,6 +1076,8 @@ CREATE TABLE bcm_tx_l (
   trsf_amt        NUMERIC      NULL,          -- V32 공개 조회 금액 — 사람 단위 정규화. 자릿수를 고정하지 않는다(정밀도 0..255)
   src_addr        VARCHAR(256) NULL,          -- V32 발신 온체인 주소 — 체인에 오르기 전에는 NULL
   dst_addr        VARCHAR(256) NULL,          -- V32 수신 온체인 주소 — 같은 이유로 NULL일 수 있다
+  base_amt        VARCHAR(320) NULL,          -- V34 관찰이 준 최소 단위 정수 — 재처리가 현재 매핑 대신 이 값으로 재환산한다
+  dcml_cnt        SMALLINT     NULL,          -- V34 그때 환산에 쓴 정밀도 0..255 (base_amt 와 한 벌)
   tx_dvcd         VARCHAR(16)  NULL,          -- V32 공개 노출 판정용 거래 구분 — 입금은 제출 행이 없어 join 으로 거를 수 없다
                                               -- DEPOSIT · WITHDRAWAL · INTERNAL · SWEEP_APPROVE · SWEEP_BATCH · BAND_S
   last_pub_stcd   VARCHAR(16)  NOT NULL,      -- 마지막으로 발행한 TxStatus — 이 값과 다를 때만 새 이벤트를 낸다
