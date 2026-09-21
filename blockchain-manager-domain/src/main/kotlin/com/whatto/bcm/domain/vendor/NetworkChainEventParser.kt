@@ -101,7 +101,8 @@ enum class NetworkChainDirection(
 }
 
 /**
- * 벤더가 정의한 이동 상태 둘. **벤더 문서는 `Confirmed`를 final로 표시하지만** 기준 깊이를 밝히지 않아 BCM의 확정(DCCP)으로 쓰지 않는다 —
+ * 벤더가 정의한 이동 상태 둘. `Confirmed`는 OpenAPI가 "indexing pipeline 확인", Webhook Events 문서가 "final"이라 해 **출처마다 서술이 다르고**
+ * 어느 쪽도 기준 깊이를 밝히지 않아 BCM의 확정(DCCP)으로 쓰지 않는다 —
  * `TxStatus` 번역은 판단 워커와 함께 정한다.
  */
 enum class NetworkChainTransferStatus(

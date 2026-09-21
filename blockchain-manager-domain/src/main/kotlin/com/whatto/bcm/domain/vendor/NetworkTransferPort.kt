@@ -103,7 +103,7 @@ data class NetworkTransferObservation(
 
 /**
  * 명세 `TransferRequest.status`의 여섯 값. 종결(`externalId`가 그 전송에 영구 결속)과 체인 제출 여부만 판단한다.
- * `CONFIRMED`는 **벤더가 final로 표시한 상태**이며 BCM `FINALIZED`(DCCP 임계)가 아니다 — 기준 깊이가 문서에 없어 그대로 쓰지 않는다.
+ * `CONFIRMED`는 벤더 인덱싱 파이프라인의 온체인 확인이며 BCM `FINALIZED`(DCCP 임계)가 아니다 — 명세는 이 값을 final이라 부르지 않는다.
  */
 enum class NetworkTransferStatus(
     /** 명세 enum 원어. 상태 번역기는 원어를 받으므로 관찰에서 이 값을 꺼내 쓴다 — 이름을 원어로 가정하지 않는다. */
