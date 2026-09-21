@@ -617,22 +617,14 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 | `Confirmed`의 기준 | **네트워크별 고정 confirmation delay** 경과(Ethereum 12 · Base 50 · Solana 8 · Bitcoin 2 · ArbitrumOne 50 · Litecoin 12 · Dogecoin 40). Tier-2는 인덱싱 대상이 아니라 `N/A` | ["Confirmed의 기준"](#confirmed의-기준--벤더-고정-confirmation-delay-2026-09-21-확인)으로 반영. **확정을 블록 깊이로 직접 계산하는 결정은 유지**하되 이유를 셋으로 바꿨다 |
 | 임계를 고객이 설정할 수 있나 | **없다.** 문서에 커스터마이징 수단이 없다 | 우리 임계를 벤더에 맞출 방법이 없다 — 직접 계산의 남은 이유 하나 |
 | `Confirmed` 뒤 reorg 알림 | **없다.** "unfinalized blocks can still reorg"까지만 말하고 되돌림 웹훅을 정의하지 않는다 | 되돌림 감지 경로가 **양쪽 다 없다** — 우리도 `FINALIZED` 행을 재관찰하지 않는다(막힘·대사는 `SUBMITTED`·`CONFIRMED`만 본다) |
-| `WalletHistoryEvent`에 ID가 있나 | **없다. 놓친 필드도 없다.** 문서가 보장하는 유일한 안정 키는 **`network + txHash + index`**이고, 벤더가 **우리 파생 ID 방식과 동등하다고 인정**했다. changelog에도 추가 계획이 없다 | [파생 거래 ID](#입금-거래-id--구현)가 임의 발명이 아니라 **벤더가 보장하는 유일한 조합**임이 확인됐다. 콘솔 검색은 `txHash`로만 된다 |
+| `WalletHistoryEvent`에 ID가 있나 | **없다. 놓친 필드도 없다.** 문서가 보장하는 유일한 안정 키는 **`network + txHash + index`**이고, 벤더가 **우리 파생 ID 방식과 동등하다고 인정**했다. 추가 계획도 확인되지 않는다 | [파생 거래 ID](#입금-거래-id--구현)가 임의 발명이 아니라 **벤더가 보장하는 유일한 조합**임이 확인됐다. 콘솔 검색은 `txHash`로만 된다 |
 | `externalId` 조회 경로 | **없다.** List Transfers는 `limit`·`paginationToken`뿐이고 Get Transfer는 `(walletId, transferId)` 둘 다 필수다 | 기존 계약 그대로 |
 | `externalId`가 응답·웹훅에 항상 실리나 | **요청에 넣었으면 엔티티와 `wallet.transfer.*`의 `data.transferRequest.requestBody.externalId`에 그대로 실린다.** 넣지 않으면 값 자체가 없다 | 수용 항목 해소 — 우리는 항상 넣으므로 결속이 보장된다 |
 | 재제출 없이 확인할 방법 | 벤더가 **웹훅 스트림에서 `externalId`로 상태를 재구성**하는 방법을 제시했다 | **우리가 이미 한다** — 아래 [회수 경로의 순서](#회수-경로의-순서--웹훅이-먼저다) |
-| `index`·`from`이 실제로 항상 오나 | **문서 범위 밖.** 스키마상 optional인 것만 확인된다 | **미해소** — support 문의로 남긴다. `index`를 "멀티 트랜스퍼가 있는 트랜잭션의 경우"라 표현한 점은 아래 순번 규칙과 함께 본다 |
+| `index`·`from`이 실제로 항상 오나 | **문서 범위 밖.** 스키마상 optional인 것만 확인된다 | **미해소** — support 문의로 남긴다. `index`를 "멀티 트랜스퍼가 있는 트랜잭션의 경우"라 표현한 점은 [순번 규칙](#입금-거래-id--구현)과 함께 본다 |
+| `Failed`의 체인 도달 여부 | **아직 묻지 않았다** | `dateBroadcasted`·`txHash` 부재 해석과 nonce 확인 가능 여부를 support에 묻는다([기능 문의 1번](evidence/91-dfns-feature-requests.md)) |
 | `timestamp`·`value`의 명세 | **둘 다 `type: string`이고 형식·단위 명문이 없다.** `timestamp` 예시는 ISO 8601 UTC, `value`는 정수 문자열인지도 문서에서 확인되지 않는다 | 현행 방어가 맞다 — 시각은 envelope `date`를 쓰고, 금액은 `BASE_UNITS` 정규식으로 검증하며 정밀도는 등록 매핑에서 읽는다 |
 | 웹훅 수동 재전송 | **없다.** 대신 **자동 재전송**이 최대 5회·24시간·지수 백오프(1분·12분·2시간·1일)로 돌고, 각 재시도는 **새 고유 ID** + `retryOf` 참조다. 실패분은 `List Webhook Events`의 **`deliveryFailed=true`로 조회**할 수 있고, 상한에 닿으면 `nextAttemptDate`가 사라진다 | `retryOf`·`deliveryAttempt` 수용 항목 해소. **`deliveryFailed` 조회는 이력 복구 설계의 입구다** — 무엇을 놓쳤는지 알 수 있다. 벤더도 별도 회수 경로가 필요하다고 확인했다 |
-
-**[공개 changelog](https://docs.dfns.co/changelog/platform)에서 확인한 것** — 2026-05-18 릴리스(문서 표기 `v1.819.2`) 항목이며 우리 계약이 "미정"으로 둔 둘에 직접 걸린다. **페이지 요약으로 읽은 2차 정보라 실물 확인이 필요하다.**
-
-| 필드 | 문서 설명 | 우리 쪽 의미 |
-|---|---|---|
-| `replacementId` | "원 전송·거래를 그것에 대해 발행된 **취소 또는 speed-up에 연결**한다" | RBF 계열을 "미정·범위 밖"으로 둔 자리들의 입구다. `FAILED` 재시도의 "취소 → nonce 결말 확정 → 새 키" 모양과 직접 맞물린다 |
-| `details` | "서명을 만들 때 쓴 데이터의 구조화된 뷰(**nonce**, gas 파라미터, 체인별 형태)" | **nonce가 노출된다.** `Failed`의 체인 도달 여부를 우리가 직접 확인할 길이 될 수 있다 — `dateBroadcasted` 부재 해석([회수 절차](#제공자별-회수-절차-2026-09-17))과 함께 확인한다 |
-
-둘 다 **아직 확인 전이다** — `Failed` 전송에도 `details.nonce`가 채워지는지, `replacementId`로 원 전송의 nonce 결말을 알 수 있는지는 후속 문의 대상이다.
 
 #### 회수 경로의 순서 — 웹훅이 먼저다
 

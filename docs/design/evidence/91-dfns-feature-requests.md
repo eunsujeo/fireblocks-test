@@ -33,8 +33,7 @@ status: To Do
 | 6 | 웹훅 수동 재전송 | 최대 재시도 뒤 놓친 건은 이력 조회로 회수해야 함 |
 | 7 | 명세 보완 | 형식·단위를 가정하고 방어 코드로 막는 중 |
 
-**1번이 가장 크다** — `details`의 `nonce`와 `dateBroadcasted`, `replacementId`로 이미 풀릴 수 있어 보인다.
-없는 걸 만들어 달라기 전에 **있는 걸로 되는지 먼저 묻는다.**
+**1번이 가장 크다.** 없는 걸 만들어 달라기 전에 **있는 걸로 되는지 먼저 묻는다** — `dateBroadcasted`·`txHash`의 부재 해석과 nonce 확인 가능 여부다.
 
 ## 다른 수탁 벤더(Fireblocks)에서는
 
@@ -63,14 +62,9 @@ status: To Do
 실패한 출금을 재시도해도 되는지 판단해야 합니다. 같은 `externalId` 재제출은 기존 실패 엔티티를 돌려주고,
 새 `externalId`로 보내면 **이미 체인에 나간 건일 때 이중 지급**이 됩니다. 지금은 보수적으로 재시도를 막고 있습니다.
 
-이미 있는 필드로 풀 수 있는지 먼저 여쭙습니다.
-
-- [changelog](https://docs.dfns.co/changelog/platform)에서 `details` 필드가 nonce·gas 파라미터를 담는다고 읽었습니다. **`Failed` 전송에도 `details`의 nonce가 채워지나요?** 채워진다면 저희가 그 nonce의 온체인 결말을 직접 확인하겠습니다.
-- **`dateBroadcasted`의 부재를 "브로드캐스트되지 않음"으로 읽어도 될까요?** 보장되는 해석인지 알고 싶습니다.
-- **`replacementId`로 취소를 발행했을 때**, 원 전송의 nonce가 어떻게 되는지(취소 트랜잭션이 그 nonce를 소비하는지) 확인할 수 있을까요?
-
-위 셋으로 판단이 서지 않는다면, `TransferRequest`에 `onChainSubmitted: boolean`이나
-`failureStage: "PRE_BROADCAST" | "ON_CHAIN"` 같은 필드를 추가하실 계획이 있는지 궁금합니다.
+- `Failed` 전송에서 **브로드캐스트 여부를 판단할 방법**이 있을까요? `dateBroadcasted`나 `txHash`의 부재로 판단해도 되는지 알고 싶습니다.
+- 실패한 전송의 **nonce**를 알 수 있나요? 알 수 있다면 저희가 그 nonce의 온체인 결말을 직접 확인하겠습니다.
+- 없다면 `TransferRequest`에 `onChainSubmitted`나 `failureStage` 같은 **구분 필드를 추가하실 계획**이 있는지 궁금합니다.
 
 ## 2. 확정 임계·reorg 알림·컨펌 수
 
