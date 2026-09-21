@@ -28,7 +28,7 @@ API 전체 기동 차단·Baseline 수용은 유지·미완료다.
 | [API Idempotency](https://docs.dfns.co/api-reference/idempotency) | Transfer/Broadcast의 동일 URL·본문·externalId 재요청과 충돌 처리가 문서화돼 있다. 종결된 요청은 같은 externalId로 새 실행을 만들지 않는다. | 이 설명을 Wallet 생성의 멱등 보장으로 확대하지 않는다. Fireblocks의 24시간 키 회전 정책을 Dfns에 재사용하지 않는다. |
 | [List Wallets](https://docs.dfns.co/api-reference/wallets/list-wallets) | owner 필터와 limit/paginationToken, 응답 nextPageToken이 문서화돼 있다. | 공개 query에 없는 externalId exact 검색을 구현했다고 가정하지 않는다. 전체 페이지 조회도 동시 생성의 부재를 증명하지 못한다. |
 | [Webhook 검증](https://docs.dfns.co/guides/developers/webhooks) | `X-DFNS-WEBHOOK-SIGNATURE`의 HMAC-SHA256, `sha256=` 형식, timestampSent 검사 예제가 있다. secret은 생성 응답에서 한 번 제공된다. | Fireblocks JWKS/RS512와 다른 검증기·secret 관리가 필요하다. 예제의 JSON 재직렬화와 BCM의 원문 byte[] 원칙 사이의 정확한 서명 입력은 실제 릴리스와 대조한다. |
-| [Webhook Events](https://docs.dfns.co/api-reference/webhook-events) | 최상위 종류는 kind다. 재시도는 별도 ID이고 retryOf/deliveryAttempt가 사용되며 순서 보장은 없다. 이력 보존은 31일, 수동 retry API는 없다고 명시한다. | 알림 시도·논리 이동·CORE 이벤트를 분리한다. 복구는 이력 회수와 처리 재개로 설계하고 벤더 재전송 성공을 꾸며내지 않는다. |
+| [Webhook Events](https://docs.dfns.co/api-reference/webhook-events) | 최상위 종류는 kind다. 재시도는 별도 ID이고 retryOf/deliveryAttempt가 사용되며 순서 보장은 없다. **자동 재전송은 최대 5회·24시간·지수 백오프(1분·12분·2시간·1일)이고 상한에 닿으면 `nextAttemptDate`가 사라진다. 실패분은 List Webhook Events의 `deliveryFailed=true`로 조회된다**(#기능-문의-회신--2026-09-21). 이력 보존은 31일, 수동 retry API는 없다고 명시한다. | 알림 시도·논리 이동·CORE 이벤트를 분리한다. 복구는 이력 회수와 처리 재개로 설계하고 벤더 재전송 성공을 꾸며내지 않는다. |
 
 공개 명세 열은 문서 확인이며 Baseline 실측이 아니다. 공개 명세에 있는 필드·동작은 출처와 버전을 고정해 어댑터·계약 테스트의 구현 근거로 사용한다.
 실제 배포 릴리스 대조와 서명된 수신 원문 검증은 운영 연결 전 수용 항목이며 모든 어댑터 개발의 선행 조건으로 두지 않는다.
@@ -183,7 +183,7 @@ Dfns 연결 전에 다음 경계를 추가로 확정한다.
 | envelope | `id`(알림 ID)·`kind`(사건 종류)는 필수 문자열. 조회 모델 `WebhookEvent`의 `data`는 형식 미정의 객체다 — 실제로 전달되는 본문의 kind별 형식은 같은 명세의 `webhooks` 항목에 있다 | `notificationId=id`, `eventType=kind`. `vendorTransactionId`는 **형식이 문서화된 종류에서만** 채운다 — 아래 [웹훅 전송 사건 관찰](#웹훅-전송-사건-관찰--구현)의 `wallet.transfer.*`는 `data.transferRequest.id`를 쓰고, 나머지 종류는 근거가 없으므로 null로 둔다. 인박스 dedup 키는 `id`이며 재전달은 ID가 다르면 별도 수신이다 |
 | 판단 | — | **입금·발신 판단 경로가 모두 조립됐다** — 워커가 [전송 알림 판단](#전송-알림-판단--구현)을 먼저 부르고, 전송 사건이 아니면 [판단 워커 조립](#판단-워커-조립--구현)의 온체인 이동 판단으로 넘긴다. `WebhookTransactionParser`의 Dfns 구현은 없다(Fireblocks 전용 경계). `BCM_PROVIDER=dfns` 전체 기동 차단은 유지한다 |
 
-수용 항목: 실제 Baseline이 보낸 서명 원문(바이트)과 위 원문 검증의 일치, `timestampSent` 단위·허용 오차 적정성, 재전달 시도의 ID/`retryOf` 의미.
+수용 항목: 실제 Baseline이 보낸 서명 원문(바이트)과 위 원문 검증의 일치, `timestampSent` 단위·허용 오차 적정성, 재전달 시도의 ID/`retryOf` 의미 — **문서로 확인됐다**: 각 재시도는 새 고유 ID이고 `retryOf`가 원본을 가리킨다(#기능-문의-회신--2026-09-21). 남은 것은 실제 Baseline이 같은 형태로 보내는지다.
 
 ### 웹훅 전송 사건 관찰 — 구현
 
@@ -345,8 +345,8 @@ Tier-2를 채택하면 이 경로 자체가 성립하지 않으므로 네트워�
 | 항목 | 명세로 확인한 사실 | BCM 규칙 |
 |---|---|---|
 | 출금(우리 제출) | `TransferRequest.id`는 `^xfr-…$`로 64자 이내다 | 벤더가 준 ID를 논리 거래 ID로 그대로 쓴다 — 만들지 않는다 |
-| 입금(관찰만) | 이동 사건은 `walletId`·`txHash`·`index`·`blockNumber`만 준다. **ID가 없다** | `dfns-` + SHA-256(network·hash·순번) 요약 52자(합 57자, `vndr_tx_id` 64자 안). 같은 이동은 몇 번을 다시 봐도 같은 ID여야 02의 전이 판정이 성립하므로 **결정적**이어야 한다 |
-| 순번 | `index`는 어느 변형의 required에도 없다(**선택**) | 파생 ID의 **필수 입력**이다. 순번이 없으면 한 트랜잭션의 여러 이동이 같은 PK가 되어 서로 다른 계정·자산의 자금이 한 논리 거래로 합쳐진다. 순번 없는 사건은 ID를 지어내지 않고 실패시켜 **처리 보류**로 남긴다 |
+| 입금(관찰만) | 이동 사건은 `walletId`·`txHash`·`index`·`blockNumber`만 준다. **ID가 없다** — 벤더도 "문서가 보장하는 유일한 안정 키는 `network + txHash + index`이고 귀사 방식과 동등하다"고 확인했다(#기능-문의-회신--2026-09-21) | `dfns-` + SHA-256(network·hash·순번) 요약 52자(합 57자, `vndr_tx_id` 64자 안). 같은 이동은 몇 번을 다시 봐도 같은 ID여야 02의 전이 판정이 성립하므로 **결정적**이어야 한다 |
+| 순번 | `index`는 어느 변형의 required에도 없다(**선택**). 벤더는 이를 "**멀티 트랜스퍼가 있는 트랜잭션의 경우**"라고 설명하지만 실제 보장 여부는 **문서 범위 밖**이다(#기능-문의-회신--2026-09-21) | 파생 ID의 **필수 입력**이다. 순번이 없으면 한 트랜잭션의 여러 이동이 같은 PK가 되어 서로 다른 계정·자산의 자금이 한 논리 거래로 합쳐진다. 순번 없는 사건은 ID를 지어내지 않고 실패시켜 **처리 보류**로 남긴다 |
 | 파생 입력 | — | 길이를 앞에 붙여 이어 붙인다 — 구분자는 값 안의 문자에 따라 경계가 흔들려 서로 다른 이동을 같은 ID로 합칠 수 있다 |
 | 표기 정규화 | EVM `txHash`는 16진수, Solana 서명은 base58 | **EVM hash만** 소문자로 맞춘다(대소문자에 정보가 없다). base58처럼 대소문자가 값의 일부인 형식은 건드리지 않는다 |
 | 원문 보존 | — | 실제 hash는 기존 `bcm_tx_l.tx_hash`에 그대로 남긴다. 파생 ID로는 벤더 콘솔·체인 탐색기를 검색할 수 없으므로 운영 조사는 hash로 하고, 그 조회를 위해 V26 index를 추가했다 |
@@ -488,7 +488,7 @@ Dfns가 대체 제출에서 hash를 어떻게 바꾸는지와 그때 기존 거�
 
 | 항목 | 명세로 확인한 사실 | Fireblocks(현행) | Dfns |
 |---|---|---|---|
-| 응답 유실·소유권 만료 회수 | `GET /wallets/{walletId}/transfers`의 query는 **`limit`·`paginationToken`뿐이다** — `externalId` 필터가 없다 | `GET /v1/transactions/external_tx_id/{externalTxId}` 단건 조회로 확인 | **같은 본문으로 다시 제출한다.** 공식 문서가 "같은 url·같은 본문(같은 `externalId`)을 재제출하면 처음 만들어진 엔티티를 `200`으로 돌려준다"고 규정한다 — 조회가 아니라 **멱등 재제출이 회수 수단**이다 |
+| 응답 유실·소유권 만료 회수 | `GET /wallets/{walletId}/transfers`의 query는 **`limit`·`paginationToken`뿐이다** — `externalId` 필터가 없다 | `GET /v1/transactions/external_tx_id/{externalTxId}` 단건 조회로 확인 | **먼저 전송 알림이 원장을 채운다**(자금 이동 없음). 알림도 오지 않을 때만 **같은 본문으로 다시 제출한다** — 공식 문서가 "같은 url·같은 본문(같은 `externalId`)을 재제출하면 처음 만들어진 엔티티를 `200`으로 돌려준다"고 규정한다. 순서는 [회수 경로의 순서](#회수-경로의-순서--웹훅이-먼저다) |
 | 회수의 안전성 | 종결(`Confirmed`/`Failed`/`Rejected`) 뒤에도 `externalId`는 그 엔티티에 영구 결속되고 재제출은 기존 엔티티를 `200`으로 돌려준다(새로 만들지 않는다). **명확한 보장은 여기까지다** — 앞 제출이 진행 중일 때의 응답은 서술이 없어 아래 수용 항목이다 | — | 그래서 02의 "조회를 건너뛰면 그게 곧 이중 출금"이 Dfns에서는 **같은 본문 재제출로 대체**된다. 본문이 같아야 한다는 조건이 안전장치다 |
 | 같은 키 다른 내용 | 같은 `externalId`에 다른 본문·다른 지갑이면 `409`(`error.details.duplicate`) | `400` 전부를 조회로 확인 | 표식 있는 `409`는 **최초 제출에서는** 요청 자체가 거절된 것이 확실하므로 02 표의 `409`·`422` 계열로 `FAILED`다. **회수 재제출에서는 그렇게 읽지 않는다** — 앞 제출이 진행 중일 때의 응답이 아래 수용 항목이라 `409`가 진행 중 전송을 뜻할 수 있고, 종결로 적으면 나간 전송에 확정 거절을 돌려주게 된다(구현 절 참조). 표식 없는 `409`는 원인을 단정하지 않고 02의 "그 밖의 `4xx`"대로 `REQUESTED`로 둔다 |
 | 재시도 | 실패한 전송의 재시도는 **새 `externalId`**가 필요하다(원래 키는 재사용 불가) | 같은 키로 재제출 | 같은 키로 재제출하면 기존 실패 엔티티를 돌려받을 뿐이다 — 새 제출을 만들려면 BCM이 **새 제출 키**를 발급해야 하며 그 발급 규칙은 출금 유스케이스에서 정한다 |
@@ -603,9 +603,48 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 `externalId` 50자 안에서 새 키를 만드는 규칙(공식 권장은 `-retry-N` 접미사인데 기존 키가 길면 들어가지 않는다), 벤더에 보내는 키가 `ext_tx_id`와 달라질 때의 원장 컬럼 분리.
 **비EVM(Solana)의 `FAILED` 재시도는 열지 않는다** — 원본이 결제될 수 없음을 확인할 방법이 문서에 없으므로 별도 계약 전까지 `422`를 유지한다.
 
-수용 항목: 실제 Baseline에서 앞 제출이 **진행 중일 때** 같은 본문 재제출이 `200`을 주는지(문서는 종결 뒤만 명시가 분명하다),
+수용 항목: 실제 Baseline에서 앞 제출이 **진행 중일 때** 같은 본문 재제출이 `200`을 주는지(문서는 종결 뒤만 명시가 분명하다) — **`externalId`가 응답·웹훅에 실리는지는 해소됐다**(요청에 넣으면 그대로 실린다)(#기능-문의-회신--2026-09-21),
 제출 응답이 `externalId`를 항상 되돌려주는지(대조 강도가 달라진다), 공개 `externalTxId`가 실제로 50자를 넘는 경우가 있는지(DAW-CORE 확인),
 새 제출 키 발급 규칙과 원 키와의 상관관계 보존 방식, 대납·수수료·Travel Rule·memo가 필요한 네트워크.
+
+### 기능 문의 회신 — 2026-09-21
+
+[기능 문의](evidence/91-dfns-feature-requests.md)로 보낸 질문의 회신과 공식 문서 재확인 결과다.
+**채택 OpenAPI만 읽어서 생긴 오해가 여럿 드러났다** — 스펙은 필드를 말하고 문서 사이트는 의미를 말한다. 둘 다 본다.
+
+| 물음 | 회신·문서 확인 | 우리 계약에 준 영향 |
+|---|---|---|
+| `Confirmed`의 기준 | **네트워크별 고정 confirmation delay** 경과(Ethereum 12 · Base 50 · Solana 8 · Bitcoin 2 · ArbitrumOne 50 · Litecoin 12 · Dogecoin 40). Tier-2는 인덱싱 대상이 아니라 `N/A` | ["Confirmed의 기준"](#confirmed의-기준--벤더-고정-confirmation-delay-2026-09-21-확인)으로 반영. **확정을 블록 깊이로 직접 계산하는 결정은 유지**하되 이유를 셋으로 바꿨다 |
+| 임계를 고객이 설정할 수 있나 | **없다.** 문서에 커스터마이징 수단이 없다 | 우리 임계를 벤더에 맞출 방법이 없다 — 직접 계산의 남은 이유 하나 |
+| `Confirmed` 뒤 reorg 알림 | **없다.** "unfinalized blocks can still reorg"까지만 말하고 되돌림 웹훅을 정의하지 않는다 | 되돌림 감지 경로가 **양쪽 다 없다** — 우리도 `FINALIZED` 행을 재관찰하지 않는다(막힘·대사는 `SUBMITTED`·`CONFIRMED`만 본다) |
+| `WalletHistoryEvent`에 ID가 있나 | **없다. 놓친 필드도 없다.** 문서가 보장하는 유일한 안정 키는 **`network + txHash + index`**이고, 벤더가 **우리 파생 ID 방식과 동등하다고 인정**했다. changelog에도 추가 계획이 없다 | [파생 거래 ID](#입금-거래-id--구현)가 임의 발명이 아니라 **벤더가 보장하는 유일한 조합**임이 확인됐다. 콘솔 검색은 `txHash`로만 된다 |
+| `externalId` 조회 경로 | **없다.** List Transfers는 `limit`·`paginationToken`뿐이고 Get Transfer는 `(walletId, transferId)` 둘 다 필수다 | 기존 계약 그대로 |
+| `externalId`가 응답·웹훅에 항상 실리나 | **요청에 넣었으면 엔티티와 `wallet.transfer.*`의 `data.transferRequest.requestBody.externalId`에 그대로 실린다.** 넣지 않으면 값 자체가 없다 | 수용 항목 해소 — 우리는 항상 넣으므로 결속이 보장된다 |
+| 재제출 없이 확인할 방법 | 벤더가 **웹훅 스트림에서 `externalId`로 상태를 재구성**하는 방법을 제시했다 | **우리가 이미 한다** — 아래 [회수 경로의 순서](#회수-경로의-순서--웹훅이-먼저다) |
+| `index`·`from`이 실제로 항상 오나 | **문서 범위 밖.** 스키마상 optional인 것만 확인된다 | **미해소** — support 문의로 남긴다. `index`를 "멀티 트랜스퍼가 있는 트랜잭션의 경우"라 표현한 점은 아래 순번 규칙과 함께 본다 |
+| `timestamp`·`value`의 명세 | **둘 다 `type: string`이고 형식·단위 명문이 없다.** `timestamp` 예시는 ISO 8601 UTC, `value`는 정수 문자열인지도 문서에서 확인되지 않는다 | 현행 방어가 맞다 — 시각은 envelope `date`를 쓰고, 금액은 `BASE_UNITS` 정규식으로 검증하며 정밀도는 등록 매핑에서 읽는다 |
+| 웹훅 수동 재전송 | **없다.** 대신 **자동 재전송**이 최대 5회·24시간·지수 백오프(1분·12분·2시간·1일)로 돌고, 각 재시도는 **새 고유 ID** + `retryOf` 참조다. 실패분은 `List Webhook Events`의 **`deliveryFailed=true`로 조회**할 수 있고, 상한에 닿으면 `nextAttemptDate`가 사라진다 | `retryOf`·`deliveryAttempt` 수용 항목 해소. **`deliveryFailed` 조회는 이력 복구 설계의 입구다** — 무엇을 놓쳤는지 알 수 있다. 벤더도 별도 회수 경로가 필요하다고 확인했다 |
+
+**changelog에서 확인한 것**(v1.819.2, 2026-05-18) — 우리 계약이 "미정"으로 둔 둘에 직접 걸린다.
+
+| 필드 | 문서 설명 | 우리 쪽 의미 |
+|---|---|---|
+| `replacementId` | "원 전송·거래를 그것에 대해 발행된 **취소 또는 speed-up에 연결**한다" | RBF 계열을 "미정·범위 밖"으로 둔 자리들의 입구다. `FAILED` 재시도의 "취소 → nonce 결말 확정 → 새 키" 모양과 직접 맞물린다 |
+| `details` | "서명을 만들 때 쓴 데이터의 구조화된 뷰(**nonce**, gas 파라미터, 체인별 형태)" | **nonce가 노출된다.** `Failed`의 체인 도달 여부를 우리가 직접 확인할 길이 될 수 있다 — `dateBroadcasted` 부재 해석([회수 절차](#제공자별-회수-절차-2026-09-17))과 함께 확인한다 |
+
+둘 다 **아직 확인 전이다** — `Failed` 전송에도 `details.nonce`가 채워지는지, `replacementId`로 원 전송의 nonce 결말을 알 수 있는지는 후속 문의 대상이다.
+
+#### 회수 경로의 순서 — 웹훅이 먼저다
+
+제출 응답을 잃었을 때의 회수는 **두 경로**이고 순서가 있다.
+
+| 순서 | 경로 | 자금 이동 |
+|---|---|---|
+| 1 | **전송 알림이 원장을 채운다** — `wallet.transfer.*`가 오면 비어 있던 `vndr_tx_id`를 그 알림이 채운다(`DfnsTransferEventDecision`) | 없음 |
+| 2 | 알림도 오지 않으면 **같은 본문 재제출** | **있다** — 재제출은 자금 이동 시도다 |
+
+그래서 미결 제출 점검은 **재제출하지 않는다** — 1번은 저절로 일어나고, 2번은 전체 요청 문맥과 새 소유권을 가진 원 제출 경로(API 재시도)만 한다.
+"재제출이 회수 수단"이라는 서술은 **2번만** 가리킨다.
 
 ### 내부이체 — 확정
 
