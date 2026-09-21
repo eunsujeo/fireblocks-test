@@ -1169,3 +1169,29 @@ PostgreSQL·Kafka·DNS가 모두 미정이라 **배포된 적이 없고 운영 �
 
 - 남은 슬라이스: **Q2** 공통 쓰기 경로(제출 시 거래 행 생성·웹훅 시 금액/주소 보강) → **Q3** 공통 조회와 동시 cutover.
   각 슬라이스는 실패 테스트를 먼저 고정한다. **Q1은 Q1a로 완료**되었고 백필은 위 결정으로 없앴다.
+## Dfns 확정 판정 전환 — 결정 (2026-09-21 사용자 확정)
+
+[CLAUDE.md 3절](../../CLAUDE.md)의 2026-09-16 결정("블록 깊이로 직접 계산")을 **대체한다.**
+전제였던 "벤더 기준을 모른다"가 [기능 문의 회신](13-dfns-contracts.md#기능-문의-회신--2026-09-21)으로 깨졌다.
+
+- Dfns 확정은 **온체인 이동 사건의 `Confirmed`**(네트워크별 고정 delay 경과)를 근거로 한다. 위탁 RPC·깊이 계산은 **제거**한다.
+- **출금도 `direction: Out` 온체인 사건에서** 확정한다 — 벤더 문서는 `TransferRequest.status=Confirmed`에 같은 delay를 말하지 않는다.
+  support 회신이 그것을 명시하면 그때 전송 알림만으로도 허용할 수 있다.
+- **제공자 간 확정 깊이는 같지 않다.** 공통으로 보장하는 것은 `TxStatus`·전이·이벤트 순서·멱등·복구 결과이고,
+  실제 깊이와 확정 지연은 제공자별이다. 설계12의 상위 계약은 숫자 깊이 동일성을 요구하지 않는다.
+- **Fireblocks 임계를 Dfns 값에 맞추지 않는다** — 신규 EVM L2의 Fireblocks 최대 DCCP는 30인데 Base delay는 50이라
+  설정만 올리면 웹훅이 다시 오지 않아 `CONFIRMED`에 갇힌다. BAT 대사도 `COMPLETED`를 임계 비교 없이 확정으로 번역해 경로 간 판정이 갈린다.
+- 관찰 컨펌 수는 **nullable + 확정 근거(`finalitySource`)** 로 바꾼다 — 실측치가 없는 값을 실측치처럼 내보내지 않는다.
+  `ChainEvent.numOfConfirmations`(필수 `Int`)·`cnfm_cnt NOT NULL`·OpenAPI 설명이 함께 바뀌므로 **DAW-CORE 협의가 선행한다.**
+
+### 순서 — 이력 복구가 먼저다
+
+| 단계 | 내용 | 게이트 |
+|---|---|---|
+| 1 | **이력 복구** — `List Webhook Events`의 `deliveryFailed=true` 조회, 관리 지갑 `GET /history`, 로컬 격리(`F`) 재처리, 영속 cursor·겹침·bounded pagination, `network+txHash+index` dedup, 복구 원문 증적 | — |
+| 2 | **확정 전환** — `Included`/`Confirmed` 번역, 컨펌 수 모델 변경, RPC 계열 제거, 02·03·12·13·설정·테스트를 **한 슬라이스로** | DAW-CORE 협의 완료 |
+| 3 | 기동 차단 해제 | 1·2 완료 + Baseline 수용 |
+
+**복구 완료 전에는 운영을 활성화하지 않는다.** Ethereum·Base는 early detection이 없어 `detected`가 사실상 필수이고,
+그것을 놓쳤을 때의 공백은 **이번 변경이 만드는 것이 아니라 이미 있는 것**이다.
+2번을 코드·설정·계약이 어긋난 중간 상태로 두지 않는다 — "코드는 벤더 `Confirmed`인데 계약은 RPC 깊이"가 되면 안 된다.
