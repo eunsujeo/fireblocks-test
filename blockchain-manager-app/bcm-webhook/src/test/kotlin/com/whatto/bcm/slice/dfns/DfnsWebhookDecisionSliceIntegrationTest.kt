@@ -32,6 +32,7 @@ import com.whatto.bcm.infra.client.dfns.DfnsProperties
 import com.whatto.bcm.infra.client.json.JacksonChainEventSerializer
 import com.whatto.bcm.infra.persistence.account.DepositAddressJdbcAdapter
 import com.whatto.bcm.infra.persistence.asset.VendorAssetMappingJdbcAdapter
+import com.whatto.bcm.infra.persistence.asset.VendorBlockchainCatalogJdbcAdapter
 import com.whatto.bcm.infra.persistence.config.SpringTransactionRunner
 import com.whatto.bcm.infra.persistence.event.OutboxJdbcAdapter
 import com.whatto.bcm.infra.persistence.provider.ProviderOriginJdbcAdapter
@@ -107,6 +108,8 @@ import java.security.MessageDigest
     SubmissionJdbcAdapter::class,
     DepositAddressJdbcAdapter::class,
     VendorAssetMappingJdbcAdapter::class,
+    // 주소 비교 규칙(계정 모델)을 읽는다 — 동일성 검사가 이 카탈로그를 본다(03 chain_mdl_dvcd).
+    VendorBlockchainCatalogJdbcAdapter::class,
 )
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class DfnsWebhookDecisionSliceIntegrationTest {

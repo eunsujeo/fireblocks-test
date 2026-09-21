@@ -2,6 +2,7 @@ package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.submission.SubmissionObservationService
+import com.whatto.bcm.app.application.tx.TxObservationOutcome
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.event.ChainEvent
 import com.whatto.bcm.domain.event.ChainEventSerializer
@@ -14,6 +15,7 @@ import com.whatto.bcm.domain.submission.SubmissionStatus
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.submission.SubmissionVendorCanonical
 import com.whatto.bcm.domain.tx.TxObservation
+import com.whatto.bcm.domain.tx.TxObservationConsistency
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStateChange
 import com.whatto.bcm.domain.tx.TxStatus
@@ -47,11 +49,24 @@ class DfnsTransferEventDecisionTest {
         }
     private val outboxEvents = mockk<OutboxEventService>(relaxed = true)
 
+    /** 마지막으로 원장에 넘긴 관찰. */
+    private val observed = slot<TxObservation>()
+
+    /** 동일성 검사를 통과시킨다 — 이 경로는 거래 행 하나만 다루므로 입구도 하나다(03 V32). */
+    private fun stubObserve(change: () -> TxStateChange) {
+        every { txStates.observeConsistently(any(), capture(observed), any(), any(), any()) } answers {
+            TxObservationOutcome.Applied(change())
+        }
+    }
+
+    private fun verifyNoObservation() {
+        verify(exactly = 0) { txStates.observeConsistently(any(), any(), any(), any(), any()) }
+    }
+
     @Test
     fun `제출 원장에 있는 전송은 원장 전이와 출금 이벤트를 만든다`() {
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
-        val observed = slot<TxObservation>()
-        every { txStates.observe(capture(observed), any()) } returns stateChange(TxStatus.SUBMITTED)
+        stubObserve { stateChange(TxStatus.SUBMITTED) }
         val enqueued = slot<List<OutboxEvent>>()
         every { outboxEvents.enqueue(capture(enqueued)) } returns Unit
 
@@ -71,7 +86,7 @@ class DfnsTransferEventDecisionTest {
     fun `이벤트의 심볼·금액·목적지는 알림이 아니라 제출 원장 값이다`() {
         // 알림은 벤더가 보낸 관찰이고 업무 귀속의 근거는 우리가 승인·기록한 요청이다.
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
-        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
+        stubObserve { stateChange(TxStatus.SUBMITTED) }
         every { outboxEvents.enqueue(any()) } returns Unit
         val serialized = mutableListOf<ChainEvent>()
 
@@ -114,8 +129,7 @@ class DfnsTransferEventDecisionTest {
                     sourceType: String,
                 ): TxStatus? = null
             }
-        val observed = slot<TxObservation>()
-        every { txStates.observe(capture(observed), any()) } returns stateChange(TxStatus.CONFIRMED)
+        stubObserve { stateChange(TxStatus.CONFIRMED) }
 
         decision(statusTranslator = translator).decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -128,7 +142,7 @@ class DfnsTransferEventDecisionTest {
     fun `응답보다 웹훅이 먼저 오면 비어 있던 벤더 전송 ID를 채운다`() {
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns null
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns record(vendorTransactionId = null)
-        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
+        stubObserve { stateChange(TxStatus.SUBMITTED) }
 
         decision().decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -136,9 +150,26 @@ class DfnsTransferEventDecisionTest {
     }
 
     @Test
+    fun `관찰이 이미 적힌 사실과 어긋나면 벤더 전송 ID 결속도 하지 않는다`() {
+        // 워커의 즉시 격리는 같은 트랜잭션에서 일어난다 — 앞서 결속을 쓰면 격리와 함께 커밋된다.
+        every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns null
+        every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns record(vendorTransactionId = null)
+        val conflict = TxObservationConsistency.Result.Conflict("amount", "1.5", "2.5")
+        every { txStates.observeConsistently(any(), any(), any(), any(), any()) } returns TxObservationOutcome.Conflict(conflict)
+
+        val outcome = decision().decide(NOTIFICATION_ID, PAYLOAD)
+
+        assertThat(outcome).isInstanceOfSatisfying(DfnsTransferDecisionOutcome.ObservationConflict::class.java) {
+            assertThat(it.safeReason).contains("field=amount").doesNotContain("1.5")
+        }
+        verify(exactly = 0) { submissions.markSubmitted(any(), any(), any()) }
+        verify(exactly = 0) { outboxEvents.enqueue(any()) }
+    }
+
+    @Test
     fun `이미 연결된 전송은 원장을 다시 잇지 않는다`() {
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
-        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
+        stubObserve { stateChange(TxStatus.SUBMITTED) }
 
         decision().decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -153,7 +184,7 @@ class DfnsTransferEventDecisionTest {
         val outcome = decision().decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isInstanceOf(DfnsTransferDecisionOutcome.UnknownSubmission::class.java)
-        verify(exactly = 0) { txStates.observe(any(), any()) }
+        verifyNoObservation()
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
     }
 
@@ -167,7 +198,7 @@ class DfnsTransferEventDecisionTest {
         assertThat(outcome).isInstanceOfSatisfying(DfnsTransferDecisionOutcome.Conflicting::class.java) {
             assertThat(it.externalTransactionId).isEqualTo(EXTERNAL_ID)
         }
-        verify(exactly = 0) { txStates.observe(any(), any()) }
+        verifyNoObservation()
         verify(exactly = 0) { submissions.markSubmitted(any(), any(), any()) }
     }
 
@@ -175,14 +206,14 @@ class DfnsTransferEventDecisionTest {
     fun `고객 이벤트가 없는 계열은 원장만 잇고 이벤트를 만들지 않는다`() {
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns
             record(transactionType = SubmissionTransactionType.SWEEP_BATCH)
-        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
+        stubObserve { stateChange(TxStatus.SUBMITTED) }
 
         val outcome = decision().decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isInstanceOfSatisfying(DfnsTransferDecisionOutcome.Processed::class.java) {
             assertThat(it.events).isEmpty()
         }
-        verify(exactly = 1) { txStates.observe(any(), any()) }
+        verify(exactly = 1) { txStates.observeConsistently(any(), any(), any(), any(), any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
     }
 
@@ -190,7 +221,7 @@ class DfnsTransferEventDecisionTest {
     fun `거래를 만들기 전에 network와 hash의 직렬화 경계를 잡는다`() {
         // 발신 붙임의 후보 조회와 직렬화되어야 팬텀 삽입이 생기지 않는다.
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
-        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
+        stubObserve { stateChange(TxStatus.SUBMITTED) }
 
         decision().decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -202,7 +233,7 @@ class DfnsTransferEventDecisionTest {
         val outcome = decision(parser = NetworkTransferEventParser { null }).decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isEqualTo(DfnsTransferDecisionOutcome.NotTransferEvent)
-        verify(exactly = 0) { txStates.observe(any(), any()) }
+        verifyNoObservation()
     }
 
     private fun decision(
@@ -273,7 +304,7 @@ class DfnsTransferEventDecisionTest {
                     ),
             )
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns internal
-        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.CONFIRMED)
+        stubObserve { stateChange(TxStatus.CONFIRMED) }
         every { outboxEvents.enqueue(any()) } returns Unit
 
         val serialized = mutableListOf<ChainEvent>()

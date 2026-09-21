@@ -415,6 +415,36 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
+    fun `이미 적힌 금액과 다른 vault 웹훅은 제출 결속도 남기지 않고 즉시 격리한다`() {
+        // 격리는 같은 트랜잭션에서 일어난다 — 동일성 검사보다 앞서 원장을 쓰면 그 쓰기가 격리와 함께 커밋된다(03 V32).
+        insertSubmission("wd-amount", "WITHDRAWAL")
+        inbox.insertIfAbsent(notification("noti-amount-1", managedVaultPayload("noti-amount-1", "wd-amount", amount = "100")))
+        processor.processNext()
+        // 첫 관찰이 금액을 적었고 결속도 끝났다. 결속을 다시 비워 두 번째 관찰이 결속 경로를 지나게 한다.
+        jdbc.update("UPDATE bcm_sbmt_l SET vndr_tx_id = NULL WHERE ext_tx_id = 'wd-amount'")
+        inbox.insertIfAbsent(
+            notification(
+                "noti-amount-2",
+                managedVaultPayload("noti-amount-2", "wd-amount", status = "COMPLETED", confirmations = 1, amount = "250"),
+            ),
+        )
+
+        assertThat(processor.processNext()).isEqualTo(WebhookDecisionOutcome.Quarantined("noti-amount-2", 1))
+
+        val tx = jdbc.queryForMap("SELECT last_pub_stcd, cnfm_cnt, trsf_amt FROM bcm_tx_l WHERE vndr_tx_id = ?", VENDOR_TX_ID)
+        // 상태도 컨펌도 금액도 그대로다 — 관찰을 통째로 물렸다.
+        assertThat(tx["last_pub_stcd"]).isEqualTo("CONFIRMED")
+        assertThat(tx["cnfm_cnt"]).isEqualTo(0)
+        assertThat((tx["trsf_amt"] as java.math.BigDecimal).compareTo(java.math.BigDecimal("100"))).isZero()
+        // 결속도 남지 않았다.
+        assertThat(jdbc.queryForMap("SELECT vndr_tx_id FROM bcm_sbmt_l WHERE ext_tx_id = 'wd-amount'")["vndr_tx_id"]).isNull()
+        assertThat(inboxRow("noti-amount-2")["prcs_stcd"]).isEqualTo("F")
+        assertThat(inboxRow("noti-amount-2")["err_msg"])
+            .isEqualTo("observation conflicts with recorded transaction: field=amount")
+        verify(exactly = 1) { poisonAlert.alert("noti-amount-2", 1) }
+    }
+
+    @Test
     fun `vault 발신은 destinationAddress가 아직 없어도 제출 원장으로 처리한다`() {
         insertSubmission("wd-no-address", "WITHDRAWAL")
         val payload =
@@ -1115,6 +1145,7 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
         confirmations: Int = 0,
         vendorTransactionId: String = VENDOR_TX_ID,
         transactionHash: String? = null,
+        amount: String? = null,
     ): String =
         objectMapper
             .readTree(realPayload(notificationId))
@@ -1129,6 +1160,7 @@ class WebhookDecisionProcessorIntegrationTest : IntegrationTestSupport() {
                     put("status", status)
                     put("numOfConfirmations", confirmations)
                     transactionHash?.let { put("txHash", it) }
+                    amount?.let { (path("amountInfo") as ObjectNode).put("amount", it) }
                 }
             }.toString()
 
