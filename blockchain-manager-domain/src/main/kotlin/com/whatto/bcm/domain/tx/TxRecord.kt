@@ -31,8 +31,14 @@ data class TxRecord(
     val firstDetectedAt: String,
     /** 마지막 갱신 일시 — 감소 금지, 막힘 점검의 기준 */
     val lastChangedAt: String,
-    /** 벤더 createdAt — 대사 단일 시간축, 최초값 보존 */
-    val vendorCreatedAt: String = firstDetectedAt,
+    /**
+     * 벤더 createdAt — 대사 단일 시간축, 최초값 보존.
+     *
+     * **첫 벤더 관찰 전에는 `null`이다**(03 V32). 제출 마감이 거래 행을 먼저 만들 때는 벤더 시각을 모른다 —
+     * 제출 응답은 `txId`만 준다. BCM 수용 시각으로 대신 채우면 대사가 벤더 시각끼리 비교한다는 규칙이 깨진다.
+     * `null → 값` 한 번만 채우고 그 뒤에는 바꾸지 않는다(set-once 예외).
+     */
+    val vendorCreatedAt: String? = null,
     /** 창 밖 미결 거래의 마지막 단건 조회 claim 시각 */
     val reconciliationCheckedAt: String? = null,
     /** 창 밖 미결 거래 단건 조회 횟수 — 영속 백오프 단계 */

@@ -34,7 +34,8 @@ data class TransactionInvestigationSummary(
     val sweepExecutionId: String?,
     val submissionRequestedAt: Instant?,
     val submissionRespondedAt: Instant?,
-    val vendorCreatedAt: Instant,
+    /** 첫 벤더 관찰 전에는 `null`이다(03 V32) — 제출 마감이 만든 행에는 진짜 벤더 시각이 없다. */
+    val vendorCreatedAt: Instant?,
     val firstDetectedAt: Instant,
     val lastChangedAt: Instant,
     val reconciliationCheckedAt: Instant?,

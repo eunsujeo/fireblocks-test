@@ -314,20 +314,20 @@ class AdminTransactionInvestigationJdbcAdapter(
             accountId = getString("acnt_id"),
             network = getString("ntwk_cd"),
             symbol = getString("tkn_smbl"),
-            transactionType = getString("tx_dvcd"),
+            transactionType = getString("sbmt_tx_dvcd"),
             status = getString("last_pub_stcd"),
             confirmationCount = getInt("cnfm_cnt"),
             vendorSubStatus = getString("vndr_sub_stcd"),
             vendorNetworkStatus = getString("vndr_ntwk_stcd"),
             submissionStatus = getString("sbmt_stcd"),
-            amount = nullableDecimal("trsf_amt"),
+            amount = nullableDecimal("rslv_trsf_amt"),
             senderAccountId = getString("snd_acnt_id"),
             receiverType = getString("rcv_dvcd"),
             receiverValue = getString("rcv_vl"),
             sweepExecutionId = getString("swp_exec_id"),
             submissionRequestedAt = nullableInstant("req_dttm"),
             submissionRespondedAt = nullableInstant("rsp_dttm"),
-            vendorCreatedAt = instant("vndr_crt_dttm"),
+            vendorCreatedAt = instantOrNull("vndr_crt_dttm"),
             firstDetectedAt = instant("frst_dtct_dttm"),
             lastChangedAt = instant("last_chng_dttm"),
             reconciliationCheckedAt = nullableInstant("rcnc_chck_dttm"),
@@ -336,6 +336,9 @@ class AdminTransactionInvestigationJdbcAdapter(
         )
 
     private fun ResultSet.instant(column: String): Instant = CoreDateTimes.parse(getString(column)).toInstant(ZoneOffset.UTC)
+
+    private fun ResultSet.instantOrNull(column: String): Instant? =
+        getString(column)?.let { CoreDateTimes.parse(it).toInstant(ZoneOffset.UTC) }
 
     private fun ResultSet.nullableInstant(column: String): Instant? =
         getString(column)?.let { CoreDateTimes.parse(it).toInstant(ZoneOffset.UTC) }
@@ -396,8 +399,8 @@ class AdminTransactionInvestigationJdbcAdapter(
                   OR execution.vndr_tx_id = :identifier
             )
             SELECT tx.*,
-                   submission.tx_dvcd, submission.sbmt_stcd,
-                   COALESCE(submission.trsf_amt, event_amount.trsf_amt) AS trsf_amt,
+                   submission.tx_dvcd AS sbmt_tx_dvcd, submission.sbmt_stcd,
+                   COALESCE(submission.trsf_amt, event_amount.trsf_amt) AS rslv_trsf_amt,
                    submission.snd_acnt_id, submission.rcv_dvcd, submission.rcv_vl,
                    submission.swp_exec_id, submission.req_dttm, submission.rsp_dttm
               FROM bcm_tx_l tx

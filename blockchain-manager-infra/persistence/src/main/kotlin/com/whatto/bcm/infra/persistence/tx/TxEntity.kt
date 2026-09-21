@@ -35,7 +35,7 @@ data class TxEntity(
     @Column("stall_alrt_dttm")
     val stallAlrtDttm: String?,
     @Column("vndr_crt_dttm")
-    val vndrCrtDttm: String,
+    val vndrCrtDttm: String?,
     @Column("rcnc_chck_dttm")
     val rcncChckDttm: String?,
     @Column("rcnc_chck_cnt")

@@ -57,6 +57,8 @@ class TxStateMachine(
                 repository.update(
                     previous.copy(
                         stallAlertedAt = null,
+                        // 이 분기는 candidate()를 거치지 않는다 — 벤더 시각 병합을 여기서도 해야 첫 관찰이 이 경로일 때 값이 남는다.
+                        vendorCreatedAt = previous.vendorCreatedAt ?: observation.vendorCreatedAt,
                         lastChangedAt = maxOf(previous.lastChangedAt, observation.observedAt),
                         reconciliationCheckedAt = previous.reconciliationCheckedAt.takeUnless { newerObservation },
                         reconciliationCheckCount = previous.reconciliationCheckCount.takeUnless { newerObservation } ?: 0,

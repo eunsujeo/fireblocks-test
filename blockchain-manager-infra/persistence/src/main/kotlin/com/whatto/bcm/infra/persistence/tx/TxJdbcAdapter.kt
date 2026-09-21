@@ -69,7 +69,7 @@ class TxJdbcAdapter(
         RowMapper { rs, rowNumber ->
             TxReconciliationRecord(
                 record = rowMapper.mapRow(rs, rowNumber),
-                submissionType = rs.getString("tx_dvcd")?.let(SubmissionTransactionType::valueOf),
+                submissionType = rs.getString("sbmt_tx_dvcd")?.let(SubmissionTransactionType::valueOf),
                 sweepExecutionId = rs.getString("swp_exec_id"),
             )
         }
@@ -100,6 +100,9 @@ class TxJdbcAdapter(
                        cnfm_cnt = GREATEST(cnfm_cnt, :confirmationCount),
                        vndr_sub_stcd = :vendorSubStatus,
                        vndr_ntwk_stcd = :vendorNetworkStatus,
+                       -- 첫 관찰이 NULL을 한 번 채운다(03 V32 set-once 예외). 행 조건으로 두면
+                       -- 시각이 이미 있는 거래의 이후 갱신이 전부 0행이 되어 충돌로 처리된다.
+                       vndr_crt_dttm = COALESCE(vndr_crt_dttm, :vendorCreatedAt),
                        stall_alrt_dttm = :stallAlertedAt,
                        rcnc_chck_dttm = :reconciliationCheckedAt,
                        rcnc_chck_cnt = :reconciliationCheckCount,
@@ -143,6 +146,7 @@ class TxJdbcAdapter(
                        cnfm_cnt = :confirmationCount,
                        vndr_sub_stcd = :vendorSubStatus,
                        vndr_ntwk_stcd = :vendorNetworkStatus,
+                       vndr_crt_dttm = COALESCE(vndr_crt_dttm, :vendorCreatedAt),
                        stall_alrt_dttm = NULL,
                        rcnc_chck_dttm = :reconciliationCheckedAt,
                        rcnc_chck_cnt = :reconciliationCheckCount,
@@ -208,7 +212,7 @@ class TxJdbcAdapter(
         jdbc
             .query(
                 """
-                SELECT tx.*, submission.tx_dvcd, submission.swp_exec_id
+                SELECT tx.*, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
                 FROM bcm_tx_l tx
                 LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
                 LEFT JOIN bcm_boost_l boost
@@ -228,7 +232,7 @@ class TxJdbcAdapter(
     ): List<TxReconciliationRecord> =
         jdbc.query(
             """
-            SELECT tx.*, submission.tx_dvcd, submission.swp_exec_id
+            SELECT tx.*, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
             FROM bcm_tx_l tx
             LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = tx.vndr_tx_id
             WHERE tx.vndr_crt_dttm >= :createdAtOrAfter
@@ -304,7 +308,7 @@ class TxJdbcAdapter(
               WHERE tx.vndr_tx_id = candidates.vndr_tx_id
               RETURNING tx.*
             )
-            SELECT claimed.*, submission.tx_dvcd, submission.swp_exec_id
+            SELECT claimed.*, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
             FROM claimed
             LEFT JOIN bcm_sbmt_l submission ON submission.vndr_tx_id = claimed.vndr_tx_id
             ORDER BY claimed.rcnc_chck_dttm, claimed.last_chng_dttm, claimed.vndr_tx_id
@@ -331,7 +335,7 @@ class TxJdbcAdapter(
         require(limit > 0) { "stall candidate limit must be positive" }
         return jdbc.query(
             """
-            SELECT candidate.*, submission.tx_dvcd, submission.swp_exec_id
+            SELECT candidate.*, submission.tx_dvcd AS sbmt_tx_dvcd, submission.swp_exec_id
             FROM (
               SELECT *
               FROM bcm_tx_l
@@ -348,7 +352,7 @@ class TxJdbcAdapter(
         ) { rs, rowNumber ->
             StallCandidate(
                 record = rowMapper.mapRow(rs, rowNumber),
-                submissionType = rs.getString("tx_dvcd")?.let(SubmissionTransactionType::valueOf),
+                submissionType = rs.getString("sbmt_tx_dvcd")?.let(SubmissionTransactionType::valueOf),
                 sweepExecutionId = rs.getString("swp_exec_id"),
             )
         }
@@ -394,6 +398,7 @@ class TxJdbcAdapter(
             "vendorSubStatus" to vendorSubStatus,
             "vendorNetworkStatus" to vendorNetworkStatus,
             "stallAlertedAt" to stallAlertedAt,
+            "vendorCreatedAt" to vendorCreatedAt,
             "reconciliationCheckedAt" to reconciliationCheckedAt,
             "reconciliationCheckCount" to reconciliationCheckCount,
             "reconciliationStoppedAt" to reconciliationStoppedAt,
