@@ -517,30 +517,58 @@ CREATE INDEX CONCURRENTLY idx_bcm_tx_account_listing
 
 #### 백필과 전환 순서
 
-세 컬럼은 **nullable 추가 전용**으로 먼저 열고, 기존 행을 채운 뒤에야 공개 read를 전환한다.
+네 컬럼은 **nullable 추가 전용**으로 먼저 열고, 기존 행을 채운 뒤에야 공개 read를 전환한다.
 
 - 출금·내부이체·sweep·밴드S는 `bcm_sbmt_l`에서 채운다 — `trsf_amt`, 목적지는 `vndr_dst_addr`(없으면 `rcv_vl`이 주소인 경우만), `tx_dvcd`는 `bcm_sbmt_l.tx_dvcd` 그대로.
-- 입금은 제출 원장이 없다. `bcm_outbox_l` payload와 `bcm_raw_tx_l` 원문에서 채운다. `tx_dvcd`는 **그 거래로 실제 발행된 `DEPOSIT` 이벤트가 있을 때만** `DEPOSIT`으로 적는다.
+- 입금은 제출 원장이 없다. 금액·주소는 `bcm_outbox_l` payload와 `bcm_raw_tx_l` 원문에서 채운다.
+  `tx_dvcd`의 근거는 **`bcm_outbox_l`뿐이다** — 그 거래로 실제 `DEPOSIT` 이벤트를 만든 행이 있을 때만 `DEPOSIT`으로 적는다.
+
+  ```sql
+  o.vndr_tx_id = t.vndr_tx_id AND o.topic = 'deposit-events' AND o.payload ->> 'type' = 'DEPOSIT'
+  ```
+
+  `evnt_stcd = 'S'`를 요구하지 않는다 — 발송 대기·실패 이벤트도 **거래 유형은 이미 `DEPOSIT`**이다.
+  relay는 outbox를 지우지 않고 상태만 바꾸므로 이 근거는 남아 있다.
+  **`bcm_raw_tx_l`은 대체 근거가 아니다** — Fireblocks의 마지막 COMPLETED 원문만 담고 BCM의 `EventType`을 보존하지 않는다.
 - `src_addr`는 제출 원장에 없다 — 발신 계정의 `bcm_ntwk_wlt_m.wlt_addr`(Dfns)나 관찰 원문에서 얻는다.
-- **근거가 없는 행은 추정하지 않고 격리한다.** 특히 `tx_dvcd`가 `NULL`인 채로 두면 목록 predicate가 그 행을 조용히 지운다.
-  반대로 "`NULL`이면 입금"으로 읽는 것은 바로 위에서 `tx_dvcd`를 비정규화한 이유("없는 근거로 판정하지 않는다")와 정면으로 어긋난다.
+- **근거가 없는 행은 추정하지 않는다.** "`NULL`이면 입금"으로 읽는 것은 `tx_dvcd`를 비정규화한 이유("없는 근거로 판정하지 않는다")와 정면으로 어긋난다.
+  근거가 사라진 행(외부 절차로 outbox가 정리된 경우 등)은 `tx_dvcd`를 `NULL`로 남기고 **전환을 막는다** — 아래 게이트가 0을 요구한다.
+  이 행들을 예외 원장으로 옮겨 전환을 진행할지는 **실제 잔여 건수를 센 뒤 따로 정한다**. 추정으로 채워 통과시키지 않는다.
 
 **전환 시점에 거래 행 자체가 없는 제출이 남는다.** 지금까지 `bcm_tx_l`은 웹훅이 와야 생겼으므로,
 `bcm_sbmt_l`이 `SUBMITTED`이고 `vndr_tx_id`도 있는데 거래 행은 없는 건이 있다.
 백필은 **그 행들을 만들어야 한다** — 만들지 않으면 이미 수용된 출금이 전환 직후 `404`가 되어 응답 계약("`SUBMITTED`면 `200`")을 어긴다.
 
+만들 때 두 가지를 함께 정한다.
+
+| 값 | 무엇으로 |
+|---|---|
+| `frst_dtct_dttm` | **`bcm_sbmt_l.rsp_dttm`**(벤더 접수 응답 시각). 마이그레이션 실행 시각을 쓰면 과거 제출이 전부 최신 거래로 올라와 목록 정렬이 뒤집힌다 |
+| 선행 `SUBMITTED` outbox | 공개 유형인데 그 거래의 `SUBMITTED` 이벤트가 없으면 **함께 만든다**. 없으면 뒤이어 온 `CONFIRMED`·`FINALIZED`만 받게 되어 감지→확정 순서 계약이 깨진다 |
+| `vndr_crt_dttm` | 채우지 않는다(`NULL`). 진짜 벤더 시각이 없고 지어내면 대사가 틀린 창으로 비교한다 |
+
 #### 공개 read 전환 게이트
 
 셋 다 **0**이어야 전환한다. 하나라도 남으면 목록·단건이 조용히 거래를 빠뜨린다.
 
+검사 범위는 **`bcm_tx_l` 전체**다. "공개 대상만"으로 좁히면 `tx_dvcd`가 없는 행을 공개 대상인지 판정할 수 없어 순환이 된다.
+
 | 확인 | 왜 |
 |---|---|
+| `tx_dvcd IS NULL` 건수 | predicate가 그 행을 조용히 지운다. 공개 대상 여부를 판정할 근거 자체가 없다 |
+| `tx_dvcd`가 허용 집합 밖인 건수 | 허용값 `CHECK`는 전환 뒤에 걸므로, 오타 같은 임의 값이 **`NULL` 검사를 통과한 채 predicate에서만 빠진다** |
+| 제출 거래의 `bcm_tx_l.tx_dvcd <> bcm_sbmt_l.tx_dvcd` 건수 | 두 원장이 같은 거래를 다른 유형으로 안다 |
 | 공개 대상 행의 `trsf_amt IS NULL` 건수 | 금액 없는 거래는 공개 응답을 만들 수 없다 |
-| 공개 대상 행의 `tx_dvcd IS NULL` 건수 | predicate가 그 행을 지운다 |
 | `bcm_sbmt_l`이 `SUBMITTED`·`vndr_tx_id` 있음인데 `bcm_tx_l`에 행이 없는 건수 | 수용된 출금이 `404`가 된다 |
+| 공개 `SUBMITTED` 건에 선행 `SUBMITTED` outbox가 없는 건수 | 감지→확정 순서 계약이 깨진다 |
+| 제출 원장과 거래 행의 `ext_tx_id`·계정·네트워크·심볼·금액 불일치 건수 | 백필이 엉뚱한 행을 이었다는 뜻이다 |
+| Q2 writer 배포 뒤 **다시 돌린** catch-up 백필의 잔여 건수 | 백필과 새 writer 사이에 들어온 거래가 남는다 |
 
-전환이 끝나 이 셋이 0으로 유지되면 `tx_dvcd`에 `NOT NULL`과 허용값 `CHECK`를 **별도 후속 마이그레이션으로** 건다 —
+전환이 끝나 이것들이 0으로 유지되면 `tx_dvcd`에 `NOT NULL`과 허용값 `CHECK`를 **별도 후속 마이그레이션으로** 건다 —
 V30에서 배운 대로, 제약 추가와 백필을 같은 파일에 섞지 않는다.
+
+**Admin 거래 조사의 `vndr_crt_dttm` null-safe 처리는 이 백필보다 먼저 또는 같은 배포에 들어간다.**
+백필이 만드는 행은 의도적으로 `vndr_crt_dttm`이 `NULL`인데, 현재 어댑터·도메인·DTO가 그 값을 필수로 읽는다.
 
 **0이나 빈 문자열로 메우지 않는다.** 금액이 없는 행은 "금액 0"이 아니라 "아직 모른다"이고, 둘을 섞으면 회계 대사가 틀린 값을
 정상으로 읽는다. 금액 미백필 건이 **0이 되기 전에는 공개 read를 전환하지 않는다** — 남은 건은 Fireblocks 벤더 조회로 회수한다.
@@ -1092,7 +1120,7 @@ CREATE INDEX idx_bcm_tx_account_listing ON bcm_tx_l (acnt_id, frst_dtct_dttm, vn
 
 우리가 벤더에 낸 건(출금·내부이체·sweep·밴드S)을 **벤더에 보내기 전에** 먼저 적는 원장이다. 두 가지 일을 한다 — ① `ext_tx_id` 멱등 판정(같은 키 + 같은 내용이면 처음 `txId` 반환, 내용이 다르면 거절) ② 우리 vault 에서 나간 웹훅이 어느 계열인지 가르는 기준.
 
-`bcm_tx_l` 에 흡수하지 않는 이유는 **키가 다르기 때문**이다. `bcm_tx_l` 의 PK 는 벤더 tx id 인데 제출 시점에는 그 값을 아직 모른다. 반대로 멱등 판정은 벤더를 부르기 전에 끝나야 한다 — 부른 뒤에 적으면 그 사이에 죽었을 때 돈이 나갔는지 알 방법이 없다. 그래서 우리 요청 키를 PK 로 갖는 원장을 따로 둔다.
+`bcm_tx_l` 에 흡수하지 않는 이유는 **키가 다르기 때문**이다. `bcm_tx_l` 의 PK 는 거래의 공개 id(제출 건은 벤더 tx id) 인데 제출 시점에는 그 값을 아직 모른다. 반대로 멱등 판정은 벤더를 부르기 전에 끝나야 한다 — 부른 뒤에 적으면 그 사이에 죽었을 때 돈이 나갔는지 알 방법이 없다. 그래서 우리 요청 키를 PK 로 갖는 원장을 따로 둔다.
 
 ```sql
 CREATE TABLE bcm_sbmt_l (
@@ -1222,7 +1250,7 @@ Sweep approve와 최상위 batch 호출은 일반 전송 7값 대신 아래 7줄
 CREATE TABLE bcm_outbox_l (
   evnt_id         VARCHAR(36)   PRIMARY KEY,  -- 이벤트ID (time-ordered UUID v7) · 컨슈머 dedup 키
   evnt_dt         VARCHAR(8)    NOT NULL,     -- 이벤트일자 — 조회·파티셔닝
-  vndr_tx_id      VARCHAR(64)   NOT NULL,     -- 집합체ID(코어 agg_id 대응) — 벤더 tx id
+  vndr_tx_id      VARCHAR(64)   NOT NULL,     -- 집합체ID(코어 agg_id 대응) — 거래의 공개 id
   agg_typ_dvcd    VARCHAR(2)    NOT NULL,     -- 집합체유형 TX:거래 / DL:델타
   evt_typ_dvcd    VARCHAR(4)    NOT NULL,     -- 이벤트유형 — 코어 정합(TXCK/TXCF/TXFL)
   topic           VARCHAR(32)   NOT NULL,     -- 발행 큐: deposit / withdrawal / internal-events
@@ -2588,7 +2616,7 @@ version·evidence·요청·판단·action 6개 원장에는 `UPDATE OR DELETE`�
 
 ## 확정 이력 (2026-08-07)
 
-- **제출 원장 `bcm_sbmt_l` 신설** — `ext_tx_id` PK. 벤더를 부르기 전에 먼저 적어 멱등을 판정하고, 우리 vault 발신 웹훅의 계열을 `tx_dvcd` 로 가른다. `bcm_tx_l` 흡수는 키가 달라(PK = 벤더 tx id, 제출 시점 미상) 불가능하다.
+- **제출 원장 `bcm_sbmt_l` 신설** — `ext_tx_id` PK. 벤더를 부르기 전에 먼저 적어 멱등을 판정하고, 우리 vault 발신 웹훅의 계열을 `tx_dvcd` 로 가른다. `bcm_tx_l` 흡수는 키가 달라(PK = 거래의 공개 id, 제출 시점 미상) 불가능하다.
 - **canonical 요청 = 자금 이동 7값** — from 2 · to 2 · network · symbol · 정규화 amount. `note`·`travelRule` 은 제외(재시도 오탐 방지 + 개인정보 미보관). 요청 원문은 저장하지 않고 해시와 개별 필드만 남긴다.
 
 ## 확정 이력 (2026-08-06)

@@ -567,7 +567,7 @@ Dfns가 같은 키 재시도를 `422`로 막는 것과 충돌하지 않는다 �
 `GET /transactions/external/{externalTxId}`가 웹훅 도착까지 `404`를 주어, 이 API의 원래 목적인 **응답 유실 확인**이 깨진다.
 
 그래서 제출 마감 트랜잭션이 한 번에 남긴다 — `bcm_sbmt_l → SUBMITTED` · `bcm_tx_l → SUBMITTED` ·
-**공개 세 유형(`WITHDRAWAL`·`INTERNAL`)일 때만** `SUBMITTED` outbox. sweep·밴드S는 거래 행은 만들되 공통 `ChainEvent`를 내지 않는다(기존 계약 그대로).
+**제출 가능한 공개 두 유형(`WITHDRAWAL`·`INTERNAL`)일 때만** `SUBMITTED` outbox. sweep·밴드S는 거래 행은 만들되 공통 `ChainEvent`를 내지 않는다(기존 계약 그대로).
 이때 `from`·`to`는 비어 있을 수 있다(체인에 오르기 전이라 주소가 확정되지 않는다 — OpenAPI `Transfer`의 기존 계약 그대로).
 
 ### 시각·정렬·귀속

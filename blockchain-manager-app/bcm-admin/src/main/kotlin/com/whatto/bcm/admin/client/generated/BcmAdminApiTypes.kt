@@ -113,7 +113,7 @@ data class AdminTransactionInvestigationSummary(
     val sweepExecutionId: String? = null,
     val submissionRequestedAt: String? = null,
     val submissionRespondedAt: String? = null,
-    val vendorCreatedAt: String,
+    val vendorCreatedAt: String? = null,
     val firstDetectedAt: String,
     val lastChangedAt: String,
     val reconciliationCheckedAt: String? = null,
