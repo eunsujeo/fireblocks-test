@@ -6,6 +6,7 @@ import com.whatto.bcm.domain.tx.TxObservationConsistency
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStateChange
 import com.whatto.bcm.domain.tx.TxStateMachine
+import com.whatto.bcm.domain.tx.TxType
 import org.springframework.stereotype.Service
 
 /** 거래 피처의 행 잠금·전이 판정·상태 저장을 한 경계로 묶는다. 호출자는 외부 트랜잭션 안에 있어야 한다. */
@@ -30,14 +31,18 @@ class TxStateService(
         transactionHash: String,
     ) = repository.lockNetworkTransactionHash(network, transactionHash)
 
-    fun observe(observation: TxObservation): TxStateChange = stateMachine.observe(observation)
+    fun observe(
+        observation: TxObservation,
+        attributedType: TxType? = null,
+    ): TxStateChange = stateMachine.observe(observation, attributedType)
 
     fun observeRoot(
         rootVendorTransactionId: String,
         observation: TxObservation,
         successEvidence: Boolean,
         deferFailure: Boolean = false,
-    ): TxStateChange = stateMachine.observeRoot(rootVendorTransactionId, observation, successEvidence, deferFailure)
+        attributedType: TxType? = null,
+    ): TxStateChange = stateMachine.observeRoot(rootVendorTransactionId, observation, successEvidence, deferFailure, attributedType)
 
     /**
      * 잠금 → **동일성 검사** → 전이 순서로 관찰을 반영한다(03 V32 "충돌한 관찰은 통째로 격리한다").
@@ -52,13 +57,21 @@ class TxStateService(
         chainModel: ChainModel?,
         successEvidence: Boolean,
         deferFailure: Boolean = false,
+        attributedType: TxType? = null,
     ): TxObservationOutcome {
         val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
         return when (val consistency = TxObservationConsistency.check(previous, observation, chainModel)) {
             is TxObservationConsistency.Result.Conflict -> TxObservationOutcome.Conflict(consistency)
             TxObservationConsistency.Result.Consistent ->
                 TxObservationOutcome.Applied(
-                    stateMachine.observeLocked(previous, rootVendorTransactionId, observation, successEvidence, deferFailure),
+                    stateMachine.observeLocked(
+                        previous,
+                        rootVendorTransactionId,
+                        observation,
+                        successEvidence,
+                        deferFailure,
+                        attributedType,
+                    ),
                 )
         }
     }

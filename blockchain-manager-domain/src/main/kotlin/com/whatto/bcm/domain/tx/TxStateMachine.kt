@@ -37,14 +37,17 @@ data class TxStateChange(
 class TxStateMachine(
     private val repository: TxRecordRepository,
 ) {
-    fun observe(observation: TxObservation): TxStateChange =
-        observeRoot(observation.vendorTransactionId, observation, successEvidence = false)
+    fun observe(
+        observation: TxObservation,
+        attributedType: TxType? = null,
+    ): TxStateChange = observeRoot(observation.vendorTransactionId, observation, successEvidence = false, attributedType = attributedType)
 
     fun observeRoot(
         rootVendorTransactionId: String,
         observation: TxObservation,
         successEvidence: Boolean,
         deferFailure: Boolean = false,
+        attributedType: TxType? = null,
     ): TxStateChange =
         observeLocked(
             previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId),
@@ -52,6 +55,7 @@ class TxStateMachine(
             observation = observation,
             successEvidence = successEvidence,
             deferFailure = deferFailure,
+            attributedType = attributedType,
         )
 
     /**
@@ -66,17 +70,18 @@ class TxStateMachine(
         observation: TxObservation,
         successEvidence: Boolean,
         deferFailure: Boolean = false,
+        attributedType: TxType? = null,
     ): TxStateChange {
         if (previous == null) {
             check(rootVendorTransactionId == observation.vendorTransactionId) {
                 "root transaction not found: rootVendorTransactionId=$rootVendorTransactionId"
             }
-            return persistNew(observation)
+            return persistNew(observation, attributedType)
         }
         if (previous.activeVendorTxId != observation.vendorTransactionId) {
             if (previous.lastPublishedStatus == TxStatus.FAILED) return TxStateChange(previous, emptyList())
             if (!successEvidence || previous.hasMinedWinner()) return TxStateChange(previous, emptyList())
-            return adoptWinner(previous, observation)
+            return adoptWinner(previous, observation, attributedType)
         }
         if (
             deferFailure &&
@@ -103,21 +108,32 @@ class TxStateMachine(
                 )
             return TxStateChange(deferred, emptyList())
         }
-        return persistActive(previous, observation)
+        return persistActive(previous, observation, attributedType)
     }
 
-    private fun persistNew(observation: TxObservation): TxStateChange {
+    private fun persistNew(
+        observation: TxObservation,
+        attributedType: TxType?,
+    ): TxStateChange {
         val decision = TransitionTable.decide(null, observation.status)
-        val record = repository.insert(candidate(null, observation, decision.statusToRecord(null, observation.status)))
+        val record =
+            repository.insert(candidate(null, observation, decision.statusToRecord(null, observation.status), attributedType))
         return TxStateChange(record, decision.publishedStatuses(observation.status))
     }
 
     private fun persistActive(
         previous: TxRecord,
         observation: TxObservation,
+        attributedType: TxType?,
     ): TxStateChange {
         val decision = TransitionTable.decide(previous.lastPublishedStatus, observation.status)
-        val candidate = candidate(previous, observation, decision.statusToRecord(previous.lastPublishedStatus, observation.status))
+        val candidate =
+            candidate(
+                previous,
+                observation,
+                decision.statusToRecord(previous.lastPublishedStatus, observation.status),
+                attributedType,
+            )
         val madeProgress = madeProgress(previous, candidate)
         val newerObservation = observation.observedAt > previous.lastChangedAt
         val record =
@@ -138,6 +154,7 @@ class TxStateMachine(
     private fun adoptWinner(
         previous: TxRecord,
         observation: TxObservation,
+        attributedType: TxType?,
     ): TxStateChange {
         val decision = TransitionTable.decide(previous.lastPublishedStatus, observation.status)
         val candidate =
@@ -145,6 +162,7 @@ class TxStateMachine(
                 previous.copy(transactionHash = null),
                 observation,
                 decision.statusToRecord(previous.lastPublishedStatus, observation.status),
+                attributedType,
             ).copy(
                 vendorTxId = previous.vendorTxId,
                 activeVendorTxId = observation.vendorTransactionId,
@@ -159,6 +177,7 @@ class TxStateMachine(
         previous: TxRecord?,
         observation: TxObservation,
         statusToRecord: TxStatus,
+        attributedType: TxType?,
     ) = TxRecord(
         vendorTxId = observation.vendorTransactionId,
         externalTxId = observation.externalTransactionId,
@@ -180,9 +199,24 @@ class TxStateMachine(
         amountDecimals = previous?.amountDecimals ?: observation.observedAmountDecimals,
         sourceAddress = previous?.sourceAddress ?: observation.observedSourceAddress,
         destinationAddress = previous?.destinationAddress ?: observation.observedDestinationAddress,
-        // 관찰로 정하지 않는다 — 거래 행을 만든 쪽이 확정한 권위 값이다.
-        transactionType = previous?.transactionType,
+        // 관찰로 정하지 않는다 — 거래 행을 만든 쪽이 확정한 권위 값이다. 최초에 정하고 그 뒤로는 바꾸지 않는다.
+        transactionType = mergedTransactionType(previous, attributedType),
     )
+
+    /**
+     * 권위 분류는 최초값을 지킨다. 이미 있는 값과 다른 분류가 오면 **우리 원장끼리 어긋난 것**이라
+     * 격리가 아니라 그 자리에서 드러낸다 — 벤더가 준 값이 아니므로 재시도로 해소되지 않는다.
+     */
+    private fun mergedTransactionType(
+        previous: TxRecord?,
+        attributedType: TxType?,
+    ): TxType? {
+        val recorded = previous?.transactionType ?: return attributedType
+        check(attributedType == null || attributedType == recorded) {
+            "transaction type mismatch: recorded=$recorded attributed=$attributedType"
+        }
+        return recorded
+    }
 
     private fun madeProgress(
         previous: TxRecord,

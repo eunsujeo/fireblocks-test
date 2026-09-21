@@ -56,7 +56,7 @@ class DfnsChainEventDecisionTest {
     fun `발급 주소 입금은 블록 깊이로 확정을 판정하고 등록 정밀도로 금액을 만든다`() {
         every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
         val observed = slot<com.whatto.bcm.domain.tx.TxObservation>()
-        every { txStates.observe(capture(observed)) } answers { stateChange(TxStatus.FINALIZED) }
+        every { txStates.observe(capture(observed), any()) } answers { stateChange(TxStatus.FINALIZED) }
         val enqueued = slot<List<OutboxEvent>>()
         every { outboxEvents.enqueue(capture(enqueued)) } returns Unit
 
@@ -89,7 +89,7 @@ class DfnsChainEventDecisionTest {
     fun `깊이가 임계에 못 미치면 벤더가 확인했다고 해도 미확정이다`() {
         every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_119
         val observed = slot<com.whatto.bcm.domain.tx.TxObservation>()
-        every { txStates.observe(capture(observed)) } answers { stateChange(TxStatus.CONFIRMED) }
+        every { txStates.observe(capture(observed), any()) } answers { stateChange(TxStatus.CONFIRMED) }
 
         decision().decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -101,7 +101,7 @@ class DfnsChainEventDecisionTest {
     fun `앞 단계를 발행하지 않았으면 감지와 확정을 순서대로 같은 트랜잭션에 적재한다`() {
         // 02의 순서 계약 — 소비 쪽은 "감지 없는 확정"을 다루지 않는다. 원장이 합성한 순서를 그대로 옮긴다.
         every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
-        every { txStates.observe(any()) } returns
+        every { txStates.observe(any(), any()) } returns
             TxStateChange(record(), listOf(TxStatus.CONFIRMED, TxStatus.FINALIZED))
         val enqueued = slot<List<OutboxEvent>>()
         every { outboxEvents.enqueue(capture(enqueued)) } returns Unit
@@ -123,7 +123,7 @@ class DfnsChainEventDecisionTest {
     @Test
     fun `원장이 발행할 상태가 없으면 이벤트도 없다`() {
         every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
-        every { txStates.observe(any()) } returns TxStateChange(record(), emptyList())
+        every { txStates.observe(any(), any()) } returns TxStateChange(record(), emptyList())
 
         val outcome = decision().decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -139,7 +139,7 @@ class DfnsChainEventDecisionTest {
         every { submissions.findByExternalTransactionId("ext-1") } returns submissionRecord()
         every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber + 11
         val observed = slot<TxObservation>()
-        every { txStates.observe(capture(observed)) } answers { stateChange(TxStatus.FINALIZED) }
+        every { txStates.observe(capture(observed), any()) } answers { stateChange(TxStatus.FINALIZED) }
         every { outboxEvents.enqueue(any()) } returns Unit
 
         val outcome = decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
@@ -162,7 +162,7 @@ class DfnsChainEventDecisionTest {
         every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns listOf(txRecord())
         every { submissions.findByExternalTransactionId("ext-1") } returns submissionRecord()
         every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber
-        every { txStates.observe(any()) } returns stateChange(TxStatus.CONFIRMED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.CONFIRMED)
         every { outboxEvents.enqueue(any()) } returns Unit
 
         decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
@@ -180,13 +180,13 @@ class DfnsChainEventDecisionTest {
         every { submissions.findByExternalTransactionId("ext-1") } returns submissionRecord()
         every { submissions.findByExternalTransactionId("ext-2") } returns submissionRecord()
         every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber + 11
-        every { txStates.observe(any()) } returns stateChange(TxStatus.FINALIZED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.FINALIZED)
         every { outboxEvents.enqueue(any()) } returns Unit
 
         val outcome = decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat((outcome as DfnsChainDecisionOutcome.OutgoingAdvanced).recordCount).isEqualTo(2)
-        verify(exactly = 2) { txStates.observe(any()) }
+        verify(exactly = 2) { txStates.observe(any(), any()) }
     }
 
     @Test
@@ -204,7 +204,7 @@ class DfnsChainEventDecisionTest {
         assertThat(decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD))
             .isEqualTo(DfnsChainDecisionOutcome.OutgoingPending(outgoing))
 
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
     }
 
@@ -217,7 +217,7 @@ class DfnsChainEventDecisionTest {
         assertThat(decision(event = event(deposit)).decide(NOTIFICATION_ID, PAYLOAD))
             .isEqualTo(DfnsChainDecisionOutcome.InternalReceipt(deposit))
 
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
         verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
     }
@@ -230,7 +230,7 @@ class DfnsChainEventDecisionTest {
         assertThat(decision(event = event(deposit), senderIsOurWallet = true).decide(NOTIFICATION_ID, PAYLOAD))
             .isEqualTo(DfnsChainDecisionOutcome.IncomingUnresolved(deposit))
 
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
     }
 
@@ -239,7 +239,7 @@ class DfnsChainEventDecisionTest {
         // 입금도 같은 (network, tx_hash)로 거래 행을 만든다 — 한 경로라도 빠지면 발신 좌표의 후보 조회에 팬텀 삽입이 남는다.
         val deposit = transfer()
         every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
-        every { txStates.observe(any()) } returns stateChange(TxStatus.FINALIZED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.FINALIZED)
 
         decision(event = event(deposit)).decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -276,7 +276,7 @@ class DfnsChainEventDecisionTest {
         // 온체인 이동 사건이 아닌 알림은 이 판단의 대상이 아니다.
         assertThat(decision(event = null).decide(NOTIFICATION_ID, PAYLOAD)).isEqualTo(DfnsChainDecisionOutcome.NotChainEvent)
 
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
         verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
     }
@@ -289,7 +289,7 @@ class DfnsChainEventDecisionTest {
             decision(event = event(observation), asset = LedgerAsset(NETWORK, "USDC", null)).decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isEqualTo(DfnsChainDecisionOutcome.MissingDecimals(observation))
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
     }
 
@@ -301,7 +301,7 @@ class DfnsChainEventDecisionTest {
         val outcome = decision(event = event(observation)).decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isEqualTo(DfnsChainDecisionOutcome.MissingSender(observation))
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
         verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
     }
@@ -313,7 +313,7 @@ class DfnsChainEventDecisionTest {
             .hasMessageContaining("index")
         // 결정적 payload 오류는 RPC 장애에 가려지지 않는다 — 체인 head를 읽기 전에 드러난다.
         verify(exactly = 0) { chainHeads.headBlockNumber(any()) }
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
     }
 
     @Test
@@ -323,7 +323,7 @@ class DfnsChainEventDecisionTest {
         assertThatThrownBy { decision().decide(NOTIFICATION_ID, PAYLOAD) }
             .isInstanceOf(IllegalStateException::class.java)
             .hasMessageContaining("not configured")
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
     }
 

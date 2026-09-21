@@ -17,6 +17,7 @@ import com.whatto.bcm.domain.tx.NetworkChainTransactionId
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.tx.TxType
 import com.whatto.bcm.domain.vendor.NetworkChainAttribution
 import com.whatto.bcm.domain.vendor.NetworkChainAttributionMiss
 import com.whatto.bcm.domain.vendor.NetworkChainAttributionResult
@@ -252,7 +253,14 @@ class DfnsChainEventDecision(
                     observedAt = CoreDateTimes.now(clock),
                     // 벤더 시각은 형식이 서술된 알림 `date`를 쓴다 — 사건의 `timestamp`는 형식·시간대 서술이 없다(계약13).
                     vendorCreatedAt = CoreDateTimes.fromEpochMillis(occurredAtMillis(delivery)),
+                    // 환산은 **여기서 한 번만** 한다. 저장은 매핑을 다시 읽지 않고, 재처리는 아래 근거로 재환산한다(03 V34).
+                    observedAmount = AssetDecimals.amountOf(baseUnits, decimals),
+                    observedAmountBaseUnits = baseUnits,
+                    observedAmountDecimals = decimals,
+                    observedSourceAddress = sender,
+                    observedDestinationAddress = observation.toAddress,
                 ),
+                attributedType = TxType.DEPOSIT,
             )
         val events =
             stateChange.statusesToPublish.map { published ->
