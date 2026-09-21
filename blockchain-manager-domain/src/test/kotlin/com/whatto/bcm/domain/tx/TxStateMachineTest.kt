@@ -101,6 +101,54 @@ class TxStateMachineTest {
     }
 
     @Test
+    fun `비어 있던 벤더 시각은 첫 관찰이 채운다`() {
+        // 제출 마감이 만든 행에는 벤더 시각이 없다(03 V32). 첫 관찰이 채우지 않으면 영영 비고 대사에서도 빠진다.
+        val repository = MemoryTxRecords(record().copy(vendorCreatedAt = null))
+
+        val result =
+            TxStateMachine(repository).observeRoot(
+                "tx-root",
+                observation(TxStatus.FINALIZED, confirmationCount = 1).copy(vendorCreatedAt = "20260807115900"),
+                successEvidence = true,
+            )
+
+        assertThat(result.record.vendorCreatedAt).isEqualTo("20260807115900")
+    }
+
+    @Test
+    fun `FAILED 보류 분기도 비어 있던 벤더 시각을 채운다`() {
+        // 이 분기는 candidate()를 거치지 않고 previous.copy를 저장한다 — 여기서 병합하지 않으면 값이 계속 비어 있다.
+        val repository = MemoryTxRecords(record().copy(vendorCreatedAt = null))
+
+        val result =
+            TxStateMachine(repository).observeRoot(
+                "tx-root",
+                observation(TxStatus.FAILED).copy(vendorCreatedAt = "20260807115900"),
+                successEvidence = false,
+                deferFailure = true,
+            )
+
+        assertThat(result.statusesToPublish).isEmpty()
+        assertThat(result.record.vendorCreatedAt).isEqualTo("20260807115900")
+    }
+
+    @Test
+    fun `RBF 승자 채택도 비어 있던 벤더 시각을 채운다`() {
+        val repository = MemoryTxRecords(record(transactionHash = null).copy(vendorCreatedAt = null))
+
+        val result =
+            TxStateMachine(repository).observeRoot(
+                "tx-root",
+                observation(TxStatus.CONFIRMED, confirmationCount = 1, transactionHash = "0xwinner")
+                    .copy(vendorTransactionId = "tx-boost", vendorCreatedAt = "20260807115900"),
+                successEvidence = true,
+            )
+
+        assertThat(result.record.activeVendorTxId).isEqualTo("tx-boost")
+        assertThat(result.record.vendorCreatedAt).isEqualTo("20260807115900")
+    }
+
+    @Test
     fun `과거 FAILED 관찰을 보류할 때 대사 중단 상태를 초기화하지 않는다`() {
         val repository =
             MemoryTxRecords(

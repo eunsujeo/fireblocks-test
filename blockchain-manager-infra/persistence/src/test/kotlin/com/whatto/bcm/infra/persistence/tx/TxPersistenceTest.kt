@@ -41,7 +41,7 @@ class TxPersistenceTest : PersistenceTestSupport() {
         transactionHash: String? = null,
         status: TxStatus = TxStatus.CONFIRMED,
         confirmationCount: Int = 1,
-        vendorCreatedAt: String = "20260805113000",
+        vendorCreatedAt: String? = "20260805113000",
     ) = TxRecord(
         vendorTxId = vendorTxId,
         activeVendorTxId = activeVendorTxId,
@@ -299,6 +299,53 @@ class TxPersistenceTest : PersistenceTestSupport() {
             )
         assertThat(audit["frst_reg_empno"]).isEqualTo("111111")
         assertThat(audit["frst_reg_brcd"]).isEqualTo("2222")
+    }
+
+    @Test
+    fun `벤더 시각 없이 만든 행은 그대로 저장되고 되찾을 때도 비어 있다`() {
+        // 제출 마감이 거래 행을 먼저 만들면 그 시점엔 벤더 시각이 없다 — 제출 응답은 txId만 준다(03 V32).
+        // BCM 수용 시각으로 대신 채우면 대사가 벤더 시각끼리 비교한다는 규칙이 깨지므로 비워 둔다.
+        val saved = txRecords.insert(txRecord(vendorCreatedAt = null))
+
+        assertThat(saved.vendorCreatedAt).isNull()
+        assertThat(txRecords.findByVendorTxId(saved.vendorTxId)?.vendorCreatedAt).isNull()
+    }
+
+    @Test
+    fun `첫 관찰이 비어 있던 벤더 시각을 채운다`() {
+        val saved = txRecords.insert(txRecord(vendorCreatedAt = null))
+
+        val updated = txRecords.update(saved.copy(vendorCreatedAt = "20260805113000", lastPublishedStatus = TxStatus.FINALIZED))
+
+        assertThat(updated.vendorCreatedAt).isEqualTo("20260805113000")
+    }
+
+    @Test
+    fun `이미 있는 벤더 시각은 뒤에 온 관찰이 덮지 않는다`() {
+        // set-once 예외는 NULL에서 값으로 한 번뿐이다. 늦게 온 관찰이 최초 벤더 시각을 밀어내면 대사 창이 달라진다.
+        val saved = txRecords.insert(txRecord(vendorCreatedAt = "20260805113000"))
+
+        val updated = txRecords.update(saved.copy(vendorCreatedAt = "20260806090000", lastPublishedStatus = TxStatus.FINALIZED))
+
+        assertThat(updated.vendorCreatedAt).isEqualTo("20260805113000")
+    }
+
+    @Test
+    fun `벤더 시각 보존이 다른 갱신을 막지 않는다`() {
+        // 컬럼 단위 병합이라 행 조건이 아니다. WHERE에 두면 시각이 있는 거래의 이후 갱신이 전부 0행이 되어 충돌이 된다.
+        val saved = txRecords.insert(txRecord(vendorCreatedAt = "20260805113000", confirmationCount = 1))
+
+        val updated =
+            txRecords.update(
+                saved.copy(
+                    vendorCreatedAt = "20260806090000",
+                    lastPublishedStatus = TxStatus.FINALIZED,
+                    confirmationCount = 12,
+                ),
+            )
+
+        assertThat(updated.lastPublishedStatus).isEqualTo(TxStatus.FINALIZED)
+        assertThat(updated.confirmationCount).isEqualTo(12)
     }
 
     @Test
