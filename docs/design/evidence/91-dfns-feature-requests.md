@@ -65,7 +65,7 @@ status: To Do
 
 이미 있는 필드로 풀 수 있는지 먼저 여쭙습니다.
 
-- v1.819.2에서 추가된 **`details`의 `nonce`가 `Failed` 전송에도 채워지나요?** 채워진다면 저희가 그 nonce의 온체인 결말을 직접 확인하겠습니다.
+- [changelog](https://docs.dfns.co/changelog/platform)에서 `details` 필드가 nonce·gas 파라미터를 담는다고 읽었습니다. **`Failed` 전송에도 `details`의 nonce가 채워지나요?** 채워진다면 저희가 그 nonce의 온체인 결말을 직접 확인하겠습니다.
 - **`dateBroadcasted`의 부재를 "브로드캐스트되지 않음"으로 읽어도 될까요?** 보장되는 해석인지 알고 싶습니다.
 - **`replacementId`로 취소를 발행했을 때**, 원 전송의 nonce가 어떻게 되는지(취소 트랜잭션이 그 nonce를 소비하는지) 확인할 수 있을까요?
 

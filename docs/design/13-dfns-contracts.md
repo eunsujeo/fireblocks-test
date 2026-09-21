@@ -625,7 +625,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 | `timestamp`·`value`의 명세 | **둘 다 `type: string`이고 형식·단위 명문이 없다.** `timestamp` 예시는 ISO 8601 UTC, `value`는 정수 문자열인지도 문서에서 확인되지 않는다 | 현행 방어가 맞다 — 시각은 envelope `date`를 쓰고, 금액은 `BASE_UNITS` 정규식으로 검증하며 정밀도는 등록 매핑에서 읽는다 |
 | 웹훅 수동 재전송 | **없다.** 대신 **자동 재전송**이 최대 5회·24시간·지수 백오프(1분·12분·2시간·1일)로 돌고, 각 재시도는 **새 고유 ID** + `retryOf` 참조다. 실패분은 `List Webhook Events`의 **`deliveryFailed=true`로 조회**할 수 있고, 상한에 닿으면 `nextAttemptDate`가 사라진다 | `retryOf`·`deliveryAttempt` 수용 항목 해소. **`deliveryFailed` 조회는 이력 복구 설계의 입구다** — 무엇을 놓쳤는지 알 수 있다. 벤더도 별도 회수 경로가 필요하다고 확인했다 |
 
-**changelog에서 확인한 것**(v1.819.2, 2026-05-18) — 우리 계약이 "미정"으로 둔 둘에 직접 걸린다.
+**[공개 changelog](https://docs.dfns.co/changelog/platform)에서 확인한 것** — 2026-05-18 릴리스(문서 표기 `v1.819.2`) 항목이며 우리 계약이 "미정"으로 둔 둘에 직접 걸린다. **페이지 요약으로 읽은 2차 정보라 실물 확인이 필요하다.**
 
 | 필드 | 문서 설명 | 우리 쪽 의미 |
 |---|---|---|
