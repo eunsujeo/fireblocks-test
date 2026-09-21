@@ -21,6 +21,7 @@ import com.whatto.bcm.domain.tx.FinalityPolicyConfigurationException
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.tx.TxType
 import com.whatto.bcm.domain.vendor.PhysicalTransactionEvidence
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.domain.webhook.UnattributedDepositAlert
@@ -175,7 +176,11 @@ class WebhookDecisionTransaction(
                     vendorNetworkStatus = transaction.networkStatus,
                     observedAt = inboxItem.receivedAt,
                     vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis),
+                    observedAmount = transaction.amount,
+                    observedSourceAddress = sourceAddress,
+                    observedDestinationAddress = transaction.destinationAddress,
                 ),
+                attributedType = TxType.DEPOSIT,
             )
         val events =
             stateChange.statusesToPublish.map { publishedStatus ->
@@ -275,7 +280,12 @@ class WebhookDecisionTransaction(
                     vendorNetworkStatus = transaction.networkStatus,
                     observedAt = inboxItem.receivedAt,
                     vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis),
+                    // Fireblocks 는 `amountInfo.amount`(사람 단위)를 그대로 준다 — 환산 근거를 남길 것이 없다(03 V34).
+                    observedAmount = transaction.amount,
+                    observedSourceAddress = transaction.sourceAddress,
+                    observedDestinationAddress = transaction.destinationAddress,
                 ),
+                attributedType = submission.transactionType.txType(),
                 successEvidence =
                     viableBoost != null &&
                         PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation),
