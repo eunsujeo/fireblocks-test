@@ -707,7 +707,7 @@ Dfns 조회를 따로 만들지 않는다. [02 거래 조회](02-bcm-flow.md#거
 
 | 왜 벤더 조회로 못 하는가 | 근거 |
 |---|---|
-| 전송 목록에 `externalId` 필터가 없다 | 공식 OpenAPI 1.1018.3의 `GET /wallets/{walletId}/transfers`는 `limit`·`paginationToken`뿐이다([제공자별 회수 절차](#출금-제출-계약)) |
+| 전송 목록에 `externalId` 필터가 없다 | 공식 OpenAPI 1.1018.3의 `GET /wallets/{walletId}/transfers`는 `limit`·`paginationToken`뿐이다([출금 제출 계약](#출금-제출-계약--확정)) |
 | 단건 조회가 `(walletId, transferId)`를 요구한다 | 공개 `txId` 하나로 부를 수 없다. 어느 지갑인지 먼저 알아야 하고 그건 우리 원장에만 있다 |
 | **입금의 공개 `txId`가 벤더 ID가 아니다** | 입금은 전송 요청이 아니라 관찰이라 벤더 전송 ID가 없다. BCM이 `txHash`+index로 결정적 ID를 만든다 — 그 값으로 벤더를 되물을 수 없다 |
 
