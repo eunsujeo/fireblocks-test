@@ -622,7 +622,7 @@ Fireblocks·로컬은 기존 `TransactionSubmissionService`(`@ConditionalOnFireb
 | `externalId`가 응답·웹훅에 항상 실리나 | **요청에 넣었으면 엔티티와 `wallet.transfer.*`의 `data.transferRequest.requestBody.externalId`에 그대로 실린다.** 넣지 않으면 값 자체가 없다 | 수용 항목 해소 — 우리는 항상 넣으므로 결속이 보장된다 |
 | 재제출 없이 확인할 방법 | 벤더가 **웹훅 스트림에서 `externalId`로 상태를 재구성**하는 방법을 제시했다 | **우리가 이미 한다** — 아래 [회수 경로의 순서](#회수-경로의-순서--웹훅이-먼저다) |
 | `index`·`from`이 실제로 항상 오나 | **문서 범위 밖.** 스키마상 optional인 것만 확인된다 | **미해소** — support 문의로 남긴다. `index`를 "멀티 트랜스퍼가 있는 트랜잭션의 경우"라 표현한 점은 [순번 규칙](#입금-거래-id--구현)과 함께 본다 |
-| `Failed`의 체인 도달 여부 | **아직 묻지 않았다** | `dateBroadcasted`·`txHash` 부재 해석과 nonce 확인 가능 여부를 support에 묻는다([기능 문의 1번](evidence/91-dfns-feature-requests.md)) |
+| `Failed`의 체인 도달 여부 | **아직 묻지 않았다** | `dateBroadcasted`·`txHash` 부재를 "브로드캐스트 안 됨"으로 읽어도 되는지를 support에 묻는다([기능 문의 1번](evidence/91-dfns-feature-requests.md)). **nonce를 받아 노드로 직접 확인하는 안은 택하지 않는다** — 판정은 벤더가 알려주는 값으로 서야 하고, 확정 판정용 위탁 RPC도 걷어낼 수 있는지 검토 중이다 |
 | `timestamp`·`value`의 명세 | **둘 다 `type: string`이고 형식·단위 명문이 없다.** `timestamp` 예시는 ISO 8601 UTC, `value`는 정수 문자열인지도 문서에서 확인되지 않는다 | 현행 방어가 맞다 — 시각은 envelope `date`를 쓰고, 금액은 `BASE_UNITS` 정규식으로 검증하며 정밀도는 등록 매핑에서 읽는다 |
 | 웹훅 수동 재전송 | **없다.** 대신 **자동 재전송**이 최대 5회·24시간·지수 백오프(1분·12분·2시간·1일)로 돌고, 각 재시도는 **새 고유 ID** + `retryOf` 참조다. 실패분은 `List Webhook Events`의 **`deliveryFailed=true`로 조회**할 수 있고, 상한에 닿으면 `nextAttemptDate`가 사라진다 | `retryOf`·`deliveryAttempt` 수용 항목 해소. **`deliveryFailed` 조회는 이력 복구 설계의 입구다** — 무엇을 놓쳤는지 알 수 있다. 벤더도 별도 회수 경로가 필요하다고 확인했다 |
 
