@@ -86,6 +86,11 @@ class NetworkChainAttributionTest {
                     asked += Triple(address, network, symbol)
                     return ACCOUNT_ID
                 }
+
+                override fun ownsWalletAddress(
+                    network: String,
+                    address: String,
+                ) = false
             }
 
         NetworkChainAttribution.attribute(transfer(), ledger)
@@ -104,6 +109,11 @@ class NetworkChainAttributionTest {
             network: String,
             symbol: String,
         ) = accountId
+
+        override fun ownsWalletAddress(
+            network: String,
+            address: String,
+        ) = false
     }
 
     private fun transfer(
