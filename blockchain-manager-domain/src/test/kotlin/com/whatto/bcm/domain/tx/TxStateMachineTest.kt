@@ -116,6 +116,23 @@ class TxStateMachineTest {
     }
 
     @Test
+    fun `상태 전이가 없는 관찰도 비어 있던 벤더 시각을 채운다`() {
+        // Ignore는 거절이 아니라 발행할 상태가 없다는 뜻이다 — 컨펌·hash와 마찬가지로 벤더 시각도 적는다(설계12).
+        // 적지 않으면 SUBMITTED 재도착만 반복되는 백필 행은 허용 전이가 영영 안 와 시각이 비고 대사에서 빠진다.
+        val repository = MemoryTxRecords(record(lastPublishedStatus = TxStatus.SUBMITTED).copy(vendorCreatedAt = null))
+
+        val result =
+            TxStateMachine(repository).observeRoot(
+                "tx-root",
+                observation(TxStatus.SUBMITTED).copy(vendorCreatedAt = "20260807115900"),
+                successEvidence = false,
+            )
+
+        assertThat(result.statusesToPublish).isEmpty()
+        assertThat(result.record.vendorCreatedAt).isEqualTo("20260807115900")
+    }
+
+    @Test
     fun `FAILED 보류 분기도 비어 있던 벤더 시각을 채운다`() {
         // 이 분기는 candidate()를 거치지 않고 previous.copy를 저장한다 — 여기서 병합하지 않으면 값이 계속 비어 있다.
         val repository = MemoryTxRecords(record().copy(vendorCreatedAt = null))

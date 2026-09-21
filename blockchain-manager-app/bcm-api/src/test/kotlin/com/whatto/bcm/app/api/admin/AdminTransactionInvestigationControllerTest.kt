@@ -12,6 +12,7 @@ import io.mockk.every
 import io.mockk.verify
 import org.hamcrest.Matchers.hasKey
 import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -46,6 +47,22 @@ class AdminTransactionInvestigationControllerTest {
             .andExpect(jsonPath("$.data.feeQuotes[0].gasPrice").value("2.1"))
             .andExpect(jsonPath("$.data", not(hasKey<String>("rawPayload"))))
             .andExpect(jsonPath("$.data", not(hasKey<String>("signature"))))
+            .andExpect(openApi().isValid(SPEC))
+    }
+
+    @Test
+    fun `벤더 시각이 없으면 키는 있고 값만 null로 나간다`() {
+        // 첫 벤더 관찰 전에는 진짜 벤더 시각이 없다(03 V32). 지어내지 않고 null로 내보내며 키는 유지한다.
+        every { service.investigate("wd-1") } returns
+            investigation().let { it.copy(summary = it.summary.copy(vendorCreatedAt = null)) }
+
+        mockMvc
+            .perform(get("/admin/transaction-investigations/wd-1").header("X-Request-Id", "request-1"))
+            .andExpect(status().isOk)
+            // doesNotExist()는 명시적 null 에도 통과한다 — 키가 남아 있는지는 그걸로 증명되지 않는다.
+            .andExpect(jsonPath("$.data.summary", hasKey<String>("vendorCreatedAt")))
+            .andExpect(jsonPath("$.data.summary.vendorCreatedAt").value(nullValue()))
+            .andExpect(jsonPath("$.data.summary.firstDetectedAt").isNotEmpty)
             .andExpect(openApi().isValid(SPEC))
     }
 

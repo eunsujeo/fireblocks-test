@@ -96,6 +96,21 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `벤더 시각이 없는 거래도 조사에 나오고 그 값만 비어 있다`() {
+        // 제출 마감이 만든 행은 첫 벤더 관찰 전까지 vndr_crt_dttm이 NULL이다(03 V32).
+        // 어댑터가 이 값을 필수로 읽으면 백필 직후 Admin 조사 전체가 깨진다.
+        insertSubmission("wd-null", "WITHDRAWAL", "tx-null")
+        insertTransaction("tx-null", "tx-null", "wd-null", "SUBMITTED", vendorCreatedAt = null)
+
+        val result = investigations.findByIdentifier("wd-null")
+
+        assertThat(result).isNotNull
+        assertThat(result!!.summary.vendorCreatedAt).isNull()
+        assertThat(result.summary.rootTransactionId).isEqualTo("tx-null")
+        assertThat(result.summary.firstDetectedAt).isNotNull()
+    }
+
+    @Test
     fun `sweep 실행 식별자는 항목 1대N과 원천 vault allowance를 함께 연결한다`() {
         insertSubmission("swp-1", "SWEEP_BATCH", "tx-sweep", "swx-1")
         insertTransaction("tx-sweep", "tx-sweep", "swp-1", "FINALIZED")
@@ -161,6 +176,7 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
         activeTransactionId: String,
         externalTransactionId: String,
         status: String,
+        vendorCreatedAt: String? = "20260817120000",
     ) {
         jdbc.update(
             """
@@ -171,13 +187,14 @@ class AdminTransactionInvestigationPersistenceTest : PersistenceTestSupport() {
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
             VALUES
               (?, ?, ?, 'acct-1', 'BASE', 'USDC', '0xactive', ?, 0, 'PENDING_BLOCKCHAIN_CONFIRMATIONS',
-               'CONFIRMING', '20260817120000', '20260817120800', 2, '20260817120010', '20260817120700',
+               'CONFIRMING', ?, '20260817120800', 2, '20260817120010', '20260817120700',
                'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             rootTransactionId,
             activeTransactionId,
             externalTransactionId,
             status,
+            vendorCreatedAt,
         )
     }
 

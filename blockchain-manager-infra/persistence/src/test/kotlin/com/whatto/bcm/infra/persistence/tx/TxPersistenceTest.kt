@@ -331,6 +331,35 @@ class TxPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `물리 승자 갱신도 비어 있던 벤더 시각을 채우고 있는 값은 덮지 않는다`() {
+        // updatePhysicalWinner는 별도 SQL이다 — 여기서 COALESCE가 빠지면 RBF로 active가 바뀐 거래만 시각이 비어 남는다.
+        val empty =
+            txRecords.insert(
+                txRecord(vendorTxId = "tx-rbf-empty", activeVendorTxId = "tx-a", transactionHash = null, confirmationCount = 0)
+                    .copy(vendorCreatedAt = null),
+            )
+        val kept =
+            txRecords.insert(
+                txRecord(vendorTxId = "tx-rbf-kept", activeVendorTxId = "tx-b", transactionHash = null, confirmationCount = 0)
+                    .copy(vendorCreatedAt = "20260805113000"),
+            )
+
+        val filled =
+            txRecords.updatePhysicalWinner(
+                empty.copy(activeVendorTxId = "tx-a-winner", transactionHash = "0xw", vendorCreatedAt = "20260806090000"),
+                previousActiveVendorTxId = "tx-a",
+            )
+        val preserved =
+            txRecords.updatePhysicalWinner(
+                kept.copy(activeVendorTxId = "tx-b-winner", transactionHash = "0xw2", vendorCreatedAt = "20260806090000"),
+                previousActiveVendorTxId = "tx-b",
+            )
+
+        assertThat(filled.vendorCreatedAt).isEqualTo("20260806090000")
+        assertThat(preserved.vendorCreatedAt).isEqualTo("20260805113000")
+    }
+
+    @Test
     fun `벤더 시각 보존이 다른 갱신을 막지 않는다`() {
         // 컬럼 단위 병합이라 행 조건이 아니다. WHERE에 두면 시각이 있는 거래의 이후 갱신이 전부 0행이 되어 충돌이 된다.
         val saved = txRecords.insert(txRecord(vendorCreatedAt = "20260805113000", confirmationCount = 1))
