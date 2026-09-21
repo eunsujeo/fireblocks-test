@@ -101,7 +101,7 @@ enum class NetworkChainDirection(
 }
 
 /**
- * 벤더가 정의한 이동 상태 둘. `Confirmed`는 **벤더 인덱싱 파이프라인의 확인**이며 BCM의 확정(DCCP)이 아니다 —
+ * 벤더가 정의한 이동 상태 둘. **벤더 문서는 `Confirmed`를 final로 표시하지만** 기준 깊이를 밝히지 않아 BCM의 확정(DCCP)으로 쓰지 않는다 —
  * `TxStatus` 번역은 판단 워커와 함께 정한다.
  */
 enum class NetworkChainTransferStatus(
