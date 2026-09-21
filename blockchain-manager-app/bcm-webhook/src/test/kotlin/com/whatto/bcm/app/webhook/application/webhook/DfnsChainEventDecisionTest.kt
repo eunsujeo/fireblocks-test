@@ -84,6 +84,7 @@ class DfnsChainEventDecisionTest {
         verify(exactly = 0) { txStates.observeConsistently(any(), any(), any(), any(), any()) }
         verify(exactly = 0) { txStates.lockAndCheck(any(), any()) }
         verify(exactly = 0) { txStates.applyChecked(any(), any(), any(), any()) }
+        verify(exactly = 0) { txStates.applyCheckedReread(any(), any(), any(), any()) }
     }
 
     @Test
@@ -208,15 +209,20 @@ class DfnsChainEventDecisionTest {
         every { txStates.findByNetworkAndTransactionHash(NETWORK, TX_HASH) } returns
             listOf(txRecord(), txRecord(vendorTxId = "xfr-2", externalTxId = "ext-2"))
         every { submissions.findByExternalTransactionId("ext-1") } returns submissionRecord()
-        every { submissions.findByExternalTransactionId("ext-2") } returns submissionRecord()
+        every { submissions.findByExternalTransactionId("ext-2") } returns
+            submissionRecord(externalTransactionId = "ext-2", vendorTransactionId = "xfr-2")
         every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber + 11
-        stubObserve { stateChange(TxStatus.FINALIZED) }
+        val applied = mutableListOf<TxObservationCheck.Consistent>()
+        every { txStates.lockAndCheck(any(), any()) } answers { TxObservationCheck.Consistent(firstArg(), null, secondArg()) }
+        every { txStates.applyChecked(capture(applied), any(), any(), any()) } returns stateChange(TxStatus.FINALIZED)
         every { outboxEvents.enqueue(any()) } returns Unit
 
         val outcome = decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat((outcome as DfnsChainDecisionOutcome.OutgoingAdvanced).recordCount).isEqualTo(2)
-        verify(exactly = 2) { txStates.applyChecked(any(), any(), any(), any()) }
+        // 후보마다 **제 토큰**이 적용돼야 한다 — 첫 토큰을 두 번 쓰면 한 거래가 남의 관찰로 갱신된다.
+        assertThat(applied.map { it.rootVendorTransactionId }).containsExactly("xfr-1", "xfr-2")
+        assertThat(applied.map { it.observation.externalTransactionId }).containsExactly("ext-1", "ext-2")
     }
 
     @Test
@@ -472,7 +478,8 @@ class DfnsChainEventDecisionTest {
 
     private fun stateChange(status: TxStatus) = TxStateChange(record(), listOf(status))
 
-    private fun record() =
+    /** 원장은 최초 관찰의 금액을 지킨다 — 입금 이벤트는 이 값을 싣는다(03 V34). */
+    private fun record(amount: String? = "1.5") =
         TxRecord(
             vendorTxId = "dfns-x",
             activeVendorTxId = "dfns-x",
@@ -486,6 +493,7 @@ class DfnsChainEventDecisionTest {
             vendorCreatedAt = "20260916000005",
             firstDetectedAt = "20260916000005",
             lastChangedAt = "20260916000005",
+            amount = amount,
         )
 
     private fun txRecord(
@@ -504,33 +512,36 @@ class DfnsChainEventDecisionTest {
         lastChangedAt = "20260916010203",
     )
 
-    private fun submissionRecord(amountBaseUnits: String = AMOUNT_BASE_UNITS) =
-        com.whatto.bcm.domain.submission.SubmissionRecord(
-            externalTransactionId = "ext-1",
-            requestHash = "0".repeat(64),
-            hashVersion = "v1",
-            status = com.whatto.bcm.domain.submission.SubmissionStatus.SUBMITTED,
-            claimId = null,
-            claimExpiresAt = null,
-            transactionType = com.whatto.bcm.domain.submission.SubmissionTransactionType.WITHDRAWAL,
-            vendorTransactionId = "xfr-1",
-            senderAccountId = "acct-1",
-            recipientType = com.whatto.bcm.domain.submission.SubmissionRecipientType.ADDRESS,
-            recipientValue = DESTINATION,
-            network = NETWORK,
-            symbol = "USDC",
-            amount = "1",
-            requestedAt = "20260916010203",
-            respondedAt = null,
-            vendorCanonical =
-                com.whatto.bcm.domain.submission.SubmissionVendorCanonical(
-                    vendorWalletId = WALLET_ID,
-                    vendorAssetId = ASSET_KEY,
-                    amountBaseUnits = amountBaseUnits,
-                    decimals = 6,
-                    destinationAddress = DESTINATION,
-                ),
-        )
+    private fun submissionRecord(
+        amountBaseUnits: String = AMOUNT_BASE_UNITS,
+        externalTransactionId: String = "ext-1",
+        vendorTransactionId: String = "xfr-1",
+    ) = com.whatto.bcm.domain.submission.SubmissionRecord(
+        externalTransactionId = externalTransactionId,
+        requestHash = "0".repeat(64),
+        hashVersion = "v1",
+        status = com.whatto.bcm.domain.submission.SubmissionStatus.SUBMITTED,
+        claimId = null,
+        claimExpiresAt = null,
+        transactionType = com.whatto.bcm.domain.submission.SubmissionTransactionType.WITHDRAWAL,
+        vendorTransactionId = vendorTransactionId,
+        senderAccountId = "acct-1",
+        recipientType = com.whatto.bcm.domain.submission.SubmissionRecipientType.ADDRESS,
+        recipientValue = DESTINATION,
+        network = NETWORK,
+        symbol = "USDC",
+        amount = "1",
+        requestedAt = "20260916010203",
+        respondedAt = null,
+        vendorCanonical =
+            com.whatto.bcm.domain.submission.SubmissionVendorCanonical(
+                vendorWalletId = WALLET_ID,
+                vendorAssetId = ASSET_KEY,
+                amountBaseUnits = amountBaseUnits,
+                decimals = 6,
+                destinationAddress = DESTINATION,
+            ),
+    )
 
     private companion object {
         const val NOTIFICATION_ID = "whe-544ul-uqgad-jkgltj5p6fvd04cj"

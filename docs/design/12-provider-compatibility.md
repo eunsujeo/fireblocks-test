@@ -1209,8 +1209,12 @@ PostgreSQL·Kafka·DNS가 모두 미정이라 **배포된 적이 없고 운영 �
 | Dfns 발신 확정(온체인 이동) | 제출 원장 | 관찰의 `from` + V30 목적지 | 제출 원장의 거래 구분 |
 | Fireblocks 발신·입금 | `amountInfo.amount`(이미 사람 단위) | 관찰의 `sourceAddress`·`destinationAddress` | 제출 원장 / `DEPOSIT` |
 
-환산 근거(`base_amt`·`dcml_cnt`)는 **Dfns 입금만** 남긴다 — 최소 단위로 오는 유일한 경로이고,
-나머지는 사람 단위가 이미 오거나 제출 시점에 확정한 값이라 남길 근거가 없다.
+환산 근거(`base_amt`·`dcml_cnt`)는 **Dfns 세 경로가** 남긴다 — 입금은 사건의 최소 단위와 그때 쓴 정밀도를,
+전송 알림·발신 확정은 제출 원장이 V28로 이미 보관한 값을 그대로 옮긴다. Fireblocks는 둘 다 `NULL`이다 —
+`amountInfo.amount`가 사람 단위로 오므로 환산한 적이 없고 남길 근거도 없다(03 V34).
+
+**이벤트 금액도 원장에서 읽는다.** 입금 경로는 처음에 매번 현재 매핑으로 다시 환산했는데, 그러면 정밀도가 바뀐 뒤
+같은 사건을 재처리할 때 원장(최초값 보존)과 이벤트(새 파생값)가 갈린다. V34가 근거를 남긴 이유가 그것이다.
 
 ### 검사는 쓰기보다 먼저다
 
@@ -1223,7 +1227,8 @@ PostgreSQL·Kafka·DNS가 모두 미정이라 **배포된 적이 없고 운영 �
 | 한 트랜잭션에서 여러 행(발신 좌표 적용) | `lockAndCheck` **전부** → `applyChecked` 전부 |
 | 판정과 전이 사이에 호출자가 같은 행을 바꾼다 | `lockAndCheck` → 그 쓰기 → `applyCheckedReread` |
 
-검사를 건너뛰는 입구는 남기지 않았다 — `TxStateService.observe`·`observeRoot`를 없앴다.
+**웹훅 경로에는** 검사를 건너뛰는 입구가 없다 — `TxStateService.observe`·`observeRoot`를 없앴다.
+**BAT 종결 관찰은 아직 우회한다**(아래 미해결).
 
 - **여러 행을 행마다 검사·쓰기로 돌면 안 된다.** 뒤 행의 충돌로 격리할 때 앞 행의 전이가 이미 같은 트랜잭션에 실린다.
   잠금은 트랜잭션 끝까지 남으므로 전부 잠가 검사한 뒤 쓰기를 시작해도 그 사이가 벌어지지 않는다.
@@ -1236,11 +1241,40 @@ PostgreSQL·Kafka·DNS가 모두 미정이라 **배포된 적이 없고 운영 �
 
 03은 "충돌 원문과 양쪽 값을 운영 증적으로 남긴다"고 했지, 어디에 남기는지는 정하지 않았다.
 인박스 `err_msg`에는 **어긋난 항목 이름만** 싣는다(`field=amount`) — 금액·주소는 에러 문자열·로그에 넣지 않는다([에러 규약](../../.claude/rules/error-handling.md)).
-양쪽 값은 이미 두 곳에 있다: 적힌 값은 `bcm_tx_l` 행, 관찰한 값은 인박스가 보관한 원문이다.
+격리 자체는 `notificationId`와 함께 poison 경보로 나가고, 운영은 그 ID로 조사한다.
+
+**적힌 값은 `bcm_tx_l` 행에 그대로 남는다.** 관찰한 값은 경로마다 다르다.
+
+| 경로 | 관찰값의 출처 | 원문만으로 복원되는가 |
+|---|---|---|
+| Fireblocks 두 경로 | 인박스가 보관한 payload의 `amountInfo.amount`·주소 | 그렇다 |
+| Dfns 전송 알림·발신 확정 | `bcm_sbmt_l`의 canonical(우리가 낸 값) | payload가 아니라 제출 원장에 있다 |
+| Dfns 입금 | payload의 최소 단위 **+ 처리 당시 매핑 정밀도** | 최소 단위는 남지만 사람 단위 금액은 파생값이다 |
+
+입금의 파생 금액은 충돌 시 원장에 적용되지 않으므로 어디에도 남지 않는다. 다만 **비교는 최소 단위로 하므로**
+(03 V34) 조사에 필요한 값은 payload의 최소 단위와 `bcm_tx_l.base_amt` 두 개이고, 둘 다 보존된다.
 
 ### 주소 비교 규칙의 출처
 
 `TxObservationConsistency`는 체인 모델을 인자로 받고, 그 값은 `TxStateService`가 `bcm_blkc_m.chain_mdl_dvcd`에서 읽는다 —
 호출자가 잊을 수 있는 자리에 두지 않는다. 모델이 없는 네트워크는 **정확히 같을 때만** 같다고 본다(fail-closed).
+
+### 다시 읽으면 다시 검사한다
+
+`applyCheckedReread`는 재검사를 함께 한다. `SELECT ... FOR UPDATE`가 **없는 행을 잠그지 않기** 때문이다 —
+판정 때 행이 없었으면 그 사이 다른 트랜잭션이 같은 root를 만들어 커밋했을 수 있고, 그대로 적용하면
+금액·주소가 다른 관찰이 상태·hash·outbox를 진행시킨다. 재검사가 어긋나면 `ConflictException`으로 **되돌린다** —
+여기까지 온 호출자는 이미 결속을 썼으므로 그 자리에서 격리할 수 없다. 워커가 새 트랜잭션에서 다시 처리하면
+이번에는 행이 있으므로 처음부터 충돌로 판정한다.
+
+검사 토큰(`TxObservationCheck.Consistent`)은 `data class`가 아니고, 쓰이는 자리에서 **잠근 행과 root 키가 한 쌍인지**
+다시 본다 — `copy`로 root만 바꿔 남의 행에 적용하는 길을 막는다.
+
+### 미해결 — BAT 종결 관찰
+
+`StallTerminalObservationHandler`는 `TxStateService`가 아니라 `TxStateMachine`을 직접 쓴다(막힘 점검·tx 대사 공용).
+원장에는 금액·주소를 적지 않지만 **발행 이벤트에는 벤더 조회로 받은 금액·주소를 싣는다**. 원장은 옛 값을 지키고
+이벤트는 새 값을 실어 나가므로, V32가 막으려던 내부 모순이 이 경로로 남아 있다.
+인박스 행이 없어 "즉시 격리"할 대상이 없다는 점이 결정을 필요로 한다. **이 경로는 이번 슬라이스에서 닫지 못했다.**
 
 - 남은 슬라이스: **Q2b** 제출 마감이 `bcm_sbmt_l`·`bcm_tx_l`·`SUBMITTED` outbox를 한 트랜잭션에 쓴다 → **Q3** 공통 조회·keyset cursor·동시 cutover.

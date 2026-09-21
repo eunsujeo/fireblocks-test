@@ -3,9 +3,11 @@ package com.whatto.bcm.app.webhook.application.webhook
 import com.whatto.bcm.domain.tx.FinalityPolicy
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.vendor.VendorStatusObservation
+import com.whatto.bcm.domain.webhook.WebhookPayloadException
 import com.whatto.bcm.infra.client.fireblocks.FireblocksStatusTranslator
 import com.whatto.bcm.infra.client.fireblocks.FireblocksTransactionParser
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
@@ -104,6 +106,22 @@ class FireblocksTransactionParserTest {
                 .toString()
 
         assertThat(parser.parse(payload).destinationAddress).isNull()
+    }
+
+    @Test
+    fun `수가 아닌 금액은 경계에서 걸러지고 사유에 값이 실리지 않는다`() {
+        // 안쪽은 원장 금액과 BigDecimal 로 대조한다(03 V32) — 여기서 통과시키면 그 실패가 판정 한가운데서 터지고
+        // 예외 메시지의 금액이 로그로 샌다.
+        val payload =
+            objectMapper
+                .readTree(realPayload())
+                .also { root -> ((root.path("data") as ObjectNode).path("amountInfo") as ObjectNode).put("amount", "1,0O0") }
+                .toString()
+
+        assertThatThrownBy { parser.parse(payload) }
+            .isInstanceOfSatisfying(WebhookPayloadException::class.java) {
+                assertThat(it.safeReason).isEqualTo("malformed data.amountInfo.amount").doesNotContain("1,0O0")
+            }
     }
 
     private fun realPayload(): String =
