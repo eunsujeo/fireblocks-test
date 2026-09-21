@@ -1115,6 +1115,10 @@ Q1이 실제로 돌려 보며 확정한다 — Q0 리뷰 3라운드에서 Major�
   Q1 착수 조건에 **`vndr_crt_dttm` null-safe 전환 순서**를 표로 더했다 — Admin만 고치면 `NULL` 행을 읽는
   Webhook·BAT가 먼저 깨진다(`TxRecord`·`TxEntity`·`TxJdbcAdapter`도 같은 배포). `DROP NOT NULL`이 백필보다 앞선다.
   Minor 3건(게이트 "셋"→전체, 계약13 끊어진 anchor, ERD `actv_tx_id` 표현)도 고쳤다.
+- **5차 반영(2026-09-18)**: 내가 만든 모순 하나 — "`vndr_crt_dttm`을 첫 관찰에서 채운다"고 써놓고,
+  03의 기존 set-once 규칙은 **그 컬럼을 갱신문에서 아예 빼라**고 한다. 실제 `TxJdbcAdapter`도 건드리지 않고
+  `TxStateMachine`이 계산한 값을 persistence가 버린다. 그대로면 제출 마감이 만든 행은 **영원히 `NULL`**이고 대사에서도 빠진다.
+  set-once의 **예외**로 `NULL → 값` 한 번만 허용한다고 03 두 곳에 적고, Q1 순서에 **첫 관찰 writer 배포를 백필보다 앞에** 넣었다.
 ### Q1 착수 조건 — 초안
 
 Q0은 **공개 응답·상태 매핑·시각 의미**까지만 닫는다. 아래는 Q0 리뷰 3라운드에서 나온 백필·전환 조건의 **초안**이며,
@@ -1180,7 +1184,12 @@ V30에서 배운 대로, 제약 추가와 백필을 같은 파일에 섞지 않�
 | 1 | `ALTER TABLE bcm_tx_l ALTER COLUMN vndr_crt_dttm DROP NOT NULL` — 백필이 행을 만들기 전에 |
 | 2 | 공용 거래 읽기 경로를 nullable로 — `TxRecord.vendorCreatedAt` · `TxEntity` · `TxJdbcAdapter`. Webhook·BAT도 이 모델을 쓴다 |
 | 3 | Admin 거래 조사 경로 — 어댑터·도메인·DTO·BFF 생성 타입 |
-| 4 | 그 뒤에 거래 행 백필 |
+| 4 | **`vndr_crt_dttm` 첫 관찰 writer** — 일반 관찰 갱신과 RBF 승자 갱신 **양쪽** 모두 `WHERE vndr_crt_dttm IS NULL`로 한 번 채우게 한다 |
+| 5 | 그 뒤에 거래 행 백필 |
+
+**4가 5보다 앞서야 한다.** 현재 `TxJdbcAdapter`의 두 갱신문은 `vndr_crt_dttm`을 아예 건드리지 않는다(set-once라 제외돼 있다).
+`TxStateMachine`은 첫 관찰값을 계산하는데 persistence가 버린다. 순서를 뒤집으면 **백필과 writer 배포 사이에 온 관찰의 벤더 시각이 영구히 `NULL`로 남고**,
+대사는 `NULL` 행을 제외하므로 복구 범위에서도 빠진다.
 
 Admin만 고치면 **`NULL` 행을 읽는 Webhook·BAT가 먼저 깨진다**.
 

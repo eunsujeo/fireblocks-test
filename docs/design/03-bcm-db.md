@@ -497,7 +497,9 @@ hash·버전·snapshot이 다르면 충돌이다. 이 저장소는 hash를 실�
 02가 **제출 마감 트랜잭션에서 거래 행을 만들도록** 했는데, 그 시점에 벤더 시각을 모른다 —
 Fireblocks 제출 응답은 `txId`만 준다. BCM 수용 시각으로 대신 채우면 **벤더 시각끼리 비교한다**는 대사 계약이 깨진다.
 
-그래서 `NOT NULL`을 풀고 **첫 벤더 관찰에서 채운다**(채운 뒤에는 set-once 그대로).
+그래서 `NOT NULL`을 풀고 **첫 벤더 관찰에서 채운다**. set-once의 **예외**다 —
+기존 규칙은 이 컬럼을 갱신문에서 아예 빼는데, 그러면 제출 마감이 먼저 만든 행은 **영원히 `NULL`로 남고 대사에서도 빠진다**.
+`NULL → 값` 한 번만 허용하고(`WHERE vndr_crt_dttm IS NULL`), 값이 있는 행은 다시 쓰지 않는다. 그래야 늦게 온 관찰이 최초 벤더 시각을 덮지 않는다.
 대사는 `vndr_crt_dttm IS NOT NULL`인 행만 대상으로 한다 — 아직 관찰이 없는 거래는 원래도 대사 대상이 아니었다.
 
 #### 목록 인덱스
@@ -1034,7 +1036,8 @@ CREATE TABLE bcm_tx_l (
   vndr_sub_stcd   VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 subStatus 원어 — 운영 조사용, 이벤트 미탑재
   vndr_ntwk_stcd  VARCHAR(64)  NULL,          -- 마지막 알림의 벤더 networkStatus 원어 — 운영 조사용, 이벤트 미탑재
   stall_alrt_dttm VARCHAR(16)  NULL,          -- 막힘 경보 올린 일시 — 있으면 다음 주기 건너뜀 · 해소 전이 시 NULL
-  vndr_crt_dttm   VARCHAR(16)  NULL,          -- 벤더 시간축을 UTC 초 단위로 변환 — 대사 시간축, set-once (제공자별 의미는 아래 표)
+  vndr_crt_dttm   VARCHAR(16)  NULL,          -- 벤더 시간축을 UTC 초 단위로 변환 — 대사 시간축 (제공자별 의미는 아래 표)
+                                              -- V32: NULL 허용 · 첫 관찰이 NULL→값 한 번만 채운다(set-once 예외)
                                               -- V32에서 NULL 허용: 제출 마감이 거래 행을 먼저 만들 때는 벤더 시각을 아직 모른다
   rcnc_chck_dttm  VARCHAR(16)  NULL,          -- 창 밖 미결 거래의 마지막 단건 조회 claim/확인 일시
   rcnc_chck_cnt   INT          NOT NULL DEFAULT 0, -- 단건 조회 횟수 — 영속 백오프 단계
@@ -1229,7 +1232,7 @@ CREATE INDEX idx_bcm_outbox_sweep_operations ON bcm_outbox_l (topic, evnt_stcd, 
 |---|---|
 | `evnt_id` | time-ordered UUID v7 — PK 이자 컨슈머 dedup 키. relay 가 같은 행을 두 번 보내도 컨슈머가 이 값으로 접는다. 시간정렬이라 별도 생성시각 없이 발송 순서로 쓴다 |
 | `bcm_tx_l` 갱신 | **행을 잠그고 판정한다** (2026-08-06 확정) — 전이 허용 여부는 직전 상태를 읽어야 정해지므로(02 허용 전이 표) 읽고 쓰는 사이에 다른 알림이 끼면 판정이 어긋난다. 그 tx 행을 `SELECT … FOR UPDATE` 로 잠근 뒤 판정·갱신한다. 같은 tx 의 알림만 경합하므로 잠금 범위가 좁다. `cnfm_cnt` 는 추가로 `GREATEST` 로 감싸 **줄지 않게** 한다(02) |
-| set-once 컬럼 | **갱신문에서 제외한다** — `vndr_crt_dttm`·`frst_dtct_dttm` 과 감사의 `frst_reg_empno`·`frst_reg_brcd` 는 최초 흔적이라 다시 쓰지 않는다. 갱신은 `last_chng_*` 만 건드린다 |
+| set-once 컬럼 | **갱신문에서 제외한다** — `frst_dtct_dttm` 과 감사의 `frst_reg_empno`·`frst_reg_brcd` 는 최초 흔적이라 다시 쓰지 않는다. 갱신은 `last_chng_*` 만 건드린다. **예외: `vndr_crt_dttm`은 `NULL → 값` 한 번을 허용한다**(V32) — 제출 마감이 먼저 만든 행에는 벤더 시각이 없어 첫 관찰이 채워야 한다. 값이 있는 행은 다시 쓰지 않는다 |
 | UNIQUE 충돌 | 도메인 예외로 바꾸고 **재조회해 이긴 값을 돌려준다** — 경합해도 결과는 하나다 |
 | `evt_typ_dvcd` | 코어 이벤트 어휘와 통일 — TXCK(Checking)·TXCF(Confirmed)·TXFL(Failed)·**TXRJ(Rejected — 2026-08-06 신설 제안, 코어 확정 대기)**. BC→코어 계약이 한 어휘로 흐른다 |
 | `evnt_stcd` | 워커 적재 시 `P`, relay 발송 성공 시 `S`, 실패 누적 시 `F`. relay 는 `P` 를 `evnt_id` 순으로 집는다 |
