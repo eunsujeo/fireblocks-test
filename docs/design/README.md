@@ -23,7 +23,7 @@ BCM을 구현하거나 연동하는 개발자를 위한 설계 정본이다. 전
 
 | 확인할 것 | 근거 |
 |---|---|
-| 벤더 확답·공식 자료 확인 기록 | [Fireblocks QnA](evidence/90-fireblocks-qna.md) |
+| 벤더 확답·공식 자료 확인 기록 | [Fireblocks QnA](evidence/90-fireblocks-qna.md) · [Dfns 기능 요청](evidence/91-dfns-feature-requests.md) |
 | 웹훅 필드·재시도·서명 | [payload 원문](evidence/96-payload-sample.md) · [Webhook PoC](evidence/97-webhook-poc-result.md) |
 | 배치 항목 귀속·부분 실패 | [배치 payload](evidence/94-batch-payload-sample.md) · [부분 실패 payload](evidence/93-batch-partial-fail-sample.md) |
 | approve 제출·배치 동작 | [approve + transferFrom PoC](evidence/95-approve-pull-poc-result.md) |
