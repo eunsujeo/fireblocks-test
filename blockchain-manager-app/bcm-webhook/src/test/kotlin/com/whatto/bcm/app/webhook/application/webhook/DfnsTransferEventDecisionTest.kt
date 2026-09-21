@@ -51,7 +51,7 @@ class DfnsTransferEventDecisionTest {
     fun `제출 원장에 있는 전송은 원장 전이와 출금 이벤트를 만든다`() {
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
         val observed = slot<TxObservation>()
-        every { txStates.observe(capture(observed)) } returns stateChange(TxStatus.SUBMITTED)
+        every { txStates.observe(capture(observed), any()) } returns stateChange(TxStatus.SUBMITTED)
         val enqueued = slot<List<OutboxEvent>>()
         every { outboxEvents.enqueue(capture(enqueued)) } returns Unit
 
@@ -71,7 +71,7 @@ class DfnsTransferEventDecisionTest {
     fun `이벤트의 심볼·금액·목적지는 알림이 아니라 제출 원장 값이다`() {
         // 알림은 벤더가 보낸 관찰이고 업무 귀속의 근거는 우리가 승인·기록한 요청이다.
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
-        every { txStates.observe(any()) } returns stateChange(TxStatus.SUBMITTED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
         every { outboxEvents.enqueue(any()) } returns Unit
         val serialized = mutableListOf<ChainEvent>()
 
@@ -115,7 +115,7 @@ class DfnsTransferEventDecisionTest {
                 ): TxStatus? = null
             }
         val observed = slot<TxObservation>()
-        every { txStates.observe(capture(observed)) } returns stateChange(TxStatus.CONFIRMED)
+        every { txStates.observe(capture(observed), any()) } returns stateChange(TxStatus.CONFIRMED)
 
         decision(statusTranslator = translator).decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -128,7 +128,7 @@ class DfnsTransferEventDecisionTest {
     fun `응답보다 웹훅이 먼저 오면 비어 있던 벤더 전송 ID를 채운다`() {
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns null
         every { submissions.findByExternalTransactionId(EXTERNAL_ID) } returns record(vendorTransactionId = null)
-        every { txStates.observe(any()) } returns stateChange(TxStatus.SUBMITTED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
 
         decision().decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -138,7 +138,7 @@ class DfnsTransferEventDecisionTest {
     @Test
     fun `이미 연결된 전송은 원장을 다시 잇지 않는다`() {
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
-        every { txStates.observe(any()) } returns stateChange(TxStatus.SUBMITTED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
 
         decision().decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -153,7 +153,7 @@ class DfnsTransferEventDecisionTest {
         val outcome = decision().decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isInstanceOf(DfnsTransferDecisionOutcome.UnknownSubmission::class.java)
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
     }
 
@@ -167,7 +167,7 @@ class DfnsTransferEventDecisionTest {
         assertThat(outcome).isInstanceOfSatisfying(DfnsTransferDecisionOutcome.Conflicting::class.java) {
             assertThat(it.externalTransactionId).isEqualTo(EXTERNAL_ID)
         }
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
         verify(exactly = 0) { submissions.markSubmitted(any(), any(), any()) }
     }
 
@@ -175,14 +175,14 @@ class DfnsTransferEventDecisionTest {
     fun `고객 이벤트가 없는 계열은 원장만 잇고 이벤트를 만들지 않는다`() {
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns
             record(transactionType = SubmissionTransactionType.SWEEP_BATCH)
-        every { txStates.observe(any()) } returns stateChange(TxStatus.SUBMITTED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
 
         val outcome = decision().decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isInstanceOfSatisfying(DfnsTransferDecisionOutcome.Processed::class.java) {
             assertThat(it.events).isEmpty()
         }
-        verify(exactly = 1) { txStates.observe(any()) }
+        verify(exactly = 1) { txStates.observe(any(), any()) }
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
     }
 
@@ -190,7 +190,7 @@ class DfnsTransferEventDecisionTest {
     fun `거래를 만들기 전에 network와 hash의 직렬화 경계를 잡는다`() {
         // 발신 붙임의 후보 조회와 직렬화되어야 팬텀 삽입이 생기지 않는다.
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns record()
-        every { txStates.observe(any()) } returns stateChange(TxStatus.SUBMITTED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.SUBMITTED)
 
         decision().decide(NOTIFICATION_ID, PAYLOAD)
 
@@ -202,7 +202,7 @@ class DfnsTransferEventDecisionTest {
         val outcome = decision(parser = NetworkTransferEventParser { null }).decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isEqualTo(DfnsTransferDecisionOutcome.NotTransferEvent)
-        verify(exactly = 0) { txStates.observe(any()) }
+        verify(exactly = 0) { txStates.observe(any(), any()) }
     }
 
     private fun decision(
@@ -273,7 +273,7 @@ class DfnsTransferEventDecisionTest {
                     ),
             )
         every { submissions.findByVendorTransactionId(TRANSFER_ID) } returns internal
-        every { txStates.observe(any()) } returns stateChange(TxStatus.CONFIRMED)
+        every { txStates.observe(any(), any()) } returns stateChange(TxStatus.CONFIRMED)
         every { outboxEvents.enqueue(any()) } returns Unit
 
         val serialized = mutableListOf<ChainEvent>()

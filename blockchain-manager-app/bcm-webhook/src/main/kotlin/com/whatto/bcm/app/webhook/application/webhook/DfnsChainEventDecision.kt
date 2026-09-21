@@ -150,7 +150,15 @@ class DfnsChainEventDecision(
                     vendorNetworkStatus = null,
                     observedAt = CoreDateTimes.now(clock),
                     vendorCreatedAt = CoreDateTimes.now(clock),
+                    // 금액은 **제출 시점에 확정한 값**을 쓴다 — 현재 매핑을 다시 읽으면 그 사이 교체된 정밀도로 다른 값이 나온다(03 V34).
+                    observedAmount = submission.amount,
+                    observedAmountBaseUnits = submission.vendorCanonical?.amountBaseUnits,
+                    observedAmountDecimals = submission.vendorCanonical?.decimals,
+                    observedSourceAddress = observation.fromAddress,
+                    // 우리가 실제로 보낸 목적지다(03 V30) — 논리 목적지(`recipientValue`)는 내부이체에서 accountId다.
+                    observedDestinationAddress = submission.vendorCanonical?.destinationAddress ?: observation.toAddress,
                 ),
+                attributedType = submission.transactionType.txType(),
             )
         val eventType = submission.transactionType.customerEventType() ?: return emptyList()
         return stateChange.statusesToPublish.map { published ->

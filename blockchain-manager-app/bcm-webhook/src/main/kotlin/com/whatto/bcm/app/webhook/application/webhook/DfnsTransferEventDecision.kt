@@ -101,7 +101,16 @@ class DfnsTransferEventDecision(
                     vendorNetworkStatus = null,
                     observedAt = CoreDateTimes.now(clock),
                     vendorCreatedAt = CoreDateTimes.fromEpochMillis(occurredAtMillis(delivery)),
+                    // 금액도 같은 이유로 원장에서 읽는다. 제출 시점에 확정한 값이라 현재 매핑을 다시 읽지 않는다(03 V34).
+                    observedAmount = submission.amount,
+                    observedAmountBaseUnits = submission.vendorCanonical?.amountBaseUnits,
+                    observedAmountDecimals = submission.vendorCanonical?.decimals,
+                    // 발신 주소는 전송 알림이 알려주지 않는다 — 온체인 이동 사건이 오면 그때 채워진다.
+                    observedSourceAddress = null,
+                    observedDestinationAddress = submission.vendorCanonical?.destinationAddress,
                 ),
+                // **이 경로가 거래 행을 만든다** — 구분을 여기서 확정한다(03 V32).
+                attributedType = submission.transactionType.txType(),
             )
         if (eventType == null) {
             return DfnsTransferDecisionOutcome.Processed(observation, status, emptyList())

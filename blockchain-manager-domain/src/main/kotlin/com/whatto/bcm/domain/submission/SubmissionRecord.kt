@@ -1,6 +1,7 @@
 package com.whatto.bcm.domain.submission
 
 import com.whatto.bcm.domain.event.EventType
+import com.whatto.bcm.domain.tx.TxType
 
 data class SubmissionRecord(
     val externalTransactionId: String,
@@ -70,6 +71,16 @@ enum class SubmissionTransactionType {
     BAND_S,
 
     ;
+
+    /** 거래 원장의 구분(03 V32). `customerEventType()`으로 역산하면 sweep·밴드S가 `null`이라 구분을 잃는다. */
+    fun txType(): TxType =
+        when (this) {
+            WITHDRAWAL -> TxType.WITHDRAWAL
+            INTERNAL -> TxType.INTERNAL
+            SWEEP_APPROVE -> TxType.SWEEP_APPROVE
+            SWEEP_BATCH -> TxType.SWEEP_BATCH
+            BAND_S -> TxType.BAND_S
+        }
 
     fun customerEventType(): EventType? =
         when (this) {
