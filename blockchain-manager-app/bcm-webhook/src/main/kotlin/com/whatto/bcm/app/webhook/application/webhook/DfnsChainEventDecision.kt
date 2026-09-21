@@ -314,9 +314,12 @@ class DfnsChainEventDecision(
 
                 is TxObservationOutcome.Applied -> outcome.change
             }
+        // 이벤트 금액은 **원장에 적힌 값**이다 — 매번 현재 매핑으로 다시 환산하면, 정밀도가 바뀐 뒤 재처리한 같은 사건이
+        // 원장과 다른 금액을 발행한다. 원장은 최초값을 지키므로(set-once) 둘이 갈린다(03 V34).
+        val amount = checkNotNull(stateChange.record.amount) { "deposit ledger row must carry an amount" }
         val events =
             stateChange.statusesToPublish.map { published ->
-                outboxEvent(notificationId, transactionId, deposit, observation, sender, baseUnits, decimals, confirmations, published)
+                outboxEvent(notificationId, transactionId, deposit, observation, sender, amount, confirmations, published)
             }
         outboxEvents.enqueue(events)
         return DfnsChainDecisionOutcome.Processed(observation, status, events)
@@ -328,8 +331,7 @@ class DfnsChainEventDecision(
         deposit: NetworkChainAttributionResult.Deposit,
         observation: NetworkChainTransfer,
         sender: String,
-        baseUnits: String,
-        decimals: Int,
+        amount: String,
         confirmations: Int,
         status: TxStatus,
     ): OutboxEvent {
@@ -346,8 +348,8 @@ class DfnsChainEventDecision(
                 symbol = deposit.symbol,
                 to = observation.toAddress,
                 from = sender,
-                // 등록 정밀도로 사람 단위 금액을 만든다 — 제공자와 무관하게 이벤트 금액의 단위는 하나다(02).
-                amount = AssetDecimals.amountOf(baseUnits, decimals),
+                // 사람 단위 금액은 원장이 정본이다 — 제공자와 무관하게 이벤트 금액의 단위는 하나다(02).
+                amount = amount,
                 status = status,
                 numOfConfirmations = confirmations,
             )

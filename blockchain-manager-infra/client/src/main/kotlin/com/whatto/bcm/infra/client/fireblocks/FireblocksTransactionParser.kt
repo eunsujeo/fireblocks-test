@@ -12,6 +12,7 @@ import com.whatto.bcm.infra.client.config.ConditionalOnFireblocksProtocol
 import org.springframework.stereotype.Component
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
+import java.math.BigDecimal
 
 /** Fireblocks 원문 JSON을 워커가 소비할 검증된 관찰값으로 변환한다. */
 @Component
@@ -49,7 +50,7 @@ class FireblocksTransactionParser(
                 requiredText(data.path("source").path("type").asString(), "data.source.type") == VAULT_ACCOUNT_SOURCE,
             sourceAddress = optionalText(data.path("sourceAddress").asString()),
             destinationAddress = optionalText(data.path("destinationAddress").asString()),
-            amount = requiredText(data.path("amountInfo").path("amount").asString(), "data.amountInfo.amount"),
+            amount = requiredAmount(data.path("amountInfo").path("amount").asString(), "data.amountInfo.amount"),
             statusObservation =
                 VendorStatusObservation(
                     rawStatus = requiredText(data.path("status").asString(), "data.status"),
@@ -67,6 +68,20 @@ class FireblocksTransactionParser(
         value: String,
         field: String,
     ): String = value.takeIf(String::isNotBlank) ?: throw WebhookPayloadException("missing $field")
+
+    /**
+     * 금액은 **경계에서 수로 검증한다**. 안쪽은 원장 금액과 `BigDecimal`로 대조하므로(03 V32 동일성 검사),
+     * 수가 아닌 문자열을 통과시키면 그 실패가 판정 한가운데서 예외로 터지고 값이 로그로 샌다.
+     * 여기서 걸러 **저장 가능한 사유만** 남긴다 — 사유에도 값은 넣지 않는다.
+     */
+    private fun requiredAmount(
+        value: String,
+        field: String,
+    ): String {
+        val text = requiredText(value, field)
+        runCatching { BigDecimal(text) }.getOrElse { throw WebhookPayloadException("malformed $field") }
+        return text
+    }
 
     private fun optionalText(value: String): String? = value.takeIf(String::isNotBlank)
 

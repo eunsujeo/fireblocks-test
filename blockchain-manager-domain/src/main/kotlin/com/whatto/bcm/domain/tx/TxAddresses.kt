@@ -18,10 +18,17 @@ object TxAddresses {
     ): Boolean =
         when (chainModel) {
             // 16진수라 대소문자에 정보가 없다. 벤더가 사건과 응답에서 다른 표기를 줘도 같은 주소다.
-            ChainModel.EVM -> left.equals(right, ignoreCase = true)
+            // **형식을 먼저 본다**(03 V32 "형식 검증 뒤 20바이트 값") — 20바이트 hex가 아닌 문자열까지
+            // 대소문자만 무시하고 같다고 하면, 주소가 아닌 값끼리도 같다고 하게 된다.
+            ChainModel.EVM -> if (isEvmAddress(left) && isEvmAddress(right)) left.equals(right, ignoreCase = true) else left == right
             // base58은 대소문자가 값의 일부다.
             ChainModel.SOLANA -> left == right
             // 모델을 모르면 정확히 같을 때만 같다고 한다.
             null -> left == right
         }
+
+    /** `0x` + 20바이트 hex. 체크섬 대문자 여부는 보지 않는다 — 그건 표기이지 값이 아니다. */
+    private fun isEvmAddress(value: String): Boolean = EVM_ADDRESS.matches(value)
+
+    private val EVM_ADDRESS = Regex("^0x[0-9a-fA-F]{40}$")
 }

@@ -45,7 +45,7 @@ object TxObservationConsistency {
     ): Result {
         if (previous == null) return Result.Consistent
 
-        amountConflict(previous.amount, observation.observedAmount)?.let { return it }
+        amountConflict(previous, observation)?.let { return it }
         addressConflict("sourceAddress", previous.sourceAddress, observation.observedSourceAddress, chainModel)
             ?.let { return it }
         addressConflict("destinationAddress", previous.destinationAddress, observation.observedDestinationAddress, chainModel)
@@ -53,18 +53,37 @@ object TxObservationConsistency {
         return Result.Consistent
     }
 
-    /** 금액은 최초값 불변이다. 표기가 달라도 같은 금액이면 같다 — `1`·`1.0`·`1.00`. */
+    /**
+     * 금액은 최초값 불변이다. 표기가 달라도 같은 금액이면 같다 — `1`·`1.0`·`1.00`.
+     *
+     * **환산 근거가 양쪽에 있으면 최소 단위로 비교한다**(03 V34 "재처리는 현재 매핑이 아니라 이 값을 쓴다").
+     * 사람 단위 금액은 *처리 당시* 매핑 정밀도로 만든 파생값이라, 매핑이 바뀐 뒤 같은 사건을 재처리하면
+     * 같은 최소 단위에서 다른 금액이 나온다. 그걸로 비교하면 **잘못이 없는 재처리를 격리**하게 된다 —
+     * V34가 이 원장에 근거를 남긴 이유가 그것이다.
+     */
     private fun amountConflict(
-        recorded: String?,
-        observed: String?,
+        previous: TxRecord,
+        observation: TxObservation,
     ): Result.Conflict? {
-        if (recorded == null || observed == null) return null
+        val recordedBaseUnits = previous.amountBaseUnits
+        val observedBaseUnits = observation.observedAmountBaseUnits
+        if (recordedBaseUnits != null && observedBaseUnits != null) {
+            // 같은 최소 단위면 같은 관찰이다 — 정밀도가 바뀌어 사람 단위 금액이 달라져도 격리하지 않는다.
+            return if (recordedBaseUnits == observedBaseUnits) {
+                null
+            } else {
+                Result.Conflict("amountBaseUnits", recordedBaseUnits, observedBaseUnits)
+            }
+        }
+        val recorded = previous.amount ?: return null
+        val observed = observation.observedAmount ?: return null
         val same =
             try {
                 BigDecimal(recorded).compareTo(BigDecimal(observed)) == 0
             } catch (exception: NumberFormatException) {
                 // 파싱되지 않는 값은 같다고 볼 수 없다. 형식 오류를 조용히 통과시키지 않는다.
-                throw IllegalStateException("cannot compare transaction amounts: recorded=$recorded observed=$observed", exception)
+                // **값은 메시지에 담지 않는다** — 이 예외는 로그로 나가고 금액은 로그에 남길 값이 아니다.
+                throw IllegalStateException("cannot compare transaction amounts", exception)
             }
         return if (same) null else Result.Conflict("amount", recorded, observed)
     }
