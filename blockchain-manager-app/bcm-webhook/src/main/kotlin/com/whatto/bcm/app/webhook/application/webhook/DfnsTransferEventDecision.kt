@@ -2,6 +2,7 @@ package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.submission.SubmissionObservationService
+import com.whatto.bcm.app.application.tx.TxObservationOutcome
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.event.ChainEvent
 import com.whatto.bcm.domain.event.ChainEventSerializer
@@ -70,11 +71,6 @@ class DfnsTransferEventDecision(
         // 업무 계열은 원장의 거래 구분에서 읽는다. 고객 이벤트가 없는 계열(Sweep·밴드S)은 원장만 잇고 이벤트를 만들지 않는다.
         val eventType = submission.transactionType.customerEventType()
 
-        // 응답을 못 받아 비어 있던 벤더 전송 ID를 이 알림이 채운다(02) — 같은 결과에 도달하는 두 번째 경로다.
-        if (submission.vendorTransactionId == null) {
-            submissions.markSubmitted(submission.externalTransactionId, observation.transferId, CoreDateTimes.now(clock))
-        }
-
         // 거래를 만드는 쪽도 같은 경계를 잡는다 — 발신 좌표의 후보 조회와 직렬화되어야 팬텀 삽입이 생기지 않는다.
         observation.transactionHash?.let { txStates.lockNetworkTransactionHash(submission.network, it) }
 
@@ -84,8 +80,10 @@ class DfnsTransferEventDecision(
                 VendorStatusObservation(observation.status.vendorValue, subStatus = null, confirmationCount = 0),
                 submission.network,
             )
-        val stateChange =
-            txStates.observe(
+        val outcome =
+            txStates.observeConsistently(
+                // 이 알림의 전송 ID가 곧 거래 키다 — 물리 교체(RBF)는 Dfns 경로에 없다.
+                rootVendorTransactionId = observation.transferId,
                 TxObservation(
                     vendorTransactionId = observation.transferId,
                     externalTransactionId = submission.externalTransactionId,
@@ -109,9 +107,23 @@ class DfnsTransferEventDecision(
                     observedSourceAddress = null,
                     observedDestinationAddress = submission.vendorCanonical?.destinationAddress,
                 ),
+                successEvidence = false,
                 // **이 경로가 거래 행을 만든다** — 구분을 여기서 확정한다(03 V32).
                 attributedType = submission.transactionType.txType(),
             )
+        val stateChange =
+            when (outcome) {
+                // 이미 적힌 금액·주소와 다른 사실을 말한다 — 상태만 진행시키면 공개 응답이 관찰과 어긋난다(03 V32).
+                is TxObservationOutcome.Conflict ->
+                    return DfnsTransferDecisionOutcome.ObservationConflict(observation, outcome.detail.safeReason)
+
+                is TxObservationOutcome.Applied -> outcome.change
+            }
+        // 응답을 못 받아 비어 있던 벤더 전송 ID를 이 알림이 채운다(02) — 같은 결과에 도달하는 두 번째 경로다.
+        // **동일성 검사 뒤에** 쓴다 — 앞서 쓰면 충돌로 격리할 때 이 갱신이 격리와 함께 커밋된다(같은 트랜잭션이다).
+        if (submission.vendorTransactionId == null) {
+            submissions.markSubmitted(submission.externalTransactionId, observation.transferId, CoreDateTimes.now(clock))
+        }
         if (eventType == null) {
             return DfnsTransferDecisionOutcome.Processed(observation, status, emptyList())
         }
@@ -193,6 +205,15 @@ sealed interface DfnsTransferDecisionOutcome {
      */
     data class UnknownSubmission(
         val observation: NetworkTransferObservation,
+    ) : DfnsTransferDecisionOutcome
+
+    /**
+     * 관찰이 이미 적힌 금액·주소와 다른 사실을 말한다 — 원장·이벤트를 하나도 쓰지 않고 관찰 전체를 격리한다(03 V32).
+     * 사유에는 **어긋난 항목만** 싣는다(금액·주소는 인박스에 남기지 않는다).
+     */
+    data class ObservationConflict(
+        val observation: NetworkTransferObservation,
+        val safeReason: String,
     ) : DfnsTransferDecisionOutcome
 
     /** 한 제출 키에 다른 전송 ID가 이미 붙어 있다 — 재시도로 풀리지 않으므로 즉시 격리한다. */

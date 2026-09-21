@@ -22,7 +22,16 @@ object TxObservationConsistency {
             val field: String,
             val recorded: String,
             val observed: String,
-        ) : Result
+        ) : Result {
+            /**
+             * 인박스에 남길 사유. **어긋난 항목만 말하고 값은 담지 않는다** — 금액·주소는 격리 사유로 적지 않는다.
+             * 무엇이 어긋났는지는 [recorded]·[observed]로 호출자가 안에서 다룬다.
+             *
+             * `field`는 접근자 안에서 뒷받침 필드를 가리키는 소프트 키워드다 — 생성자 프로퍼티는 `this.`로 짚는다.
+             */
+            val safeReason: String
+                get() = "observation conflicts with recorded transaction: field=${this.field}"
+        }
     }
 
     /**

@@ -2,6 +2,8 @@ package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.submission.SubmissionObservationService
+import com.whatto.bcm.app.application.tx.TxObservationCheck
+import com.whatto.bcm.app.application.tx.TxObservationOutcome
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.asset.AssetDecimals
 import com.whatto.bcm.domain.event.ChainEvent
@@ -116,55 +118,86 @@ class DfnsChainEventDecision(
                 VendorStatusObservation(observation.status.vendorValue, subStatus = null, confirmationCount = confirmations),
                 observation.network,
             )
-        val events = records.flatMap { record -> advance(notificationId, observation, record, status, confirmations) }
+        // **후보를 전부 잠가 검사한 뒤에** 쓰기를 시작한다 — 행마다 검사·쓰기를 붙여 돌면 뒤 행의 충돌로 격리할 때
+        // 앞 행의 전이가 같은 트랜잭션에 실려 함께 커밋된다. 잠금은 트랜잭션 끝까지 남아 그 사이가 벌어지지 않는다.
+        val checked =
+            records.map { record ->
+                val submission = submissionOf(record)
+                val candidate = outgoingObservation(observation, record, submission, status, confirmations)
+                when (val check = txStates.lockAndCheck(record.vendorTxId, candidate)) {
+                    is TxObservationCheck.Conflict ->
+                        return DfnsChainDecisionOutcome.ObservationConflict(observation, check.detail.safeReason)
+
+                    is TxObservationCheck.Consistent -> CheckedOutgoing(record, submission, check)
+                }
+            }
+        val events = checked.flatMap { advance(notificationId, observation, it, confirmations) }
         outboxEvents.enqueue(events)
         return DfnsChainDecisionOutcome.OutgoingAdvanced(observation, status, records.size, events)
     }
 
+    /** 제출 키로 **직접** 찾는다 — 값이 닮았는지 대조해 고르는 것이 아니다. 없으면 원장 결함이므로 감추지 않고 올린다. */
+    private fun submissionOf(record: TxRecord): SubmissionRecord {
+        val externalTransactionId = requireNotNull(record.externalTxId) { "outgoing record must carry a submission key" }
+        return checkNotNull(submissions.findByExternalTransactionId(externalTransactionId)) {
+            "submission ledger row is missing for an outgoing transaction"
+        }
+    }
+
+    private fun outgoingObservation(
+        observation: NetworkChainTransfer,
+        record: TxRecord,
+        submission: SubmissionRecord,
+        status: TxStatus,
+        confirmations: Int,
+    ) = TxObservation(
+        // 좌표를 주는 것이지 만드는 게 아니다 — 키는 기존 거래의 벤더 전송 ID다.
+        vendorTransactionId = record.vendorTxId,
+        externalTransactionId = submission.externalTransactionId,
+        accountId = record.accountId,
+        network = record.network,
+        symbol = record.symbol,
+        transactionHash = observation.transactionHash,
+        status = status,
+        confirmationCount = confirmations,
+        vendorSubStatus = null,
+        vendorNetworkStatus = null,
+        observedAt = CoreDateTimes.now(clock),
+        vendorCreatedAt = CoreDateTimes.now(clock),
+        // 금액은 **제출 시점에 확정한 값**을 쓴다 — 현재 매핑을 다시 읽으면 그 사이 교체된 정밀도로 다른 값이 나온다(03 V34).
+        observedAmount = submission.amount,
+        observedAmountBaseUnits = submission.vendorCanonical?.amountBaseUnits,
+        observedAmountDecimals = submission.vendorCanonical?.decimals,
+        observedSourceAddress = observation.fromAddress,
+        // 우리가 실제로 보낸 목적지다(03 V30) — 논리 목적지(`recipientValue`)는 내부이체에서 accountId다.
+        observedDestinationAddress = submission.vendorCanonical?.destinationAddress ?: observation.toAddress,
+    )
+
     private fun advance(
         notificationId: String,
         observation: NetworkChainTransfer,
-        record: TxRecord,
-        status: TxStatus,
+        checked: CheckedOutgoing,
         confirmations: Int,
     ): List<OutboxEvent> {
-        val externalTransactionId = requireNotNull(record.externalTxId) { "outgoing record must carry a submission key" }
-        // 제출 키로 **직접** 찾는다 — 값이 닮았는지 대조해 고르는 것이 아니다. 없으면 원장 결함이므로 감추지 않고 올린다.
-        val submission =
-            checkNotNull(submissions.findByExternalTransactionId(externalTransactionId)) {
-                "submission ledger row is missing for an outgoing transaction"
-            }
+        val submission = checked.submission
         val stateChange =
-            txStates.observe(
-                TxObservation(
-                    // 좌표를 주는 것이지 만드는 게 아니다 — 키는 기존 거래의 벤더 전송 ID다.
-                    vendorTransactionId = record.vendorTxId,
-                    externalTransactionId = externalTransactionId,
-                    accountId = record.accountId,
-                    network = record.network,
-                    symbol = record.symbol,
-                    transactionHash = observation.transactionHash,
-                    status = status,
-                    confirmationCount = confirmations,
-                    vendorSubStatus = null,
-                    vendorNetworkStatus = null,
-                    observedAt = CoreDateTimes.now(clock),
-                    vendorCreatedAt = CoreDateTimes.now(clock),
-                    // 금액은 **제출 시점에 확정한 값**을 쓴다 — 현재 매핑을 다시 읽으면 그 사이 교체된 정밀도로 다른 값이 나온다(03 V34).
-                    observedAmount = submission.amount,
-                    observedAmountBaseUnits = submission.vendorCanonical?.amountBaseUnits,
-                    observedAmountDecimals = submission.vendorCanonical?.decimals,
-                    observedSourceAddress = observation.fromAddress,
-                    // 우리가 실제로 보낸 목적지다(03 V30) — 논리 목적지(`recipientValue`)는 내부이체에서 accountId다.
-                    observedDestinationAddress = submission.vendorCanonical?.destinationAddress ?: observation.toAddress,
-                ),
+            txStates.applyChecked(
+                checked.check,
+                successEvidence = false,
                 attributedType = submission.transactionType.txType(),
             )
         val eventType = submission.transactionType.customerEventType() ?: return emptyList()
         return stateChange.statusesToPublish.map { published ->
-            outgoingEvent(notificationId, eventType, submission, record, observation, confirmations, published)
+            outgoingEvent(notificationId, eventType, submission, checked.record, observation, confirmations, published)
         }
     }
+
+    /** 잠그고 검사까지 마친 발신 후보 — 이 자리에서는 아직 아무것도 쓰지 않았다. */
+    private data class CheckedOutgoing(
+        val record: TxRecord,
+        val submission: SubmissionRecord,
+        val check: TxObservationCheck.Consistent,
+    )
 
     private fun outgoingEvent(
         notificationId: String,
@@ -243,8 +276,10 @@ class DfnsChainEventDecision(
                 VendorStatusObservation(observation.status.vendorValue, subStatus = null, confirmationCount = confirmations),
                 observation.network,
             )
-        val stateChange =
-            txStates.observe(
+        val outcome =
+            txStates.observeConsistently(
+                // 입금은 파생 거래 ID가 곧 키다(03 V26) — 물리 교체가 없다.
+                rootVendorTransactionId = transactionId,
                 TxObservation(
                     vendorTransactionId = transactionId,
                     // 입금은 우리가 낸 제출이 아니므로 제출 키가 없다(Fireblocks 입금과 같다).
@@ -268,8 +303,17 @@ class DfnsChainEventDecision(
                     observedSourceAddress = sender,
                     observedDestinationAddress = observation.toAddress,
                 ),
+                successEvidence = false,
                 attributedType = TxType.DEPOSIT,
             )
+        val stateChange =
+            when (outcome) {
+                // 이미 적힌 금액·주소와 다른 사실을 말한다 — 상태만 진행시키면 공개 응답이 관찰과 어긋난다(03 V32).
+                is TxObservationOutcome.Conflict ->
+                    return DfnsChainDecisionOutcome.ObservationConflict(observation, outcome.detail.safeReason)
+
+                is TxObservationOutcome.Applied -> outcome.change
+            }
         val events =
             stateChange.statusesToPublish.map { published ->
                 outboxEvent(notificationId, transactionId, deposit, observation, sender, baseUnits, decimals, confirmations, published)
@@ -356,6 +400,15 @@ sealed interface DfnsChainDecisionOutcome {
      */
     data class OutgoingPending(
         val observation: NetworkChainTransfer,
+    ) : DfnsChainDecisionOutcome
+
+    /**
+     * 관찰이 이미 적힌 금액·주소와 다른 사실을 말한다 — 원장·이벤트를 하나도 쓰지 않고 관찰 전체를 격리한다(03 V32).
+     * 사유에는 **어긋난 항목만** 싣는다(금액·주소는 인박스에 남기지 않는다).
+     */
+    data class ObservationConflict(
+        val observation: NetworkChainTransfer,
+        val safeReason: String,
     ) : DfnsChainDecisionOutcome
 
     data class UnsupportedAsset(

@@ -7,6 +7,7 @@ import com.whatto.bcm.app.application.submission.SubmissionObservationService
 import com.whatto.bcm.app.application.sweep.SweepInvalidationService
 import com.whatto.bcm.app.application.sweep.SweepObservationService
 import com.whatto.bcm.app.application.tx.BoostObservationService
+import com.whatto.bcm.app.application.tx.TxObservationOutcome
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.event.ChainEvent
@@ -161,8 +162,10 @@ class WebhookDecisionTransaction(
                 ?: return unattributed(inboxItem, transaction, mapping.network, mapping.symbol)
         val sourceAddress = transaction.sourceAddress ?: throw WebhookPayloadException("missing data.sourceAddress")
         val status = statusTranslator.translate(transaction.statusObservation, mapping.network)
-        val stateChange =
-            txStates.observe(
+        val outcome =
+            txStates.observeConsistently(
+                // 입금은 벤더 거래 ID가 곧 키다 — 물리 교체(RBF)는 우리가 낸 발신에만 있다.
+                rootVendorTransactionId = transaction.vendorTransactionId,
                 TxObservation(
                     vendorTransactionId = transaction.vendorTransactionId,
                     externalTransactionId = transaction.externalTransactionId,
@@ -180,8 +183,15 @@ class WebhookDecisionTransaction(
                     observedSourceAddress = sourceAddress,
                     observedDestinationAddress = transaction.destinationAddress,
                 ),
+                successEvidence = false,
                 attributedType = TxType.DEPOSIT,
             )
+        val stateChange =
+            when (outcome) {
+                // 이미 적힌 금액·주소와 다른 사실을 말한다 — 상태만 진행시키면 공개 응답이 관찰과 어긋난다(03 V32).
+                is TxObservationOutcome.Conflict -> return quarantineNow(inboxItem, outcome.detail.safeReason)
+                is TxObservationOutcome.Applied -> outcome.change
+            }
         val events =
             stateChange.statusesToPublish.map { publishedStatus ->
                 outboxEvent(
@@ -219,53 +229,36 @@ class WebhookDecisionTransaction(
         if (submission == null) {
             return unregisteredVaultTransfer(inboxItem, transaction)
         }
-        val rootVendorTransactionId =
-            if (boost != null) {
-                val registeredReplacement = boost.newVendorTransactionId
-                if (registeredReplacement != null && registeredReplacement != transaction.vendorTransactionId) {
-                    return quarantineNow(
-                        inboxItem,
-                        "boost vendor transaction id conflict: recorded=$registeredReplacement " +
-                            "observed=${transaction.vendorTransactionId}",
-                    )
-                }
-                boosts
-                    .markSubmittedByObservation(
-                        boost.externalTransactionId,
-                        transaction.vendorTransactionId,
-                        inboxItem.receivedAt,
-                    ).rootVendorTransactionId
-            } else {
-                when (val registeredVendorTransactionId = submission.vendorTransactionId) {
-                    null -> {
-                        submissions.markSubmitted(
-                            checkNotNull(externalTransactionId),
-                            transaction.vendorTransactionId,
-                            inboxItem.receivedAt,
-                        )
-                    }
-
-                    transaction.vendorTransactionId -> {
-                        Unit
-                    }
-
-                    else -> {
-                        // 한 요청 키에 거래가 둘 붙었다 — 재시도로 풀릴 성질이 아니라 사람이 봐야 한다.
-                        // 03 sbmt_stcd 전이 표: "다른 vndr_tx_id 가 오면 충돌로 보고 격리한다" (즉시 격리)
-                        return quarantineNow(
-                            inboxItem,
-                            "vendor transaction id conflict: recorded=$registeredVendorTransactionId " +
-                                "observed=${transaction.vendorTransactionId}",
-                        )
-                    }
-                }
-                transaction.vendorTransactionId
+        // 결속 충돌은 **읽기만으로** 가른다 — 원장 갱신은 동일성 검사를 통과한 뒤에 한다(아래).
+        // 앞서 쓰면 관찰이 충돌로 격리될 때 그 갱신이 격리와 함께 커밋된다(같은 트랜잭션이다).
+        if (boost != null) {
+            val registeredReplacement = boost.newVendorTransactionId
+            if (registeredReplacement != null && registeredReplacement != transaction.vendorTransactionId) {
+                return quarantineNow(
+                    inboxItem,
+                    "boost vendor transaction id conflict: recorded=$registeredReplacement " +
+                        "observed=${transaction.vendorTransactionId}",
+                )
             }
+        } else {
+            val registeredVendorTransactionId = submission.vendorTransactionId
+            if (registeredVendorTransactionId != null && registeredVendorTransactionId != transaction.vendorTransactionId) {
+                // 한 요청 키에 거래가 둘 붙었다 — 재시도로 풀릴 성질이 아니라 사람이 봐야 한다.
+                // 03 sbmt_stcd 전이 표: "다른 vndr_tx_id 가 오면 충돌로 보고 격리한다" (즉시 격리)
+                return quarantineNow(
+                    inboxItem,
+                    "vendor transaction id conflict: recorded=$registeredVendorTransactionId " +
+                        "observed=${transaction.vendorTransactionId}",
+                )
+            }
+        }
+        // 논리 root는 부스트 행에 이미 적혀 있다 — 결속 갱신이 바꾸는 값이 아니라 쓰기 전에 읽어도 같다.
+        val rootVendorTransactionId = boost?.rootVendorTransactionId ?: transaction.vendorTransactionId
 
         val status = statusTranslator.translate(transaction.statusObservation, submission.network)
         val viableBoost = boost ?: boosts.findLatestViableByRoot(rootVendorTransactionId)
-        val stateChange =
-            txStates.observeRoot(
+        val outcome =
+            txStates.observeConsistently(
                 rootVendorTransactionId = rootVendorTransactionId,
                 TxObservation(
                     vendorTransactionId = transaction.vendorTransactionId,
@@ -291,6 +284,17 @@ class WebhookDecisionTransaction(
                         PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation),
                 deferFailure = viableBoost != null,
             )
+        val stateChange =
+            when (outcome) {
+                is TxObservationOutcome.Conflict -> return quarantineNow(inboxItem, outcome.detail.safeReason)
+                is TxObservationOutcome.Applied -> outcome.change
+            }
+        // 검사를 통과한 뒤에 결속을 갱신한다 — 응답을 못 받아 비어 있던 벤더 거래 ID를 이 관찰이 채운다.
+        if (boost != null) {
+            boosts.markSubmittedByObservation(boost.externalTransactionId, transaction.vendorTransactionId, inboxItem.receivedAt)
+        } else if (submission.vendorTransactionId == null) {
+            submissions.markSubmitted(checkNotNull(externalTransactionId), transaction.vendorTransactionId, inboxItem.receivedAt)
+        }
         val eventType = submission.transactionType.customerEventType()
         if (eventType == null) {
             if (

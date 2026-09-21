@@ -78,6 +78,10 @@ class DfnsWebhookDecisionTransaction(
             // 상한을 기다리지 않고 **즉시 격리**한다(03 `sbmt_stcd` 전이 표·계약13). 처리 완료로 소거하면 신호가 사라진다.
             is DfnsTransferDecisionOutcome.Conflicting -> quarantineNow(inboxItem, CONFLICTING_TRANSFER_REASON)
 
+            // 관찰이 이미 적힌 금액·주소와 다른 사실을 말한다 — 원장·이벤트를 쓰지 않았고 재시도가 값을 바꾸지 못한다.
+            // **즉시 격리**해 원문을 남긴다(03 V32). 사유에는 어긋난 항목만 들어 있다.
+            is DfnsTransferDecisionOutcome.ObservationConflict -> quarantineNow(inboxItem, transfer.safeReason)
+
             // 우리 지갑에서 **우리가 내지 않은 전송**이 나갔다는 뜻이다 — 그 자체로 이상 신호이고,
             // 처리 완료로 소거하면 원문이 인박스에서 사라져 나중에 같은 트랜잭션의 이동을 판단할 근거도 없어진다.
             // 원장·이벤트는 만들지 않되 **격리해 원문과 사실을 남긴다**(계약13).
@@ -114,6 +118,9 @@ class DfnsWebhookDecisionTransaction(
 
             // 발신이 우리 지갑인데 그 hash의 발신 거래가 아직 없다 — 입금으로 확정하면 되돌릴 수 없다. 재시도로 남긴다.
             is DfnsChainDecisionOutcome.IncomingUnresolved -> failed(inboxItem, UNRESOLVED_INCOMING_REASON)
+
+            // 위와 같다 — 이 사건의 관찰이 원장과 어긋난다. 원장·이벤트를 쓰지 않았으므로 격리만 남긴다(03 V32).
+            is DfnsChainDecisionOutcome.ObservationConflict -> quarantineNow(inboxItem, outcome.safeReason)
 
             is DfnsChainDecisionOutcome.Unattributed -> {
                 markProcessed(inboxItem)
