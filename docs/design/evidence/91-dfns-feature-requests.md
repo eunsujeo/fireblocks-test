@@ -7,13 +7,23 @@ status: To Do
 > 대상 명세는 채택본 `dfns-openapi-1.1018.3`. 전달·회신 결과는 회신을 받은 뒤 이 문서에 이어 적는다.
 
 수탁형 지갑의 온체인 자산 이동을 Dfns로 처리하고 있습니다. 아래는 **없어서 저희가 우회한 것**들이고,
-각 항목에 바꿔 주셨으면 하는 **스키마·엔드포인트**와 그 우회가 만든 실제 비용을 적었습니다. 우선순위 순입니다.
+각 항목에 **무엇을 고쳐야 하는지**(스키마인지 엔드포인트인지)와 그 우회가 만든 실제 비용을 적었습니다. 우선순위 순입니다.
+
+> `TransferRequest`·`WalletHistoryEvent`는 **스키마**입니다. 여러 엔드포인트와 웹훅이 같은 스키마를 쓰므로,
+> 필드 하나를 더하면 그 자리들이 함께 해결됩니다.
 
 ---
 
-## 1. `TransferRequest` — `Failed`가 체인에 나갔는지 알려 주세요
+## 1. [스키마] `TransferRequest` — `Failed`가 체인에 나갔는지 알려 주세요
 
-**대상**: `TransferRequest` 스키마 (조회 응답과 `wallet.transfer.failed` 웹훅의 `data.transferRequest`)
+**고칠 곳**: `TransferRequest` 스키마 — 필드 하나를 더하면 아래 **네 자리가 함께** 해결됩니다.
+
+| 쓰이는 곳 | |
+|---|---|
+| `POST /wallets/{walletId}/transfers` | Transfer Asset 응답 |
+| `GET /wallets/{walletId}/transfers/{transferId}` | Get Transfer 응답 |
+| `GET /wallets/{walletId}/transfers` | List Transfers 응답 |
+| `wallet.transfer.*` 웹훅 | `data.transferRequest` |
 
 **요청**: 아래 중 하나
 - `onChainSubmitted: boolean` 또는 `failureStage: "PRE_BROADCAST" | "ON_CHAIN"` 필드 추가
@@ -25,9 +35,10 @@ status: To Do
 > 새 `externalId`로 보내면 이중 지급 위험이라 저희는 `422`로 거절하고 사람이 개입합니다.
 > (2026-09-18 문의에서 "구분하는 필드가 없다"고 회신받았습니다.)
 
-## 2. `WalletHistoryEvent` — 확정을 알려 주세요
+## 2. [스키마 + 웹훅] `WalletHistoryEvent` — 확정을 알려 주세요
 
-**대상**: `wallet.blockchainevent.detected` · `wallet.blockchain_event.transfer.included` 웹훅의 `data.blockchainEvent`
+**고칠 곳**: `WalletHistoryEvent` 스키마 — `wallet.blockchainevent.detected` · `wallet.blockchain_event.transfer.included` 웹훅의 `data.blockchainEvent`와
+`GET /wallets/{walletId}/history` 응답에 함께 쓰입니다. 새 웹훅 kind 신설은 별도 요청입니다(아래).
 
 **요청**: 아래 중 하나
 - `WalletHistoryEvent`에 **`confirmations: number`** 추가
@@ -38,9 +49,9 @@ status: To Do
 > 그래서 **저희가 RPC를 따로 붙여** `blockNumber`와 체인 head의 깊이를 계산합니다.
 > Dfns가 RPC를 보는데 저희가 또 RPC를 보는 이중 의존이고, head 조회가 실패하면 확정이 멈춥니다.
 
-## 3. `WalletHistoryEvent` — 사건에 ID를 주세요
+## 3. [스키마] `WalletHistoryEvent` — 온체인 이동에 ID를 주세요
 
-**대상**: `WalletHistoryEvent` 스키마 (웹훅 `data.blockchainEvent`와 `GET /wallets/{walletId}/history` 응답)
+**고칠 곳**: `WalletHistoryEvent` 스키마 (2번과 같은 자리)
 
 **요청**: **벤더가 발급한 안정적인 ID 필드**(예: `id`). 같은 이동을 다시 조회해도 같은 값이면 됩니다.
 
@@ -48,9 +59,9 @@ status: To Do
 > 저희는 `SHA-256(network · txHash · index)`로 결정적 ID를 만들어 고객에게 노출하는데,
 > 그 값은 **Dfns 콘솔에서 검색되지 않습니다.** 운영 조사는 `txHash`로만 가능합니다.
 
-## 4. `GET /wallets/{walletId}/transfers` — `externalId`로 찾게 해 주세요
+## 4. [엔드포인트] List Transfers — `externalId`로 찾게 해 주세요
 
-**대상**: `GET /wallets/{walletId}/transfers` (현재 query: `limit`·`paginationToken`)
+**고칠 곳**: `GET /wallets/{walletId}/transfers` (현재 query: `limit`·`paginationToken`)
 
 **요청**: 아래 중 하나
 - query에 **`externalId`** 필터 추가
@@ -61,7 +72,7 @@ status: To Do
 > 멱등 계약 덕에 안전하지만 재제출은 곧 자금 이동 시도라, 백그라운드 점검에는 열지 못했습니다.
 > 단건 조회가 `(walletId, transferId)`를 요구하는 것도 같은 이유로 걸립니다 — 지갑을 먼저 알아야 하는데 그건 저희 원장에만 있습니다.
 
-## 5. 세 필드를 `required`로 올려 주세요
+## 5. [스키마] `WalletHistoryEvent` — 세 필드를 `required`로 올려 주세요
 
 | 스키마 · 필드 | 지금 | 없으면 |
 |---|---|---|
@@ -71,12 +82,12 @@ status: To Do
 
 > `index`는 3번(벤더 ID)이 제공되면 필요 없습니다.
 
-## 6. `WalletHistoryEvent` — 명세를 두 군데 보완해 주세요
+## 6. [문서] `WalletHistoryEvent` — 명세를 두 군데 보완해 주세요
 
 - **`timestamp`의 형식·시간대** — 서술이 없어 저희는 웹훅 envelope의 `date`를 대신 씁니다
 - **`value`의 단위** — 최소 단위인지 명시가 없습니다
 
-## 7. 웹훅 재전송 엔드포인트를 주세요
+## 7. [엔드포인트 신설] 웹훅 재전송
 
 **요청**: 알림 ID 또는 기간으로 재전송하는 엔드포인트(예: `POST /webhooks/{webhookId}/events/{eventId}/retry`)
 
