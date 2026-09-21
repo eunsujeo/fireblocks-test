@@ -1119,6 +1119,11 @@ Q1이 실제로 돌려 보며 확정한다 — Q0 리뷰 3라운드에서 Major�
   03의 기존 set-once 규칙은 **그 컬럼을 갱신문에서 아예 빼라**고 한다. 실제 `TxJdbcAdapter`도 건드리지 않고
   `TxStateMachine`이 계산한 값을 persistence가 버린다. 그대로면 제출 마감이 만든 행은 **영원히 `NULL`**이고 대사에서도 빠진다.
   set-once의 **예외**로 `NULL → 값` 한 번만 허용한다고 03 두 곳에 적고, Q1 순서에 **첫 관찰 writer 배포를 백필보다 앞에** 넣었다.
+- **6차 반영(2026-09-18)**: 그 writer를 `WHERE vndr_crt_dttm IS NULL`로 적은 것이 또 틀렸다 —
+  행 조건으로 쓰면 시각이 채워진 거래의 **이후 상태·컨펌·hash·RBF 갱신이 전부 0행**이 되어 충돌이 된다.
+  `COALESCE` 컬럼 단위 병합으로 바꿨다. 또한 활성 거래의 **`FAILED` 보류 분기**는 `candidate()`를 거치지 않아
+  writer만 더해도 바인딩 값이 계속 `null`이다 — 수락된 모든 관찰 경로가 `previous ?: observation`을 넘기도록 조건에 넣고
+  검증 대상 네 경로(일반·기존값 보존·RBF 승자·`FAILED` 보류)를 명시했다.
 ### Q1 착수 조건 — 초안
 
 Q0은 **공개 응답·상태 매핑·시각 의미**까지만 닫는다. 아래는 Q0 리뷰 3라운드에서 나온 백필·전환 조건의 **초안**이며,
@@ -1184,8 +1189,21 @@ V30에서 배운 대로, 제약 추가와 백필을 같은 파일에 섞지 않�
 | 1 | `ALTER TABLE bcm_tx_l ALTER COLUMN vndr_crt_dttm DROP NOT NULL` — 백필이 행을 만들기 전에 |
 | 2 | 공용 거래 읽기 경로를 nullable로 — `TxRecord.vendorCreatedAt` · `TxEntity` · `TxJdbcAdapter`. Webhook·BAT도 이 모델을 쓴다 |
 | 3 | Admin 거래 조사 경로 — 어댑터·도메인·DTO·BFF 생성 타입 |
-| 4 | **`vndr_crt_dttm` 첫 관찰 writer** — 일반 관찰 갱신과 RBF 승자 갱신 **양쪽** 모두 `WHERE vndr_crt_dttm IS NULL`로 한 번 채우게 한다 |
+| 4 | **`vndr_crt_dttm` 첫 관찰 writer** — 아래 네 조건을 다 만족해야 한다 |
 | 5 | 그 뒤에 거래 행 백필 |
+
+4단계 writer의 조건:
+
+- **컬럼 단위 병합**이다 — `SET vndr_crt_dttm = COALESCE(vndr_crt_dttm, :vendorCreatedAt)`.
+  갱신문의 `WHERE`에 `IS NULL`을 넣으면 시각이 채워진 거래의 **이후 모든 갱신이 0행**이 되어 충돌로 처리된다.
+- **수락된 모든 관찰 경로**가 `previous.vendorCreatedAt ?: observation.vendorCreatedAt`을 넘긴다 —
+  일반 관찰·RBF 승자뿐 아니라 **활성 거래의 `FAILED` 보류 분기**(`TxStateMachine`)도 포함한다.
+  그 분기는 `candidate()`를 거치지 않고 `previous.copy(...)`를 저장하므로, writer만 더해도 **바인딩되는 값이 계속 `null`**이다.
+  `lastChangedAt`과 대사 상태를 실제로 갱신하는 경로라 무시된 관찰이 아니다.
+- 행 잠금·상태·outbox 갱신과 **같은 트랜잭션**에서 쓴다.
+- **격리·무시된 관찰은 시각도 적지 않는다** — 받아들이지 않은 관찰의 시각을 남기면 대사가 그 창으로 비교한다.
+
+검증은 네 경로를 각각 본다 — 일반 관찰 / 기존값 보존 / RBF 승자 / `FAILED` 보류.
 
 **4가 5보다 앞서야 한다.** 현재 `TxJdbcAdapter`의 두 갱신문은 `vndr_crt_dttm`을 아예 건드리지 않는다(set-once라 제외돼 있다).
 `TxStateMachine`은 첫 관찰값을 계산하는데 persistence가 버린다. 순서를 뒤집으면 **백필과 writer 배포 사이에 온 관찰의 벤더 시각이 영구히 `NULL`로 남고**,
