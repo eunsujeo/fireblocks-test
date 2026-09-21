@@ -106,7 +106,7 @@ entity: bcm_outbox_l @3,1 :: 발행 대기 이벤트 — 워커가 상태 변경
 entity: bcm_evnt_cmpl_l @4,1 :: 소비자 처리 완료 확인 | evnt_id PK,FK :: BCM 발행 이벤트 | cnsmr_dvcd PK :: DAW_CORE | cmpl_dttm :: 최초 완료 시각
 entity: bcm_sbmt_l @4,1 :: 제출 원장 — 우리가 벤더에 낸 건 (출금·내부이체·sweep) | ext_tx_id PK :: 우리 요청 키 = 멱등 키 | req_hash :: 요청 내용 SHA-256 — 같은 키 다른 내용 판별 | tx_dvcd :: WITHDRAWAL/INTERNAL/SWEEP_APPROVE/SWEEP_BATCH | vndr_tx_id UK :: 벤더 응답·웹훅으로 채운다 (NULL=미확인)
 entity: bcm_acnt_m @1,2 :: 계정 매핑 — ref ↔ vault | acnt_id PK :: 매니저가 발급하는 계정 매핑 id | acnt_typ_dvcd UK :: 계정유형 CU 고객 / SY 시스템 | ref UK :: 백엔드 참조 키 = 코어 계정 ID · 유형과 함께 유일 | vndr_vlt_id :: 벤더 vault id (백엔드 비노출)
-entity: bcm_tx_l @2,2 :: 거래 운영 상태 — 감지·발행 추적 | vndr_tx_id PK :: 최초 벤더 tx id = 논리 거래 id | actv_tx_id UK :: 현재 물리 벤더 tx id | vndr_crt_dttm :: 벤더 createdAt — 대사 시간축 | last_pub_stcd :: 마지막으로 발행한 TxStatus
+entity: bcm_tx_l @2,2 :: 거래 운영 상태 — 감지·발행 추적 | vndr_tx_id PK :: 최초 거래의 공개 id = 논리 거래 id | actv_tx_id UK :: 현재 물리 벤더 tx id | vndr_crt_dttm :: 벤더 createdAt — 대사 시간축 | last_pub_stcd :: 마지막으로 발행한 TxStatus
 entity: bcm_boost_l @3,2 :: boost intent·이력 — 호출 전 선기록 | orig_tx_id PK :: root 논리 거래 id | try_seq PK :: 시도 순번 | ext_tx_id UK :: RBF 제출 멱등 키 | new_tx_id UK :: 대체 벤더 tx
 entity: bcm_swp_req_l @1,3 :: DAW-CORE sweep 요청 | swp_req_id PK :: BCM id | ext_swp_req_id UK :: DAW 멱등 키 | req_hash :: canonical body hash | swp_req_stcd :: ACCEPTED/BLOCKED/PROCESSING/COMPLETED/PARTIAL/FAILED
 entity: bcm_swp_req_item_l @2,3 :: sweep 요청 계정 항목 | swp_req_item_id PK :: BCM id | swp_req_id FK :: 요청 | acnt_id :: 고객 계정 | swp_req_item_stcd :: PENDING/PROCESSING/COMPLETED/FAILED
@@ -212,7 +212,7 @@ del: bcm_swp_trgt | 1
 
 ### 출금
 
-이벤트에는 벤더 tx id(`txId`)가 늘 실리고, 출금은 여기에 `externalTxId`(백엔드 요청 키)가 더해져 상태 전이 내내 그대로 따라간다 — DAW-CORE 가 자기 출금 지시와 대응한다. (입금은 외부 요청 키가 없어 `txId` 만.)
+이벤트에는 공개 거래 id(`txId`)가 늘 실리고, 출금은 여기에 `externalTxId`(백엔드 요청 키)가 더해져 상태 전이 내내 그대로 따라간다 — DAW-CORE 가 자기 출금 지시와 대응한다. (입금은 외부 요청 키가 없어 `txId` 만.)
 
 ```anim
 db
@@ -519,9 +519,28 @@ CREATE INDEX CONCURRENTLY idx_bcm_tx_account_listing
 
 세 컬럼은 **nullable 추가 전용**으로 먼저 열고, 기존 행을 채운 뒤에야 공개 read를 전환한다.
 
-- 출금·내부이체·sweep·밴드S는 `bcm_sbmt_l`에서 채운다 — `trsf_amt`, 목적지는 `vndr_dst_addr`(없으면 `rcv_vl`이 주소인 경우만).
-- 입금은 제출 원장이 없다. `bcm_outbox_l` payload와 `bcm_raw_tx_l` 원문에서 채운다.
+- 출금·내부이체·sweep·밴드S는 `bcm_sbmt_l`에서 채운다 — `trsf_amt`, 목적지는 `vndr_dst_addr`(없으면 `rcv_vl`이 주소인 경우만), `tx_dvcd`는 `bcm_sbmt_l.tx_dvcd` 그대로.
+- 입금은 제출 원장이 없다. `bcm_outbox_l` payload와 `bcm_raw_tx_l` 원문에서 채운다. `tx_dvcd`는 **그 거래로 실제 발행된 `DEPOSIT` 이벤트가 있을 때만** `DEPOSIT`으로 적는다.
 - `src_addr`는 제출 원장에 없다 — 발신 계정의 `bcm_ntwk_wlt_m.wlt_addr`(Dfns)나 관찰 원문에서 얻는다.
+- **근거가 없는 행은 추정하지 않고 격리한다.** 특히 `tx_dvcd`가 `NULL`인 채로 두면 목록 predicate가 그 행을 조용히 지운다.
+  반대로 "`NULL`이면 입금"으로 읽는 것은 바로 위에서 `tx_dvcd`를 비정규화한 이유("없는 근거로 판정하지 않는다")와 정면으로 어긋난다.
+
+**전환 시점에 거래 행 자체가 없는 제출이 남는다.** 지금까지 `bcm_tx_l`은 웹훅이 와야 생겼으므로,
+`bcm_sbmt_l`이 `SUBMITTED`이고 `vndr_tx_id`도 있는데 거래 행은 없는 건이 있다.
+백필은 **그 행들을 만들어야 한다** — 만들지 않으면 이미 수용된 출금이 전환 직후 `404`가 되어 응답 계약("`SUBMITTED`면 `200`")을 어긴다.
+
+#### 공개 read 전환 게이트
+
+셋 다 **0**이어야 전환한다. 하나라도 남으면 목록·단건이 조용히 거래를 빠뜨린다.
+
+| 확인 | 왜 |
+|---|---|
+| 공개 대상 행의 `trsf_amt IS NULL` 건수 | 금액 없는 거래는 공개 응답을 만들 수 없다 |
+| 공개 대상 행의 `tx_dvcd IS NULL` 건수 | predicate가 그 행을 지운다 |
+| `bcm_sbmt_l`이 `SUBMITTED`·`vndr_tx_id` 있음인데 `bcm_tx_l`에 행이 없는 건수 | 수용된 출금이 `404`가 된다 |
+
+전환이 끝나 이 셋이 0으로 유지되면 `tx_dvcd`에 `NOT NULL`과 허용값 `CHECK`를 **별도 후속 마이그레이션으로** 건다 —
+V30에서 배운 대로, 제약 추가와 백필을 같은 파일에 섞지 않는다.
 
 **0이나 빈 문자열로 메우지 않는다.** 금액이 없는 행은 "금액 0"이 아니라 "아직 모른다"이고, 둘을 섞으면 회계 대사가 틀린 값을
 정상으로 읽는다. 금액 미백필 건이 **0이 되기 전에는 공개 read를 전환하지 않는다** — 남은 건은 Fireblocks 벤더 조회로 회수한다.
@@ -1058,9 +1077,9 @@ CREATE INDEX idx_bcm_tx_account_listing ON bcm_tx_l (acnt_id, frst_dtct_dttm, vn
 
 | 컬럼 | 뜻 |
 |---|---|
-| `vndr_tx_id` | 최초 벤더 tx id이자 root 논리 거래 id. boost 뒤에도 바뀌지 않고 고객 이벤트·조회 응답의 `txId`가 된다 |
+| `vndr_tx_id` | 최초 거래의 **공개 id**이자 root 논리 거래 id. 제출 건은 벤더 tx id, 입금처럼 벤더 id가 없는 건은 BCM이 온체인 값에서 만든 결정적 id다. boost 뒤에도 바뀌지 않고 고객 이벤트·조회 응답의 `txId`가 된다 |
 | `actv_tx_id` | 현재 RBF head. 최초에는 `vndr_tx_id`, 대체 접수가 확인되면 `new_tx_id`로 바꾼다. 단 RBF 접수와 원 거래 채굴은 경합하므로, root 계열의 어느 물리 거래든 confirmation이 생기거나 COMPLETED가 먼저 오면 그 거래를 승자로 다시 active에 놓고 root를 진행·확정한다 |
-| `ext_tx_id` | 최초 제출 요청 키. boost 뒤에도 그대로 고객 이벤트에 싣는다. **멱등 판정은 여기가 아니라 `bcm_sbmt_l`이 한다** — 이 행은 웹훅이 와야 생기고 멱등은 그보다 앞선 제출 시점에 끝나야 한다 |
+| `ext_tx_id` | 최초 제출 요청 키. boost 뒤에도 그대로 고객 이벤트에 싣는다. **멱등 판정은 여기가 아니라 `bcm_sbmt_l`이 한다** — 멱등은 제출 시점에 끝나야 하고 이 행은 그 마감 트랜잭션에서 함께 만들어진다(V32 전에는 웹훅이 와야 생겼다) |
 | `tx_hash` | `actv_tx_id`의 현재 hash. RBF 접수가 확인돼 active 거래를 바꿀 때 일단 NULL로 비우고 대체 거래의 조회·웹훅으로 채운다. 후보 선별에 쓸 수 있지만 **RBF 직전에는 반드시 벤더 단건 조회로 다시 확인**한다 |
 | `last_pub_stcd` | 새 알림의 상태와 이 값을 [허용 전이 표](02-bcm-flow.md)에 대조해 발행 여부를 가린다. 발행은 `bcm_outbox_l` 에 같은 트랜잭션으로 적재한다 |
 | `cnfm_cnt`·`last_chng_dttm` | **줄지 않는다** — 큰 값(늦은 시각)으로만 갱신한다. 막힘 점검의 입력이다 |

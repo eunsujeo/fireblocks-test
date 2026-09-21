@@ -1400,7 +1400,7 @@ window.OPENAPI = {
           "Transactions"
         ],
         "summary": "우리 요청 키로 거래 조회",
-        "description": "`externalTxId` 로 제출한 건을 찾는다. 출금은 고객 계정이 아니라 **출금 풀 vault 에서 나가므로 고객 계정 목록에는 나타나지 않는다**\n(출금 풀 계정에 귀속된다) — 호출 쪽이 자기 출금을 아는 키가 `externalTxId` 라 이 경로가 기본이다.\n\n제출 응답을 못 받았을 때의 확인, 그리고 대사에서 우리 기록과 벤더 기록을 잇는 데 쓴다.\n\n**아직 제출 중이면 `503 SUBMIT_IN_PROGRESS`** 와 `Retry-After` 가 온다 — 제출 API 와 같은 뜻이다.\n그 키를 접수했지만 `txId` 가 아직 확정되지 않았다는 것이고, 오류가 아니라 지연이다.\n`404` 는 \"벤더에 없다\"가 아니라 **\"BCM 이 수용한 거래가 없다\"** 는 뜻이다.\n",
+        "description": "`externalTxId` 로 제출한 건을 찾는다. 출금은 고객 계정이 아니라 **출금 풀 vault 에서 나가므로 고객 계정 목록에는 나타나지 않는다**\n(출금 풀 계정에 귀속된다) — 호출 쪽이 자기 출금을 아는 키가 `externalTxId` 라 이 경로가 기본이다.\n\n**sweep·밴드S 같은 내부 운영 계열은 이 API 로도 찾을 수 없다**(`404`). 공개 거래는\n입금·출금·내부이체 셋이며, 내부 계열은 공통 이벤트도 내지 않는다.\n\n제출 응답을 못 받았을 때의 확인, 그리고 대사에서 우리 기록과 벤더 기록을 잇는 데 쓴다.\n\n**아직 제출 중이면 `503 SUBMIT_IN_PROGRESS`** 와 `Retry-After` 가 온다 — 제출 API 와 같은 뜻이다.\n그 키를 접수했지만 `txId` 가 아직 확정되지 않았다는 것이고, 오류가 아니라 지연이다.\n`404` 는 \"벤더에 없다\"가 아니라 **\"BCM 이 수용한 거래가 없다\"** 는 뜻이다.\n",
         "operationId": "transactionByExternalTxId",
         "responses": {
           "200": {
@@ -1428,7 +1428,7 @@ window.OPENAPI = {
           "Transactions"
         ],
         "summary": "거래 단건 조회",
-        "description": "공개 거래 id(`txId`)로 거래 1건을 조회한다. `txId` 는 출금 제출 응답이나 큐 이벤트에서 얻는다.\n\n`txId` 는 **BCM 이 정하는 공개 식별자**다. 제출한 거래는 벤더 tx id 를 그대로 쓰지만,\n입금처럼 벤더 거래 id 가 없는 건은 BCM 이 온체인 값에서 만든 결정적 id 를 쓴다.\n어느 쪽이든 같은 논리 거래에 대해 값이 바뀌지 않는다.\n",
+        "description": "공개 거래 id(`txId`)로 거래 1건을 조회한다. `txId` 는 출금 제출 응답이나 큐 이벤트에서 얻는다.\n\n`txId` 는 **BCM 이 정하는 공개 식별자**다. 제출한 거래는 벤더 tx id 를 그대로 쓰지만,\n입금처럼 벤더 거래 id 가 없는 건은 BCM 이 온체인 값에서 만든 결정적 id 를 쓴다.\n어느 쪽이든 같은 논리 거래에 대해 값이 바뀌지 않는다.\n\n공개 거래는 **입금·출금·내부이체** 셋이다. sweep·밴드S 같은 내부 운영 계열은 `404` 다.\n",
         "operationId": "transactionOf",
         "parameters": [
           {
@@ -1530,7 +1530,7 @@ window.OPENAPI = {
               "maximum": 500,
               "default": 200
             },
-            "description": "페이지 크기 — 기본 200, 최대 500 (벤더 한도). 1 미만이거나 500 초과면 `400 VALIDATION_FAILED`.",
+            "description": "페이지 크기 — 기본 200, 최대 500. 1 미만이거나 500 초과면 `400 VALIDATION_FAILED`.",
             "example": 200
           },
           {
@@ -2809,8 +2809,16 @@ window.OPENAPI = {
             ]
           },
           "vendorCreatedAt": {
-            "type": "string",
-            "format": "date-time"
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "벤더 시간축. **첫 벤더 관찰 전에는 `null`** 이다 — 제출 마감이 거래 행을 먼저 만들고\n제출 응답은 벤더 시각을 주지 않는다. BCM 수용 시각으로 대신 채우면 대사가 벤더 시각끼리\n비교한다는 규칙이 깨지므로 지어내지 않는다. 최초 감지 시각은 `firstDetectedAt` 이다.\n"
           },
           "firstDetectedAt": {
             "type": "string",

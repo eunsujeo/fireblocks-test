@@ -900,6 +900,9 @@ _응답_
 `externalTxId` 로 제출한 건을 찾는다. 출금은 고객 계정이 아니라 **출금 풀 vault 에서 나가므로 고객 계정 목록에는 나타나지 않는다**
 (출금 풀 계정에 귀속된다) — 호출 쪽이 자기 출금을 아는 키가 `externalTxId` 라 이 경로가 기본이다.
 
+**sweep·밴드S 같은 내부 운영 계열은 이 API 로도 찾을 수 없다**(`404`). 공개 거래는
+입금·출금·내부이체 셋이며, 내부 계열은 공통 이벤트도 내지 않는다.
+
 제출 응답을 못 받았을 때의 확인, 그리고 대사에서 우리 기록과 벤더 기록을 잇는 데 쓴다.
 
 **아직 제출 중이면 `503 SUBMIT_IN_PROGRESS`** 와 `Retry-After` 가 온다 — 제출 API 와 같은 뜻이다.
@@ -1001,6 +1004,8 @@ _응답_
 입금처럼 벤더 거래 id 가 없는 건은 BCM 이 온체인 값에서 만든 결정적 id 를 쓴다.
 어느 쪽이든 같은 논리 거래에 대해 값이 바뀌지 않는다.
 
+공개 거래는 **입금·출금·내부이체** 셋이다. sweep·밴드S 같은 내부 운영 계열은 `404` 다.
+
 ```bash
 curl "https://{baseUrl}/blockchain/manage-api/transactions/tx-local-986a169a89dbf0713ad01d2d17eebd59360b155bfd42fe0a"
 ```
@@ -1092,7 +1097,7 @@ _파라미터_
 | `before` | query | string (ISO 8601) | - | 2026-07-13T00:00:00.000Z | 종료 시각 — 거래 시각(createdAt) 기준 (ISO 8601 UTC). 생략하면 상한 없음 — 증분 폴링(`order=asc`) 조회는 생략한다. |
 | `order` | query | string | - | desc | 정렬 방향 — 거래 시각(createdAt) 기준. 기본 desc(최신순). 마지막 커서를 보관해 새 내역을 이어받는 증분 폴링은 `asc` 조회에서만 성립한다. |
 | `status` | query | TxStatus | - | FINALIZED | 상태 필터 (선택) |
-| `limit` | query | integer | - | 200 | 페이지 크기 — 기본 200, 최대 500 (벤더 한도). 1 미만이거나 500 초과면 `400 VALIDATION_FAILED`. |
+| `limit` | query | integer | - | 200 | 페이지 크기 — 기본 200, 최대 500. 1 미만이거나 500 초과면 `400 VALIDATION_FAILED`. |
 | `cursor` | query | string | - | eyJsYXN0IjoxNzUxMzM2MDAwMDAwfQ | 다음 위치 커서 — 이전 응답의 `pagination.nextCursor` 를 그대로 넣는다. 불투명 토큰이라 직접 만들거나 해석하지 않는다. 첫 요청엔 생략. cursor 가 있으면 조회 조건은 토큰이 우선이라 함께 보낸 `after`/`before`·`status`·`order`·`limit` 는 무시된다.  **정렬 기준이 바뀌는 배포에서는 그 전에 발급한 커서를 `400 VALIDATION_FAILED` 로 거절한다.** 옛 위치를 새 정렬에 그대로 적용하면 건을 빠뜨리거나 겹쳐 준다. 그때는 커서 없이 처음부터 다시 받는다.  |
 
 
@@ -3492,7 +3497,7 @@ Dfns 원천 `{ "fireblocksAssetId": null, "dfnsAssetKey": "EthereumSepolia:Erc20
 | `sweepExecutionId` | string \\| null | 필수 |  |
 | `submissionRequestedAt` | string (ISO 8601) \\| null | 필수 |  |
 | `submissionRespondedAt` | string (ISO 8601) \\| null | 필수 |  |
-| `vendorCreatedAt` | string (ISO 8601) | 필수 |  |
+| `vendorCreatedAt` | string (ISO 8601) \\| null | 필수 | 벤더 시간축. **첫 벤더 관찰 전에는 `null`** 이다 — 제출 마감이 거래 행을 먼저 만들고 제출 응답은 벤더 시각을 주지 않는다. BCM 수용 시각으로 대신 채우면 대사가 벤더 시각끼리 비교한다는 규칙이 깨지므로 지어내지 않는다. 최초 감지 시각은 `firstDetectedAt` 이다.  |
 | `firstDetectedAt` | string (ISO 8601) | 필수 |  |
 | `lastChangedAt` | string (ISO 8601) | 필수 |  |
 | `reconciliationCheckedAt` | string (ISO 8601) \\| null | 필수 |  |

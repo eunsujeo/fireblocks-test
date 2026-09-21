@@ -146,7 +146,7 @@ V23 논리 계정과 내부 생성 서비스를 연결했다. HTTP 호출·원�
 - API/Webhook/BAT가 동일한 영속 원천 binding을 검증한다. 설정과 다른 원천은 조회 후 제출·서명·회수·재시도 전에 거절한다.
 - 기존 데이터의 백필은 실제 Fireblocks workspace/환경 증거로 수행한다. 환경변수에서 현재 선택값을 읽어 모든 행을 새 벤더로 덮어쓰지 않는다.
 - 원천 없는 행·다른 원천·진행 중 의도·복구 cursor를 사전 점검한다. local은 기존 별도 데이터셋을 유지한다.
-- 새로운 내부 거래 키가 필요해도 공개 `txId`(최초 root 벤더 ID)와 기존 이벤트 키를 소급 치환하지 않는다. API 호환 조회/매핑 및 백필·롤백 계약을 먼저 정한다.
+- 새로운 내부 거래 키가 필요해도 공개 `txId`(최초 root의 공개 거래 id — 제출 건은 벤더 ID, 입금은 BCM 생성 ID)와 기존 이벤트 키를 소급 치환하지 않는다. API 호환 조회/매핑 및 백필·롤백 계약을 먼저 정한다.
 
 단일 데이터셋 원천 대조는 V21과 세 앱 공통 guard로 구현했다. Dfns 자원 모델·어댑터와 수용이 남아 있으므로 `BCM_PROVIDER=dfns` 기동 차단을 유지한다.
 
@@ -653,7 +653,7 @@ DAW-CORE가 있지도 않은 입금을 인정하게 된다([호환 계획](../df
 | 현행 공개 계약 | Dfns 연결 전 필요한 결정 |
 |---|---|
 | Account.accountId | BCM 발급 계정 ID로 설명 교정 완료. 논리 계정과 네트워크 wallet의 실행 연결은 아래 후속 계약을 따름 |
-| Transfer.txId = 최초 root 벤더 ID | Dfns request 종류·체인 이동·대체 요청과의 대응, 기존 ID 조회 호환 |
+| Transfer.txId = 최초 root의 공개 거래 id (제출 건은 벤더 ID, 입금은 BCM 생성 ID) | Dfns request 종류·체인 이동·대체 요청과의 대응, 기존 ID 조회 호환 |
 | fireblocksAssetId / MISSING_IN_FIREBLOCKS | 벤더 중립 필드/상태 추가와 기존 소비자 처리. Dfns 값을 기존 Fireblocks 필드에 채우지 않음 |
 | VendorBalance의 available/pending/frozen/locked | 확정(아래 [잔액 계약 — 구현](#잔액-계약--구현)): Dfns 온체인 잔액은 total·available, 제공하지 않는 pending/frozen/locked는 `null`(공개 API 0.12.0에서 nullable). 모르는 항목을 0으로 만들지 않음 |
 | 웹훅 수동 재전송·생성 재시도 | 실제 제공하는 복구 방식과 오류/보류 계약, 운영 감사 기록 |
