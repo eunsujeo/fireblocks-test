@@ -404,6 +404,17 @@ class VendorAssetMappingServiceTest {
     }
 
     @Test
+    fun `이미 채택한 네트워크에 다른 계정·자산 모델을 보내면 충돌이다`() {
+        // 체인의 속성이라 뒤집을 값이 아니다 — 조용히 무시하면 요청자는 바뀐 줄 안다(03 V35).
+        every { blockchains.findByCandidateId("ethereum-id") } returns blockchain()
+
+        assertThatThrownBy {
+            service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "ethereum-id", ChainModel.SOLANA, "123456", "0001"))
+        }.isInstanceOf(ConflictException::class.java)
+        verify(exactly = 0) { blockchains.adopt(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `채택 — 없는 후보는 400이다`() {
         every { blockchains.findByCandidateId("missing") } returns null
 

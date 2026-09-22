@@ -68,6 +68,47 @@ class TxStateServiceTest {
     }
 
     @Test
+    fun `한쪽에만 환산 근거가 있으면 사람 단위 금액으로 판정한다`() {
+        // 근거가 불완전한 채로 최소 단위 동일성을 추정하지 않는다 — 값이 다르면 보수적으로 충돌이다.
+        val repository = RecordingTxRecords(record(amount = "1.5", baseUnits = "1500000", decimals = 6))
+
+        val consistent =
+            service(repository).observeConsistently(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, amount = "1.50"),
+                false,
+            )
+        assertThat(applied(consistent).record.lastPublishedStatus).isEqualTo(TxStatus.CONFIRMED)
+
+        val conflicting =
+            service(RecordingTxRecords(record(amount = "1.5", baseUnits = "1500000", decimals = 6))).observeConsistently(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, amount = "2.5"),
+                false,
+            )
+        assertThat(conflicting).isInstanceOfSatisfying(TxObservationOutcome.Conflict::class.java) {
+            assertThat(it.detail.field).isEqualTo("amount")
+        }
+    }
+
+    @Test
+    fun `검사를 통과한 적 없는 토큰은 적용하지 않는다`() {
+        // 결속은 맞지만 관찰이 실제로 어긋나는 토큰 — 밖에서 지어냈다는 뜻이다.
+        val repository = RecordingTxRecords(record(amount = "1.5"))
+        val forged =
+            TxObservationCheck.Consistent(
+                VENDOR_TX_ID,
+                record(amount = "1.5"),
+                observation(status = TxStatus.CONFIRMED, amount = "2.5"),
+            )
+
+        assertThatThrownBy { service(repository).applyChecked(forged, successEvidence = false) }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("never checked")
+        assertThat(repository.writes).isZero()
+    }
+
+    @Test
     fun `EVM 주소는 대소문자가 달라도 같은 주소로 본다`() {
         // 체크섬 표기와 소문자 표기가 섞여 들어와도 격리하지 않는다 — 계정 모델이 비교 규칙을 가른다(03 chain_mdl_dvcd).
         val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS))

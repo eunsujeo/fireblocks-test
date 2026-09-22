@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.application.tx
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.tx.TxObservation
@@ -55,20 +56,20 @@ class TxStateService(
         return when (val consistency = check(previous, observation)) {
             is TxObservationConsistency.Result.Conflict -> TxObservationCheck.Conflict(consistency)
             TxObservationConsistency.Result.Consistent ->
-                TxObservationCheck.Consistent(rootVendorTransactionId, previous, observation)
+                TxObservationCheck.Consistent(rootVendorTransactionId, previous, observation, chainModelOf(previous, observation))
         }
     }
 
     private fun check(
         previous: TxRecord?,
         observation: TxObservation,
-    ): TxObservationConsistency.Result {
-        // 비교할 행이 없으면 규칙도 필요 없다 — 첫 관찰에 카탈로그를 읽지 않는다.
-        if (previous == null) return TxObservationConsistency.Result.Consistent
-        // 주소 비교 규칙은 네트워크의 계정 모델이 가른다(03 `chain_mdl_dvcd`). 모르면 정확히 같을 때만 같다고 본다.
-        val chainModel = blockchains.findByNetwork(observation.network)?.chainModel
-        return TxObservationConsistency.check(previous, observation, chainModel)
-    }
+    ): TxObservationConsistency.Result = TxObservationConsistency.check(previous, observation, chainModelOf(previous, observation))
+
+    /** 비교할 행이 없으면 규칙도 필요 없다 — 첫 관찰에 카탈로그를 읽지 않는다. */
+    private fun chainModelOf(
+        previous: TxRecord?,
+        observation: TxObservation,
+    ): ChainModel? = previous?.let { blockchains.findByNetwork(observation.network)?.chainModel }
 
     /** [lockAndCheck]가 통과시킨 관찰만 반영한다 — 잠근 행을 그대로 넘겨 이중 조회와 그 사이의 틈을 없앤다. */
     fun applyChecked(
@@ -77,7 +78,7 @@ class TxStateService(
         deferFailure: Boolean = false,
         attributedType: TxType? = null,
     ): TxStateChange {
-        checked.requireBound()
+        checked.requireChecked()
         return stateMachine.observeLocked(
             previous = checked.previous,
             rootVendorTransactionId = checked.rootVendorTransactionId,
@@ -107,7 +108,7 @@ class TxStateService(
         deferFailure: Boolean = false,
         attributedType: TxType? = null,
     ): TxStateChange {
-        checked.requireBound()
+        checked.requireChecked()
         val previous = repository.findByVendorTxIdForUpdate(checked.rootVendorTransactionId)
         val consistency = check(previous, checked.observation)
         if (consistency is TxObservationConsistency.Result.Conflict) {
@@ -149,22 +150,31 @@ sealed interface TxObservationCheck {
     /**
      * 받아들일 수 있다. 잠근 행을 그대로 들고 있어 [TxStateService.applyChecked]가 다시 읽지 않는다.
      *
-     * **`data class`가 아니다** — `copy`로 root만 바꿔 다른 행에 적용하면 "이 행을 잠그고 검사했다"는 증거가 거짓이 된다.
-     * 결속은 [TxStateService]가 쓰는 자리에서 다시 확인한다([TxObservationCheck.Consistent.requireBound]).
+     * **`data class`가 아니다** — `copy`로 root만 바꾸면 "이 행을 잠그고 검사했다"는 증거가 거짓이 된다.
+     * 생성자를 막는 대신 **쓰는 자리에서 다시 확인한다**([requireChecked]) — 토큰이 스스로 들고 있는 값으로
+     * 다시 물으므로 DB를 더 읽지 않고, 밖에서 지어낸 토큰도 같은 잣대로 걸린다.
      */
     class Consistent(
         val rootVendorTransactionId: String,
         val previous: TxRecord?,
         val observation: TxObservation,
+        /** 판정에 쓴 주소 비교 규칙. 토큰이 들고 다녀 재확인이 카탈로그를 다시 읽지 않는다. */
+        val chainModel: ChainModel? = null,
     ) : TxObservationCheck {
         /**
-         * 잠근 행과 root 키가 실제로 한 쌍인지 본다. [TxStateService.lockAndCheck]가 만든 토큰은 늘 참이고,
-         * 밖에서 지어낸 토큰은 여기서 걸린다 — 이름은 B인데 갱신은 A에 나가는 일을 막는다.
+         * 이 토큰이 정말 "검사를 통과한 관찰"인지 다시 본다. [TxStateService.lockAndCheck]가 만든 토큰은 늘 참이다.
+         *
+         * 두 가지를 본다 — 잠근 행과 root 키가 한 쌍인가(이름은 B인데 갱신은 A에 나가는 일), 그리고
+         * 그 행과 관찰이 실제로 같은 사실을 말하는가. 순수 비교라 DB를 읽지 않는다.
          */
-        internal fun requireBound() {
+        internal fun requireChecked() {
             val recorded = previous ?: return
             check(recorded.vendorTxId == rootVendorTransactionId) {
                 "checked observation is not bound to its locked row: root=$rootVendorTransactionId recorded=${recorded.vendorTxId}"
+            }
+            val consistency = TxObservationConsistency.check(recorded, observation, chainModel)
+            check(consistency !is TxObservationConsistency.Result.Conflict) {
+                "observation was never checked against its locked row: field=${(consistency as TxObservationConsistency.Result.Conflict).field}"
             }
         }
     }

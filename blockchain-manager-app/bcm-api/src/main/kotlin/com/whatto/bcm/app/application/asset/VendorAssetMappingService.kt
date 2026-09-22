@@ -48,7 +48,12 @@ class VendorAssetMappingService(
         val candidate =
             blockchainRepository.findByCandidateId(command.candidateId)
                 ?: throw InvalidAssetMappingException(command.network, "candidateNotFound")
-        if (candidate.network == command.network) return candidate
+        if (candidate.network == command.network) {
+            // 같은 후보·이름의 재요청은 아무 일도 일어나지 않는다(공개 계약). 다만 **모델이 다르면 같은 요청이 아니다** —
+            // 체인의 속성이라 뒤집을 값이 아니고, 조용히 무시하면 요청자는 바뀐 줄 안다(03 V35).
+            if (candidate.chainModel != command.chainModel) throw ConflictException("networkChainModel", command.network)
+            return candidate
+        }
         if (candidate.network != null || blockchainRepository.findByNetwork(command.network) != null) {
             throw ConflictException("network", command.network)
         }

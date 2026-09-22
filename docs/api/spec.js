@@ -509,7 +509,7 @@ window.OPENAPI = {
           "Admin"
         ],
         "summary": "네트워크 채택",
-        "description": "후보 하나에 우리 이름을 붙인다 — **이 한 번이 \"이 체인을 쓴다\"는 결정**이고, 누가 언제 했는지 남는다.\n\n같은 후보에 같은 이름을 다시 보내면 아무 일도 일어나지 않는다. 이름이 이미 **다른** 후보를 가리키면 `409` 다 — 이미 발급된 주소가 가리키는 체인이 조용히 바뀌면 안 된다.\n",
+        "description": "후보 하나에 우리 이름을 붙인다 — **이 한 번이 \"이 체인을 쓴다\"는 결정**이고, 누가 언제 했는지 남는다.\n\n같은 후보에 같은 이름을 다시 보내면 아무 일도 일어나지 않는다 — **`chainModel`까지 같을 때다.** 이름이 이미 **다른** 후보를 가리키거나 같은 채택에 **다른 `chainModel`**을 보내면 `409` 다 — 이미 발급된 주소가 가리키는 체인이 조용히 바뀌면 안 되고, 계정·자산 모델은 체인의 속성이라 뒤집을 값이 아니다.\n",
         "operationId": "adoptNetwork",
         "parameters": [
           {
@@ -1610,7 +1610,8 @@ window.OPENAPI = {
           "displayName",
           "testnet",
           "deprecated",
-          "syncedAt"
+          "syncedAt",
+          "chainModel"
         ],
         "properties": {
           "candidateId": {
@@ -1657,6 +1658,21 @@ window.OPENAPI = {
             "type": "string",
             "description": "이 행을 마지막으로 동기화한 시각",
             "example": "20260806031045"
+          },
+          "chainModel": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "EVM",
+                  "SOLANA"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "체인의 계정·자산 모델 — 채택한 네트워크는 반드시 있고, 채택한 적이 없는 후보는 비어 있다"
           }
         }
       },
@@ -1696,12 +1712,21 @@ window.OPENAPI = {
       "AdoptNetworkRequest": {
         "type": "object",
         "required": [
-          "candidateId"
+          "candidateId",
+          "chainModel"
         ],
         "properties": {
           "candidateId": {
             "type": "string",
             "description": "네트워크 목록에서 받은 값을 그대로 넣는다"
+          },
+          "chainModel": {
+            "type": "string",
+            "enum": [
+              "EVM",
+              "SOLANA"
+            ],
+            "description": "채택하는 체인의 계정·자산 모델. 제공자 정보가 아니라 체인의 속성이며, 자산 키 생성과 주소 동일성 비교가 이 값을 쓴다"
           }
         }
       },

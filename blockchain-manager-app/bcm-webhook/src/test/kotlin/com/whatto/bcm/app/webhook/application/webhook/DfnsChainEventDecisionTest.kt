@@ -120,6 +120,20 @@ class DfnsChainEventDecisionTest {
     }
 
     @Test
+    fun `입금 이벤트 금액은 현재 매핑 환산값이 아니라 원장 값이다`() {
+        // 정밀도가 바뀐 뒤 같은 사건을 재처리하면 현재 매핑 환산값은 달라진다 — 원장(최초값 보존)과 갈리면 안 된다(03 V34).
+        every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_130
+        stubObserve { TxStateChange(record(amount = "1.5"), listOf(TxStatus.FINALIZED)) }
+        val enqueued = slot<List<OutboxEvent>>()
+        every { outboxEvents.enqueue(capture(enqueued)) } returns Unit
+
+        // 등록 정밀도를 8로 바꾸면 같은 최소 단위 1500000이 0.015로 환산된다.
+        decision(asset = LedgerAsset(NETWORK, "USDC", 8)).decide(NOTIFICATION_ID, PAYLOAD)
+
+        assertThat(enqueued.captured.single().payload).contains("\"amount\":\"1.5\"").doesNotContain("0.015")
+    }
+
+    @Test
     fun `깊이가 임계에 못 미치면 벤더가 확인했다고 해도 미확정이다`() {
         every { chainHeads.headBlockNumber(NETWORK) } returns 8_452_119
         stubObserve { stateChange(TxStatus.CONFIRMED) }

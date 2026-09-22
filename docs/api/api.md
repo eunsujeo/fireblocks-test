@@ -1526,7 +1526,8 @@ _응답_
       "chainId": 8453,
       "testnet": false,
       "deprecated": false,
-      "syncedAt": "20260806031045"
+      "syncedAt": "20260806031045",
+      "chainModel": "EVM"
     }
   ],
   "meta": {
@@ -1547,13 +1548,14 @@ _응답_
 
 후보 하나에 우리 이름을 붙인다 — **이 한 번이 "이 체인을 쓴다"는 결정**이고, 누가 언제 했는지 남는다.
 
-같은 후보에 같은 이름을 다시 보내면 아무 일도 일어나지 않는다. 이름이 이미 **다른** 후보를 가리키면 `409` 다 — 이미 발급된 주소가 가리키는 체인이 조용히 바뀌면 안 된다.
+같은 후보에 같은 이름을 다시 보내면 아무 일도 일어나지 않는다 — **`chainModel`까지 같을 때다.** 이름이 이미 **다른** 후보를 가리키거나 같은 채택에 **다른 `chainModel`**을 보내면 `409` 다 — 이미 발급된 주소가 가리키는 체인이 조용히 바뀌면 안 되고, 계정·자산 모델은 체인의 속성이라 뒤집을 값이 아니다.
 
 ```bash
 curl -X PUT "https://{baseUrl}/blockchain/manage-api/admin/networks/BASE" \
   -H "Content-Type: application/json" \
   -d '{
-  "candidateId": "string"
+  "candidateId": "string",
+  "chainModel": "EVM"
 }'
 ```
 
@@ -1570,13 +1572,15 @@ _요청 본문_
 
 ```json
 {
-  "candidateId": "string"
+  "candidateId": "string",
+  "chainModel": "EVM"
 }
 ```
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `candidateId` | string | 필수 | 네트워크 목록에서 받은 값을 그대로 넣는다 |
+| `chainModel` | string | 필수 | 채택하는 체인의 계정·자산 모델. 제공자 정보가 아니라 체인의 속성이며, 자산 키 생성과 주소 동일성 비교가 이 값을 쓴다 `EVM` `SOLANA` |
 
 
 _응답_
@@ -1592,7 +1596,8 @@ _응답_
     "chainId": 8453,
     "testnet": false,
     "deprecated": false,
-    "syncedAt": "20260806031045"
+    "syncedAt": "20260806031045",
+    "chainModel": "EVM"
   },
   "meta": {
     "requestId": "3f9a1c2e-7b4d-4e2a-9c1f-0a2b3c4d5e6f"
@@ -3238,6 +3243,7 @@ _응답_
 | `testnet` | boolean | 필수 |  |
 | `deprecated` | boolean | 필수 | 더는 권장되지 않는 체인 |
 | `syncedAt` | string | 필수 | 이 행을 마지막으로 동기화한 시각 |
+| `chainModel` | string \\| null | 필수 | 체인의 계정·자산 모델 — 채택한 네트워크는 반드시 있고, 채택한 적이 없는 후보는 비어 있다 |
 
 
 ### NetworkListResponse
@@ -3261,6 +3267,7 @@ _응답_
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `candidateId` | string | 필수 | 네트워크 목록에서 받은 값을 그대로 넣는다 |
+| `chainModel` | string | 필수 | 채택하는 체인의 계정·자산 모델. 제공자 정보가 아니라 체인의 속성이며, 자산 키 생성과 주소 동일성 비교가 이 값을 쓴다 `EVM` `SOLANA` |
 
 
 ### AssetCandidate

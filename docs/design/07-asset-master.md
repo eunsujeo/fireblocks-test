@@ -67,13 +67,16 @@ CREATE TABLE bcm_blkc_m (
   vndr_blkc_id  VARCHAR(64)  PRIMARY KEY,  -- 벤더 blockchainId
   ntwk_cd       VARCHAR(20)  NULL,         -- 우리 네트워크 코드 — 채택한 체인만 채운다
   chain_id      BIGINT       NULL,         -- EIP-155 chainId (EVM 만)
+  chain_mdl_dvcd VARCHAR(16) NULL,         -- 계정·자산 모델 EVM/SOLANA — 채택한 체인은 반드시 있다(03 V25·V35)
   dspl_nm       VARCHAR(64)  NOT NULL,     -- 벤더 표시명
   test_yn       VARCHAR(1)   NOT NULL,     -- 시험망 여부 (벤더 onchain.test)
   deprc_yn      VARCHAR(1)   NOT NULL,     -- 벤더가 폐기 표시 (metadata.deprecated)
   sync_dttm     VARCHAR(16)  NOT NULL,     -- 마지막 동기화 일시
   ast_sync_dttm VARCHAR(16)  NULL,         -- 이 네트워크의 마지막 자산 카탈로그 성공 동기화 일시(0건 포함)
   -- 감사 4컬럼
-  UNIQUE (ntwk_cd)
+  UNIQUE (ntwk_cd),
+  -- 채택한 체인은 계정·자산 모델 없이 존재할 수 없다(03 V35)
+  CHECK (ntwk_cd IS NULL OR chain_mdl_dvcd IS NOT NULL)
 );
 
 -- 벤더 자산 카탈로그 캐시 — 모든 벤더 네트워크에서 찾기 위한 읽기 전용 참조 데이터다
