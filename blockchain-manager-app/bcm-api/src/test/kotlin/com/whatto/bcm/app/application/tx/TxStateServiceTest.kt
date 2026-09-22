@@ -229,6 +229,39 @@ class TxStateServiceTest {
         assertThat(repository.writes).isZero()
     }
 
+    @Test
+    fun `한 호출 안에서 네트워크 모델을 한 번만 읽는다`() {
+        // 행 잠금을 쥔 채 같은 마스터 행으로 왕복을 늘리지 않는다. 모델은 채택 때 정해지고 바뀌지 않는다(03 V35).
+        val blockchains = CountingBlockchains(ChainModel.EVM)
+
+        // 여러 행: 후보 수만큼 읽지 않는다.
+        TxStateService(RecordingTxRecords(record(amount = "1.5")), blockchains).observeAllConsistently(
+            listOf(
+                TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.5")),
+                TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.50")),
+            ),
+        )
+        assertThat(blockchains.reads).isEqualTo(1)
+
+        // 재검사가 있는 경로: 판정과 재검사가 같은 값을 쓴다.
+        blockchains.reset()
+        TxStateService(RecordingTxRecords(record(amount = "1.5")), blockchains).observeConsistentlyAround(
+            VENDOR_TX_ID,
+            observation(status = TxStatus.CONFIRMED, amount = "1.5"),
+            successEvidence = false,
+        ) {}
+        assertThat(blockchains.reads).isEqualTo(1)
+
+        // 첫 관찰은 비교할 행이 없어 아예 읽지 않는다.
+        blockchains.reset()
+        TxStateService(RecordingTxRecords(record = null), blockchains).observeConsistently(
+            VENDOR_TX_ID,
+            observation(status = TxStatus.CONFIRMED, amount = "1.5"),
+            false,
+        )
+        assertThat(blockchains.reads).isZero()
+    }
+
     private fun service(
         repository: TxRecordRepository,
         chainModel: ChainModel? = ChainModel.EVM,
@@ -291,22 +324,43 @@ class TxStateServiceTest {
     }
 }
 
+/** 조회 횟수를 세는 카탈로그. */
+private class CountingBlockchains(
+    private val chainModel: ChainModel?,
+) : VendorBlockchainCatalogRepository by mockk() {
+    var reads = 0
+        private set
+
+    fun reset() {
+        reads = 0
+    }
+
+    override fun findByNetwork(network: String): VendorBlockchainCatalog {
+        reads++
+        return catalogOf(network, chainModel)
+    }
+}
+
 /** 네트워크 하나의 계정 모델만 답하는 카탈로그 — 주소 비교 규칙이 어디서 오는지만 시험한다. */
 private class FixedBlockchains(
     private val chainModel: ChainModel?,
 ) : VendorBlockchainCatalogRepository by mockk() {
-    override fun findByNetwork(network: String): VendorBlockchainCatalog =
-        VendorBlockchainCatalog(
-            candidateId = "blkc-1",
-            network = network,
-            chainId = 1,
-            displayName = network,
-            testnet = false,
-            deprecated = false,
-            syncedAt = "20260807110000",
-            chainModel = chainModel,
-        )
+    override fun findByNetwork(network: String): VendorBlockchainCatalog = catalogOf(network, chainModel)
 }
+
+private fun catalogOf(
+    network: String,
+    chainModel: ChainModel?,
+) = VendorBlockchainCatalog(
+    candidateId = "blkc-1",
+    network = network,
+    chainId = 1,
+    displayName = network,
+    testnet = false,
+    deprecated = false,
+    syncedAt = "20260807110000",
+    chainModel = chainModel,
+)
 
 private class RecordingTxRecords(
     private var record: TxRecord?,

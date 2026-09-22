@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.application.tx
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.tx.TxObservation
@@ -56,7 +57,7 @@ class TxStateService(
         deferFailure: Boolean = false,
         attributedType: TxType? = null,
     ): TxObservationOutcome =
-        when (val checked = lockAndCheck(rootVendorTransactionId, observation)) {
+        when (val checked = lockAndCheck(rootVendorTransactionId, observation, ChainModels())) {
             is Checked.Conflict -> TxObservationOutcome.Conflict(checked.detail)
             is Checked.Consistent ->
                 TxObservationOutcome.Applied(
@@ -94,11 +95,13 @@ class TxStateService(
         attributedType: TxType? = null,
         between: () -> Unit,
     ): TxObservationOutcome {
-        val checked = lockAndCheck(rootVendorTransactionId, observation)
+        // 모델은 이 호출 안에서 한 번만 읽는다 — 판정과 재검사가 같은 규칙을 쓰고, 잠금을 쥔 채 왕복을 늘리지 않는다.
+        val models = ChainModels()
+        val checked = lockAndCheck(rootVendorTransactionId, observation, models)
         if (checked is Checked.Conflict) return TxObservationOutcome.Conflict(checked.detail)
         between()
         val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
-        val consistency = check(previous, observation)
+        val consistency = check(previous, observation, models)
         if (consistency is TxObservationConsistency.Result.Conflict) {
             throw ConflictException("txObservation", consistency.field)
         }
@@ -121,9 +124,11 @@ class TxStateService(
      * 앞 행의 전이가 같은 트랜잭션에 실려 함께 커밋된다. 잠금은 트랜잭션 끝까지 남으므로 그 사이가 벌어지지 않는다.
      */
     fun observeAllConsistently(requests: List<TxObservationRequest>): TxObservationBatchOutcome {
+        // 후보는 보통 같은 네트워크다 — 행마다 같은 마스터 행을 되풀이해 읽지 않는다.
+        val models = ChainModels()
         val checked =
             requests.map { request ->
-                when (val result = lockAndCheck(request.rootVendorTransactionId, request.observation)) {
+                when (val result = lockAndCheck(request.rootVendorTransactionId, request.observation, models)) {
                     is Checked.Conflict -> return TxObservationBatchOutcome.Conflict(result.detail)
                     is Checked.Consistent -> request to result
                 }
@@ -149,9 +154,10 @@ class TxStateService(
     private fun lockAndCheck(
         rootVendorTransactionId: String,
         observation: TxObservation,
+        models: ChainModels,
     ): Checked {
         val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
-        return when (val consistency = check(previous, observation)) {
+        return when (val consistency = check(previous, observation, models)) {
             is TxObservationConsistency.Result.Conflict -> Checked.Conflict(consistency)
             TxObservationConsistency.Result.Consistent -> Checked.Consistent(previous)
         }
@@ -160,11 +166,29 @@ class TxStateService(
     private fun check(
         previous: TxRecord?,
         observation: TxObservation,
+        models: ChainModels,
     ): TxObservationConsistency.Result {
-        // 비교할 행이 없으면 규칙도 필요 없다 — 첫 관찰에 카탈로그를 읽지 않는다. 모델은 **한 번만** 읽는다.
+        // 비교할 행이 없으면 규칙도 필요 없다 — 첫 관찰에는 카탈로그를 읽지 않는다.
         if (previous == null) return TxObservationConsistency.Result.Consistent
-        val chainModel = blockchains.findByNetwork(observation.network)?.chainModel
-        return TxObservationConsistency.check(previous, observation, chainModel)
+        return TxObservationConsistency.check(previous, observation, models.of(observation.network))
+    }
+
+    /**
+     * 한 호출 안에서 네트워크의 계정·자산 모델을 **한 번만** 읽는다.
+     *
+     * 여러 행을 다루는 경로는 보통 같은 네트워크의 후보들이고, 재검사가 있는 경로는 같은 네트워크를 두 번 묻는다.
+     * 행 잠금을 쥔 채 같은 마스터 행으로 왕복을 늘릴 이유가 없다. 모델은 채택 때 정해지고 바뀌지 않으므로(03 V35)
+     * 한 호출 안에서 값이 흔들릴 걱정도 없다.
+     */
+    private inner class ChainModels {
+        private val cache = HashMap<String, ChainModel?>()
+
+        fun of(network: String): ChainModel? =
+            if (cache.containsKey(network)) {
+                cache[network]
+            } else {
+                blockchains.findByNetwork(network)?.chainModel.also { cache[network] = it }
+            }
     }
 
     private sealed interface Checked {
