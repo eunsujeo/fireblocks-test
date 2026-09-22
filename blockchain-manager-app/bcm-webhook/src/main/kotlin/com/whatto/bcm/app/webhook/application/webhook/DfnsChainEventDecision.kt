@@ -2,8 +2,9 @@ package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.submission.SubmissionObservationService
-import com.whatto.bcm.app.application.tx.TxObservationCheck
+import com.whatto.bcm.app.application.tx.TxObservationBatchOutcome
 import com.whatto.bcm.app.application.tx.TxObservationOutcome
+import com.whatto.bcm.app.application.tx.TxObservationRequest
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.asset.AssetDecimals
 import com.whatto.bcm.domain.event.ChainEvent
@@ -18,6 +19,7 @@ import com.whatto.bcm.domain.tx.ChainHeadPort
 import com.whatto.bcm.domain.tx.NetworkChainTransactionId
 import com.whatto.bcm.domain.tx.TxObservation
 import com.whatto.bcm.domain.tx.TxRecord
+import com.whatto.bcm.domain.tx.TxStateChange
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.tx.TxType
 import com.whatto.bcm.domain.vendor.NetworkChainAttribution
@@ -119,19 +121,30 @@ class DfnsChainEventDecision(
                 observation.network,
             )
         // **후보를 전부 잠가 검사한 뒤에** 쓰기를 시작한다 — 행마다 검사·쓰기를 붙여 돌면 뒤 행의 충돌로 격리할 때
-        // 앞 행의 전이가 같은 트랜잭션에 실려 함께 커밋된다. 잠금은 트랜잭션 끝까지 남아 그 사이가 벌어지지 않는다.
-        val checked =
-            records.map { record ->
-                val submission = submissionOf(record)
-                val candidate = outgoingObservation(observation, record, submission, status, confirmations)
-                when (val check = txStates.lockAndCheck(record.vendorTxId, candidate)) {
-                    is TxObservationCheck.Conflict ->
-                        return DfnsChainDecisionOutcome.ObservationConflict(observation, check.detail.safeReason)
+        // 앞 행의 전이가 같은 트랜잭션에 실려 함께 커밋된다. 그 순서는 거래 경계가 지킨다.
+        val candidates = records.map { record -> record to submissionOf(record) }
+        val outcome =
+            txStates.observeAllConsistently(
+                candidates.map { (record, submission) ->
+                    TxObservationRequest(
+                        rootVendorTransactionId = record.vendorTxId,
+                        observation = outgoingObservation(observation, record, submission, status, confirmations),
+                        attributedType = submission.transactionType.txType(),
+                    )
+                },
+            )
+        val changes =
+            when (outcome) {
+                // 하나라도 어긋나면 아무 후보에도 적용하지 않았다 — 관찰 전체를 격리한다(03 V32).
+                is TxObservationBatchOutcome.Conflict ->
+                    return DfnsChainDecisionOutcome.ObservationConflict(observation, outcome.detail.safeReason)
 
-                    is TxObservationCheck.Consistent -> CheckedOutgoing(record, submission, check)
-                }
+                is TxObservationBatchOutcome.Applied -> outcome.changes
             }
-        val events = checked.flatMap { advance(notificationId, observation, it, confirmations) }
+        val events =
+            candidates.zip(changes).flatMap { (candidate, change) ->
+                outgoingEvents(notificationId, observation, candidate.first, candidate.second, change, confirmations)
+            }
         outboxEvents.enqueue(events)
         return DfnsChainDecisionOutcome.OutgoingAdvanced(observation, status, records.size, events)
     }
@@ -173,31 +186,19 @@ class DfnsChainEventDecision(
         observedDestinationAddress = submission.vendorCanonical?.destinationAddress ?: observation.toAddress,
     )
 
-    private fun advance(
+    private fun outgoingEvents(
         notificationId: String,
         observation: NetworkChainTransfer,
-        checked: CheckedOutgoing,
+        record: TxRecord,
+        submission: SubmissionRecord,
+        change: TxStateChange,
         confirmations: Int,
     ): List<OutboxEvent> {
-        val submission = checked.submission
-        val stateChange =
-            txStates.applyChecked(
-                checked.check,
-                successEvidence = false,
-                attributedType = submission.transactionType.txType(),
-            )
         val eventType = submission.transactionType.customerEventType() ?: return emptyList()
-        return stateChange.statusesToPublish.map { published ->
-            outgoingEvent(notificationId, eventType, submission, checked.record, observation, confirmations, published)
+        return change.statusesToPublish.map { published ->
+            outgoingEvent(notificationId, eventType, submission, record, observation, confirmations, published)
         }
     }
-
-    /** 잠그고 검사까지 마친 발신 후보 — 이 자리에서는 아직 아무것도 쓰지 않았다. */
-    private data class CheckedOutgoing(
-        val record: TxRecord,
-        val submission: SubmissionRecord,
-        val check: TxObservationCheck.Consistent,
-    )
 
     private fun outgoingEvent(
         notificationId: String,

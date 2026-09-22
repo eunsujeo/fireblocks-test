@@ -92,23 +92,6 @@ class TxStateServiceTest {
     }
 
     @Test
-    fun `검사를 통과한 적 없는 토큰은 적용하지 않는다`() {
-        // 결속은 맞지만 관찰이 실제로 어긋나는 토큰 — 밖에서 지어냈다는 뜻이다.
-        val repository = RecordingTxRecords(record(amount = "1.5"))
-        val forged =
-            TxObservationCheck.Consistent(
-                VENDOR_TX_ID,
-                record(amount = "1.5"),
-                observation(status = TxStatus.CONFIRMED, amount = "2.5"),
-            )
-
-        assertThatThrownBy { service(repository).applyChecked(forged, successEvidence = false) }
-            .isInstanceOf(IllegalStateException::class.java)
-            .hasMessageContaining("never checked")
-        assertThat(repository.writes).isZero()
-    }
-
-    @Test
     fun `EVM 주소는 대소문자가 달라도 같은 주소로 본다`() {
         // 체크섬 표기와 소문자 표기가 섞여 들어와도 격리하지 않는다 — 계정 모델이 비교 규칙을 가른다(03 chain_mdl_dvcd).
         val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS))
@@ -192,41 +175,58 @@ class TxStateServiceTest {
     }
 
     @Test
+    fun `호출자의 쓰기는 판정을 통과한 뒤에만 부른다`() {
+        // 워커의 즉시 격리는 같은 트랜잭션에서 일어난다 — 판정 전에 쓰면 그 쓰기가 격리와 함께 커밋된다.
+        val repository = RecordingTxRecords(record(amount = "1.5"))
+        var between = 0
+
+        val outcome =
+            service(repository).observeConsistentlyAround(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, amount = "2.5"),
+                successEvidence = false,
+            ) { between++ }
+
+        assertThat(outcome).isInstanceOf(TxObservationOutcome.Conflict::class.java)
+        assertThat(between).isZero()
+        assertThat(repository.writes).isZero()
+    }
+
+    @Test
     fun `판정 뒤 다른 트랜잭션이 만든 행과 어긋나면 되돌린다`() {
         // SELECT FOR UPDATE 는 **없는 행을 잠그지 않는다** — 판정 때 없던 행이 적용 직전에 생길 수 있다.
         val repository = RecordingTxRecords(record = null)
-        val checked =
-            service(repository).lockAndCheck(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "2.5"))
-                as TxObservationCheck.Consistent
-        // 경합한 트랜잭션이 다른 금액으로 같은 행을 만들어 커밋했다.
-        repository.arrive(record(amount = "1.5"))
 
-        assertThatThrownBy { service(repository).applyCheckedReread(checked, successEvidence = false) }
-            .isInstanceOf(ConflictException::class.java)
-        // 전이는 일어나지 않았다 — 트랜잭션이 통째로 물리고 인박스가 다시 본다.
+        assertThatThrownBy {
+            service(repository).observeConsistentlyAround(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, amount = "2.5"),
+                successEvidence = false,
+            ) {
+                // 경합한 트랜잭션이 다른 금액으로 같은 행을 만들어 커밋했다.
+                repository.arrive(record(amount = "1.5"))
+            }
+        }.isInstanceOf(ConflictException::class.java)
+        // 전이는 일어나지 않았다 — 트랜잭션이 통째로 물리고 워커가 다시 본다.
         assertThat(repository.writes).isZero()
     }
 
     @Test
-    fun `잠근 행과 다른 root 를 가리키는 토큰은 적용하지 않는다`() {
-        val repository = RecordingTxRecords(record())
-        val forged = TxObservationCheck.Consistent("other-tx", record(), observation(status = TxStatus.CONFIRMED))
+    fun `여러 행 중 하나가 어긋나면 앞 행에도 적용하지 않는다`() {
+        val repository = RecordingTxRecords(record(amount = "1.5"))
 
-        assertThatThrownBy { service(repository).applyChecked(forged, successEvidence = false) }
-            .isInstanceOf(IllegalStateException::class.java)
-            .hasMessageContaining("not bound")
-    }
+        val outcome =
+            service(repository).observeAllConsistently(
+                listOf(
+                    TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.5")),
+                    TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "2.5")),
+                ),
+            )
 
-    @Test
-    fun `잠그고 검사만 하는 단계는 아무것도 쓰지 않는다`() {
-        // 한 트랜잭션이 여러 행을 다룰 때 전부 검사한 뒤에 쓰기를 시작할 수 있어야 한다.
-        val repository = RecordingTxRecords(record())
-
-        val check = service(repository).lockAndCheck(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED))
-
-        assertThat(check).isInstanceOf(TxObservationCheck.Consistent::class.java)
+        assertThat(outcome).isInstanceOfSatisfying(TxObservationBatchOutcome.Conflict::class.java) {
+            assertThat(it.detail.field).isEqualTo("amount")
+        }
         assertThat(repository.writes).isZero()
-        assertThat(repository.current.lastPublishedStatus).isEqualTo(TxStatus.SUBMITTED)
     }
 
     private fun service(

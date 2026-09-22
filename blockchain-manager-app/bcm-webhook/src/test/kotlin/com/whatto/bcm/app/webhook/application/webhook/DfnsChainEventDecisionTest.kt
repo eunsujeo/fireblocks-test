@@ -2,8 +2,9 @@ package com.whatto.bcm.app.webhook.application.webhook
 
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.submission.SubmissionObservationService
-import com.whatto.bcm.app.application.tx.TxObservationCheck
+import com.whatto.bcm.app.application.tx.TxObservationBatchOutcome
 import com.whatto.bcm.app.application.tx.TxObservationOutcome
+import com.whatto.bcm.app.application.tx.TxObservationRequest
 import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.EventIdGenerator
@@ -58,6 +59,9 @@ class DfnsChainEventDecisionTest {
     /** 마지막으로 원장에 넘긴 관찰. 두 입구 어느 쪽으로 들어와도 여기 담긴다. */
     private val observed = slot<TxObservation>()
 
+    /** 여러 행을 한 번에 넘긴 요청 — 후보마다 제 관찰이 실렸는지 본다. */
+    private val batch = slot<List<TxObservationRequest>>()
+
     /**
      * 동일성 검사를 통과시킨다. 경로마다 입구가 다르다 — 한 행이면 `observeConsistently`,
      * 한 트랜잭션에서 여러 행이면 `lockAndCheck` 전부 뒤 `applyChecked` 전부다(03 V32).
@@ -66,25 +70,23 @@ class DfnsChainEventDecisionTest {
         every { txStates.observeConsistently(any(), capture(observed), any(), any(), any()) } answers {
             TxObservationOutcome.Applied(change())
         }
-        every { txStates.lockAndCheck(any(), capture(observed)) } answers {
-            TxObservationCheck.Consistent(firstArg(), null, secondArg())
+        every { txStates.observeAllConsistently(capture(batch)) } answers {
+            observed.captured = batch.captured.last().observation
+            TxObservationBatchOutcome.Applied(batch.captured.map { change() })
         }
-        every { txStates.applyChecked(any(), any(), any(), any()) } answers { change() }
     }
 
     /** 이 관찰을 충돌로 판정하게 한다 — 두 입구 모두 막아 어느 경로로 와도 같은 답을 준다. */
     private fun stubConflict() {
         val conflict = TxObservationConsistency.Result.Conflict("amount", "1.5", "2.5")
         every { txStates.observeConsistently(any(), any(), any(), any(), any()) } returns TxObservationOutcome.Conflict(conflict)
-        every { txStates.lockAndCheck(any(), any()) } returns TxObservationCheck.Conflict(conflict)
+        every { txStates.observeAllConsistently(any()) } returns TxObservationBatchOutcome.Conflict(conflict)
     }
 
     /** 원장에 아무 관찰도 반영하지 않았다 — 두 입구 모두 닫혀 있어야 한다. */
     private fun verifyNoObservation() {
         verify(exactly = 0) { txStates.observeConsistently(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { txStates.lockAndCheck(any(), any()) }
-        verify(exactly = 0) { txStates.applyChecked(any(), any(), any(), any()) }
-        verify(exactly = 0) { txStates.applyCheckedReread(any(), any(), any(), any()) }
+        verify(exactly = 0) { txStates.observeAllConsistently(any()) }
     }
 
     @Test
@@ -226,17 +228,15 @@ class DfnsChainEventDecisionTest {
         every { submissions.findByExternalTransactionId("ext-2") } returns
             submissionRecord(externalTransactionId = "ext-2", vendorTransactionId = "xfr-2")
         every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber + 11
-        val applied = mutableListOf<TxObservationCheck.Consistent>()
-        every { txStates.lockAndCheck(any(), any()) } answers { TxObservationCheck.Consistent(firstArg(), null, secondArg()) }
-        every { txStates.applyChecked(capture(applied), any(), any(), any()) } returns stateChange(TxStatus.FINALIZED)
+        stubObserve { stateChange(TxStatus.FINALIZED) }
         every { outboxEvents.enqueue(any()) } returns Unit
 
         val outcome = decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat((outcome as DfnsChainDecisionOutcome.OutgoingAdvanced).recordCount).isEqualTo(2)
-        // 후보마다 **제 토큰**이 적용돼야 한다 — 첫 토큰을 두 번 쓰면 한 거래가 남의 관찰로 갱신된다.
-        assertThat(applied.map { it.rootVendorTransactionId }).containsExactly("xfr-1", "xfr-2")
-        assertThat(applied.map { it.observation.externalTransactionId }).containsExactly("ext-1", "ext-2")
+        // 후보마다 **제 관찰**이 실려야 한다 — 하나를 두 번 보내면 한 거래가 남의 관찰로 갱신된다.
+        assertThat(batch.captured.map { it.rootVendorTransactionId }).containsExactly("xfr-1", "xfr-2")
+        assertThat(batch.captured.map { it.observation.externalTransactionId }).containsExactly("ext-1", "ext-2")
     }
 
     @Test
@@ -261,16 +261,12 @@ class DfnsChainEventDecisionTest {
             listOf(txRecord(), txRecord(vendorTxId = "xfr-2", externalTxId = "ext-2"))
         every { submissions.findByExternalTransactionId(any()) } returns submissionRecord()
         every { chainHeads.headBlockNumber(NETWORK) } returns outgoing.blockNumber + 11
-        val conflict = TxObservationConsistency.Result.Conflict("destinationAddress", "0xaaa", "0xbbb")
-        every { txStates.lockAndCheck("xfr-1", any()) } answers { TxObservationCheck.Consistent(firstArg(), null, secondArg()) }
-        every { txStates.lockAndCheck("xfr-2", any()) } returns TxObservationCheck.Conflict(conflict)
-        every { txStates.applyChecked(any(), any(), any(), any()) } returns stateChange(TxStatus.FINALIZED)
+        stubConflict()
 
         val outcome = decision(event = event(outgoing)).decide(NOTIFICATION_ID, PAYLOAD)
 
         assertThat(outcome).isInstanceOf(DfnsChainDecisionOutcome.ObservationConflict::class.java)
-        // 첫 후보는 검사를 통과했지만 쓰기는 시작하지 않았다.
-        verify(exactly = 0) { txStates.applyChecked(any(), any(), any(), any()) }
+        // 한 번에 다뤘으므로 앞 후보의 전이도 남지 않는다 — 거래 경계가 그 순서를 지킨다.
         verify(exactly = 0) { outboxEvents.enqueue(any()) }
     }
 

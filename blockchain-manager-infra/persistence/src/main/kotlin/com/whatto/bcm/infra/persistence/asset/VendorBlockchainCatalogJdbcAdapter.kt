@@ -118,15 +118,23 @@ class VendorBlockchainCatalogJdbcAdapter(
                 jdbc.update(
                     """
                     UPDATE bcm_blkc_m
-                       SET ntwk_cd = :network, chain_mdl_dvcd = :chainModel,
+                       SET ntwk_cd = :network,
+                           -- **한 번 정해진 모델은 바뀌지 않는다** — 해제 뒤 다시 채택해도 같은 체인이다(03 V35).
+                           chain_mdl_dvcd = COALESCE(chain_mdl_dvcd, :chainModel),
                            last_chng_empno = :empno, last_chng_brcd = :brcd
                      WHERE vndr_blkc_id = :candidateId AND ntwk_cd IS NULL
+                       AND (chain_mdl_dvcd IS NULL OR chain_mdl_dvcd = :chainModel)
                     """.trimIndent(),
                     auditParameters(candidateId, network, employeeNo, branchCode) + mapOf("chainModel" to chainModel.name),
                 )
             if (updated == 0) {
+                // 0행은 "이미 채택됨"일 수도 "모델이 다름"일 수도 있다 — **둘 다 봐야** 경합에서 진 요청이
+                // 남의 모델을 제 것으로 알고 200을 받지 않는다.
                 val current = findByCandidateId(candidateId)
-                if (current?.network == network) return current
+                if (current?.network == network && current.chainModel == chainModel) return current
+                if (current?.chainModel != null && current.chainModel != chainModel) {
+                    throw ConflictException("networkChainModel", network)
+                }
                 throw ConflictException("networkCandidate", candidateId)
             }
         } catch (exception: DuplicateKeyException) {
