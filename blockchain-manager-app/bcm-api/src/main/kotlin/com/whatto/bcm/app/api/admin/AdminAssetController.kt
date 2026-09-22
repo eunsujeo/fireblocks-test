@@ -56,7 +56,13 @@ class AdminAssetController(
         ApiResponse.of(
             NetworkData.from(
                 service.adoptNetwork(
-                    AdoptNetworkCommand(code, checkNotNull(request.candidateId), employeeNo, branchCode),
+                    AdoptNetworkCommand(
+                        code,
+                        checkNotNull(request.candidateId),
+                        checkNotNull(request.chainModel),
+                        employeeNo,
+                        branchCode,
+                    ),
                 ),
             ),
             RequestIdFilter.requestIdOf(httpRequest),

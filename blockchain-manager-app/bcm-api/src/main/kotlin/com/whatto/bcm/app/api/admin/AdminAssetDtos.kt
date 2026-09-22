@@ -2,6 +2,7 @@ package com.whatto.bcm.app.api.admin
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.whatto.bcm.domain.asset.AssetDecimals
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
@@ -12,6 +13,7 @@ import com.whatto.bcm.domain.provider.ProviderOrigin
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 
@@ -24,6 +26,8 @@ data class NetworkData(
     val testnet: Boolean,
     val deprecated: Boolean,
     val syncedAt: String,
+    /** 계정·자산 모델. 채택된 행은 반드시 있고, 미채택 후보는 null이다(03 V35). */
+    val chainModel: ChainModel?,
 ) {
     companion object {
         fun from(catalog: VendorBlockchainCatalog) =
@@ -35,6 +39,7 @@ data class NetworkData(
                 testnet = catalog.testnet,
                 deprecated = catalog.deprecated,
                 syncedAt = catalog.syncedAt,
+                chainModel = catalog.chainModel,
             )
     }
 }
@@ -43,6 +48,12 @@ data class AdoptNetworkRequest(
     @field:NotBlank
     @field:Size(max = 64)
     val candidateId: String?,
+    /**
+     * 채택하는 체인의 계정·자산 모델. **필수다** — 이 값이 없으면 자산 키를 만들 수 없고
+     * 거래 관찰의 주소 동일성 비교도 정확 일치로 내려앉는다(03 V35).
+     */
+    @field:NotNull
+    val chainModel: ChainModel?,
 )
 
 data class AssetCandidateData(

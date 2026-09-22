@@ -37,9 +37,9 @@ class EmergencyExternalControlPersistenceTest : PersistenceTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('base-ext-control', 'BASE', 8453, 'Base', 'N', 'N', '20260818010000',
+            VALUES ('base-ext-control', 'BASE', 8453, 'Base', 'N', 'N', '20260818010000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
         )

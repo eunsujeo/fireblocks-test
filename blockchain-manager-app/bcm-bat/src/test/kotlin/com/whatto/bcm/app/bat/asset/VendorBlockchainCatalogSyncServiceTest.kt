@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.bat.asset
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
 import com.whatto.bcm.domain.vendor.VendorAsset
@@ -79,7 +80,7 @@ class VendorBlockchainCatalogSyncServiceTest {
         network: String?,
         chainId: Long?,
         name: String,
-    ) = VendorBlockchainCatalog(id, network, chainId, name, false, false, "20260805000000")
+    ) = VendorBlockchainCatalog(id, network, chainId, name, false, false, "20260805000000", network?.let { ChainModel.EVM })
 
     private fun blockchain(
         id: String,
@@ -124,6 +125,7 @@ private class FakeCatalogRepository : VendorBlockchainCatalogRepository {
     override fun adopt(
         candidateId: String,
         network: String,
+        chainModel: com.whatto.bcm.domain.asset.ChainModel,
         employeeNo: String,
         branchCode: String,
     ): VendorBlockchainCatalog = checkNotNull(rows[candidateId]).copy(network = network).also { rows[candidateId] = it }

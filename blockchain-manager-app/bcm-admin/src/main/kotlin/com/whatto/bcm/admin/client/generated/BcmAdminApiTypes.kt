@@ -12,6 +12,7 @@ data class AdminNetwork(
     val testnet: Boolean,
     val deprecated: Boolean,
     val syncedAt: String,
+    val chainModel: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -63,6 +63,7 @@ data class RegisterAdminAssetMapping(
 data class AdoptAdminNetwork(
     val code: String,
     val candidateId: String,
+    val chainModel: String,
     val employeeNo: String,
     val branchCode: String,
 )

@@ -4,6 +4,7 @@ import com.ninjasquad.springmockk.MockkBean
 import com.whatto.bcm.app.application.asset.AdoptNetworkCommand
 import com.whatto.bcm.app.application.asset.AuditActor
 import com.whatto.bcm.app.application.asset.VendorAssetMappingService
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheState
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCandidate
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
@@ -40,7 +41,8 @@ class AdminAssetControllerTest {
     private lateinit var service: VendorAssetMappingService
 
     private val audit = AuditActor("123456", "0001")
-    private val network = VendorBlockchainCatalog("opaque-candidate", "ETHEREUM", 1, "Ethereum", false, false, "20260806120000")
+    private val network =
+        VendorBlockchainCatalog("opaque-candidate", "ETHEREUM", 1, "Ethereum", false, false, "20260806120000", ChainModel.EVM)
     private val mapping = VendorAssetMapping("ETHEREUM", "USDC", "secret-asset-id", "0xA0B8", "20260806120000", "123456", "0001")
 
     @Test
@@ -89,7 +91,8 @@ class AdminAssetControllerTest {
 
     @Test
     fun `채택·등록·삭제 — 감사 헤더를 서비스 명령으로 넘기고 계약 상태를 돌려준다`() {
-        every { service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "opaque-candidate", "123456", "0001")) } returns network
+        every { service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "opaque-candidate", ChainModel.EVM, "123456", "0001")) } returns
+            network
         every {
             service.register(
                 match {
@@ -112,7 +115,7 @@ class AdminAssetControllerTest {
                     .header("X-Employee-No", "123456")
                     .header("X-Branch-Code", "0001")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"candidateId":"opaque-candidate"}"""),
+                    .content("""{"candidateId":"opaque-candidate","chainModel":"EVM"}"""),
             ).andExpect(status().isOk)
             .andExpect(jsonPath("$.data.code").value("ETHEREUM"))
 

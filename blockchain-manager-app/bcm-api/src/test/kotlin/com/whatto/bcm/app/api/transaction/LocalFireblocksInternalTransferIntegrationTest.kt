@@ -901,9 +901,9 @@ class LocalFireblocksInternalTransferIntegrationTest : IntegrationTestSupport() 
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('local-evm', ?, 31337, 'Local EVM', 'Y', 'N', '20260820000000',
+            VALUES ('local-evm', ?, 31337, 'Local EVM', 'Y', 'N', '20260820000000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
             NETWORK,

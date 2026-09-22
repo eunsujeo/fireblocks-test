@@ -1241,7 +1241,7 @@ components:
     Network:
       type: object
       description: 우리가 쓸 수 있는 체인 하나. 벤더 카탈로그를 하루 한 번 동기화한 우리 표에서 읽는다.
-      required: [candidateId, displayName, testnet, deprecated, syncedAt]
+      required: [candidateId, displayName, testnet, deprecated, syncedAt, chainModel]
       properties:
         candidateId:
           type: string
@@ -1263,6 +1263,9 @@ components:
           type: string
           description: 이 행을 마지막으로 동기화한 시각
           example: "20260806031045"
+        chainModel:
+          oneOf: [{ type: string, enum: [EVM, SOLANA] }, { type: 'null' }]
+          description: 체인의 계정·자산 모델 — 채택한 네트워크는 반드시 있고, 아직 채택하지 않은 후보는 null
     NetworkListResponse:
       type: object
       required: [data, meta]
@@ -1279,11 +1282,15 @@ components:
         meta: { $ref: '#/components/schemas/Meta' }
     AdoptNetworkRequest:
       type: object
-      required: [candidateId]
+      required: [candidateId, chainModel]
       properties:
         candidateId:
           type: string
           description: 네트워크 목록에서 받은 값을 그대로 넣는다
+        chainModel:
+          type: string
+          enum: [EVM, SOLANA]
+          description: 채택하는 체인의 계정·자산 모델. 제공자 정보가 아니라 체인의 속성이며, 자산 키 생성과 주소 동일성 비교가 이 값을 쓴다
     AssetCandidate:
       type: object
       description: Fireblocks 자산 후보 하나. 미지원 네트워크 후보는 읽기 전용 비교 정보다.

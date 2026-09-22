@@ -16,9 +16,11 @@ interface VendorBlockchainCatalogRepository {
 
     fun updateSnapshot(catalog: VendorBlockchainCatalog): VendorBlockchainCatalog
 
+    /** 채택은 계정·자산 모델을 함께 정한다 — 채택된 행은 모델 없이 존재할 수 없다(03 V35). */
     fun adopt(
         candidateId: String,
         network: String,
+        chainModel: ChainModel,
         employeeNo: String,
         branchCode: String,
     ): VendorBlockchainCatalog

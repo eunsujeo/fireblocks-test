@@ -748,11 +748,38 @@ hash는 UNIQUE로 두지 않는다 — RBF 계열·재관찰로 같은 hash가 �
 
 | 변경 | 내용 | 제약·영향 |
 |---|---|---|
-| `bcm_blkc_m.chain_mdl_dvcd` VARCHAR(16) NULL | 채택 네트워크의 계정·자산 모델 `EVM`/`SOLANA`. Dfns 데이터셋 seed가 채우고 Fireblocks 동기화 행은 NULL이다 | CHECK `IN ('EVM','SOLANA')`. 동기화 갱신(`updateSnapshot`)은 이 컬럼을 덮지 않는다. Dfns 등록 관문은 NULL을 `assetModelUnsupported`로 거절한다 |
+| `bcm_blkc_m.chain_mdl_dvcd` VARCHAR(16) NULL | 채택 네트워크의 계정·자산 모델 `EVM`/`SOLANA`. Dfns 데이터셋 seed가 채우고 Fireblocks 동기화 행은 NULL이다 — **V35가 이 비대칭을 없앴다** | CHECK `IN ('EVM','SOLANA')`. 동기화 갱신(`updateSnapshot`)은 이 컬럼을 덮지 않는다. Dfns 등록 관문은 NULL을 `assetModelUnsupported`로 거절한다 |
 | `bcm_vndr_ast_m.vndr_ast_id` VARCHAR(64)→VARCHAR(128) | Solana 자산 키(`<Network>:Spl2022:<base58 mint 44자>`)가 64자를 넘는다 | 활성 매핑 UNIQUE 인덱스·변경 snapshot(JSONB)·FK는 그대로다. 길이 결함은 계속 데이터 오류로 드러난다(충돌로 오분류하지 않음). Fireblocks assetId는 기존 길이 안이다 |
 
 `bcm_addr_crtn_l.vndr_ast_id`(V20, Fireblocks 생성 의도)와 `bcm_vndr_ast_ctlg_m.vndr_ast_id`(Fireblocks 카탈로그 캐시)는 Dfns 경로가 쓰지 않으므로 넓히지 않는다.
 Solana 수신 주소 모델은 [계약13](13-dfns-contracts.md#solana-수신-주소와-자산-모델--구현)을 따르며 `bcm_addr_m`에는 EVM과 같이 지갑(owner) 주소를 저장한다. token account 주소·ATA는 저장하지 않는다.
+
+### V35 채택 네트워크는 계정·자산 모델을 가진다 (2026-09-22 사용자 확정)
+
+V25는 `chain_mdl_dvcd`를 **Dfns 데이터셋 전용**으로 두고 Fireblocks 동기화 행은 NULL로 남겼다. 그때는 이 값을 쓰는 곳이
+Dfns 자산 등록 관문 하나였기 때문이다. V32가 **주소 동일성 비교**에 이 값을 쓰면서 전제가 깨졌다.
+
+NULL이면 비교기는 정확 문자열 일치만 허용한다(fail-closed). 그런데 Fireblocks는 실제로 **체크섬 혼합 대소문자 주소**를 주고
+(`0xC05A705eFE3f89b3a7a6Ceb6D79107529Ce20f7C` — 96 실물), 출금 요청의 목적지 주소는 길이만 검증해 고객이 소문자로 낼 수 있다.
+같은 EVM 주소의 두 표기가 만나면 **잘못이 없는 관찰이 충돌로 격리된다.** V32는 "EVM은 대소문자 무관"이라고 이미 정했으므로
+이건 구현이 계약을 못 지키는 것이다.
+
+**모델은 제공자 정보가 아니라 체인의 속성이다.** 그래서 원천을 넓힌다.
+
+> 동기화가 만든 **미채택 후보는 NULL일 수 있다** — 쓸지 정하지 않은 체인의 모델을 요구하지 않는다.
+> **채택된 네트워크(`ntwk_cd` 있음)는 제공자와 무관하게 명시적 모델을 가진다.**
+
+```sql
+ALTER TABLE bcm_blkc_m
+  ADD CONSTRAINT ck_bcm_blkc_adopted_chain_mdl
+    CHECK (ntwk_cd IS NULL OR chain_mdl_dvcd IS NOT NULL);
+```
+
+- **채택 API가 모델을 함께 받는다.** `PUT /admin/networks/{code}`의 `chainModel`은 필수이고, `Network` 응답도 이 값을 싣는다(공개 계약).
+  값 없이 채택할 길을 남기면 CHECK가 막아 500이 되므로, 관문에서 400으로 돌려준다.
+- **동기화는 이 컬럼을 덮지 않는다**(V25 그대로). 사람이 채택할 때 정하고, 벤더 카탈로그가 뒤집지 않는다.
+- `chain_id`(EIP-155)로 EVM을 추론하는 안은 택하지 않았다 — 권위가 둘이 되고, 동기화에서 `chain_id`가 빠지는 순간 다시 오탐이 난다.
+- 배포 전이라 보정할 행이 없다. 운영 데이터가 생긴 뒤였다면 채택 행 백필이 선행해야 한다.
 
 ### V24 네트워크 지갑 응답 증적 보관 — 물리 저장 계약
 

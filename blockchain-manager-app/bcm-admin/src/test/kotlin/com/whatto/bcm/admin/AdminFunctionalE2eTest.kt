@@ -252,7 +252,7 @@ class AdminFunctionalE2eTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Origin", "http://localhost")
                     .header("X-BCM-Local-Asset-Management", "execute")
-                    .content("""{"candidateId":"ethereum-candidate"}"""),
+                    .content("""{"candidateId":"ethereum-candidate","chainModel":"EVM"}"""),
             ).andExpect(status().isOk)
             .andExpect(jsonPath("$.data.code").value("ETHEREUM"))
 
@@ -260,7 +260,7 @@ class AdminFunctionalE2eTest {
             .perform(
                 put("/bff/admin/networks/ETHEREUM")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"candidateId":"ethereum-candidate"}"""),
+                    .content("""{"candidateId":"ethereum-candidate","chainModel":"EVM"}"""),
             ).andExpect(status().isForbidden)
 
         mockMvc
@@ -270,7 +270,7 @@ class AdminFunctionalE2eTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Origin", "http://evil.example")
                     .header("X-BCM-Local-Asset-Management", "execute")
-                    .content("""{"candidateId":"ethereum-candidate"}"""),
+                    .content("""{"candidateId":"ethereum-candidate","chainModel":"EVM"}"""),
             ).andExpect(status().isForbidden)
     }
 
@@ -283,11 +283,11 @@ class AdminFunctionalE2eTest {
                         check(exchange.requestHeaders.getFirst("X-Branch-Code") == "9999")
                         check(
                             exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8) ==
-                                """{"candidateId":"ethereum-candidate"}""",
+                                """{"candidateId":"ethereum-candidate","chainModel":"EVM"}""",
                         )
                         respond(
                             exchange,
-                            """{"data":{"candidateId":"ethereum-candidate","code":"ETHEREUM","displayName":"Ethereum","chainId":1,"testnet":false,"deprecated":false,"syncedAt":"20260817080000"},"meta":{"requestId":"bcm-network-adopt"}}""",
+                            """{"data":{"candidateId":"ethereum-candidate","code":"ETHEREUM","displayName":"Ethereum","chainId":1,"testnet":false,"deprecated":false,"syncedAt":"20260817080000","chainModel":"EVM"},"meta":{"requestId":"bcm-network-adopt"}}""",
                         )
                         return@createContext
                     }

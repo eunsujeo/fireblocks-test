@@ -91,7 +91,10 @@ class LocalAssetManagementBffController(
         httpRequest: HttpServletRequest,
     ): BffResponse<*> {
         requireSameOriginMutation(httpRequest)
-        val result = service.adoptNetwork(LocalNetworkAdoption(code, checkNotNull(request.candidateId)))
+        val result =
+            service.adoptNetwork(
+                LocalNetworkAdoption(code, checkNotNull(request.candidateId), checkNotNull(request.chainModel)),
+            )
         return BffResponse(result, meta(httpRequest), ViewState.FRESH, emptyList())
     }
 
@@ -148,6 +151,10 @@ data class LocalNetworkAdoptionRequest(
     @field:NotNull
     @field:Size(min = 1, max = 64)
     val candidateId: String?,
+    /** 채택하는 체인의 계정·자산 모델. BCM이 값을 검증하므로 여기서는 코드로만 넘긴다(03 V35). */
+    @field:NotNull
+    @field:Pattern(regexp = "EVM|SOLANA")
+    val chainModel: String?,
 )
 
 class LocalAssetManagementRequestForbidden : RuntimeException("local asset management request origin is not allowed")

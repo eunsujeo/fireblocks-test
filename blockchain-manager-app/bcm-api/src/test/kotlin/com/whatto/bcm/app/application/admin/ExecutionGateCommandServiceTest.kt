@@ -7,6 +7,7 @@ import com.whatto.bcm.domain.admin.AdminActor
 import com.whatto.bcm.domain.admin.AdminRole
 import com.whatto.bcm.domain.admin.ExecutionGateRepository
 import com.whatto.bcm.domain.admin.ExecutionGateType
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
 import com.whatto.bcm.domain.event.EventIdGenerator
@@ -98,7 +99,7 @@ class ExecutionGateCommandServiceTest {
             operator(),
         )
 
-    private fun network() = VendorBlockchainCatalog("base", "BASE", 8453, "Base", false, false, "20260817120000")
+    private fun network() = VendorBlockchainCatalog("base", "BASE", 8453, "Base", false, false, "20260817120000", ChainModel.EVM)
 
     private class DirectTransactionRunner : TransactionRunner {
         override fun <T> run(block: () -> T): T = block()

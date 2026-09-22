@@ -65,7 +65,9 @@ class HttpBcmAdminReadGateway(
                     .header("X-Branch-Code", command.branchCode)
                     .PUT(
                         HttpRequest.BodyPublishers.ofString(
-                            objectMapper.writeValueAsString(mapOf("candidateId" to command.candidateId)),
+                            objectMapper.writeValueAsString(
+                                mapOf("candidateId" to command.candidateId, "chainModel" to command.chainModel),
+                            ),
                             StandardCharsets.UTF_8,
                         ),
                     ).build(),

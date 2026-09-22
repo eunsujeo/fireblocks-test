@@ -43,9 +43,9 @@ class SweepRuntimePolicyPersistenceTest : PersistenceTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('sweep-runtime-base', 'BASE', 8453, 'Base', 'N', 'N', '20260819000000',
+            VALUES ('sweep-runtime-base', 'BASE', 8453, 'Base', 'N', 'N', '20260819000000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (vndr_blkc_id) DO NOTHING
             """.trimIndent(),

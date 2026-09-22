@@ -47,10 +47,27 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
         val synced = catalogs.updateSnapshot(solana.copy(displayName = "Solana Devnet (synced)", chainModel = null))
         assertThat(synced.chainModel).isEqualTo(ChainModel.SOLANA)
         assertThat(synced.displayName).isEqualTo("Solana Devnet (synced)")
-        assertThat(catalogs.insert(catalog("ethereum-id", "ETHEREUM")).chainModel).isNull()
+        // 동기화가 만든 **미채택 후보**만 모델이 비어 있을 수 있다.
+        assertThat(catalogs.insert(catalog("ethereum-id", network = null)).chainModel).isNull()
 
         assertThatThrownBy {
             jdbc.update("UPDATE bcm_blkc_m SET chain_mdl_dvcd = 'TRON' WHERE vndr_blkc_id = 'SolanaDevnet'")
+        }.isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `채택된 행은 계정·자산 모델 없이 존재할 수 없다`() {
+        // 주소 동일성 비교가 이 값으로 규칙을 고른다 — 없으면 정확 일치로 내려앉아 같은 EVM 주소를 격리한다(V35).
+        assertThatThrownBy {
+            jdbc.update(
+                """
+                INSERT INTO bcm_blkc_m
+                  (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+                   frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
+                VALUES ('adopted-no-model', 'ETHEREUM', 1, 'Ethereum', 'N', 'N', '20260806120000',
+                        'SYSTEM', '9999', 'SYSTEM', '9999')
+                """.trimIndent(),
+            )
         }.isInstanceOf(DataIntegrityViolationException::class.java)
     }
 
@@ -70,7 +87,7 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
         catalogs.insert(catalog("ethereum-id"))
         catalogs.insert(catalog("base-id"))
 
-        val adopted = catalogs.adopt("ethereum-id", "ETHEREUM", "123456", "0001")
+        val adopted = catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.EVM, "123456", "0001")
         assertThat(adopted.network).isEqualTo("ETHEREUM")
         val audit =
             jdbc.queryForMap(
@@ -81,9 +98,9 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
             )
         assertThat(audit.values).containsOnly("123456", "0001")
 
-        assertThat(catalogs.adopt("ethereum-id", "ETHEREUM", "654321", "0002")).isEqualTo(adopted)
+        assertThat(catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.EVM, "654321", "0002")).isEqualTo(adopted)
         assertThatThrownBy {
-            catalogs.adopt("base-id", "ETHEREUM", "654321", "0002")
+            catalogs.adopt("base-id", "ETHEREUM", ChainModel.EVM, "654321", "0002")
         }.isInstanceOf(ConflictException::class.java)
     }
 
@@ -92,7 +109,7 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
         catalogs.insert(catalog("ethereum-id", "ETHEREUM"))
 
         assertThatThrownBy {
-            catalogs.adopt("ethereum-id", "BASE", "654321", "0002")
+            catalogs.adopt("ethereum-id", "BASE", ChainModel.EVM, "654321", "0002")
         }.isInstanceOf(ConflictException::class.java)
     }
 
@@ -109,7 +126,7 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
     @Test
     fun `동기화 갱신은 시스템 감사를 남기고 비어 있던 chainId만 채운다`() {
         catalogs.insert(catalog("ethereum-id").copy(chainId = null))
-        catalogs.adopt("ethereum-id", "ETHEREUM", "123456", "0001")
+        catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.EVM, "123456", "0001")
 
         val updated =
             catalogs.updateSnapshot(
@@ -151,5 +168,5 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
         candidateId: String,
         network: String? = null,
         testnet: Boolean = false,
-    ) = VendorBlockchainCatalog(candidateId, network, 1, candidateId, testnet, false, "20260806120000")
+    ) = VendorBlockchainCatalog(candidateId, network, 1, candidateId, testnet, false, "20260806120000", network?.let { ChainModel.EVM })
 }

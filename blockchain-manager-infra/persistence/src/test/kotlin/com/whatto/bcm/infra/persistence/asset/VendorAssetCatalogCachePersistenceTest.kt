@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.persistence.asset
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheState
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSnapshot
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSnapshotAsset
@@ -198,7 +199,17 @@ class VendorAssetCatalogCachePersistenceTest : PersistenceTestSupport() {
     private fun blockchain(
         id: String,
         network: String?,
-    ) = VendorBlockchainCatalog(id, network, 1, network ?: "Polygon", false, false, "20260824000000")
+    ) = VendorBlockchainCatalog(
+        id,
+        network,
+        1,
+        network ?: "Polygon",
+        false,
+        false,
+        "20260824000000",
+        // 채택된 행(ntwk_cd 있음)은 계정·자산 모델 없이 존재할 수 없다(03 V35).
+        network?.let { ChainModel.EVM },
+    )
 
     private fun snapshot(
         blockchainId: String,

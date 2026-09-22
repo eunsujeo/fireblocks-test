@@ -109,6 +109,7 @@ class VendorBlockchainCatalogJdbcAdapter(
     override fun adopt(
         candidateId: String,
         network: String,
+        chainModel: ChainModel,
         employeeNo: String,
         branchCode: String,
     ): VendorBlockchainCatalog {
@@ -117,10 +118,11 @@ class VendorBlockchainCatalogJdbcAdapter(
                 jdbc.update(
                     """
                     UPDATE bcm_blkc_m
-                       SET ntwk_cd = :network, last_chng_empno = :empno, last_chng_brcd = :brcd
+                       SET ntwk_cd = :network, chain_mdl_dvcd = :chainModel,
+                           last_chng_empno = :empno, last_chng_brcd = :brcd
                      WHERE vndr_blkc_id = :candidateId AND ntwk_cd IS NULL
                     """.trimIndent(),
-                    auditParameters(candidateId, network, employeeNo, branchCode),
+                    auditParameters(candidateId, network, employeeNo, branchCode) + mapOf("chainModel" to chainModel.name),
                 )
             if (updated == 0) {
                 val current = findByCandidateId(candidateId)

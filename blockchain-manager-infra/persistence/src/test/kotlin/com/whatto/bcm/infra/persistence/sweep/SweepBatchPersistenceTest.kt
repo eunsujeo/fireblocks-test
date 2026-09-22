@@ -61,9 +61,9 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('ethereum-sweep-test', 'ETHEREUM', 1, 'Ethereum', 'N', 'N', '20260812140000',
+            VALUES ('ethereum-sweep-test', 'ETHEREUM', 1, 'Ethereum', 'N', 'N', '20260812140000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (ntwk_cd) DO NOTHING
             """.trimIndent(),
@@ -384,9 +384,9 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('sweep-stop-test', ?, 31337, 'Sweep Stop', 'Y', 'N', '20260812140000',
+            VALUES ('sweep-stop-test', ?, 31337, 'Sweep Stop', 'Y', 'N', '20260812140000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (ntwk_cd) DO NOTHING
             """.trimIndent(),
@@ -453,9 +453,9 @@ class SweepBatchPersistenceTest : PersistenceTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('sweep-create-stop-test', ?, 31339, 'Sweep Create Stop', 'Y', 'N', '20260812140000',
+            VALUES ('sweep-create-stop-test', ?, 31339, 'Sweep Create Stop', 'Y', 'N', '20260812140000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (ntwk_cd) DO NOTHING
             """.trimIndent(),

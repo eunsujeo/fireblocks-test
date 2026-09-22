@@ -243,9 +243,9 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('withdrawal-stop-test', ?, 31338, 'Withdrawal Stop', 'Y', 'N', '20260807120000',
+            VALUES ('withdrawal-stop-test', ?, 31338, 'Withdrawal Stop', 'Y', 'N', '20260807120000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (ntwk_cd) DO NOTHING
             """.trimIndent(),
@@ -299,9 +299,9 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('withdrawal-claim-race-test', ?, 31340, 'Withdrawal Claim Race', 'Y', 'N', '20260807120000',
+            VALUES ('withdrawal-claim-race-test', ?, 31340, 'Withdrawal Claim Race', 'Y', 'N', '20260807120000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (ntwk_cd) DO NOTHING
             """.trimIndent(),
@@ -372,9 +372,9 @@ class SubmissionPersistenceTest : PersistenceTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('withdrawal-lock-order-test', ?, 31341, 'Withdrawal Lock Order', 'Y', 'N', '20260807120000',
+            VALUES ('withdrawal-lock-order-test', ?, 31341, 'Withdrawal Lock Order', 'Y', 'N', '20260807120000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             ON CONFLICT (ntwk_cd) DO NOTHING
             """.trimIndent(),

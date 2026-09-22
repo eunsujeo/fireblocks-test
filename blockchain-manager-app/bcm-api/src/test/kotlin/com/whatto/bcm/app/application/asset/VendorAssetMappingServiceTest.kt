@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.application.asset
 
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheRepository
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheState
@@ -391,14 +392,14 @@ class VendorAssetMappingServiceTest {
     fun `채택 — 같은 후보와 network는 멱등이고 다른 조합은 409다`() {
         every { blockchains.findByCandidateId("ethereum-id") } returns blockchain()
 
-        val result = service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "ethereum-id", "123456", "0001"))
+        val result = service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "ethereum-id", ChainModel.EVM, "123456", "0001"))
 
         assertThat(result.network).isEqualTo("ETHEREUM")
-        verify(exactly = 0) { blockchains.adopt(any(), any(), any(), any()) }
+        verify(exactly = 0) { blockchains.adopt(any(), any(), any(), any(), any()) }
 
         every { blockchains.findByCandidateId("ethereum-id") } returns blockchain().copy(network = "MAINNET")
         assertThatThrownBy {
-            service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "ethereum-id", "123456", "0001"))
+            service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "ethereum-id", ChainModel.EVM, "123456", "0001"))
         }.isInstanceOf(ConflictException::class.java)
     }
 
@@ -407,11 +408,12 @@ class VendorAssetMappingServiceTest {
         every { blockchains.findByCandidateId("missing") } returns null
 
         assertThatThrownBy {
-            service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "missing", "123456", "0001"))
+            service.adoptNetwork(AdoptNetworkCommand("ETHEREUM", "missing", ChainModel.EVM, "123456", "0001"))
         }.isInstanceOf(InvalidAssetMappingException::class.java)
     }
 
-    private fun blockchain() = VendorBlockchainCatalog("ethereum-id", "ETHEREUM", 1, "Ethereum", false, false, "20260806110000")
+    private fun blockchain() =
+        VendorBlockchainCatalog("ethereum-id", "ETHEREUM", 1, "Ethereum", false, false, "20260806110000", ChainModel.EVM)
 
     private fun mapping() = VendorAssetMapping("ETHEREUM", "USDC", "asset-uuid", "0xA0B8", "20260806120000", "123456", "0001")
 

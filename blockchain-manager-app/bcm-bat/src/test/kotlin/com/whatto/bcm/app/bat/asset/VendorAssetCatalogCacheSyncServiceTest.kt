@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.bat.asset
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheRepository
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSnapshot
@@ -153,9 +154,9 @@ private class FakeVendorAssetCatalog(
 private class FakeBlockchainRepository : VendorBlockchainCatalogRepository {
     private val rows =
         linkedMapOf(
-            "base-id" to VendorBlockchainCatalog("base-id", "BASE", 8453, "Base", false, false, "20260824000000"),
+            "base-id" to VendorBlockchainCatalog("base-id", "BASE", 8453, "Base", false, false, "20260824000000", ChainModel.EVM),
             "ethereum-id" to
-                VendorBlockchainCatalog("ethereum-id", "ETHEREUM", 1, "Ethereum", false, false, "20260824000000"),
+                VendorBlockchainCatalog("ethereum-id", "ETHEREUM", 1, "Ethereum", false, false, "20260824000000", ChainModel.EVM),
             "unused-id" to VendorBlockchainCatalog("unused-id", null, 999, "Unused", true, false, "20260824000000"),
         )
 
@@ -177,6 +178,7 @@ private class FakeBlockchainRepository : VendorBlockchainCatalogRepository {
     override fun adopt(
         candidateId: String,
         network: String,
+        chainModel: com.whatto.bcm.domain.asset.ChainModel,
         employeeNo: String,
         branchCode: String,
     ) = error("not used")

@@ -55,9 +55,9 @@ class DepositEventKafkaIntegrationTest : IntegrationTestSupport() {
         jdbc.update(
             """
             INSERT INTO bcm_blkc_m
-              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm,
+              (vndr_blkc_id, ntwk_cd, chain_id, dspl_nm, test_yn, deprc_yn, sync_dttm, chain_mdl_dvcd,
                frst_reg_empno, frst_reg_brcd, last_chng_empno, last_chng_brcd)
-            VALUES ('ethereum-id', 'ETHEREUM', 1, 'Ethereum', 'N', 'N', '20260807120000',
+            VALUES ('ethereum-id', 'ETHEREUM', 1, 'Ethereum', 'N', 'N', '20260807120000', 'EVM',
                     'SYSTEM', '9999', 'SYSTEM', '9999')
             """.trimIndent(),
         )

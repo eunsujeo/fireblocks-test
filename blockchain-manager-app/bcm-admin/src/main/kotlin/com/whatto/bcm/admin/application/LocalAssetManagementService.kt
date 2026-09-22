@@ -52,6 +52,7 @@ class LocalAssetManagementService(
             AdoptAdminNetwork(
                 code = request.code,
                 candidateId = request.candidateId,
+                chainModel = request.chainModel,
                 employeeNo = properties.localAssetManagement.employeeNo,
                 branchCode = properties.localAssetManagement.branchCode,
             ),
@@ -61,6 +62,7 @@ class LocalAssetManagementService(
 data class LocalNetworkAdoption(
     val code: String,
     val candidateId: String,
+    val chainModel: String,
 )
 
 data class LocalAssetRegistration(

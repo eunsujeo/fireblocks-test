@@ -1,6 +1,7 @@
 package com.whatto.bcm.infra.persistence.asset
 
 import com.whatto.bcm.domain.account.DepositAddress
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
 import com.whatto.bcm.domain.exception.ConflictException
@@ -52,8 +53,10 @@ class VendorAssetMappingPersistenceTest : PersistenceTestSupport() {
 
     @BeforeEach
     fun seedAdoptedNetworks() {
-        blockchains.insert(VendorBlockchainCatalog("ethereum-id", "ETHEREUM", 1, "Ethereum", false, false, "20260806110000"))
-        blockchains.insert(VendorBlockchainCatalog("base-id", "BASE", 8453, "Base", false, false, "20260806110000"))
+        blockchains.insert(
+            VendorBlockchainCatalog("ethereum-id", "ETHEREUM", 1, "Ethereum", false, false, "20260806110000", ChainModel.EVM),
+        )
+        blockchains.insert(VendorBlockchainCatalog("base-id", "BASE", 8453, "Base", false, false, "20260806110000", ChainModel.EVM))
     }
 
     @Test

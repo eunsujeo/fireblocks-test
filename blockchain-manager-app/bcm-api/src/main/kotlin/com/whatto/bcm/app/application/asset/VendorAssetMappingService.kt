@@ -1,6 +1,7 @@
 package com.whatto.bcm.app.application.asset
 
 import com.whatto.bcm.app.application.account.DepositAddressQueryService
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.TokenStandard
 import com.whatto.bcm.domain.asset.VendorAssetCatalogCacheRepository
 import com.whatto.bcm.domain.asset.VendorAssetCatalogSearchResult
@@ -54,6 +55,7 @@ class VendorAssetMappingService(
         return blockchainRepository.adopt(
             command.candidateId,
             command.network,
+            command.chainModel,
             command.employeeNo,
             command.branchCode,
         )
@@ -258,6 +260,8 @@ data class AuditActor(
 data class AdoptNetworkCommand(
     val network: String,
     val candidateId: String,
+    /** 채택하는 순간 정한다 — 이 값 없이 채택된 행은 존재할 수 없다(03 V35). */
+    val chainModel: ChainModel,
     val employeeNo: String,
     val branchCode: String,
 )
