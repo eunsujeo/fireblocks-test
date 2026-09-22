@@ -56,8 +56,9 @@ class TxStateService(
         successEvidence: Boolean,
         deferFailure: Boolean = false,
         attributedType: TxType? = null,
-    ): TxObservationOutcome =
-        when (val checked = lockAndCheck(rootVendorTransactionId, observation, ChainModels())) {
+    ): TxObservationOutcome {
+        inBetween.requireOutside()
+        return when (val checked = lockAndCheck(rootVendorTransactionId, observation, ChainModels())) {
             is Checked.Conflict -> TxObservationOutcome.Conflict(checked.detail)
             is Checked.Consistent ->
                 TxObservationOutcome.Applied(
@@ -71,6 +72,7 @@ class TxStateService(
                     ),
                 )
         }
+    }
 
     /**
      * 판정 → **호출자의 쓰기** → 전이. 호출자가 판정과 전이 사이에 **같은 행을 바꾸는** 경로용이다.
@@ -85,7 +87,11 @@ class TxStateService(
      * 재검사가 어긋나면 [ConflictException]으로 **되돌린다** — [between]이 이미 썼으므로 그 자리에서
      * 격리할 수 없다. 트랜잭션을 통째로 물리면 아무것도 남지 않고, 워커가 새 트랜잭션에서 다시 판정한다.
      *
-     * 충돌로 되돌아갈 때 [between]은 **부르지 않는다** — 그게 이 API의 존재 이유다.
+     * **[between]은 첫 판정을 통과해야 불린다** — 그게 이 API의 존재 이유다. 다만 그 뒤의 재검사가 어긋나면
+     * [between]은 이미 실행된 뒤이고, 되돌리는 것은 **호출자의 트랜잭션 경계**다(이 경계는 커밋하지 않는다).
+     *
+     * [between]은 **원장 쓰기만** 한다. 안에서 이 서비스의 관찰 메서드를 다시 부르면 검사 사이에 다른 전이가
+     * 끼어들어 순서 보장이 깨지므로, 재진입은 그 자리에서 막는다.
      */
     fun observeConsistentlyAround(
         rootVendorTransactionId: String,
@@ -95,11 +101,12 @@ class TxStateService(
         attributedType: TxType? = null,
         between: () -> Unit,
     ): TxObservationOutcome {
+        inBetween.requireOutside()
         // 모델은 이 호출 안에서 한 번만 읽는다 — 판정과 재검사가 같은 규칙을 쓰고, 잠금을 쥔 채 왕복을 늘리지 않는다.
         val models = ChainModels()
         val checked = lockAndCheck(rootVendorTransactionId, observation, models)
         if (checked is Checked.Conflict) return TxObservationOutcome.Conflict(checked.detail)
-        between()
+        inBetween.runGuarded(between)
         val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
         val consistency = check(previous, observation, models)
         if (consistency is TxObservationConsistency.Result.Conflict) {
@@ -124,6 +131,11 @@ class TxStateService(
      * 앞 행의 전이가 같은 트랜잭션에 실려 함께 커밋된다. 잠금은 트랜잭션 끝까지 남으므로 그 사이가 벌어지지 않는다.
      */
     fun observeAllConsistently(requests: List<TxObservationRequest>): TxObservationBatchOutcome {
+        inBetween.requireOutside()
+        // **같은 root 를 두 번 받지 않는다.** 받으면 둘 다 같은(오래된) 행으로 검사하고 두 번 전이해,
+        // 뒤 갱신이 앞 갱신을 덮거나 같은 상태가 두 번 발행된다. 부르는 쪽 실수이므로 조용히 합치지 않고 드러낸다.
+        val roots = requests.map { it.rootVendorTransactionId }
+        require(roots.size == roots.distinct().size) { "observation batch has duplicate roots" }
         // 후보는 보통 같은 네트워크다 — 행마다 같은 마스터 행을 되풀이해 읽지 않는다.
         val models = ChainModels()
         val checked =
@@ -146,6 +158,8 @@ class TxStateService(
             },
         )
     }
+
+    private val inBetween = ReentrancyGuard()
 
     /**
      * 잠그고 검사한다. **결과는 이 클래스 밖으로 나가지 않는다** — 토큰을 내보내면 호출자가 지어낼 수 있고,
@@ -189,6 +203,28 @@ class TxStateService(
             } else {
                 blockchains.findByNetwork(network)?.chainModel.also { cache[network] = it }
             }
+    }
+
+    /**
+     * `between` 안에서 이 경계를 다시 부르는 것을 막는다. 재진입하면 판정과 재검사 사이에 다른 전이가 끼어들어
+     * "검사 → 쓰기 → 전이" 순서가 깨진다. 타입으로는 막을 수 없으므로 실행에서 막고, 조용히 통과시키지 않는다.
+     */
+    private class ReentrancyGuard {
+        private val active = ThreadLocal.withInitial { false }
+
+        fun requireOutside() {
+            check(!active.get()) { "observation callback must not re-enter the transaction state boundary" }
+        }
+
+        fun runGuarded(block: () -> Unit) {
+            requireOutside()
+            active.set(true)
+            try {
+                block()
+            } finally {
+                active.set(false)
+            }
+        }
     }
 
     private sealed interface Checked {

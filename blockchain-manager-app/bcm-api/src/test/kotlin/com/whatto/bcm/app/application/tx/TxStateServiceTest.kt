@@ -219,13 +219,79 @@ class TxStateServiceTest {
             service(repository).observeAllConsistently(
                 listOf(
                     TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.5")),
-                    TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "2.5")),
+                    TxObservationRequest(
+                        "tx-2",
+                        observation(status = TxStatus.CONFIRMED, amount = "2.5", vendorTransactionId = "tx-2"),
+                    ),
                 ),
             )
 
         assertThat(outcome).isInstanceOfSatisfying(TxObservationBatchOutcome.Conflict::class.java) {
             assertThat(it.detail.field).isEqualTo("amount")
         }
+        assertThat(repository.writes).isZero()
+    }
+
+    @Test
+    fun `같은 root 를 두 번 받으면 거절한다`() {
+        // 둘 다 같은(오래된) 행으로 검사하고 두 번 전이하면 뒤 갱신이 앞 갱신을 덮거나 같은 상태가 두 번 발행된다.
+        val repository = RecordingTxRecords(record(amount = "1.5"))
+
+        assertThatThrownBy {
+            service(repository).observeAllConsistently(
+                listOf(
+                    TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.5")),
+                    TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.FINALIZED, amount = "1.5")),
+                ),
+            )
+        }.isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("duplicate roots")
+        assertThat(repository.writes).isZero()
+    }
+
+    @Test
+    fun `빈 목록은 아무것도 하지 않는다`() {
+        val repository = RecordingTxRecords(record(amount = "1.5"))
+
+        val outcome = service(repository).observeAllConsistently(emptyList())
+
+        assertThat(outcome).isInstanceOfSatisfying(TxObservationBatchOutcome.Applied::class.java) {
+            assertThat(it.changes).isEmpty()
+        }
+        assertThat(repository.writes).isZero()
+    }
+
+    @Test
+    fun `호출자의 쓰기가 이 경계를 다시 부르면 그 자리에서 드러낸다`() {
+        // 재진입하면 판정과 재검사 사이에 다른 전이가 끼어들어 "검사 → 쓰기 → 전이" 순서가 깨진다.
+        val repository = RecordingTxRecords(record(amount = "1.5"))
+        val service = service(repository)
+
+        assertThatThrownBy {
+            service.observeConsistentlyAround(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, amount = "1.5"),
+                successEvidence = false,
+            ) {
+                service.observeConsistently(VENDOR_TX_ID, observation(status = TxStatus.FINALIZED), false)
+            }
+        }.isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("re-enter")
+    }
+
+    @Test
+    fun `호출자의 쓰기가 실패하면 전이하지 않고 그대로 올린다`() {
+        // 되돌리는 것은 호출자의 트랜잭션 경계다 — 이 경계가 삼켜 반쪽 상태를 만들지 않는다.
+        val repository = RecordingTxRecords(record(amount = "1.5"))
+
+        assertThatThrownBy {
+            service(repository).observeConsistentlyAround(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, amount = "1.5"),
+                successEvidence = false,
+            ) { throw IllegalStateException("submission ledger write failed") }
+        }.isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("submission ledger write failed")
         assertThat(repository.writes).isZero()
     }
 
@@ -238,7 +304,10 @@ class TxStateServiceTest {
         TxStateService(RecordingTxRecords(record(amount = "1.5")), blockchains).observeAllConsistently(
             listOf(
                 TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.5")),
-                TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.50")),
+                TxObservationRequest(
+                    "tx-2",
+                    observation(status = TxStatus.CONFIRMED, amount = "1.50", vendorTransactionId = "tx-2"),
+                ),
             ),
         )
         assertThat(blockchains.reads).isEqualTo(1)
@@ -251,6 +320,19 @@ class TxStateServiceTest {
             successEvidence = false,
         ) {}
         assertThat(blockchains.reads).isEqualTo(1)
+
+        // 서로 다른 네트워크가 섞이면 네트워크마다 한 번이다.
+        blockchains.reset()
+        TxStateService(RecordingTxRecords(record(amount = "1.5")), blockchains).observeAllConsistently(
+            listOf(
+                TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.5")),
+                TxObservationRequest(
+                    "tx-2",
+                    observation(status = TxStatus.CONFIRMED, amount = "1.5", network = "BASE", vendorTransactionId = "tx-2"),
+                ),
+            ),
+        )
+        assertThat(blockchains.reads).isEqualTo(2)
 
         // 첫 관찰은 비교할 행이 없어 아예 읽지 않는다.
         blockchains.reset()
@@ -299,11 +381,13 @@ class TxStateServiceTest {
         destinationAddress: String? = null,
         baseUnits: String? = null,
         decimals: Int? = null,
+        network: String = NETWORK,
+        vendorTransactionId: String = VENDOR_TX_ID,
     ) = TxObservation(
-        vendorTransactionId = VENDOR_TX_ID,
+        vendorTransactionId = vendorTransactionId,
         externalTransactionId = "wd-1",
         accountId = "account-1",
-        network = NETWORK,
+        network = network,
         symbol = "USDC",
         transactionHash = null,
         status = status,

@@ -105,6 +105,44 @@ class VendorBlockchainCatalogPersistenceTest : PersistenceTestSupport() {
     }
 
     @Test
+    fun `계정·자산 모델은 채택 때 한 번 정해지고 해제 뒤에도 바뀌지 않는다`() {
+        // 거래 동일성 검사가 그 네트워크의 **현재** 모델을 읽는다 — 모델이 바뀌면 과거 행의 같은 주소가
+        // 전과 다른 규칙으로 비교돼 정상 관찰을 격리하거나 다른 주소를 같다고 하게 된다(03 V35).
+        catalogs.insert(catalog("ethereum-id"))
+        catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.EVM, "123456", "0001")
+
+        // 같은 모델의 재요청은 그대로 통과한다(멱등).
+        assertThat(catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.EVM, "654321", "0002").chainModel)
+            .isEqualTo(ChainModel.EVM)
+        // 다른 모델은 같은 요청이 아니다.
+        assertThatThrownBy {
+            catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.SOLANA, "654321", "0002")
+        }.isInstanceOf(ConflictException::class.java)
+
+        // 해제는 network만 비우고 모델은 남긴다.
+        assertThat(catalogs.release("ETHEREUM", "123456", "0001")).isTrue()
+        assertThat(catalogs.findByCandidateId("ethereum-id")?.chainModel).isEqualTo(ChainModel.EVM)
+
+        // 그래서 해제 뒤 다른 모델로 다시 채택할 수 없다.
+        assertThatThrownBy {
+            catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.SOLANA, "654321", "0002")
+        }.isInstanceOf(ConflictException::class.java)
+        assertThat(catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.EVM, "654321", "0002").chainModel)
+            .isEqualTo(ChainModel.EVM)
+    }
+
+    @Test
+    fun `동기화 갱신은 채택된 행의 모델을 덮지 않는다`() {
+        catalogs.insert(catalog("ethereum-id"))
+        val adopted = catalogs.adopt("ethereum-id", "ETHEREUM", ChainModel.EVM, "123456", "0001")
+
+        val synced = catalogs.updateSnapshot(adopted.copy(displayName = "Ethereum (synced)", chainModel = null))
+
+        assertThat(synced.chainModel).isEqualTo(ChainModel.EVM)
+        assertThat(synced.displayName).isEqualTo("Ethereum (synced)")
+    }
+
+    @Test
     fun `같은 후보를 다른 network로 재채택하면 충돌한다`() {
         catalogs.insert(catalog("ethereum-id", "ETHEREUM"))
 

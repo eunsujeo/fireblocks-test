@@ -748,7 +748,7 @@ hash는 UNIQUE로 두지 않는다 — RBF 계열·재관찰로 같은 hash가 �
 
 | 변경 | 내용 | 제약·영향 |
 |---|---|---|
-| `bcm_blkc_m.chain_mdl_dvcd` VARCHAR(16) NULL | 채택 네트워크의 계정·자산 모델 `EVM`/`SOLANA`. Dfns 데이터셋 seed가 채우고 Fireblocks 동기화 행은 NULL이다 — **V35가 이 비대칭을 없앴다** | CHECK `IN ('EVM','SOLANA')`. 동기화 갱신(`updateSnapshot`)은 이 컬럼을 덮지 않는다. Dfns 등록 관문은 NULL을 `assetModelUnsupported`로 거절한다 |
+| `bcm_blkc_m.chain_mdl_dvcd` VARCHAR(16) NULL | 채택 네트워크의 계정·자산 모델 `EVM`/`SOLANA`. V25 당시에는 Dfns 데이터셋 seed만 채웠으나 **V35 이후 NULL은 미채택 후보만 가능하다** | CHECK `IN ('EVM','SOLANA')`. 동기화 갱신(`updateSnapshot`)은 이 컬럼을 덮지 않는다. Dfns 등록 관문은 NULL을 `assetModelUnsupported`로 거절한다 |
 | `bcm_vndr_ast_m.vndr_ast_id` VARCHAR(64)→VARCHAR(128) | Solana 자산 키(`<Network>:Spl2022:<base58 mint 44자>`)가 64자를 넘는다 | 활성 매핑 UNIQUE 인덱스·변경 snapshot(JSONB)·FK는 그대로다. 길이 결함은 계속 데이터 오류로 드러난다(충돌로 오분류하지 않음). Fireblocks assetId는 기존 길이 안이다 |
 
 `bcm_addr_crtn_l.vndr_ast_id`(V20, Fireblocks 생성 의도)와 `bcm_vndr_ast_ctlg_m.vndr_ast_id`(Fireblocks 카탈로그 캐시)는 Dfns 경로가 쓰지 않으므로 넓히지 않는다.

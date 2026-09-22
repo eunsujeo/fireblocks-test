@@ -64,7 +64,7 @@ class DfnsChainEventDecisionTest {
 
     /**
      * 동일성 검사를 통과시킨다. 경로마다 입구가 다르다 — 한 행이면 `observeConsistently`,
-     * 한 트랜잭션에서 여러 행이면 `lockAndCheck` 전부 뒤 `applyChecked` 전부다(03 V32).
+     * 한 트랜잭션에서 여러 행이면 `observeAllConsistently`다(03 V32).
      */
     private fun stubObserve(change: () -> TxStateChange) {
         every { txStates.observeConsistently(any(), capture(observed), any(), any(), any()) } answers {
