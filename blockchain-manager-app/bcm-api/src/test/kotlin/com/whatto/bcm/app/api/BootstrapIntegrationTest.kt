@@ -116,6 +116,7 @@ class BootstrapIntegrationTest : IntegrationTestSupport() {
             "bcm_vndr_ast_chng_l",
             "bcm_whk_l",
             "bcm_tx_l",
+            "bcm_tx_qrnt_l",
             "bcm_sbmt_l",
             "bcm_outbox_l",
             "bcm_swp_trgt",
