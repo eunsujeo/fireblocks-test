@@ -754,6 +754,31 @@ hash는 UNIQUE로 두지 않는다 — RBF 계열·재관찰로 같은 hash가 �
 `bcm_addr_crtn_l.vndr_ast_id`(V20, Fireblocks 생성 의도)와 `bcm_vndr_ast_ctlg_m.vndr_ast_id`(Fireblocks 카탈로그 캐시)는 Dfns 경로가 쓰지 않으므로 넓히지 않는다.
 Solana 수신 주소 모델은 [계약13](13-dfns-contracts.md#solana-수신-주소와-자산-모델--구현)을 따르며 `bcm_addr_m`에는 EVM과 같이 지갑(owner) 주소를 저장한다. token account 주소·ATA는 저장하지 않는다.
 
+### V36 거래는 판정에 쓴 계정·자산 모델을 스스로 들고 있다 (2026-10-16 사용자 확정)
+
+V35가 채택 네트워크에 모델을 강제했지만, 주소 동일성 비교는 여전히 **비교 시점에** `bcm_blkc_m`을
+네트워크 코드로 다시 읽고 있었다. 그래서 코드가 가리키는 후보가 바뀌면 **과거 거래가 새 규칙으로 비교된다.**
+
+```
+1월  ETHEREUM = 후보A(EVM)      거래가 쌓인다. 주소는 체크섬 표기로 저장
+3월  ETHEREUM 해제 → 후보B(SOLANA)를 같은 코드로 채택
+4월  1월 거래에 관찰이 하나 더 온다 → 코드로 모델을 찾으니 SOLANA
+     → 대소문자를 따지게 되고, 전에 같다고 본 주소가 이제 다르다 → 격리
+```
+
+거래는 그대로인데 판정만 뒤에서 바뀐다. **[V34](#v34-관찰-금액의-환산-근거--물리-저장-계약-2026-09-21-사용자-확정)와 같은 모양**이다 —
+현재 마스터를 읽지 말고 **그때 쓴 근거를 행에 남긴다.**
+
+| 컬럼 | 타입 | 뜻 |
+|---|---|---|
+| `chain_mdl_dvcd` | `VARCHAR(16)` NULL | 이 거래의 주소를 비교할 때 쓰는 계정 모델. `EVM`/`SOLANA` |
+
+- **행을 만들 때 한 번** 채택 카탈로그에서 읽어 적고, 그 뒤로는 **여기서만 읽는다.** `tx_dvcd`와 같은 set-once다.
+- 비교는 카탈로그를 **아예 읽지 않는다** — 비교 대상인 과거 행이 제 규칙을 들고 있다.
+- 값이 없는 행(모델 미확정 네트워크)은 **정확히 같을 때만** 같다고 본다(fail-closed, V32 그대로).
+- V35의 "채택 행은 모델 필수"는 그대로 둔다. 둘은 서로를 대신하지 않는다 —
+  V35는 **새 거래가 규칙을 얻을 수 있게** 하고, V36은 **이미 생긴 거래의 규칙이 흔들리지 않게** 한다.
+
 ### V35 채택 네트워크는 계정·자산 모델을 가진다 (2026-09-22 사용자 확정)
 
 V25는 `chain_mdl_dvcd`를 **Dfns 데이터셋 전용**으로 두고 Fireblocks 동기화 행은 NULL로 남겼다. 그때는 이 값을 쓰는 곳이
@@ -1112,6 +1137,7 @@ CREATE TABLE bcm_tx_l (
   base_amt        VARCHAR(320) NULL,          -- V34 관찰이 준 최소 단위 정수 — 재처리가 현재 매핑 대신 이 값으로 재환산한다
   dcml_cnt        SMALLINT     NULL,          -- V34 그때 환산에 쓴 정밀도 0..255 (base_amt 와 한 벌)
   tx_dvcd         VARCHAR(16)  NULL,          -- V32 공개 노출 판정용 거래 구분 — 입금은 제출 행이 없어 join 으로 거를 수 없다
+  chain_mdl_dvcd  VARCHAR(16)  NULL,          -- V36 이 거래의 주소 비교 규칙 — 행을 만들 때 한 번 적고 그 뒤로는 여기서만 읽는다
                                               -- DEPOSIT · WITHDRAWAL · INTERNAL · SWEEP_APPROVE · SWEEP_BATCH · BAND_S
   last_pub_stcd   VARCHAR(16)  NOT NULL,      -- 마지막으로 발행한 TxStatus — 이 값과 다를 때만 새 이벤트를 낸다
   cnfm_cnt        INT          NOT NULL,      -- 마지막으로 본 confirmation 수 — 큰 값으로만 갱신(감소 금지)

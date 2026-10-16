@@ -34,3 +34,4 @@ V32__transaction_query_ledger.sql
 V33__transaction_account_listing_index.sql
 V34__transaction_amount_snapshot.sql
 V35__adopted_network_chain_model.sql
+V36__transaction_chain_model_snapshot.sql

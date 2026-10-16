@@ -94,10 +94,10 @@ class TxStateServiceTest {
     @Test
     fun `EVM 주소는 대소문자가 달라도 같은 주소로 본다`() {
         // 체크섬 표기와 소문자 표기가 섞여 들어와도 격리하지 않는다 — 계정 모델이 비교 규칙을 가른다(03 chain_mdl_dvcd).
-        val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS))
+        val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS, chainModel = ChainModel.EVM))
 
         val outcome =
-            service(repository, ChainModel.EVM).observeConsistently(
+            service(repository).observeConsistently(
                 VENDOR_TX_ID,
                 observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS.lowercase()),
                 false,
@@ -109,10 +109,10 @@ class TxStateServiceTest {
     @Test
     fun `EVM이라도 20바이트 주소 형식이 아니면 대소문자를 무시하지 않는다`() {
         // 형식 검증 뒤에 비교한다(03 V32) — 주소가 아닌 값끼리 표기만 달라도 같다고 하면 안 된다.
-        val repository = RecordingTxRecords(record(destinationAddress = "0xAbCd"))
+        val repository = RecordingTxRecords(record(destinationAddress = "0xAbCd", chainModel = ChainModel.EVM))
 
         val outcome =
-            service(repository, ChainModel.EVM).observeConsistently(
+            service(repository).observeConsistently(
                 VENDOR_TX_ID,
                 observation(status = TxStatus.CONFIRMED, destinationAddress = "0xabcd"),
                 false,
@@ -126,10 +126,10 @@ class TxStateServiceTest {
     @Test
     fun `계정 모델을 모르면 정확히 같을 때만 같다고 본다`() {
         // fail-closed — 모르는 채로 같다고 보면 다른 주소의 관찰이 조용히 섞인다.
-        val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS))
+        val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS, chainModel = null))
 
         val outcome =
-            service(repository, chainModel = null).observeConsistently(
+            service(repository).observeConsistently(
                 VENDOR_TX_ID,
                 observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS.lowercase()),
                 false,
@@ -296,52 +296,53 @@ class TxStateServiceTest {
     }
 
     @Test
-    fun `한 호출 안에서 네트워크 모델을 한 번만 읽는다`() {
-        // 행 잠금을 쥔 채 같은 마스터 행으로 왕복을 늘리지 않는다. 모델은 채택 때 정해지고 바뀌지 않는다(03 V35).
+    fun `판정 규칙은 거래 행에서 읽고 카탈로그를 다시 보지 않는다`() {
+        // 코드가 가리키는 후보가 바뀌어도 과거 거래의 판정이 뒤에서 달라지면 안 된다(03 V36).
         val blockchains = CountingBlockchains(ChainModel.EVM)
+        val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS, chainModel = ChainModel.EVM))
 
-        // 여러 행: 후보 수만큼 읽지 않는다.
-        TxStateService(RecordingTxRecords(record(amount = "1.5")), blockchains).observeAllConsistently(
-            listOf(
-                TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.5")),
-                TxObservationRequest(
-                    "tx-2",
-                    observation(status = TxStatus.CONFIRMED, amount = "1.50", vendorTransactionId = "tx-2"),
-                ),
-            ),
-        )
-        assertThat(blockchains.reads).isEqualTo(1)
+        val outcome =
+            TxStateService(repository, blockchains).observeConsistently(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS.lowercase()),
+                false,
+            )
 
-        // 재검사가 있는 경로: 판정과 재검사가 같은 값을 쓴다.
-        blockchains.reset()
-        TxStateService(RecordingTxRecords(record(amount = "1.5")), blockchains).observeConsistentlyAround(
-            VENDOR_TX_ID,
-            observation(status = TxStatus.CONFIRMED, amount = "1.5"),
-            successEvidence = false,
-        ) {}
-        assertThat(blockchains.reads).isEqualTo(1)
-
-        // 서로 다른 네트워크가 섞이면 네트워크마다 한 번이다.
-        blockchains.reset()
-        TxStateService(RecordingTxRecords(record(amount = "1.5")), blockchains).observeAllConsistently(
-            listOf(
-                TxObservationRequest(VENDOR_TX_ID, observation(status = TxStatus.CONFIRMED, amount = "1.5")),
-                TxObservationRequest(
-                    "tx-2",
-                    observation(status = TxStatus.CONFIRMED, amount = "1.5", network = "BASE", vendorTransactionId = "tx-2"),
-                ),
-            ),
-        )
-        assertThat(blockchains.reads).isEqualTo(2)
-
-        // 첫 관찰은 비교할 행이 없어 아예 읽지 않는다.
-        blockchains.reset()
-        TxStateService(RecordingTxRecords(record = null), blockchains).observeConsistently(
-            VENDOR_TX_ID,
-            observation(status = TxStatus.CONFIRMED, amount = "1.5"),
-            false,
-        )
+        assertThat(applied(outcome).record.lastPublishedStatus).isEqualTo(TxStatus.CONFIRMED)
         assertThat(blockchains.reads).isZero()
+    }
+
+    @Test
+    fun `행을 만들 때만 카탈로그를 읽고 그 값을 행에 남긴다`() {
+        val blockchains = CountingBlockchains(ChainModel.SOLANA)
+        val repository = RecordingTxRecords(record = null)
+
+        val outcome =
+            TxStateService(repository, blockchains).observeConsistently(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, amount = "1.5"),
+                false,
+            )
+
+        assertThat(applied(outcome).record.chainModel).isEqualTo(ChainModel.SOLANA)
+        assertThat(blockchains.reads).isEqualTo(1)
+    }
+
+    @Test
+    fun `행이 생긴 뒤 카탈로그가 바뀌어도 그 거래의 판정은 그대로다`() {
+        // 이게 V36 의 전부다 — ETHEREUM 이 다른 계열 후보로 옮겨가도 1월 거래는 1월 규칙으로 비교된다.
+        val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS, chainModel = ChainModel.EVM))
+        val movedCatalog = CountingBlockchains(ChainModel.SOLANA)
+
+        val outcome =
+            TxStateService(repository, movedCatalog).observeConsistently(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS.lowercase()),
+                false,
+            )
+
+        // SOLANA 규칙이었다면 대소문자가 달라 격리됐을 관찰이다.
+        assertThat(applied(outcome).record.lastPublishedStatus).isEqualTo(TxStatus.CONFIRMED)
     }
 
     private fun service(
@@ -356,6 +357,7 @@ class TxStateServiceTest {
         destinationAddress: String? = null,
         baseUnits: String? = null,
         decimals: Int? = null,
+        chainModel: ChainModel? = ChainModel.EVM,
     ) = TxRecord(
         vendorTxId = VENDOR_TX_ID,
         externalTxId = "wd-1",
@@ -373,6 +375,8 @@ class TxStateServiceTest {
         destinationAddress = destinationAddress,
         amountBaseUnits = baseUnits,
         amountDecimals = decimals,
+        // 판정 규칙은 행이 들고 있다(03 V36) — 비교는 카탈로그를 읽지 않는다.
+        chainModel = chainModel,
     )
 
     private fun observation(

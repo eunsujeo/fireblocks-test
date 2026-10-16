@@ -1,5 +1,7 @@
 package com.whatto.bcm.domain.tx
 
+import com.whatto.bcm.domain.asset.ChainModel
+
 /**
  * 거래 운영 상태 — 판단 워커가 알림에서 만들어 추적하는 행 (03-bcm-db bcm_tx_l).
  * 최초 vendor tx id 한 행을 논리 root로 유지하고, activeVendorTxId가 현재 RBF head 또는 먼저 채굴된 승자를 가리킨다.
@@ -43,6 +45,12 @@ data class TxRecord(
     val amountDecimals: Int? = null,
     /** 공개 노출을 가르는 거래 구분(03 V32). 관찰로 병합하지 않는 **권위 있는 분류값**이다. */
     val transactionType: TxType? = null,
+    /**
+     * 이 거래의 주소를 비교할 때 쓰는 계정·자산 모델(03 V36). 행을 만들 때 채택 카탈로그에서 한 번 읽어 적고,
+     * 그 뒤로는 **여기서만 읽는다** — 네트워크 코드가 가리키는 후보가 바뀌어도 과거 거래의 판정 규칙은 그대로다.
+     * V34가 금액 환산 근거를 남긴 것과 같은 이유다.
+     */
+    val chainModel: ChainModel? = null,
     /** 막힘 경보 일시 — 있으면 다음 주기 건너뜀, 해소 전이 시 null */
     val stallAlertedAt: String? = null,
     val firstDetectedAt: String,

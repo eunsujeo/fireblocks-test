@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.persistence.tx
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.exception.ResourceNotFoundException
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
@@ -71,6 +72,7 @@ class TxJdbcAdapter(
                 amountBaseUnits = rs.getString("base_amt"),
                 amountDecimals = rs.getObject("dcml_cnt", Integer::class.java)?.toInt(),
                 transactionType = rs.getString("tx_dvcd")?.let(TxType::valueOf),
+                chainModel = rs.getString("chain_mdl_dvcd")?.let(ChainModel::valueOf),
             )
         }
     private val reconciliationRowMapper =
@@ -118,6 +120,7 @@ class TxJdbcAdapter(
                        base_amt = COALESCE(base_amt, :amountBaseUnits),
                        dcml_cnt = COALESCE(dcml_cnt, :amountDecimals),
                        tx_dvcd = COALESCE(tx_dvcd, :transactionType),
+                       chain_mdl_dvcd = COALESCE(chain_mdl_dvcd, :chainModel),
                        vndr_crt_dttm = COALESCE(vndr_crt_dttm, :vendorCreatedAt),
                        stall_alrt_dttm = :stallAlertedAt,
                        rcnc_chck_dttm = :reconciliationCheckedAt,
@@ -170,6 +173,7 @@ class TxJdbcAdapter(
                        base_amt = COALESCE(base_amt, :amountBaseUnits),
                        dcml_cnt = COALESCE(dcml_cnt, :amountDecimals),
                        tx_dvcd = COALESCE(tx_dvcd, :transactionType),
+                       chain_mdl_dvcd = COALESCE(chain_mdl_dvcd, :chainModel),
                        vndr_crt_dttm = COALESCE(vndr_crt_dttm, :vendorCreatedAt),
                        stall_alrt_dttm = NULL,
                        rcnc_chck_dttm = :reconciliationCheckedAt,
@@ -429,6 +433,7 @@ class TxJdbcAdapter(
             "amountBaseUnits" to amountBaseUnits,
             "amountDecimals" to amountDecimals,
             "transactionType" to transactionType?.name,
+            "chainModel" to chainModel?.name,
             "reconciliationCheckedAt" to reconciliationCheckedAt,
             "reconciliationCheckCount" to reconciliationCheckCount,
             "reconciliationStoppedAt" to reconciliationStoppedAt,
@@ -468,6 +473,7 @@ class TxJdbcAdapter(
                 "base_amt",
                 "dcml_cnt",
                 "tx_dvcd",
+                "chain_mdl_dvcd",
             )
 
         val TX_COLUMNS = "SELECT " + TX_COLUMN_NAMES.joinToString(", ")

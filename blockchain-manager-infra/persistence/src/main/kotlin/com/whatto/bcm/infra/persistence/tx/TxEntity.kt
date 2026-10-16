@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.persistence.tx
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
 import com.whatto.bcm.domain.tx.TxType
@@ -48,6 +49,8 @@ data class TxEntity(
     val dcmlCnt: Int?,
     @Column("tx_dvcd")
     val txDvcd: String?,
+    @Column("chain_mdl_dvcd")
+    val chainMdlDvcd: String?,
     @Column("vndr_crt_dttm")
     val vndrCrtDttm: String?,
     @Column("rcnc_chck_dttm")
@@ -92,6 +95,7 @@ data class TxEntity(
             amountBaseUnits = baseAmt,
             amountDecimals = dcmlCnt,
             transactionType = txDvcd?.let(TxType::valueOf),
+            chainModel = chainMdlDvcd?.let(ChainModel::valueOf),
             reconciliationCheckedAt = rcncChckDttm,
             reconciliationCheckCount = rcncChckCnt,
             reconciliationStoppedAt = rcncStopDttm,
@@ -119,6 +123,7 @@ data class TxEntity(
                 baseAmt = txRecord.amountBaseUnits,
                 dcmlCnt = txRecord.amountDecimals,
                 txDvcd = txRecord.transactionType?.name,
+                chainMdlDvcd = txRecord.chainModel?.name,
                 rcncChckDttm = txRecord.reconciliationCheckedAt,
                 rcncChckCnt = txRecord.reconciliationCheckCount,
                 rcncStopDttm = txRecord.reconciliationStoppedAt,

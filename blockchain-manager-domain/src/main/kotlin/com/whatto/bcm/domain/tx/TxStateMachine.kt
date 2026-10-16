@@ -1,5 +1,6 @@
 package com.whatto.bcm.domain.tx
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.exception.ConflictException
 
 data class TxObservation(
@@ -71,17 +72,18 @@ class TxStateMachine(
         successEvidence: Boolean,
         deferFailure: Boolean = false,
         attributedType: TxType? = null,
+        chainModel: ChainModel? = null,
     ): TxStateChange {
         if (previous == null) {
             check(rootVendorTransactionId == observation.vendorTransactionId) {
                 "root transaction not found: rootVendorTransactionId=$rootVendorTransactionId"
             }
-            return persistNew(observation, attributedType)
+            return persistNew(observation, attributedType, chainModel)
         }
         if (previous.activeVendorTxId != observation.vendorTransactionId) {
             if (previous.lastPublishedStatus == TxStatus.FAILED) return TxStateChange(previous, emptyList())
             if (!successEvidence || previous.hasMinedWinner()) return TxStateChange(previous, emptyList())
-            return adoptWinner(previous, observation, attributedType)
+            return adoptWinner(previous, observation, attributedType, chainModel)
         }
         if (
             deferFailure &&
@@ -108,16 +110,17 @@ class TxStateMachine(
                 )
             return TxStateChange(deferred, emptyList())
         }
-        return persistActive(previous, observation, attributedType)
+        return persistActive(previous, observation, attributedType, chainModel)
     }
 
     private fun persistNew(
         observation: TxObservation,
         attributedType: TxType?,
+        chainModel: ChainModel?,
     ): TxStateChange {
         val decision = TransitionTable.decide(null, observation.status)
         val record =
-            repository.insert(candidate(null, observation, decision.statusToRecord(null, observation.status), attributedType))
+            repository.insert(candidate(null, observation, decision.statusToRecord(null, observation.status), attributedType, chainModel))
         return TxStateChange(record, decision.publishedStatuses(observation.status))
     }
 
@@ -125,6 +128,7 @@ class TxStateMachine(
         previous: TxRecord,
         observation: TxObservation,
         attributedType: TxType?,
+        chainModel: ChainModel?,
     ): TxStateChange {
         val decision = TransitionTable.decide(previous.lastPublishedStatus, observation.status)
         val candidate =
@@ -133,6 +137,7 @@ class TxStateMachine(
                 observation,
                 decision.statusToRecord(previous.lastPublishedStatus, observation.status),
                 attributedType,
+                chainModel,
             )
         val madeProgress = madeProgress(previous, candidate)
         val newerObservation = observation.observedAt > previous.lastChangedAt
@@ -155,6 +160,7 @@ class TxStateMachine(
         previous: TxRecord,
         observation: TxObservation,
         attributedType: TxType?,
+        chainModel: ChainModel?,
     ): TxStateChange {
         val decision = TransitionTable.decide(previous.lastPublishedStatus, observation.status)
         val candidate =
@@ -163,6 +169,7 @@ class TxStateMachine(
                 observation,
                 decision.statusToRecord(previous.lastPublishedStatus, observation.status),
                 attributedType,
+                chainModel,
             ).copy(
                 vendorTxId = previous.vendorTxId,
                 activeVendorTxId = observation.vendorTransactionId,
@@ -178,6 +185,7 @@ class TxStateMachine(
         observation: TxObservation,
         statusToRecord: TxStatus,
         attributedType: TxType?,
+        chainModel: ChainModel?,
     ) = TxRecord(
         vendorTxId = observation.vendorTransactionId,
         externalTxId = observation.externalTransactionId,
@@ -201,6 +209,9 @@ class TxStateMachine(
         destinationAddress = previous?.destinationAddress ?: observation.observedDestinationAddress,
         // 관찰로 정하지 않는다 — 거래 행을 만든 쪽이 확정한 권위 값이다. 최초에 정하고 그 뒤로는 바꾸지 않는다.
         transactionType = mergedTransactionType(previous, attributedType),
+        // 판정 규칙은 행을 만들 때 한 번 정하고 그 뒤로는 바꾸지 않는다(03 V36) — 네트워크 코드가
+        // 가리키는 후보가 바뀌어도 과거 거래가 새 규칙으로 비교되면 안 된다.
+        chainModel = previous?.chainModel ?: chainModel,
     )
 
     /**

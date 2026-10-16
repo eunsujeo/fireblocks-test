@@ -58,7 +58,7 @@ class TxStateService(
         attributedType: TxType? = null,
     ): TxObservationOutcome {
         inBetween.requireOutside()
-        return when (val checked = lockAndCheck(rootVendorTransactionId, observation, ChainModels())) {
+        return when (val checked = lockAndCheck(rootVendorTransactionId, observation)) {
             is Checked.Conflict -> TxObservationOutcome.Conflict(checked.detail)
             is Checked.Consistent ->
                 TxObservationOutcome.Applied(
@@ -69,6 +69,7 @@ class TxStateService(
                         successEvidence = successEvidence,
                         deferFailure = deferFailure,
                         attributedType = attributedType,
+                        chainModel = chainModelFor(checked.previous, observation),
                     ),
                 )
         }
@@ -102,13 +103,11 @@ class TxStateService(
         between: () -> Unit,
     ): TxObservationOutcome {
         inBetween.requireOutside()
-        // 모델은 이 호출 안에서 한 번만 읽는다 — 판정과 재검사가 같은 규칙을 쓰고, 잠금을 쥔 채 왕복을 늘리지 않는다.
-        val models = ChainModels()
-        val checked = lockAndCheck(rootVendorTransactionId, observation, models)
+        val checked = lockAndCheck(rootVendorTransactionId, observation)
         if (checked is Checked.Conflict) return TxObservationOutcome.Conflict(checked.detail)
         inBetween.runGuarded(between)
         val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
-        val consistency = check(previous, observation, models)
+        val consistency = check(previous, observation)
         if (consistency is TxObservationConsistency.Result.Conflict) {
             throw ConflictException("txObservation", consistency.field)
         }
@@ -120,6 +119,7 @@ class TxStateService(
                 successEvidence = successEvidence,
                 deferFailure = deferFailure,
                 attributedType = attributedType,
+                chainModel = chainModelFor(previous, observation),
             ),
         )
     }
@@ -136,11 +136,9 @@ class TxStateService(
         // 뒤 갱신이 앞 갱신을 덮거나 같은 상태가 두 번 발행된다. 부르는 쪽 실수이므로 조용히 합치지 않고 드러낸다.
         val roots = requests.map { it.rootVendorTransactionId }
         require(roots.size == roots.distinct().size) { "observation batch has duplicate roots" }
-        // 후보는 보통 같은 네트워크다 — 행마다 같은 마스터 행을 되풀이해 읽지 않는다.
-        val models = ChainModels()
         val checked =
             requests.map { request ->
-                when (val result = lockAndCheck(request.rootVendorTransactionId, request.observation, models)) {
+                when (val result = lockAndCheck(request.rootVendorTransactionId, request.observation)) {
                     is Checked.Conflict -> return TxObservationBatchOutcome.Conflict(result.detail)
                     is Checked.Consistent -> request to result
                 }
@@ -154,6 +152,7 @@ class TxStateService(
                     successEvidence = request.successEvidence,
                     deferFailure = request.deferFailure,
                     attributedType = request.attributedType,
+                    chainModel = chainModelFor(result.previous, request.observation),
                 )
             },
         )
@@ -168,42 +167,32 @@ class TxStateService(
     private fun lockAndCheck(
         rootVendorTransactionId: String,
         observation: TxObservation,
-        models: ChainModels,
     ): Checked {
         val previous = repository.findByVendorTxIdForUpdate(rootVendorTransactionId)
-        return when (val consistency = check(previous, observation, models)) {
+        return when (val consistency = check(previous, observation)) {
             is TxObservationConsistency.Result.Conflict -> Checked.Conflict(consistency)
             TxObservationConsistency.Result.Consistent -> Checked.Consistent(previous)
         }
     }
 
+    /**
+     * 비교 규칙은 **거래 행이 들고 있는 값**을 쓴다(03 V36). 카탈로그를 다시 읽지 않으므로,
+     * 네트워크 코드가 가리키는 후보가 바뀌어도 과거 거래의 판정이 뒤에서 달라지지 않는다.
+     */
     private fun check(
         previous: TxRecord?,
         observation: TxObservation,
-        models: ChainModels,
     ): TxObservationConsistency.Result {
-        // 비교할 행이 없으면 규칙도 필요 없다 — 첫 관찰에는 카탈로그를 읽지 않는다.
+        // 비교할 행이 없으면 규칙도 필요 없다.
         if (previous == null) return TxObservationConsistency.Result.Consistent
-        return TxObservationConsistency.check(previous, observation, models.of(observation.network))
+        return TxObservationConsistency.check(previous, observation, previous.chainModel)
     }
 
-    /**
-     * 한 호출 안에서 네트워크의 계정·자산 모델을 **한 번만** 읽는다.
-     *
-     * 여러 행을 다루는 경로는 보통 같은 네트워크의 후보들이고, 재검사가 있는 경로는 같은 네트워크를 두 번 묻는다.
-     * 행 잠금을 쥔 채 같은 마스터 행으로 왕복을 늘릴 이유가 없다. 모델은 채택 때 정해지고 바뀌지 않으므로(03 V35)
-     * 한 호출 안에서 값이 흔들릴 걱정도 없다.
-     */
-    private inner class ChainModels {
-        private val cache = HashMap<String, ChainModel?>()
-
-        fun of(network: String): ChainModel? =
-            if (cache.containsKey(network)) {
-                cache[network]
-            } else {
-                blockchains.findByNetwork(network)?.chainModel.also { cache[network] = it }
-            }
-    }
+    /** 행을 처음 만들 때만 카탈로그를 읽는다 — 그 값이 그 거래의 판정 규칙으로 행에 남는다(03 V36). */
+    private fun chainModelFor(
+        previous: TxRecord?,
+        observation: TxObservation,
+    ): ChainModel? = previous?.chainModel ?: blockchains.findByNetwork(observation.network)?.chainModel
 
     /**
      * `between` 안에서 이 경계를 다시 부르는 것을 막는다. 재진입하면 판정과 재검사 사이에 다른 전이가 끼어들어
