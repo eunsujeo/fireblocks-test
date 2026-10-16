@@ -15,20 +15,40 @@ class TxObservationQuarantineFingerprintTest {
     }
 
     @Test
-    fun `길이 접두사가 값과 섞여도 지문이 겹치지 않는다`() {
-        // 10진 길이는 폭이 들쭉날쭉해, 값이 숫자로 시작하면 접두사와 구분되지 않는다.
-        assertThat(fingerprint(recorded = "1", observed = "123"))
-            .isNotEqualTo(fingerprint(recorded = "11", observed = "23"))
+    fun `가변 폭 10진 길이가 만들던 실제 충돌을 가른다`() {
+        // 옛 인코딩(10진 길이 + 값)에서 이 둘은 **같은 바이트열**을 만들었다:
+        //   A → "1" + "2"            + "20" + "aaaaaaaaaa9bbbbbbbbb"
+        //   B → "12" + "20aaaaaaaaaa" + "9"  + "bbbbbbbbb"
+        // 둘 다 "1220aaaaaaaaaa9bbbbbbbbb" 다. 다른 관찰이 남의 격리 행에 합쳐진다는 뜻이다.
+        assertThat(fingerprint(recorded = "2", observed = "aaaaaaaaaa9bbbbbbbbb"))
+            .isNotEqualTo(fingerprint(recorded = "20aaaaaaaaaa", observed = "bbbbbbbbb"))
     }
 
     @Test
-    fun `여러 바이트 문자도 바이트 길이로 센다`() {
-        // String.length 는 UTF-16 문자 수라 뒤에 붙는 UTF-8 바이트 수와 다르다.
-        assertThat(fingerprint(recorded = "é", observed = "x"))
-            .isNotEqualTo(fingerprint(recorded = "e", observed = "x"))
-        assertThat(fingerprint(recorded = "가", observed = ""))
-            .isNotEqualTo(fingerprint(recorded = "", observed = "가"))
+    fun `여러 바이트 문자는 UTF-16 문자 수가 아니라 바이트 길이로 센다`() {
+        // "가"는 UTF-16 1자이지만 UTF-8 3바이트다. 길이를 문자 수로 적으면 선언한 길이와 실제 바이트가 어긋난다.
+        // 기대 지문을 **따로 계산해** 대조한다 — 구현을 그대로 옮겨 적으면 같이 틀린다.
+        val expected =
+            sha256(
+                bigEndian(7) + "tx-root".toByteArray() +
+                    bigEndian(11) + "tx-physical".toByteArray() +
+                    bigEndian(6) + "amount".toByteArray() +
+                    bigEndian(3) + "가".toByteArray() +
+                    bigEndian(1) + "x".toByteArray() +
+                    bigEndian(2) + "[]".toByteArray(),
+            )
+
+        assertThat(fingerprint(recorded = "가", observed = "x", body = "[]")).isEqualTo(expected)
     }
+
+    private fun sha256(bytes: ByteArray) =
+        java.security.MessageDigest
+            .getInstance("SHA-256")
+            .digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+
+    private fun bigEndian(value: Int) =
+        byteArrayOf((value ushr 24).toByte(), (value ushr 16).toByte(), (value ushr 8).toByte(), value.toByte())
 
     @Test
     fun `원문이 다르면 다른 관찰이다`() {

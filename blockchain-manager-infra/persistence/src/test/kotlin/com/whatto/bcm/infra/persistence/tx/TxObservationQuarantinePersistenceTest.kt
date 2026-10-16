@@ -52,6 +52,9 @@ class TxObservationQuarantinePersistenceTest : PersistenceTestSupport() {
         assertThat(again.detectionCount).isEqualTo(2)
         assertThat(again.firstDetectedAt).isEqualTo("20260807120000")
         assertThat(again.lastChangedAt).isEqualTo("20260807130000")
+        // 변경 감사도 함께 갱신된다 — 트리거가 이 셋은 허용한다.
+        assertThat(jdbc.queryForMap("SELECT last_chng_empno, frst_dtct_dttm FROM bcm_tx_qrnt_l"))
+            .containsEntry("frst_dtct_dttm", "20260807120000")
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_tx_qrnt_l", Long::class.java)).isOne()
     }
 
@@ -84,6 +87,38 @@ class TxObservationQuarantinePersistenceTest : PersistenceTestSupport() {
         assertThatThrownBy { jdbc.update("UPDATE bcm_tx_qrnt_l SET qrnt_stcd = 'OPEN'") }
             .isInstanceOf(UncategorizedSQLException::class.java)
             .hasMessageContaining("final once it leaves OPEN")
+    }
+
+    @Test
+    fun `닫힌 격리의 발견 횟수는 오르지 않는다`() {
+        quarantines.open(quarantine(), "20260807120000")
+        jdbc.update("UPDATE bcm_tx_qrnt_l SET qrnt_stcd = 'REPLAYED', last_chng_dttm = '20260807130000'")
+
+        assertThatThrownBy { jdbc.update("UPDATE bcm_tx_qrnt_l SET dtct_cnt = dtct_cnt + 1") }
+            .isInstanceOf(UncategorizedSQLException::class.java)
+            .hasMessageContaining("detection count only grows while OPEN")
+    }
+
+    @Test
+    fun `열린 격리의 발견 횟수도 줄지 않는다`() {
+        quarantines.open(quarantine(), "20260807120000")
+        quarantines.open(quarantine(), "20260807130000")
+
+        assertThatThrownBy { jdbc.update("UPDATE bcm_tx_qrnt_l SET dtct_cnt = 1") }
+            .isInstanceOf(UncategorizedSQLException::class.java)
+            .hasMessageContaining("detection count only grows while OPEN")
+    }
+
+    @Test
+    fun `OPEN 에서 REPLAYED 로는 간다 — 재처리가 막히면 안 된다`() {
+        val stored = quarantines.open(quarantine(), "20260807120000")
+
+        jdbc.update("UPDATE bcm_tx_qrnt_l SET qrnt_stcd = 'REPLAYED', last_chng_dttm = '20260807140000'")
+
+        assertThat(quarantines.findOpenByRoot("tx-root")).isEmpty()
+        assertThat(jdbc.queryForMap("SELECT qrnt_stcd, dtct_cnt FROM bcm_tx_qrnt_l"))
+            .containsEntry("qrnt_stcd", "REPLAYED")
+            .containsEntry("dtct_cnt", stored.detectionCount)
     }
 
     @Test
