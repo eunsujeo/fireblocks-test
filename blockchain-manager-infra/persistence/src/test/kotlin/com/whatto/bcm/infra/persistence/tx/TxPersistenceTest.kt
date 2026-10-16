@@ -196,6 +196,23 @@ class TxPersistenceTest : PersistenceTestSupport() {
         val withoutModel = txRecords.insert(txRecord(vendorTxId = "tx-none", chainModel = null))
         txRecords.update(withoutModel.copy(chainModel = ChainModel.EVM, confirmationCount = 2))
         assertThat(txRecords.findByVendorTxId("tx-none")?.chainModel).isNull()
+
+        // updatePhysicalWinner는 별도 SQL이다 — 거기서도 채우거나 바꾸지 못한다(승자 교체는 cnfm_cnt = 0 에서만 난다).
+        val winnerWithout =
+            txRecords.insert(txRecord(vendorTxId = "tx-rbf-none", confirmationCount = 0, chainModel = null))
+        txRecords.updatePhysicalWinner(
+            winnerWithout.copy(activeVendorTxId = "tx-rbf-none-winner", chainModel = ChainModel.EVM),
+            previousActiveVendorTxId = "tx-rbf-none",
+        )
+        assertThat(txRecords.findByVendorTxId("tx-rbf-none")?.chainModel).isNull()
+
+        val winnerWith =
+            txRecords.insert(txRecord(vendorTxId = "tx-rbf-evm", confirmationCount = 0, chainModel = ChainModel.EVM))
+        txRecords.updatePhysicalWinner(
+            winnerWith.copy(activeVendorTxId = "tx-rbf-evm-winner", chainModel = ChainModel.SOLANA),
+            previousActiveVendorTxId = "tx-rbf-evm",
+        )
+        assertThat(txRecords.findByVendorTxId("tx-rbf-evm")?.chainModel).isEqualTo(ChainModel.EVM)
     }
 
     @Test

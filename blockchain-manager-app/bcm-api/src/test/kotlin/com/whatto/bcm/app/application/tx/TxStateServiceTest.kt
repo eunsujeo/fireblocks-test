@@ -343,14 +343,19 @@ class TxStateServiceTest {
                 observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS.lowercase()),
                 false,
             ),
-        ).isInstanceOf(TxObservationOutcome.Conflict::class.java)
+        ).isInstanceOfSatisfying(TxObservationOutcome.Conflict::class.java) {
+            assertThat(it.detail.field).isEqualTo("destinationAddress")
+        }
 
-        // ② 정확히 같은 주소의 관찰은 통과하는데, 이때 규칙을 채우면 안 된다.
-        service.observeConsistently(
-            VENDOR_TX_ID,
-            observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS),
-            false,
-        )
+        // ② 정확히 같은 주소의 관찰은 **통과한다** — 전부 격리하는 구현으로 되돌아가면 여기서 걸린다.
+        val accepted =
+            service.observeConsistently(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS),
+                false,
+            )
+        assertThat(applied(accepted).record.lastPublishedStatus).isEqualTo(TxStatus.CONFIRMED)
+        // 통과하면서 규칙을 채우지는 않는다.
         assertThat(repository.current.chainModel).isNull()
         assertThat(blockchains.reads).isZero()
 
@@ -361,7 +366,9 @@ class TxStateServiceTest {
                 observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS.lowercase()),
                 false,
             ),
-        ).isInstanceOf(TxObservationOutcome.Conflict::class.java)
+        ).isInstanceOfSatisfying(TxObservationOutcome.Conflict::class.java) {
+            assertThat(it.detail.field).isEqualTo("destinationAddress")
+        }
     }
 
     @Test
