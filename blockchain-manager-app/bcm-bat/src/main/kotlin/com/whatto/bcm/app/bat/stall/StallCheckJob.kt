@@ -12,9 +12,10 @@ import com.whatto.bcm.domain.tx.StallCandidateRepository
 import com.whatto.bcm.domain.tx.StallDecision
 import com.whatto.bcm.domain.tx.StallDecisionPolicy
 import com.whatto.bcm.domain.tx.StallLatestObservation
+import com.whatto.bcm.domain.tx.TxObservationQuarantineSource
 import com.whatto.bcm.domain.vendor.VendorExecutionLimits
 import com.whatto.bcm.domain.vendor.VendorTransaction
-import com.whatto.bcm.domain.vendor.VendorTransactionPort
+import com.whatto.bcm.domain.vendor.VendorTransactionEvidencePort
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -29,7 +30,7 @@ import java.time.Clock
 @ConditionalOnProperty(prefix = "bcm.stall-check", name = ["enabled"], havingValue = "true")
 class StallCheckJob(
     private val candidates: StallCandidateRepository,
-    private val vendor: VendorTransactionPort,
+    private val vendor: VendorTransactionEvidencePort,
     private val alerts: StallAlertPort,
     private val terminalObservations: StallTerminalObservationHandler,
     private val boostSubmitter: BoostSubmitter,
@@ -69,13 +70,18 @@ class StallCheckJob(
         candidate: StallCandidate,
         observedAt: String,
     ) {
-        val latest = vendor.transaction(candidate.record.activeVendorTxId)
-        val decision = latest?.decision(candidate) ?: StallDecision.Alert(StallAlertReason.VENDOR_TRANSACTION_NOT_FOUND)
+        val latest = vendor.observedTransaction(candidate.record.activeVendorTxId)
+        val decision = latest?.transaction?.decision(candidate) ?: StallDecision.Alert(StallAlertReason.VENDOR_TRANSACTION_NOT_FOUND)
         val boostResult =
             when (decision) {
                 is StallDecision.Alert -> BoostSubmissionResult.Alert(decision.reason)
                 StallDecision.ObserveTerminal -> {
-                    terminalObservations.observe(candidate, checkNotNull(latest), observedAt)
+                    terminalObservations.observe(
+                        candidate,
+                        checkNotNull(latest),
+                        observedAt,
+                        TxObservationQuarantineSource.STALL,
+                    )
                     return
                 }
                 is StallDecision.BoostEligible -> {
@@ -101,7 +107,7 @@ class StallCheckJob(
                 rootVendorTransactionId = candidate.record.vendorTxId,
                 activeVendorTransactionId = candidate.record.activeVendorTxId,
                 reason = alertReason,
-                observedTransactionHash = latest?.transactionHash,
+                observedTransactionHash = latest?.transaction?.transactionHash,
             ),
         )
     }

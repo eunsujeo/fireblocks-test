@@ -1,5 +1,6 @@
 package com.whatto.bcm.app.bat.stall
 
+import com.whatto.bcm.app.bat.support.observed
 import com.whatto.bcm.domain.job.JobState
 import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
@@ -10,14 +11,13 @@ import com.whatto.bcm.domain.tx.StallCandidate
 import com.whatto.bcm.domain.tx.StallCandidateRepository
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.vendor.ObservedVendorTransaction
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorTransaction
+import com.whatto.bcm.domain.vendor.VendorTransactionEvidencePort
 import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
 import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionPeer
-import com.whatto.bcm.domain.vendor.VendorTransactionPort
-import com.whatto.bcm.domain.vendor.VendorTransactionRequest
-import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
 import com.whatto.bcm.infra.client.fireblocks.FireblocksProperties
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -175,8 +175,9 @@ class StallCheckJobTest {
             StallAlertPort(alerts::add),
             RecordingJobs(),
             terminalObservations =
-                StallTerminalObservationHandler { candidate, _, _ ->
+                StallTerminalObservationHandler { candidate, _, _, _ ->
                     observed += candidate.record.vendorTxId
+                    TerminalObservationOutcome.Applied
                 },
         ).run()
 
@@ -187,13 +188,13 @@ class StallCheckJobTest {
 
     private fun job(
         candidates: StallCandidateRepository,
-        vendor: VendorTransactionPort,
+        vendor: VendorTransactionEvidencePort,
         alerts: StallAlertPort,
         jobs: JobStateRepository,
         boostSubmitter: BoostSubmitter = BoostSubmitter { _, _ -> error("automatic boost is disabled in this fixture") },
         properties: StallCheckProperties = StallCheckProperties(enabled = true, staleAfterSeconds = 300, batchSize = 100),
         terminalObservations: StallTerminalObservationHandler =
-            StallTerminalObservationHandler { _, _, _ -> error("terminal observation is not expected in this fixture") },
+            StallTerminalObservationHandler { _, _, _, _ -> error("terminal observation is not expected in this fixture") },
     ) = StallCheckJob(
         candidates,
         vendor,
@@ -279,20 +280,19 @@ private class RecordingStallCandidates(
 private class RecordingVendor(
     private val transactions: Map<String, VendorTransaction>,
     private val failingIds: Set<String> = emptySet(),
-) : VendorTransactionPort {
+) : VendorTransactionEvidencePort {
     val lookups = mutableListOf<String>()
 
-    override fun transaction(transactionId: String): VendorTransaction? {
+    override fun observedTransaction(transactionId: String): ObservedVendorTransaction? {
         lookups += transactionId
         if (transactionId in failingIds) error("simulated vendor failure")
-        return transactions[transactionId]
+        return transactions[transactionId]?.observed()
     }
 
-    override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? = null
+    override fun observedTransactionByExternalTransactionId(externalTransactionId: String): ObservedVendorTransaction? = null
 
-    override fun submitTransaction(request: VendorTransactionRequest): VendorTransactionSubmission = error("stall check must not submit")
-
-    override fun transactions(request: VendorTransactionPageRequest): VendorPage<VendorTransaction> = VendorPage(emptyList(), null)
+    override fun observedTransactions(request: VendorTransactionPageRequest): VendorPage<ObservedVendorTransaction> =
+        VendorPage(emptyList(), null)
 }
 
 private class RecordingJobs : JobStateRepository {

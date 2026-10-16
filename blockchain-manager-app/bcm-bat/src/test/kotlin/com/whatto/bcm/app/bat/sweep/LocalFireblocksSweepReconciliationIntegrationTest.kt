@@ -3,6 +3,7 @@ package com.whatto.bcm.app.bat.sweep
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.sweep.SweepInvalidationService
 import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
+import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationJob
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationProperties
 import com.whatto.bcm.app.bat.stall.TransactionalStallTerminalObservationHandler
@@ -11,8 +12,11 @@ import com.whatto.bcm.domain.TransactionRunner
 import com.whatto.bcm.domain.account.Account
 import com.whatto.bcm.domain.account.AccountRepository
 import com.whatto.bcm.domain.account.AccountType
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.asset.VendorAssetMapping
 import com.whatto.bcm.domain.asset.VendorAssetMappingRepository
+import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
+import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.OutboxEventRepository
 import com.whatto.bcm.domain.job.JobStateRepository
@@ -58,6 +62,7 @@ import com.whatto.bcm.infra.persistence.sweep.SweepTargetJdbcAdapter
 import com.whatto.bcm.infra.persistence.sweep.SweepTransactionStatusJdbcAdapter
 import com.whatto.bcm.infra.persistence.tx.TxCrudRepository
 import com.whatto.bcm.infra.persistence.tx.TxJdbcAdapter
+import com.whatto.bcm.infra.persistence.tx.TxObservationQuarantineJdbcAdapter
 import com.whatto.bcm.support.submission.SweepBatchHashItem
 import com.whatto.bcm.support.submission.SweepBatchRequestHashes
 import com.whatto.bcm.testsupport.TestSupportApplication
@@ -94,6 +99,7 @@ import java.util.Base64
 @SpringBootTest(classes = [LocalFireblocksSweepReconciliationIntegrationTest.TestApplication::class])
 @Import(
     TxJdbcAdapter::class,
+    TxObservationQuarantineJdbcAdapter::class,
     BoostJdbcAdapter::class,
     OutboxJdbcAdapter::class,
     JobStateJdbcAdapter::class,
@@ -129,6 +135,9 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
 
     @Autowired
     lateinit var transactions: TxRecordRepository
+
+    @Autowired
+    lateinit var quarantines: TxObservationQuarantineJdbcAdapter
 
     @Autowired
     lateinit var reconciliation: TxReconciliationRepository
@@ -371,6 +380,8 @@ class LocalFireblocksSweepReconciliationIntegrationTest : IntegrationTestSupport
                 sweepExecutions = executions,
                 sweepInvalidation = SweepInvalidationService(executions, SweepEventPublisher { error("not used") }),
                 boosts = boosts,
+                txStates = TxStateService(transactions, SweepFixedBlockchains),
+                quarantines = quarantines,
                 vendor = vendor,
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
                 clock = CLOCK,
@@ -758,5 +769,47 @@ private class LocalAssetMappings(
     override fun delete(
         network: String,
         symbol: String,
+    ) = error("not used")
+}
+
+/** 주소 비교 규칙은 이 시험의 관심이 아니다 — 모델을 하나로 고정한다. */
+private object SweepFixedBlockchains : VendorBlockchainCatalogRepository {
+    override fun findByNetwork(network: String) =
+        VendorBlockchainCatalog(
+            candidateId = "blkc-1",
+            network = network,
+            chainId = 1,
+            displayName = network,
+            testnet = false,
+            deprecated = false,
+            syncedAt = "20260807110000",
+            chainModel = ChainModel.EVM,
+        )
+
+    override fun findAll(
+        query: String?,
+        chainId: Long?,
+        adopted: Boolean?,
+        testnet: Boolean?,
+    ) = error("not used")
+
+    override fun findByCandidateId(candidateId: String) = error("not used")
+
+    override fun insert(catalog: VendorBlockchainCatalog) = error("not used")
+
+    override fun updateSnapshot(catalog: VendorBlockchainCatalog) = error("not used")
+
+    override fun adopt(
+        candidateId: String,
+        network: String,
+        chainModel: ChainModel,
+        employeeNo: String,
+        branchCode: String,
+    ) = error("not used")
+
+    override fun release(
+        network: String,
+        employeeNo: String,
+        branchCode: String,
     ) = error("not used")
 }

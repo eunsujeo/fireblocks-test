@@ -6,6 +6,7 @@ import com.whatto.bcm.app.application.asset.VendorAssetMappingQueryService
 import com.whatto.bcm.app.application.event.OutboxEventService
 import com.whatto.bcm.app.application.sweep.SweepInvalidationService
 import com.whatto.bcm.app.application.sweep.SweepOutboxEventPublisher
+import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.app.config.ClockConfig
 import com.whatto.bcm.app.config.ProviderOriginConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter
@@ -26,6 +27,8 @@ import org.springframework.scheduling.annotation.EnableScheduling
     OutboxEventService::class,
     SweepOutboxEventPublisher::class,
     SweepInvalidationService::class,
+    // 종결 재관찰도 거래 경계를 지나 동일성 검사를 받는다(03 V37).
+    TxStateService::class,
     AccountQueryService::class,
     DepositAddressQueryService::class,
     VendorAssetMappingQueryService::class,

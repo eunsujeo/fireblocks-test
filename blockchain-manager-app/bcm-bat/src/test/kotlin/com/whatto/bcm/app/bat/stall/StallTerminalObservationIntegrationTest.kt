@@ -1,10 +1,15 @@
 package com.whatto.bcm.app.bat.stall
 
 import com.whatto.bcm.app.application.sweep.SweepInvalidationService
+import com.whatto.bcm.app.application.tx.TxStateService
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationJob
 import com.whatto.bcm.app.bat.reconciliation.TransactionReconciliationProperties
 import com.whatto.bcm.app.bat.support.IntegrationTestSupport
+import com.whatto.bcm.app.bat.support.observed
 import com.whatto.bcm.domain.TransactionRunner
+import com.whatto.bcm.domain.asset.ChainModel
+import com.whatto.bcm.domain.asset.VendorBlockchainCatalog
+import com.whatto.bcm.domain.asset.VendorBlockchainCatalogRepository
 import com.whatto.bcm.domain.event.ChainEventSerializer
 import com.whatto.bcm.domain.event.OutboxEventRepository
 import com.whatto.bcm.domain.job.JobStateRepository
@@ -14,6 +19,7 @@ import com.whatto.bcm.domain.sweep.SweepEventPublisher
 import com.whatto.bcm.domain.sweep.SweepExecutionRepository
 import com.whatto.bcm.domain.tx.BoostAttemptRepository
 import com.whatto.bcm.domain.tx.StallCandidate
+import com.whatto.bcm.domain.tx.TxObservationQuarantineSource
 import com.whatto.bcm.domain.tx.TxReconciliationMissingWebhookAlertPort
 import com.whatto.bcm.domain.tx.TxReconciliationReport
 import com.whatto.bcm.domain.tx.TxReconciliationReportPort
@@ -22,14 +28,14 @@ import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlertPort
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxRecordRepository
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.vendor.ObservedVendorTransaction
+import com.whatto.bcm.domain.vendor.VendorLookup
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorTransaction
+import com.whatto.bcm.domain.vendor.VendorTransactionEvidencePort
 import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
 import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionPeer
-import com.whatto.bcm.domain.vendor.VendorTransactionPort
-import com.whatto.bcm.domain.vendor.VendorTransactionRequest
-import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
 import com.whatto.bcm.infra.client.fireblocks.FireblocksStatusTranslator
 import com.whatto.bcm.infra.persistence.boost.BoostJdbcAdapter
 import com.whatto.bcm.infra.persistence.config.SpringTransactionRunner
@@ -38,6 +44,7 @@ import com.whatto.bcm.infra.persistence.job.JobStateJdbcAdapter
 import com.whatto.bcm.infra.persistence.sweep.SweepExecutionJdbcAdapter
 import com.whatto.bcm.infra.persistence.tx.TxCrudRepository
 import com.whatto.bcm.infra.persistence.tx.TxJdbcAdapter
+import com.whatto.bcm.infra.persistence.tx.TxObservationQuarantineJdbcAdapter
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
@@ -57,6 +64,7 @@ import java.time.ZoneId
 @SpringBootTest(classes = [StallTerminalObservationIntegrationTest.TestApplication::class])
 @Import(
     TxJdbcAdapter::class,
+    TxObservationQuarantineJdbcAdapter::class,
     BoostJdbcAdapter::class,
     OutboxJdbcAdapter::class,
     JobStateJdbcAdapter::class,
@@ -93,6 +101,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     @Autowired
     lateinit var jdbc: JdbcTemplate
 
+    @Autowired
+    lateinit var quarantines: TxObservationQuarantineJdbcAdapter
+
     @BeforeEach
     fun setUp() {
         clearTables()
@@ -123,6 +134,8 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 sweepExecutions = sweepExecutions,
                 sweepInvalidation = SweepInvalidationService(sweepExecutions, SweepEventPublisher { error("not used") }),
                 boosts = boosts,
+                txStates = TxStateService(transactions, FixedBlockchains),
+                quarantines = quarantines,
                 vendor = FamilyVendor(emptyMap()),
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
                 clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
@@ -131,8 +144,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
 
         handler.observe(
             StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
-            completedTransaction(),
+            completedTransaction().observed(),
             "20260807120000",
+            TxObservationQuarantineSource.STALL,
         )
 
         assertThat(transactions.findByVendorTxId("tx-root"))
@@ -156,8 +170,10 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
         handler.observe(
             StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
             // 조회는 주소를 못 돌려줄 수 있다 — 그래도 이벤트는 원장이 아는 주소를 실어야 한다.
-            completedTransaction().copy(sourceAddress = null, destinationAddress = null),
+            // 금액은 원장과 같다 — 다르면 이제 격리된다(아래 격리 시험).
+            completedTransaction().copy(amount = "1.5", sourceAddress = null, destinationAddress = null).observed(),
             "20260807120000",
+            TxObservationQuarantineSource.STALL,
         )
 
         val stored = transactions.findByVendorTxId("tx-root")
@@ -171,14 +187,66 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
+    fun `조회가 원장과 다른 금액을 말하면 원장도 outbox도 건드리지 않고 관찰을 격리한다`() {
+        // V32: 격리 대상은 거래가 아니라 그 관찰 하나다. 거래 상태는 마지막으로 일관됐던 값 그대로 둔다(03 V37).
+        val root = transactions.insert(rootRecord().copy(amount = "1.5"))
+        val handler = handler(FamilyVendor(emptyMap()))
+
+        val outcome =
+            handler.observe(
+                StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
+                completedTransaction().copy(amount = "99").observed(),
+                "20260807120000",
+                TxObservationQuarantineSource.STALL,
+            )
+
+        assertThat(outcome).isInstanceOf(TerminalObservationOutcome.Quarantined::class.java)
+        // 원장은 **한 글자도** 바뀌지 않는다 — 마지막으로 일관됐던 행 그대로다.
+        assertThat(transactions.findByVendorTxId("tx-root")).isEqualTo(root)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
+
+        val quarantine = quarantines.findOpenByRoot("tx-root").single()
+        assertThat(quarantine.field).isEqualTo("amount")
+        assertThat(quarantine.source).isEqualTo(TxObservationQuarantineSource.STALL)
+        assertThat(quarantine.observedVendorTransactionId).isEqualTo("tx-root")
+        // 증적은 판정에 쓴 응답 원문이다.
+        val body = jdbc.queryForMap("SELECT body FROM bcm_tx_qrnt_l").getValue("body") as ByteArray
+        assertThat(body.decodeToString()).contains("\"amount\":\"99\"")
+    }
+
+    @Test
+    fun `같은 충돌 관찰을 다시 봐도 격리는 한 행이고 발견 횟수만 오른다`() {
+        val root = transactions.insert(rootRecord().copy(amount = "1.5"))
+        val handler = handler(FamilyVendor(emptyMap()))
+        val conflicting = completedTransaction().copy(amount = "99").observed()
+
+        handler.observe(
+            StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
+            conflicting,
+            "20260807120000",
+            TxObservationQuarantineSource.STALL,
+        )
+        handler.observe(
+            StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
+            conflicting,
+            "20260807130000",
+            TxObservationQuarantineSource.STALL,
+        )
+
+        val quarantine = quarantines.findOpenByRoot("tx-root").single()
+        assertThat(quarantine.detectionCount).isEqualTo(2)
+    }
+
+    @Test
     fun `제출 원장이 없는 입금 종결 재관찰도 deposit outbox를 함께 적재한다`() {
         val root = transactions.insert(rootRecord().copy(externalTxId = null))
         val handler = handler(FamilyVendor(emptyMap()))
 
         handler.observe(
             StallCandidate(root, null),
-            completedTransaction().copy(externalTransactionId = null),
+            completedTransaction().copy(externalTransactionId = null).observed(),
             "20260807120000",
+            TxObservationQuarantineSource.STALL,
         )
 
         assertThat(transactions.findByVendorTxId("tx-root")?.lastPublishedStatus).isEqualTo(TxStatus.FINALIZED)
@@ -196,8 +264,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
 
         handler.observe(
             StallCandidate(root, SubmissionTransactionType.SWEEP_BATCH, "sweep-exec-1"),
-            completedTransaction().copy(externalTransactionId = "swb-1"),
+            completedTransaction().copy(externalTransactionId = "swb-1").observed(),
             "20260807120000",
+            TxObservationQuarantineSource.STALL,
         )
 
         assertThat(transactions.findByVendorTxId("tx-root")?.lastPublishedStatus).isEqualTo(TxStatus.FINALIZED)
@@ -259,6 +328,8 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
                 sweepExecutions = sweepExecutions,
                 sweepInvalidation = SweepInvalidationService(sweepExecutions, SweepEventPublisher { error("not used") }),
                 boosts = boosts,
+                txStates = TxStateService(transactions, FixedBlockchains),
+                quarantines = quarantines,
                 vendor = FamilyVendor(mapOf("tx-root" to completedTransaction())),
                 eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
                 clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
@@ -267,8 +338,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
 
         handler.observe(
             StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
-            failedReplacementTransaction(),
+            failedReplacementTransaction().observed(),
             "20260807120000",
+            TxObservationQuarantineSource.STALL,
         )
 
         assertThat(transactions.findByVendorTxId("tx-root"))
@@ -294,8 +366,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
 
         handler.observe(
             StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
-            failedReplacementTransaction(),
+            failedReplacementTransaction().observed(),
             "20260807120000",
+            TxObservationQuarantineSource.STALL,
         )
 
         assertThat(transactions.findByVendorTxId("tx-root")?.lastPublishedStatus).isEqualTo(TxStatus.FAILED)
@@ -317,8 +390,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
 
         handler.observe(
             StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
-            failedReplacementTransaction().copy(transactionId = "tx-root", externalTransactionId = "wd-root"),
+            failedReplacementTransaction().copy(transactionId = "tx-root", externalTransactionId = "wd-root").observed(),
             "20260807120000",
+            TxObservationQuarantineSource.STALL,
         )
 
         assertThat(transactions.findByVendorTxId("tx-root"))
@@ -336,8 +410,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
         assertThatThrownBy {
             handler.observe(
                 StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
-                failedReplacementTransaction().copy(transactionId = "tx-root", externalTransactionId = "wd-root"),
+                failedReplacementTransaction().copy(transactionId = "tx-root", externalTransactionId = "wd-root").observed(),
                 "20260807120000",
+                TxObservationQuarantineSource.STALL,
             )
         }.isInstanceOf(IllegalStateException::class.java)
             .hasMessageContaining("bst-1")
@@ -346,7 +421,7 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bcm_outbox_l", Long::class.java)).isZero()
     }
 
-    private fun handler(vendor: VendorTransactionPort) =
+    private fun handler(vendor: VendorTransactionEvidencePort) =
         TransactionalStallTerminalObservationHandler(
             transactions = transactions,
             statusTranslator = FireblocksStatusTranslator { 1 },
@@ -355,6 +430,8 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             sweepExecutions = sweepExecutions,
             sweepInvalidation = SweepInvalidationService(sweepExecutions, SweepEventPublisher { error("not used") }),
             boosts = boosts,
+            txStates = TxStateService(transactions, FixedBlockchains),
+            quarantines = quarantines,
             vendor = vendor,
             eventSerializer = eventSerializer,
             clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
@@ -480,30 +557,69 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
 private class FamilyVendor(
     private val transactions: Map<String, VendorTransaction>,
     private val externalTransactions: Map<String, VendorTransaction> = emptyMap(),
-) : VendorTransactionPort {
-    override fun transaction(transactionId: String): VendorTransaction? = transactions[transactionId]
+) : VendorTransactionEvidencePort {
+    override fun observedTransaction(transactionId: String): ObservedVendorTransaction? = transactions[transactionId]?.observed()
 
-    override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? =
-        externalTransactions[externalTransactionId]
+    override fun observedTransactionByExternalTransactionId(externalTransactionId: String): ObservedVendorTransaction? =
+        externalTransactions[externalTransactionId]?.observed(VendorLookup.BY_EXTERNAL_TRANSACTION_ID)
 
-    override fun submitTransaction(request: VendorTransactionRequest): VendorTransactionSubmission = error("not used")
-
-    override fun transactions(request: VendorTransactionPageRequest): VendorPage<VendorTransaction> = error("not used")
+    override fun observedTransactions(request: VendorTransactionPageRequest): VendorPage<ObservedVendorTransaction> = error("not used")
 }
 
 private class ReconciliationVendor(
     private val transactions: Map<String, VendorTransaction>,
-) : VendorTransactionPort {
+) : VendorTransactionEvidencePort {
     val singleLookups = mutableListOf<String>()
 
-    override fun transaction(transactionId: String): VendorTransaction? {
+    override fun observedTransaction(transactionId: String): ObservedVendorTransaction? {
         singleLookups += transactionId
-        return transactions[transactionId]
+        return transactions[transactionId]?.observed()
     }
 
-    override fun transactions(request: VendorTransactionPageRequest): VendorPage<VendorTransaction> = VendorPage(emptyList(), null)
+    override fun observedTransactions(request: VendorTransactionPageRequest): VendorPage<ObservedVendorTransaction> =
+        VendorPage(emptyList(), null)
 
-    override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? = null
+    override fun observedTransactionByExternalTransactionId(externalTransactionId: String): ObservedVendorTransaction? = null
+}
 
-    override fun submitTransaction(request: VendorTransactionRequest): VendorTransactionSubmission = error("not used")
+/** 주소 비교 규칙은 이 시험의 관심이 아니다 — 모델을 하나로 고정한다. */
+private object FixedBlockchains : VendorBlockchainCatalogRepository {
+    override fun findByNetwork(network: String) =
+        VendorBlockchainCatalog(
+            candidateId = "blkc-1",
+            network = network,
+            chainId = 1,
+            displayName = network,
+            testnet = false,
+            deprecated = false,
+            syncedAt = "20260807110000",
+            chainModel = ChainModel.EVM,
+        )
+
+    override fun findAll(
+        query: String?,
+        chainId: Long?,
+        adopted: Boolean?,
+        testnet: Boolean?,
+    ) = error("not used")
+
+    override fun findByCandidateId(candidateId: String) = error("not used")
+
+    override fun insert(catalog: VendorBlockchainCatalog) = error("not used")
+
+    override fun updateSnapshot(catalog: VendorBlockchainCatalog) = error("not used")
+
+    override fun adopt(
+        candidateId: String,
+        network: String,
+        chainModel: ChainModel,
+        employeeNo: String,
+        branchCode: String,
+    ) = error("not used")
+
+    override fun release(
+        network: String,
+        employeeNo: String,
+        branchCode: String,
+    ) = error("not used")
 }

@@ -83,3 +83,29 @@ interface TxObservationQuarantineRepository {
 
     fun findOpenByRoot(rootVendorTransactionId: String): List<TxObservationQuarantine>
 }
+
+/**
+ * 같은 관찰의 반복 발견을 한 행으로 합치는 열쇠.
+ *
+ * 조회를 다시 할 때마다 행이 늘면 운영이 같은 사실을 여러 번 본다. **무엇이 같은 관찰인가**는
+ * root·물리 거래·어긋난 항목·양쪽 값·응답 원문이 모두 같은 것이다 — 원문이 달라지면 다른 관찰이다.
+ */
+object TxObservationQuarantineFingerprint {
+    fun of(
+        rootVendorTransactionId: String,
+        observedVendorTransactionId: String,
+        field: String,
+        recordedValue: String,
+        observedValue: String,
+        body: ByteArray,
+    ): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        listOf(rootVendorTransactionId, observedVendorTransactionId, field, recordedValue, observedValue).forEach {
+            // 길이를 함께 섞는다 — 이어 붙이기만 하면 경계가 다른 값이 같은 지문을 낸다.
+            digest.update(it.length.toString().toByteArray())
+            digest.update(it.toByteArray())
+        }
+        digest.update(body)
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+}

@@ -1,6 +1,8 @@
 package com.whatto.bcm.app.bat.reconciliation
 
 import com.whatto.bcm.app.bat.stall.StallTerminalObservationHandler
+import com.whatto.bcm.app.bat.stall.TerminalObservationOutcome
+import com.whatto.bcm.app.bat.support.observed
 import com.whatto.bcm.domain.job.JobState
 import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.domain.monitoring.NoOpOperationalMetricsPort
@@ -16,16 +18,16 @@ import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlert
 import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlertPort
 import com.whatto.bcm.domain.tx.TxRecord
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.vendor.ObservedVendorTransaction
+import com.whatto.bcm.domain.vendor.VendorLookup
 import com.whatto.bcm.domain.vendor.VendorPage
 import com.whatto.bcm.domain.vendor.VendorStatusObservation
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.domain.vendor.VendorTransaction
+import com.whatto.bcm.domain.vendor.VendorTransactionEvidencePort
 import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
 import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionPeer
-import com.whatto.bcm.domain.vendor.VendorTransactionPort
-import com.whatto.bcm.domain.vendor.VendorTransactionRequest
-import com.whatto.bcm.domain.vendor.VendorTransactionSubmission
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -90,7 +92,11 @@ class TransactionReconciliationJobTest {
                 vendor = vendor,
                 reconciliation = repository,
                 statusTranslator = TestStatusTranslator,
-                terminalObservations = StallTerminalObservationHandler { candidate, _, _ -> recovered += candidate.record.vendorTxId },
+                terminalObservations =
+                    StallTerminalObservationHandler { candidate, _, _, _ ->
+                        recovered += candidate.record.vendorTxId
+                        TerminalObservationOutcome.Applied
+                    },
                 reports = TxReconciliationReportPort(reports::add),
                 missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort(missingAlerts::add),
                 trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
@@ -163,7 +169,7 @@ class TransactionReconciliationJobTest {
                 vendor = vendor,
                 reconciliation = RecordingReconciliationRepository(),
                 statusTranslator = TestStatusTranslator,
-                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("not expected") },
+                terminalObservations = StallTerminalObservationHandler { _, _, _, _ -> error("not expected") },
                 reports = TxReconciliationReportPort { error("not expected") },
                 missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort { error("not expected") },
                 trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
@@ -191,7 +197,7 @@ class TransactionReconciliationJobTest {
                 vendor = RecordingVendor(mapOf(null to VendorPage(emptyList(), null))),
                 reconciliation = RecordingReconciliationRepository(),
                 statusTranslator = TestStatusTranslator,
-                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("not expected") },
+                terminalObservations = StallTerminalObservationHandler { _, _, _, _ -> error("not expected") },
                 reports = TxReconciliationReportPort { assertThat(it.recoveredCount).isZero() },
                 missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort(missingAlerts::add),
                 trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
@@ -221,7 +227,7 @@ class TransactionReconciliationJobTest {
                     ),
                 reconciliation = RecordingReconciliationRepository(pending = listOf(reconciliation(pending))),
                 statusTranslator = TestStatusTranslator,
-                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("not expected") },
+                terminalObservations = StallTerminalObservationHandler { _, _, _, _ -> error("not expected") },
                 reports = TxReconciliationReportPort { error("not expected") },
                 missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort { error("not expected") },
                 trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
@@ -254,7 +260,7 @@ class TransactionReconciliationJobTest {
                         byPhysical = mapOf("tx-status" to reconciliation(pending)),
                     ),
                 statusTranslator = TestStatusTranslator,
-                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("recovery failed") },
+                terminalObservations = StallTerminalObservationHandler { _, _, _, _ -> error("recovery failed") },
                 reports = TxReconciliationReportPort { error("not expected") },
                 missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort(missingAlerts::add),
                 trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort { },
@@ -281,7 +287,7 @@ class TransactionReconciliationJobTest {
                 vendor = RecordingVendor(emptyMap()),
                 reconciliation = RecordingReconciliationRepository(stoppedCount = 2),
                 statusTranslator = TestStatusTranslator,
-                terminalObservations = StallTerminalObservationHandler { _, _, _ -> error("not expected") },
+                terminalObservations = StallTerminalObservationHandler { _, _, _, _ -> error("not expected") },
                 reports = TxReconciliationReportPort { error("not expected") },
                 missingWebhookAlerts = TxReconciliationMissingWebhookAlertPort { error("not expected") },
                 trackingStoppedAlerts = TxReconciliationTrackingStoppedAlertPort(stoppedAlerts::add),
@@ -443,24 +449,26 @@ private class RecordingVendor(
     private val pages: Map<String?, VendorPage<VendorTransaction>>,
     private val singles: Map<String, VendorTransaction> = emptyMap(),
     private val failingSingleId: String? = null,
-) : VendorTransactionPort {
+) : VendorTransactionEvidencePort {
     val pageRequests = mutableListOf<VendorTransactionPageRequest>()
     val singleLookups = mutableListOf<String>()
 
-    override fun transactions(request: VendorTransactionPageRequest): VendorPage<VendorTransaction> {
+    override fun observedTransactions(request: VendorTransactionPageRequest): VendorPage<ObservedVendorTransaction> {
         pageRequests += request
-        return checkNotNull(pages[request.cursor])
+        val page = checkNotNull(pages[request.cursor])
+        return VendorPage(
+            data = page.data.mapIndexed { index, transaction -> transaction.observed(VendorLookup.PAGE, index) },
+            next = page.next,
+        )
     }
 
-    override fun transaction(transactionId: String): VendorTransaction? {
+    override fun observedTransaction(transactionId: String): ObservedVendorTransaction? {
         singleLookups += transactionId
         check(transactionId != failingSingleId) { "single lookup failed: $transactionId" }
-        return singles[transactionId]
+        return singles[transactionId]?.observed()
     }
 
-    override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? = error("not used")
-
-    override fun submitTransaction(request: VendorTransactionRequest): VendorTransactionSubmission = error("not used")
+    override fun observedTransactionByExternalTransactionId(externalTransactionId: String): ObservedVendorTransaction? = error("not used")
 }
 
 private class RecordingOperationalMetrics : OperationalMetricsPort by NoOpOperationalMetricsPort {

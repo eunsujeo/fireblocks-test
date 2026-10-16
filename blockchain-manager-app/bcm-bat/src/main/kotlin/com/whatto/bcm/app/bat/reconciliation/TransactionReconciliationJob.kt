@@ -1,12 +1,14 @@
 package com.whatto.bcm.app.bat.reconciliation
 
 import com.whatto.bcm.app.bat.stall.StallTerminalObservationHandler
+import com.whatto.bcm.app.bat.stall.TerminalObservationOutcome
 import com.whatto.bcm.domain.job.JobStateRepository
 import com.whatto.bcm.domain.monitoring.OperationalAlert
 import com.whatto.bcm.domain.monitoring.OperationalAlertChannel
 import com.whatto.bcm.domain.monitoring.OperationalAlertRoute
 import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.tx.StallCandidate
+import com.whatto.bcm.domain.tx.TxObservationQuarantineSource
 import com.whatto.bcm.domain.tx.TxReconciliationMissingWebhookAlert
 import com.whatto.bcm.domain.tx.TxReconciliationMissingWebhookAlertPort
 import com.whatto.bcm.domain.tx.TxReconciliationObservationEvidence
@@ -19,11 +21,12 @@ import com.whatto.bcm.domain.tx.TxReconciliationSnapshot
 import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlert
 import com.whatto.bcm.domain.tx.TxReconciliationTrackingStoppedAlertPort
 import com.whatto.bcm.domain.tx.TxStatus
+import com.whatto.bcm.domain.vendor.ObservedVendorTransaction
 import com.whatto.bcm.domain.vendor.PhysicalTransactionEvidence
 import com.whatto.bcm.domain.vendor.VendorStatusTranslator
 import com.whatto.bcm.domain.vendor.VendorTransaction
+import com.whatto.bcm.domain.vendor.VendorTransactionEvidencePort
 import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
-import com.whatto.bcm.domain.vendor.VendorTransactionPort
 import com.whatto.bcm.support.time.CoreDateTimes
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -37,7 +40,7 @@ import java.time.Clock
 @Component
 @ConditionalOnProperty(prefix = "bcm.tx-reconciliation", name = ["enabled"], havingValue = "true")
 class TransactionReconciliationJob(
-    private val vendor: VendorTransactionPort,
+    private val vendor: VendorTransactionEvidencePort,
     private val reconciliation: TxReconciliationRepository,
     private val statusTranslator: VendorStatusTranslator,
     private val terminalObservations: StallTerminalObservationHandler,
@@ -78,10 +81,10 @@ class TransactionReconciliationJob(
                 selected.keys.toSet(),
             ).forEach { pending ->
                 vendor
-                    .transaction(pending.record.activeVendorTxId)
-                    ?.let { transaction ->
-                        transaction.terminalStatusForReconciliation()?.let { status ->
-                            selected[pending.record.vendorTxId] = RootObservation(pending, transaction, status)
+                    .observedTransaction(pending.record.activeVendorTxId)
+                    ?.let { observed ->
+                        observed.transaction.terminalStatusForReconciliation()?.let { status ->
+                            selected[pending.record.vendorTxId] = RootObservation(pending, observed, status)
                         }
                     }
             }
@@ -103,18 +106,34 @@ class TransactionReconciliationJob(
         val managerSnapshots = managerByRoot.values.map { TxReconciliationPolicy.snapshot(it.record) }
         val result = TxReconciliationPolicy.compare(vendorSnapshots, managerSnapshots)
         var recoveredCount = 0
+        val quarantined = mutableListOf<TerminalObservationOutcome.Quarantined>()
         result.mismatches
             .filter(TxReconciliationPolicy::shouldRecover)
             .forEach { mismatch ->
                 val observation = checkNotNull(selected[mismatch.rootVendorTransactionId])
                 val managed = checkNotNull(observation.managed)
-                terminalObservations.observe(
-                    StallCandidate(managed.record, managed.submissionType, managed.sweepExecutionId),
-                    observation.transaction,
-                    to,
-                )
-                recoveredCount += 1
+                val outcome =
+                    terminalObservations.observe(
+                        StallCandidate(managed.record, managed.submissionType, managed.sweepExecutionId),
+                        observation.observed,
+                        to,
+                        TxObservationQuarantineSource.RECONCILIATION,
+                    )
+                // **격리를 복구 성공으로 세지 않는다**(03 V37) — 세면 격리가 "놓친 웹훅을 복구했다"로 보고된다.
+                // 격리 영속화는 처리 완료이므로 창은 전진한다. 해소 책임은 열린 격리 행이 가져간다.
+                when (outcome) {
+                    TerminalObservationOutcome.Applied -> recoveredCount += 1
+                    is TerminalObservationOutcome.Quarantined -> quarantined += outcome
+                    TerminalObservationOutcome.Deferred -> Unit
+                }
             }
+        if (quarantined.isNotEmpty()) {
+            logger.warn(
+                "대사 관찰 격리 quarantined={} fields={}",
+                quarantined.size,
+                quarantined.map(TerminalObservationOutcome.Quarantined::field).distinct(),
+            )
+        }
         metrics.recordReconciliation(recoveredCount)
         if (recoveredCount > 0) {
             missingWebhookAlerts.alert(TxReconciliationMissingWebhookAlert(from, to, recoveredCount))
@@ -126,13 +145,13 @@ class TransactionReconciliationJob(
     private fun allTransactions(
         from: String,
         to: String,
-    ): List<VendorTransaction> {
-        val transactions = mutableListOf<VendorTransaction>()
+    ): List<ObservedVendorTransaction> {
+        val transactions = mutableListOf<ObservedVendorTransaction>()
         val seenCursors = mutableSetOf<String>()
         var cursor: String? = null
         do {
             val page =
-                vendor.transactions(
+                vendor.observedTransactions(
                     VendorTransactionPageRequest(
                         sourceVaultId = null,
                         afterEpochMillis = epochMillis(from) - CURSOR_OVERLAP_MILLIS,
@@ -146,8 +165,8 @@ class TransactionReconciliationJob(
             val toEpochMillis = epochMillis(to) + UPPER_SECOND_MILLIS
             transactions +=
                 page.data.filter {
-                    it.createdAtEpochMillis in fromEpochMillis..toEpochMillis &&
-                        it.terminalStatusForReconciliation() != null
+                    it.transaction.createdAtEpochMillis in fromEpochMillis..toEpochMillis &&
+                        it.transaction.terminalStatusForReconciliation() != null
                 }
             cursor = page.next
             if (cursor != null && !seenCursors.add(cursor)) {
@@ -157,13 +176,14 @@ class TransactionReconciliationJob(
         return transactions
     }
 
-    private fun selectRootObservations(transactions: List<VendorTransaction>): MutableMap<String, RootObservation> {
+    private fun selectRootObservations(observations: List<ObservedVendorTransaction>): MutableMap<String, RootObservation> {
         val selected = linkedMapOf<String, RootObservation>()
-        transactions.forEach { transaction ->
+        observations.forEach { observed ->
+            val transaction = observed.transaction
             val status = checkNotNull(transaction.terminalStatusForReconciliation())
             val managed = reconciliation.findByPhysicalVendorTransactionId(transaction.transactionId)
             if (managed == null) {
-                selected[transaction.transactionId] = RootObservation(null, transaction, status)
+                selected[transaction.transactionId] = RootObservation(null, observed, status)
                 return@forEach
             }
             if (
@@ -172,7 +192,7 @@ class TransactionReconciliationJob(
             ) {
                 return@forEach
             }
-            val candidate = RootObservation(managed, transaction, status)
+            val candidate = RootObservation(managed, observed, status)
             val previous = selected[managed.record.vendorTxId]
             if (
                 previous == null ||
@@ -191,9 +211,11 @@ class TransactionReconciliationJob(
 
     private data class RootObservation(
         val managed: TxReconciliationRecord?,
-        val transaction: VendorTransaction,
+        val observed: ObservedVendorTransaction,
         val status: TxStatus,
     ) {
+        val transaction: VendorTransaction get() = observed.transaction
+
         val rootVendorTransactionId: String
             get() = managed?.record?.vendorTxId ?: transaction.transactionId
 
@@ -206,6 +228,8 @@ class TransactionReconciliationJob(
     }
 
     internal companion object {
+        /** 격리 경보는 **항목 이름만** 남긴다 — 금액·주소는 보호 저장소에만 둔다(03 V37). */
+        private val logger = LoggerFactory.getLogger(TransactionReconciliationJob::class.java)
         const val JOB_NAME = "tx-reconciliation"
         const val VENDOR_PAGE_LIMIT = 500
         const val CURSOR_OVERLAP_MILLIS = 1L
