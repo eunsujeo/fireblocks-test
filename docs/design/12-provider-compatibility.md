@@ -1258,8 +1258,8 @@ PostgreSQL·Kafka·DNS가 모두 미정이라 **배포된 적이 없고 운영 �
 
 ### 주소 비교 규칙의 출처
 
-`TxObservationConsistency`는 체인 모델을 인자로 받고, 그 값은 `TxStateService`가 `bcm_blkc_m.chain_mdl_dvcd`에서 읽는다 —
-호출자가 잊을 수 있는 자리에 두지 않는다. 비교할 행이 없는 첫 관찰에는 읽지 않는다.
+`TxObservationConsistency`는 체인 모델을 인자로 받고, 그 값은 **비교 대상인 거래 행**이 들고 있다(03 V36).
+카탈로그는 행을 **처음 만들 때만** 읽는다 — 호출자가 잊을 수 있는 자리에 두지 않는다.
 
 **그 컬럼은 Fireblocks 행에서 비어 있었다.** V25가 Dfns seed 전용으로 뒀기 때문인데, Fireblocks는 실제로 체크섬 혼합
 대소문자 주소를 주고 출금 요청의 목적지는 길이만 검증한다 — 같은 EVM 주소의 두 표기가 만나 **잘못이 없는 관찰이 격리**된다.

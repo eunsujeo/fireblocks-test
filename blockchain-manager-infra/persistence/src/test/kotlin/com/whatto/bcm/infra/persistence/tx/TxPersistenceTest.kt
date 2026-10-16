@@ -1,5 +1,6 @@
 package com.whatto.bcm.infra.persistence.tx
 
+import com.whatto.bcm.domain.asset.ChainModel
 import com.whatto.bcm.domain.exception.ConflictException
 import com.whatto.bcm.domain.submission.SubmissionTransactionType
 import com.whatto.bcm.domain.tx.TxRecord
@@ -42,6 +43,7 @@ class TxPersistenceTest : PersistenceTestSupport() {
         status: TxStatus = TxStatus.CONFIRMED,
         confirmationCount: Int = 1,
         vendorCreatedAt: String? = "20260805113000",
+        chainModel: ChainModel? = null,
     ) = TxRecord(
         vendorTxId = vendorTxId,
         activeVendorTxId = activeVendorTxId,
@@ -57,6 +59,7 @@ class TxPersistenceTest : PersistenceTestSupport() {
         vendorCreatedAt = vendorCreatedAt,
         firstDetectedAt = "20260805120000",
         lastChangedAt = "20260805120000",
+        chainModel = chainModel,
     )
 
     @Test
@@ -177,6 +180,22 @@ class TxPersistenceTest : PersistenceTestSupport() {
         assertThat(txRecords.findByVendorTxId("tx-91c")).isEqualTo(saved)
         assertThat(txRecords.findByActiveVendorTxId("tx-91c")).isEqualTo(saved)
         assertThat(saved.activeVendorTxId).isEqualTo(saved.vendorTxId)
+    }
+
+    @Test
+    fun `주소 비교 규칙은 행을 만들 때만 적히고 갱신이 채우지도 바꾸지도 않는다`() {
+        // 거래가 제 판정 규칙을 들고 있어야 네트워크 코드가 다른 후보로 옮겨가도 과거 거래가 흔들리지 않는다(03 V36).
+        val withModel = txRecords.insert(txRecord(vendorTxId = "tx-evm", chainModel = ChainModel.EVM))
+        assertThat(txRecords.findByVendorTxId("tx-evm")?.chainModel).isEqualTo(ChainModel.EVM)
+
+        // 갱신이 다른 값으로 바꾸지 못한다.
+        txRecords.update(withModel.copy(chainModel = ChainModel.SOLANA, confirmationCount = 2))
+        assertThat(txRecords.findByVendorTxId("tx-evm")?.chainModel).isEqualTo(ChainModel.EVM)
+
+        // 모델 없이 만든 행은 갱신이 채우지도 못한다 — 채우면 관찰 도착 순서가 판정을 바꾼다.
+        val withoutModel = txRecords.insert(txRecord(vendorTxId = "tx-none", chainModel = null))
+        txRecords.update(withoutModel.copy(chainModel = ChainModel.EVM, confirmationCount = 2))
+        assertThat(txRecords.findByVendorTxId("tx-none")?.chainModel).isNull()
     }
 
     @Test

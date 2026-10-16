@@ -211,7 +211,8 @@ class TxStateMachine(
         transactionType = mergedTransactionType(previous, attributedType),
         // 판정 규칙은 행을 만들 때 한 번 정하고 그 뒤로는 바꾸지 않는다(03 V36) — 네트워크 코드가
         // 가리키는 후보가 바뀌어도 과거 거래가 새 규칙으로 비교되면 안 된다.
-        chainModel = previous?.chainModel ?: chainModel,
+        // **`null`도 그대로 둔다** — 뒤늦게 채우면 관찰 도착 순서가 과거 거래의 판정을 바꾼다.
+        chainModel = if (previous != null) previous.chainModel else chainModel,
     )
 
     /**

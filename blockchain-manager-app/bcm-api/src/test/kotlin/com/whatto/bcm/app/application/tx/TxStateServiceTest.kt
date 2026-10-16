@@ -329,6 +329,42 @@ class TxStateServiceTest {
     }
 
     @Test
+    fun `모델 없는 행은 관찰이 지나가도 계속 모델이 없다`() {
+        // 뒤늦게 채우면 **관찰 도착 순서가 판정을 바꾼다** — 정확히 같은 주소의 관찰 하나가 규칙을 EVM으로
+        // 채워 놓으면, 그 전에 격리됐던 대소문자만 다른 관찰이 그 뒤로는 통과한다(03 V36).
+        val blockchains = CountingBlockchains(ChainModel.EVM)
+        val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS, chainModel = null))
+        val service = TxStateService(repository, blockchains)
+
+        // ① 대소문자만 다른 관찰은 모델이 없으므로 격리된다.
+        assertThat(
+            service.observeConsistently(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS.lowercase()),
+                false,
+            ),
+        ).isInstanceOf(TxObservationOutcome.Conflict::class.java)
+
+        // ② 정확히 같은 주소의 관찰은 통과하는데, 이때 규칙을 채우면 안 된다.
+        service.observeConsistently(
+            VENDOR_TX_ID,
+            observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS),
+            false,
+        )
+        assertThat(repository.current.chainModel).isNull()
+        assertThat(blockchains.reads).isZero()
+
+        // ③ 그래서 ①의 관찰은 뒤에 와도 여전히 격리된다 — 순서가 판정을 바꾸지 않는다.
+        assertThat(
+            service.observeConsistently(
+                VENDOR_TX_ID,
+                observation(status = TxStatus.CONFIRMED, destinationAddress = CHECKSUM_ADDRESS.lowercase()),
+                false,
+            ),
+        ).isInstanceOf(TxObservationOutcome.Conflict::class.java)
+    }
+
+    @Test
     fun `행이 생긴 뒤 카탈로그가 바뀌어도 그 거래의 판정은 그대로다`() {
         // 이게 V36 의 전부다 — ETHEREUM 이 다른 계열 후보로 옮겨가도 1월 거래는 1월 규칙으로 비교된다.
         val repository = RecordingTxRecords(record(destinationAddress = CHECKSUM_ADDRESS, chainModel = ChainModel.EVM))

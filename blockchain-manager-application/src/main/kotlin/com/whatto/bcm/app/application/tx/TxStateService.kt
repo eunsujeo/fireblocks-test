@@ -188,11 +188,17 @@ class TxStateService(
         return TxObservationConsistency.check(previous, observation, previous.chainModel)
     }
 
-    /** 행을 처음 만들 때만 카탈로그를 읽는다 — 그 값이 그 거래의 판정 규칙으로 행에 남는다(03 V36). */
+    /**
+     * 행을 **처음 만들 때만** 카탈로그를 읽는다 — 그 값이 그 거래의 판정 규칙으로 행에 남는다(03 V36).
+     *
+     * 이미 있는 행은 모델이 `null`이어도 그대로 둔다. 뒤늦게 채우면 **관찰 도착 순서가 판정을 바꾼다** —
+     * 정확히 같은 주소의 관찰 하나가 규칙을 EVM으로 채워 놓으면, 그 전에 충돌로 격리됐던 대소문자만
+     * 다른 관찰이 그 뒤로는 통과한다. 모델 없는 행은 끝까지 fail-closed다.
+     */
     private fun chainModelFor(
         previous: TxRecord?,
         observation: TxObservation,
-    ): ChainModel? = previous?.chainModel ?: blockchains.findByNetwork(observation.network)?.chainModel
+    ): ChainModel? = if (previous != null) previous.chainModel else blockchains.findByNetwork(observation.network)?.chainModel
 
     /**
      * `between` 안에서 이 경계를 다시 부르는 것을 막는다. 재진입하면 판정과 재검사 사이에 다른 전이가 끼어들어
