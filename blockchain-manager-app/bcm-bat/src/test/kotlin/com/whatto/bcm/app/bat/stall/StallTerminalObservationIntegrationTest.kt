@@ -115,6 +115,9 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     }
 
     private fun clearTables() {
+        // 격리 원장은 DELETE 를 트리거가 거절한다 — 시험 사이 정리는 TRUNCATE 로 한다.
+        // 지우지 않으면 지문이 같은 시험끼리 실행 순서에 따라 발견 횟수가 달라진다.
+        jdbc.update("TRUNCATE TABLE bcm_tx_qrnt_l")
         jdbc.update("DELETE FROM bcm_outbox_l")
         jdbc.update("DELETE FROM bcm_boost_l")
         jdbc.update("DELETE FROM bcm_swp_exec_l")

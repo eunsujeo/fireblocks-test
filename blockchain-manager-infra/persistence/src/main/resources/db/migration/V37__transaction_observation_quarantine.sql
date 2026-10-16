@@ -40,25 +40,36 @@ CREATE UNIQUE INDEX uk_bcm_tx_qrnt_open ON bcm_tx_qrnt_l(obsv_fngr) WHERE qrnt_s
 -- 운영 조회: root 별 열린 격리, 그리고 발견 순서.
 CREATE INDEX ix_bcm_tx_qrnt_root ON bcm_tx_qrnt_l(orig_tx_id, frst_dtct_dttm);
 
--- 증적은 불변이다. 상태 전이(OPEN → RESOLVED/REPLAYED)만 허용하고 원문·양쪽 값·식별은 바꾸지 못한다.
+-- 증적은 불변이다. **바뀌는 것은 상태와 발견 횟수뿐**이다 — 나머지를 하나라도 바꾸면 거절한다.
+-- 목록만 적어 두면 컬럼을 더할 때 빠뜨린다. 그래서 "바뀌어도 되는 것"을 적고 나머지 전부를 비교한다.
 CREATE OR REPLACE FUNCTION bcm_tx_qrnt_reject_evidence_mutation() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+  frozen_before jsonb;
+  frozen_after  jsonb;
 BEGIN
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'bcm_tx_qrnt_l is append-only';
   END IF;
-  IF NEW.body IS DISTINCT FROM OLD.body
-     OR NEW.body_hash IS DISTINCT FROM OLD.body_hash
-     OR NEW.body_len IS DISTINCT FROM OLD.body_len
-     OR NEW.obsv_fngr IS DISTINCT FROM OLD.obsv_fngr
-     OR NEW.cnfl_fld IS DISTINCT FROM OLD.cnfl_fld
-     OR NEW.rcrd_vl IS DISTINCT FROM OLD.rcrd_vl
-     OR NEW.obsv_vl IS DISTINCT FROM OLD.obsv_vl
-     OR NEW.orig_tx_id IS DISTINCT FROM OLD.orig_tx_id
-     OR NEW.obsv_tx_id IS DISTINCT FROM OLD.obsv_tx_id
-     OR NEW.frst_dtct_dttm IS DISTINCT FROM OLD.frst_dtct_dttm THEN
+
+  frozen_before := to_jsonb(OLD) - 'qrnt_stcd' - 'dtct_cnt' - 'last_chng_dttm' - 'last_chng_empno' - 'last_chng_brcd';
+  frozen_after  := to_jsonb(NEW) - 'qrnt_stcd' - 'dtct_cnt' - 'last_chng_dttm' - 'last_chng_empno' - 'last_chng_brcd';
+  IF frozen_before IS DISTINCT FROM frozen_after THEN
     RAISE EXCEPTION 'bcm_tx_qrnt_l evidence is immutable';
   END IF;
+
+  -- 상태는 OPEN 에서만 떠난다. 닫힌 격리를 다시 열거나 REPLAYED 를 RESOLVED 로 되돌리지 않는다.
+  IF NEW.qrnt_stcd IS DISTINCT FROM OLD.qrnt_stcd AND OLD.qrnt_stcd <> 'OPEN' THEN
+    RAISE EXCEPTION 'bcm_tx_qrnt_l status is final once it leaves OPEN';
+  END IF;
+
+  -- 발견 횟수는 열린 격리에서만, 오르기만 한다.
+  IF NEW.dtct_cnt <> OLD.dtct_cnt THEN
+    IF OLD.qrnt_stcd <> 'OPEN' OR NEW.qrnt_stcd <> 'OPEN' OR NEW.dtct_cnt < OLD.dtct_cnt THEN
+      RAISE EXCEPTION 'bcm_tx_qrnt_l detection count only grows while OPEN';
+    END IF;
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -68,5 +79,6 @@ CREATE TRIGGER trg_bcm_tx_qrnt_evidence_immutable
   FOR EACH ROW EXECUTE FUNCTION bcm_tx_qrnt_reject_evidence_mutation();
 
 REVOKE ALL ON bcm_tx_qrnt_l FROM PUBLIC;
--- 앱 역할: INSERT·상태 UPDATE 와 body 를 제외한 컬럼 SELECT 만 부여한다. body·rcrd_vl·obsv_vl 열람은 감사 역할에만
--- 허용한다. 역할 이름은 배포별 DBA 절차에서 지정한다(V24 증적 보관과 같은 규율).
+-- 앱 역할: INSERT·상태 UPDATE 와 **보호 컬럼을 제외한** SELECT 만 부여한다.
+-- 보호 컬럼은 body·rcrd_vl·obsv_vl 이며 감사 역할만 읽는다 — 어댑터도 이 셋을 고르지 않는다.
+-- 역할 이름은 배포별 DBA 절차에서 지정한다(V24 증적 보관과 같은 규율).

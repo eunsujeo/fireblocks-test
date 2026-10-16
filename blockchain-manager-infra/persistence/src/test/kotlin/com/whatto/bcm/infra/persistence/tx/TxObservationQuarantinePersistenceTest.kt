@@ -32,10 +32,11 @@ class TxObservationQuarantinePersistenceTest : PersistenceTestSupport() {
         assertThat(stored.status).isEqualTo(TxObservationQuarantineStatus.OPEN)
         assertThat(stored.field).isEqualTo("amount")
         assertThat(stored.detectionCount).isEqualTo(1)
-        assertThat(stored.evidence.lookup).isEqualTo(VendorLookup.PAGE)
-        assertThat(stored.evidence.indexInBody).isEqualTo(2)
-        // 앱 역할은 body 를 열람하지 않는다 — 길이·해시로만 본문을 가리킨다.
-        assertThat(stored.evidence.body).isEmpty()
+        assertThat(stored.lookup).isEqualTo(VendorLookup.PAGE)
+        assertThat(stored.indexInBody).isEqualTo(2)
+        // 앱 역할은 보호 컬럼을 열람하지 않는다 — 길이·해시로만 본문을 가리킨다.
+        assertThat(stored.bodyLength).isEqualTo(BODY.size)
+        assertThat(stored.bodyHash).isEqualTo(sha256Hex(BODY))
         val row = jdbc.queryForMap("SELECT body_len, body_hash, body FROM bcm_tx_qrnt_l")
         assertThat(row["body_len"]).isEqualTo(BODY.size)
         assertThat(row["body_hash"]).isEqualTo(sha256Hex(BODY))
@@ -60,6 +61,39 @@ class TxObservationQuarantinePersistenceTest : PersistenceTestSupport() {
         quarantines.open(quarantine(quarantineId = "qr-2", fingerprint = "b".repeat(64)), "20260807120000")
 
         assertThat(quarantines.findOpenByRoot("tx-root")).hasSize(2)
+    }
+
+    @Test
+    fun `앱 조회는 보호 컬럼을 고르지 않는다`() {
+        // body·rcrd_vl·obsv_vl 은 감사 역할만 읽는다(03 V37). SELECT 에 들어가면 제한 역할에서 권한 오류가 난다.
+        quarantines.open(quarantine(), "20260807120000")
+
+        // 어댑터가 실제로 쓰는 SELECT 를 본다 — 복사본이 아니라.
+        assertThat(TxObservationQuarantineJdbcAdapter.SELECT_COLUMNS)
+            .doesNotContain(" body,")
+            .doesNotContain("rcrd_vl")
+            .doesNotContain("obsv_vl")
+            .contains("body_len", "body_hash")
+    }
+
+    @Test
+    fun `닫힌 격리는 다시 열 수 없고 발견 횟수도 오르지 않는다`() {
+        quarantines.open(quarantine(), "20260807120000")
+        jdbc.update("UPDATE bcm_tx_qrnt_l SET qrnt_stcd = 'RESOLVED', last_chng_dttm = '20260807130000'")
+
+        assertThatThrownBy { jdbc.update("UPDATE bcm_tx_qrnt_l SET qrnt_stcd = 'OPEN'") }
+            .isInstanceOf(UncategorizedSQLException::class.java)
+            .hasMessageContaining("final once it leaves OPEN")
+    }
+
+    @Test
+    fun `목록 위치만 바꾸는 갱신도 거절한다`() {
+        // 본문을 유지한 채 위치를 바꾸면 증적이 다른 거래를 가리키게 된다.
+        quarantines.open(quarantine(), "20260807120000")
+
+        assertThatThrownBy { jdbc.update("UPDATE bcm_tx_qrnt_l SET evdc_idx = 9") }
+            .isInstanceOf(UncategorizedSQLException::class.java)
+            .hasMessageContaining("evidence is immutable")
     }
 
     @Test

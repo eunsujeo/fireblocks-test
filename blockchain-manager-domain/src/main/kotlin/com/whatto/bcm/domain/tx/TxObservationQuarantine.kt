@@ -71,6 +71,29 @@ enum class TxObservationQuarantineStatus {
     REPLAYED,
 }
 
+/**
+ * 앱이 읽는 격리 — **보호 컬럼(`body`·양쪽 값)은 들어 있지 않다.** 그 셋은 감사 역할만 읽는다(03 V37).
+ * 어긋난 항목 이름은 보호 대상이 아니므로 그대로 둔다 — 경보·조사 시작점이 그 값이다.
+ */
+data class TxObservationQuarantineSummary(
+    val quarantineId: String,
+    val rootVendorTransactionId: String,
+    val observedVendorTransactionId: String,
+    val network: String,
+    val source: TxObservationQuarantineSource,
+    val status: TxObservationQuarantineStatus,
+    val field: String,
+    val lookup: VendorLookup,
+    val indexInBody: Int?,
+    /** 본문은 돌려주지 않고 길이·해시로만 가리킨다. */
+    val bodyLength: Int,
+    val bodyHash: String,
+    val fingerprint: String,
+    val detectionCount: Int,
+    val firstDetectedAt: String,
+    val lastChangedAt: String,
+)
+
 interface TxObservationQuarantineRepository {
     /**
      * 열린 격리를 남긴다. 같은 관찰이 다시 발견되면 **행을 늘리지 않고** 발견 횟수만 올린다 —
@@ -79,9 +102,9 @@ interface TxObservationQuarantineRepository {
     fun open(
         quarantine: TxObservationQuarantine,
         observedAt: String,
-    ): TxObservationQuarantine
+    ): TxObservationQuarantineSummary
 
-    fun findOpenByRoot(rootVendorTransactionId: String): List<TxObservationQuarantine>
+    fun findOpenByRoot(rootVendorTransactionId: String): List<TxObservationQuarantineSummary>
 }
 
 /**
@@ -101,11 +124,23 @@ object TxObservationQuarantineFingerprint {
     ): String {
         val digest = java.security.MessageDigest.getInstance("SHA-256")
         listOf(rootVendorTransactionId, observedVendorTransactionId, field, recordedValue, observedValue).forEach {
-            // 길이를 함께 섞는다 — 이어 붙이기만 하면 경계가 다른 값이 같은 지문을 낸다.
-            digest.update(it.length.toString().toByteArray())
-            digest.update(it.toByteArray())
+            // **고정 폭 UTF-8 바이트 길이**를 앞에 둔다. 10진 길이는 폭이 들쭉날쭉해 경계가 모호하고,
+            // `String.length`(UTF-16 문자 수)는 뒤에 붙는 UTF-8 바이트 수와 다르다 — 둘 다 다른 값이
+            // 같은 입력열을 만들 수 있고, 그러면 다른 관찰이 남의 격리 행에 합쳐져 증적을 잃는다.
+            val bytes = it.toByteArray(Charsets.UTF_8)
+            digest.update(bigEndian(bytes.size))
+            digest.update(bytes)
         }
+        digest.update(bigEndian(body.size))
         digest.update(body)
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
+
+    private fun bigEndian(value: Int) =
+        byteArrayOf(
+            (value ushr 24).toByte(),
+            (value ushr 16).toByte(),
+            (value ushr 8).toByte(),
+            value.toByte(),
+        )
 }

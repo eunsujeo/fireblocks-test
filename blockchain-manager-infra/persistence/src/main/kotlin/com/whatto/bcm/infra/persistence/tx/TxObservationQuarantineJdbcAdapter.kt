@@ -1,10 +1,10 @@
 package com.whatto.bcm.infra.persistence.tx
 
 import com.whatto.bcm.domain.tx.TxObservationQuarantine
-import com.whatto.bcm.domain.tx.TxObservationQuarantineEvidence
 import com.whatto.bcm.domain.tx.TxObservationQuarantineRepository
 import com.whatto.bcm.domain.tx.TxObservationQuarantineSource
 import com.whatto.bcm.domain.tx.TxObservationQuarantineStatus
+import com.whatto.bcm.domain.tx.TxObservationQuarantineSummary
 import com.whatto.bcm.domain.vendor.VendorLookup
 import com.whatto.bcm.support.audit.SystemAudit
 import org.springframework.jdbc.core.RowMapper
@@ -14,8 +14,8 @@ import org.springframework.stereotype.Repository
 /**
  * `bcm_tx_qrnt_l` SQL 어댑터(03 V37).
  *
- * 증적 본문은 **읽어 돌려주지 않는다** — 앱 역할은 `body` 를 볼 수 없고 감사 역할만 본다.
- * 조회 결과의 [TxObservationQuarantineEvidence.body] 는 빈 배열이며, 길이·해시는 `body_len`·`body_hash` 로 본다.
+ * **보호 컬럼(`body`·`rcrd_vl`·`obsv_vl`)은 고르지 않는다** — 앱 역할에 열람 권한이 없고, 있어도 들고 다닐 이유가 없다.
+ * 조회는 [TxObservationQuarantineSummary] 를 돌려주고 본문은 길이·해시로만 가리킨다. 열람은 감사 역할 몫이다.
  */
 @Repository
 class TxObservationQuarantineJdbcAdapter(
@@ -24,7 +24,7 @@ class TxObservationQuarantineJdbcAdapter(
     override fun open(
         quarantine: TxObservationQuarantine,
         observedAt: String,
-    ): TxObservationQuarantine {
+    ): TxObservationQuarantineSummary {
         jdbc.update(
             """
             INSERT INTO bcm_tx_qrnt_l
@@ -68,14 +68,14 @@ class TxObservationQuarantineJdbcAdapter(
         return checkNotNull(findOpenByFingerprint(quarantine.fingerprint)) { "quarantine row disappeared after insert" }
     }
 
-    override fun findOpenByRoot(rootVendorTransactionId: String): List<TxObservationQuarantine> =
+    override fun findOpenByRoot(rootVendorTransactionId: String): List<TxObservationQuarantineSummary> =
         jdbc.query(
             "$SELECT_COLUMNS WHERE orig_tx_id = :root AND qrnt_stcd = 'OPEN' ORDER BY frst_dtct_dttm, qrnt_id",
             mapOf("root" to rootVendorTransactionId),
             rowMapper,
         )
 
-    private fun findOpenByFingerprint(fingerprint: String): TxObservationQuarantine? =
+    private fun findOpenByFingerprint(fingerprint: String): TxObservationQuarantineSummary? =
         jdbc
             .query(
                 "$SELECT_COLUMNS WHERE obsv_fngr = :fingerprint AND qrnt_stcd = 'OPEN'",
@@ -85,7 +85,7 @@ class TxObservationQuarantineJdbcAdapter(
 
     private val rowMapper =
         RowMapper { rs, _ ->
-            TxObservationQuarantine(
+            TxObservationQuarantineSummary(
                 quarantineId = rs.getString("qrnt_id"),
                 rootVendorTransactionId = rs.getString("orig_tx_id"),
                 observedVendorTransactionId = rs.getString("obsv_tx_id"),
@@ -93,16 +93,10 @@ class TxObservationQuarantineJdbcAdapter(
                 source = TxObservationQuarantineSource.valueOf(rs.getString("src_dvcd")),
                 status = TxObservationQuarantineStatus.valueOf(rs.getString("qrnt_stcd")),
                 field = rs.getString("cnfl_fld"),
-                recordedValue = rs.getString("rcrd_vl"),
-                observedValue = rs.getString("obsv_vl"),
-                evidence =
-                    TxObservationQuarantineEvidence(
-                        // 앱 역할은 body 를 읽지 않는다 — 길이·해시로만 본문을 가리킨다.
-                        body = ByteArray(0),
-                        contentType = rs.getString("evdc_ctyp"),
-                        lookup = VendorLookup.valueOf(rs.getString("evdc_lkup")),
-                        indexInBody = rs.getObject("evdc_idx", Integer::class.java)?.toInt(),
-                    ),
+                lookup = VendorLookup.valueOf(rs.getString("evdc_lkup")),
+                indexInBody = rs.getObject("evdc_idx", Integer::class.java)?.toInt(),
+                bodyLength = rs.getInt("body_len"),
+                bodyHash = rs.getString("body_hash"),
                 fingerprint = rs.getString("obsv_fngr"),
                 detectionCount = rs.getInt("dtct_cnt"),
                 firstDetectedAt = rs.getString("frst_dtct_dttm"),
@@ -110,11 +104,11 @@ class TxObservationQuarantineJdbcAdapter(
             )
         }
 
-    private companion object {
-        /** `body` 는 고르지 않는다 — 앱 역할에 열람 권한이 없고, 있어도 메모리에 들고 다닐 이유가 없다. */
+    internal companion object {
+        /** 보호 컬럼(`body`·`rcrd_vl`·`obsv_vl`)은 고르지 않는다 — 앱 역할에 열람 권한이 없다. */
         const val SELECT_COLUMNS =
             "SELECT qrnt_id, orig_tx_id, obsv_tx_id, ntwk_cd, src_dvcd, qrnt_stcd, " +
-                "cnfl_fld, rcrd_vl, obsv_vl, evdc_lkup, evdc_idx, evdc_ctyp, body_len, body_hash, " +
+                "cnfl_fld, evdc_lkup, evdc_idx, body_len, body_hash, " +
                 "obsv_fngr, dtct_cnt, frst_dtct_dttm, last_chng_dttm FROM bcm_tx_qrnt_l"
     }
 }
