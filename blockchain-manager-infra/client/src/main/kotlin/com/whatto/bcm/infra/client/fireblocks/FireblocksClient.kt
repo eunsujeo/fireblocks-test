@@ -4,6 +4,7 @@ import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.monitoring.OperationalMetricsPort
 import com.whatto.bcm.domain.monitoring.VendorCallMetricOutcome
+import com.whatto.bcm.domain.vendor.ObservedVendorTransaction
 import com.whatto.bcm.domain.vendor.VendorAsset
 import com.whatto.bcm.domain.vendor.VendorAssetCatalogPort
 import com.whatto.bcm.domain.vendor.VendorBalance
@@ -13,13 +14,16 @@ import com.whatto.bcm.domain.vendor.VendorContractCall
 import com.whatto.bcm.domain.vendor.VendorContractCallPort
 import com.whatto.bcm.domain.vendor.VendorContractCallRequest
 import com.whatto.bcm.domain.vendor.VendorDepositAddress
+import com.whatto.bcm.domain.vendor.VendorLookup
 import com.whatto.bcm.domain.vendor.VendorNetworkFee
 import com.whatto.bcm.domain.vendor.VendorNetworkFeeEstimate
 import com.whatto.bcm.domain.vendor.VendorNetworkFeePort
 import com.whatto.bcm.domain.vendor.VendorNetworkRecord
 import com.whatto.bcm.domain.vendor.VendorPage
+import com.whatto.bcm.domain.vendor.VendorResponseEvidence
 import com.whatto.bcm.domain.vendor.VendorTransaction
 import com.whatto.bcm.domain.vendor.VendorTransactionDestination
+import com.whatto.bcm.domain.vendor.VendorTransactionEvidencePort
 import com.whatto.bcm.domain.vendor.VendorTransactionLifecycleStage
 import com.whatto.bcm.domain.vendor.VendorTransactionPageRequest
 import com.whatto.bcm.domain.vendor.VendorTransactionPeer
@@ -62,6 +66,7 @@ class FireblocksClient(
 ) : WalletVendorPort,
     VendorAssetCatalogPort,
     VendorTransactionPort,
+    VendorTransactionEvidencePort,
     VendorContractCallPort,
     VendorNetworkFeePort,
     VendorWebhookRecoveryPort {
@@ -360,52 +365,114 @@ class FireblocksClient(
             )
         }
 
-    override fun transaction(transactionId: String): VendorTransaction? =
-        transactionOrNull(
-            operation = "transaction",
-            path = encodedPath("$TRANSACTIONS_PATH/{id}", transactionId),
-        )
+    override fun transaction(transactionId: String): VendorTransaction? = observedTransaction(transactionId)?.transaction
 
     override fun transactionByExternalTransactionId(externalTransactionId: String): VendorTransaction? =
-        transactionOrNull(
-            operation = "transactionByExternalTransactionId",
-            path = encodedPath("$TRANSACTIONS_PATH/external_tx_id/{id}", externalTransactionId),
+        observedTransactionByExternalTransactionId(externalTransactionId)?.transaction
+
+    override fun observedTransaction(transactionId: String): ObservedVendorTransaction? =
+        observedOrNull(
+            operation = "transaction",
+            path = encodedPath("$TRANSACTIONS_PATH/{id}", transactionId),
+            lookup = VendorLookup.BY_TRANSACTION_ID,
         )
 
-    override fun transactions(request: VendorTransactionPageRequest): VendorPage<VendorTransaction> {
-        val path = transactionPagePath(request)
-        val response =
+    override fun observedTransactionByExternalTransactionId(externalTransactionId: String): ObservedVendorTransaction? =
+        observedOrNull(
+            operation = "transactionByExternalTransactionId",
+            path = encodedPath("$TRANSACTIONS_PATH/external_tx_id/{id}", externalTransactionId),
+            lookup = VendorLookup.BY_EXTERNAL_TRANSACTION_ID,
+        )
+
+    /**
+     * 목록은 **페이지 본문 하나**가 거래 여럿의 증적이다. 거래별로 잘라 내면 그것도 우리가 가공한 값이 되므로
+     * 본문은 통째로 두고 위치(`indexInBody`)로 잇는다.
+     */
+    override fun observedTransactions(request: VendorTransactionPageRequest): VendorPage<ObservedVendorTransaction> {
+        val entity =
             exchangeEntity(
                 operation = "transactions",
                 method = HttpMethod.GET,
-                path = path,
+                path = transactionPagePath(request),
                 body = null,
                 idempotencyKey = null,
-                responseType = Array<TransactionResponse>::class.java,
+                responseType = ByteArray::class.java,
             )
-        val body = checkNotNull(response.body) { "transactions 응답 본문 없음" }
-        val transactions = body.map(::toDomain)
+        val body = checkNotNull(entity.body) { "transactions 응답 본문 없음" }
+        val responses = objectMapper.readValue(body, Array<TransactionResponse>::class.java)
+        val observed =
+            responses.mapIndexed { index, response ->
+                ObservedVendorTransaction(
+                    transaction = toDomain(response),
+                    evidence = evidenceOf(body, entity, VendorLookup.PAGE, indexInBody = index),
+                )
+            }
+        requireInRequestedVault(request, observed.map { it.transaction })
+        return VendorPage(data = observed, next = entity.headers.getFirst(NEXT_PAGE_HEADER))
+    }
+
+    /** 요청한 vault 밖의 거래가 섞여 오면 조용히 넘기지 않는다 — 남의 금고 거래를 우리 집계에 넣게 된다. */
+    private fun requireInRequestedVault(
+        request: VendorTransactionPageRequest,
+        transactions: List<VendorTransaction>,
+    ) {
         val outOfScope =
             request.sourceVaultId?.let { sourceVaultId ->
                 transactions.firstOrNull {
                     it.source.type != "VAULT_ACCOUNT" || it.source.id != sourceVaultId
                 }
-            }
-        if (outOfScope != null) {
-            throw VendorApiException(
-                operation = "transactions",
-                httpStatus = null,
-                cause =
-                    IllegalStateException(
-                        "transaction source outside requested vault: transactionId=${outOfScope.transactionId}",
-                    ),
-            )
-        }
-        return VendorPage(
-            data = transactions,
-            next = response.headers.getFirst(NEXT_PAGE_HEADER),
+            } ?: return
+        throw VendorApiException(
+            operation = "transactions",
+            httpStatus = null,
+            cause =
+                IllegalStateException(
+                    "transaction source outside requested vault: transactionId=${outOfScope.transactionId}",
+                ),
         )
     }
+
+    /** 파싱 전 본문을 들고 있다가 그 본문에서 파싱한다 — 어댑터를 고친 뒤 같은 응답을 다시 해석할 수 있어야 한다. */
+    private fun observedOrNull(
+        operation: String,
+        path: String,
+        lookup: VendorLookup,
+    ): ObservedVendorTransaction? {
+        val entity =
+            try {
+                exchangeEntity(
+                    operation = operation,
+                    method = HttpMethod.GET,
+                    path = path,
+                    body = null,
+                    idempotencyKey = null,
+                    responseType = ByteArray::class.java,
+                )
+            } catch (exception: VendorApiException) {
+                if (exception.httpStatus == HttpStatus.NOT_FOUND.value()) return null else throw exception
+            }
+        val body = checkNotNull(entity.body) { "$operation 응답 본문 없음" }
+        val response = objectMapper.readValue(body, TransactionResponse::class.java)
+        return ObservedVendorTransaction(toDomain(response), evidenceOf(body, entity, lookup))
+    }
+
+    private fun evidenceOf(
+        body: ByteArray,
+        entity: ResponseEntity<ByteArray>,
+        lookup: VendorLookup,
+        indexInBody: Int? = null,
+    ) = VendorResponseEvidence(
+        body = body,
+        contentType = entity.headers.contentType?.toString(),
+        lookup = lookup,
+        indexInBody = indexInBody,
+    )
+
+    /** 증적 없는 목록 — 같은 조회를 두 번 만들지 않고 증적 경로의 결과에서 관찰만 꺼낸다. */
+    override fun transactions(request: VendorTransactionPageRequest): VendorPage<VendorTransaction> =
+        observedTransactions(request).let { page ->
+            VendorPage(data = page.data.map { it.transaction }, next = page.next)
+        }
 
     override fun estimateNetworkFee(vendorAssetId: String): VendorNetworkFeeEstimate {
         val path =
@@ -469,11 +536,6 @@ class FireblocksClient(
             checkNotNull(response.total) { "resendFailedWebhookNotifications 응답 결손: total" },
         )
     }
-
-    private fun transactionOrNull(
-        operation: String,
-        path: String,
-    ): VendorTransaction? = transactionResponseOrNull(operation, path)?.let(::toDomain)
 
     private fun transactionResponseOrNull(
         operation: String,

@@ -4,6 +4,7 @@ import com.whatto.bcm.domain.exception.RelayRejectedException
 import com.whatto.bcm.domain.exception.VendorApiException
 import com.whatto.bcm.domain.vendor.VendorContractCallRequest
 import com.whatto.bcm.domain.vendor.VendorFeeLevel
+import com.whatto.bcm.domain.vendor.VendorLookup
 import com.whatto.bcm.domain.vendor.VendorNetworkFee
 import com.whatto.bcm.domain.vendor.VendorNetworkFeeEstimate
 import com.whatto.bcm.domain.vendor.VendorTransactionDestination
@@ -556,6 +557,46 @@ class FireblocksTransactionClientTest {
         assertThat(page.data.map { it.source.id }).containsExactly("71", "72")
         assertThat(page.next).isEqualTo("cursor-2")
         server.verify()
+    }
+
+    @Test
+    fun `증적 조회는 파싱 전 본문을 그대로 들고 온다`() {
+        // 어댑터가 빈 문자열을 null 로, 누락 컨펌을 0 으로 바꾼다 — 변환 뒤 값만으로는 원인을 고친 뒤 재해석할 수 없다(03 V37).
+        val (client, server) = fixture()
+        val body = responseJson.replace("\"numOfConfirmations\":12", "\"numOfConfirmations\":12,\"unmappedField\":\"keep-me\"")
+        server
+            .expect(requestTo("https://sandbox-api.fireblocks.test/v1/transactions/tx-91c"))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
+
+        val observed = client.observedTransaction("tx-91c")
+
+        assertThat(observed?.transaction?.transactionId).isEqualTo("tx-91c")
+        // 어댑터가 버린 필드가 원문에는 남아 있다.
+        assertThat(observed?.evidence?.body?.decodeToString()).isEqualTo(body).contains("keep-me")
+        assertThat(observed?.evidence?.lookup).isEqualTo(VendorLookup.BY_TRANSACTION_ID)
+        assertThat(observed?.evidence?.indexInBody).isNull()
+        assertThat(observed?.evidence?.contentType).contains(MediaType.APPLICATION_JSON_VALUE)
+    }
+
+    @Test
+    fun `목록 증적은 페이지 본문 전체이고 위치로 거래를 잇는다`() {
+        // 거래 하나만 잘라 내면 그것도 우리가 가공한 값이다 — 본문은 통째로 두고 위치로 잇는다(03 V37).
+        val (client, server) = fixture()
+        val second = responseJson.replace("\"id\":\"tx-91c\"", "\"id\":\"tx-92c\"")
+        val page = "[$responseJson,$second]"
+        server
+            .expect(method(HttpMethod.GET))
+            .andRespond(withSuccess(page, MediaType.APPLICATION_JSON).header("next-page", "cursor-2"))
+
+        val observed = client.observedTransactions(VendorTransactionPageRequest(sourceVaultId = "71"))
+
+        assertThat(observed.data.map { it.transaction.transactionId }).containsExactly("tx-91c", "tx-92c")
+        assertThat(observed.data.map { it.evidence.indexInBody }).containsExactly(0, 1)
+        // 두 거래가 **같은 페이지 본문**을 가리킨다.
+        assertThat(observed.data.map { it.evidence.body.decodeToString() }).containsOnly(page)
+        assertThat(observed.data.map { it.evidence.lookup }).containsOnly(VendorLookup.PAGE)
+        assertThat(observed.next).isEqualTo("cursor-2")
     }
 
     private fun fixture(): Pair<FireblocksClient, MockRestServiceServer> {
