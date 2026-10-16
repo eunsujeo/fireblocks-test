@@ -145,6 +145,32 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
+    fun `종결 재관찰의 이벤트는 조회값이 아니라 원장의 금액·주소를 싣는다`() {
+        // 조회값을 그대로 실으면 원장이 최초값을 지키는 동안 이벤트만 새 값을 실어 나가 둘이 갈린다(03 V32·V34).
+        val root =
+            transactions.insert(
+                rootRecord().copy(amount = "1.5", sourceAddress = "0xledgerFrom", destinationAddress = "0xledgerTo"),
+            )
+        val handler = handler(FamilyVendor(emptyMap()))
+
+        handler.observe(
+            StallCandidate(root, SubmissionTransactionType.WITHDRAWAL),
+            // 조회는 주소를 못 돌려줄 수 있다 — 그래도 이벤트는 원장이 아는 주소를 실어야 한다.
+            completedTransaction().copy(sourceAddress = null, destinationAddress = null),
+            "20260807120000",
+        )
+
+        val stored = transactions.findByVendorTxId("tx-root")
+        assertThat(stored?.amount).isEqualTo("1.5")
+        assertThat(stored?.sourceAddress).isEqualTo("0xledgerFrom")
+        assertThat(stored?.destinationAddress).isEqualTo("0xledgerTo")
+        assertThat(publishedEvent())
+            .containsEntry("amount", "1.5")
+            .containsEntry("from_addr", "0xledgerFrom")
+            .containsEntry("to_addr", "0xledgerTo")
+    }
+
+    @Test
     fun `제출 원장이 없는 입금 종결 재관찰도 deposit outbox를 함께 적재한다`() {
         val root = transactions.insert(rootRecord().copy(externalTxId = null))
         val handler = handler(FamilyVendor(emptyMap()))
@@ -330,9 +356,24 @@ class StallTerminalObservationIntegrationTest : IntegrationTestSupport() {
             sweepInvalidation = SweepInvalidationService(sweepExecutions, SweepEventPublisher { error("not used") }),
             boosts = boosts,
             vendor = vendor,
-            eventSerializer = ChainEventSerializer { "{\"txId\":\"${it.txId}\"}" },
+            eventSerializer = eventSerializer,
             clock = Clock.fixed(Instant.parse("2026-08-07T12:00:00Z"), ZoneId.of("Asia/Seoul")),
             outboxMaxAttempts = 5,
+        )
+
+    /** 이벤트가 **무엇을 실었는지** 보려면 직렬화가 그 값을 담아야 한다. */
+    private val eventSerializer =
+        ChainEventSerializer { event ->
+            """{"txId":"${event.txId}","amount":"${event.amount}","from":"${event.from}","to":"${event.to}"}"""
+        }
+
+    /** payload 는 jsonb 라 Postgres 가 표기를 정규화한다 — 문자열이 아니라 값으로 본다. */
+    private fun publishedEvent(): Map<String, Any?> =
+        jdbc.queryForMap(
+            """
+            SELECT payload->>'amount' AS amount, payload->>'from' AS from_addr, payload->>'to' AS to_addr
+              FROM bcm_outbox_l
+            """.trimIndent(),
         )
 
     private fun insertSweepExecution() {

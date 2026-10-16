@@ -135,6 +135,12 @@ class TransactionalStallTerminalObservationHandler(
                     vendorNetworkStatus = candidate.record.vendorNetworkStatus,
                     observedAt = observedAt,
                     vendorCreatedAt = CoreDateTimes.fromEpochMillis(transaction.createdAtEpochMillis),
+                    // 조회가 본 금액·주소를 실어 보낸다. 싣지 않으면 원장은 옛 값을 지키는데 아래 이벤트는
+                    // 조회값을 실어 **원장과 이벤트가 갈린다** — V32가 막으려는 내부 모순이다.
+                    // 거래 구분은 싣지 않는다 — 벤더 관찰값이 아니라 제출에서 오는 권위 값이다.
+                    observedAmount = transaction.amount,
+                    observedSourceAddress = transaction.sourceAddress,
+                    observedDestinationAddress = transaction.destinationAddress,
                 ),
                 successEvidence = PhysicalTransactionEvidence.hasSucceeded(transaction.statusObservation()),
             )
@@ -171,9 +177,11 @@ class TransactionalStallTerminalObservationHandler(
                         accountId = stateChange.record.accountId,
                         network = stateChange.record.network,
                         symbol = stateChange.record.symbol,
-                        to = transaction.destinationAddress,
-                        from = transaction.sourceAddress,
-                        amount = transaction.amount,
+                        // **원장 값을 싣는다.** 조회값을 그대로 쓰면 원장이 최초값을 지키는 동안
+                        // 이벤트만 새 값을 실어 나가 둘이 갈린다(03 V32·V34).
+                        to = stateChange.record.destinationAddress,
+                        from = stateChange.record.sourceAddress,
+                        amount = checkNotNull(stateChange.record.amount) { "terminal observation ledger row must carry an amount" },
                         status = publishedStatus,
                         numOfConfirmations = transaction.confirmationCount,
                     )
